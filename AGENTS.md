@@ -20,6 +20,15 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - 실제 구현 규칙은 루트 `AGENTS.md`와 각 모듈의 `AGENTS.md`를 함께 따른다.
 - 코드와 문서가 충돌하면 현재 코드 구조를 먼저 확인하고, 필요한 경우 문서를 함께 갱신한다.
 
+## Confirmed Technical Direction
+
+- App navigation은 Compose Multiplatform Navigation 3를 사용한다.
+- App DI는 Metro DI를 사용한다.
+- Server framework는 Ktor 3를 사용한다.
+- Server scraping과 HTML parsing은 Jsoup을 사용한다.
+- 위 기술이 아직 Gradle에 반영되지 않았더라도, 이는 미확정이 아니라 추후 구현 단계에서 반영할 확정 방향이다.
+- 실제 dependency 추가/변경은 `gradle/libs.versions.toml`과 각 모듈의 `build.gradle.kts`를 기준으로 진행한다.
+
 ## Repository Structure
 
 | **Module**      | **Purpose**                          |
@@ -28,7 +37,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 | app/androidApp  | Android 앱 엔트리 포인트                    |
 | app/iosApp      | iOS 앱 엔트리 포인트                        |
 | server          | Ktor 기반 서버 애플리케이션                    |
-| core (optional) | 앱/서버가 공유할 수 있는 순수 Kotlin 유틸리티와 공통 코드 |
+| core            | 앱/서버가 공유할 수 있는 순수 Kotlin 유틸리티와 공통 코드 |
 | docs            | 기획, 아키텍처, ADR, 작업 계획 문서              |
 
 ## Module Boundaries
@@ -43,7 +52,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - shared-first 원칙을 따른다. Android/iOS에 중복 구현하기 전에 `commonMain` 구현 가능성을 먼저 검토한다.
 - 앱은 UDF 기반으로 상태를 관리한다.
 - ViewModel은 UI state를 `StateFlow`로 노출한다.
-- Domain layer는 필요한 경우에만 둔다. 단순 Repository 호출만 감싸는 UseCase는 만들지 않는다.
+- Domain layer는 app-facing model과 repository contract의 경계로 사용한다. 단순 Repository 호출만 감싸는 UseCase는 만들지 않는다.
 - 서버 응답 DTO, local entity, UI model, domain model의 책임을 섞지 않는다.
 
 ## App Development Rules
@@ -66,6 +75,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - `core`에는 앱과 서버가 공유해도 안전한 순수 Kotlin 코드를 둔다.
 - Compose UI, Android Context, iOS API, Ktor Application 같은 framework-specific 의존성은 피한다.
 - 공통 enum, value object, formatter, validation, lightweight utility를 우선 배치한다.
+- request/response DTO, API contract, transport-oriented model은 `core`에 두지 않는다.
 - 특정 기능에만 쓰이는 코드는 무리하게 `core`로 올리지 않는다.
 
 ## Build, Test, and Verification Commands
@@ -79,7 +89,11 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 
 ## Documentation Workflow
 
-- 큰 기능을 시작하기 전 `docs/` 또는 ralplan 결과물에 목표와 범위를 남긴다.
+- 기능 작업을 시작하기 전 `docs/`, Stitch, ralplan 결과물에 해당 기능의 최신 기획/범위가 업데이트되어 있는지 확인한다.
+- 기능별 상세 문서는 기능 작업이 시작될 때 `docs/` 아래에 생성하거나 갱신한다. 아직 작업이 시작되지 않은 예정 기능에 대해 빈 문서를 미리 만들지 않는다.
+- Stitch 기반 `DESIGN.md`가 수립되면 UI, theme, component, visual decision의 source of truth로 함께 확인한다.
+- ralplan 결과물은 보통 `.omx` 안의 작업 산출물로 남을 수 있다. 장기적으로 유지해야 하는 결정은 `docs/` 아래의 architecture, feature, plan 문서로 승격한다.
+- 큰 기능을 시작하기 전 `docs/` 또는 ralplan 결과물에 목표와 범위를 남긴다. 관련 문서가 아직 예정 상태라면 그 사실을 명시하고, 현재 요청 범위 안에서 필요한 최소 문서만 생성하거나 갱신한다.
 - 아키텍처 결정이 바뀌면 관련 문서를 함께 갱신한다.
 - 긴 코드 예시와 설계 배경은 AGENTS.md가 아니라 `docs/`에 둔다.
 - AGENTS.md에는 반복 작업에 필요한 규칙과 기준만 유지한다.
