@@ -34,6 +34,7 @@ captures/
 .idea/gradle.xml
 .idea/jarRepositories.xml
 .idea/navEditor.xml
+.kotlin/
 !/gradle/wrapper/gradle-wrapper.jar
 
 ### Xcode ###
