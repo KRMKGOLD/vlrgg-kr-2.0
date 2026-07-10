@@ -2,7 +2,7 @@
 
 ## Source of Truth
 
-- 앱/서버 경계는 `../docs/architecture/app-architecture.md`와 `../docs/architecture/server-architecture.md`를 함께 확인한다.
+- 앱/서버 경계는 `../docs/app-arch/app-arch.md`와 `../docs/architecture/server-arch.md`를 함께 확인한다.
 - 루트 운영 규칙은 `../AGENTS.md`를 함께 따른다.
 - 이 파일에는 `core`에서 바로 적용할 짧은 실행 규칙만 둔다.
 

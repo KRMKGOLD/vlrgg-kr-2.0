@@ -1,0 +1,183 @@
+# Server Architecture
+
+## Purpose
+
+`server`는 Ktor 3 기반의 VLR.GG 전용 backend다. 서버는 외부 HTML을 수집·해석하고, 앱이 사용할 수 있는 안정적인 JSON API response로 가공한다.
+
+Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selector, Jsoup `Document`·`Element`, 원본 HTML, scraping 보정은 서버 경계 안에 머문다. 앱은 app-facing API contract만 사용한다.
+
+첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. 새로운 dependency와 실제 Gradle 설정은 해당 기능 구현 시점에 결정한다.
+
+## Current State and Direction
+
+현재 `server`는 `Application.kt`의 root route만 있는 최소 Ktor template이다. scraper, API contract, cache, DI, error handler는 아직 구현되지 않았다.
+
+구현이 시작되면 단일 `:server` Gradle module 안에서 feature-based modular structure를 사용한다.
+
+- feature는 route부터 app-facing response까지 한 흐름을 소유한다.
+- 공통 Ktor plugin, public HTTP contract, scraping utility는 feature 밖의 좁은 공통 영역에 둔다.
+- 실제 기능이 없는 빈 package·file을 미리 만들지 않는다.
+- feature가 충분히 커질 때만 별도 Gradle module 분리를 검토한다.
+
+Ktor는 단일한 프로젝트 구조를 강제하지 않는다. 이 구조는 Ktor module과 feature package를 함께 사용해 현재의 단순성과 이후 확장성을 맞춘다. [Ktor application structure](https://ktor.io/docs/server-application-structure.html), [Ktor modules](https://ktor.io/docs/server-modules.html)
+
+## Target Package Shape
+
+`server/src/main/kotlin/kr/co/cotton/vlrgg_mobile` 아래를 다음의 목적지로 사용한다.
+
+```text
+server/
+  Application.kt
+  config/
+    ServerConfig.kt
+  plugins/
+    Serialization.kt
+    ErrorHandling.kt
+    Monitoring.kt
+  routing/
+    Routing.kt
+  common/
+    http/
+      ApiErrorCode.kt
+      ApiErrorResponse.kt
+    scraping/
+    time/
+    notification/              # Discord notification을 실제 도입할 때만
+  feature/
+    match/
+      MatchModule.kt
+      MatchRoutes.kt
+      MatchService.kt
+      MatchScraper.kt
+      MatchParser.kt
+      MatchMapper.kt
+      MatchResponse.kt
+      MatchSourceModel.kt
+    event/
+    team/
+    player/
+```
+
+이 트리는 책임을 위한 기준선이다. 작은 feature는 파일 수를 줄여도 되지만, route·service·scraper/parser·response 책임은 섞지 않는다. 한 feature의 파일 수가 늘어 가독성이 떨어질 때만 `route`, `service`, `scraper`, `model`, `mapper` 같은 feature 내부 package로 나눈다.
+
+## Application Entry and Dependency Composition
+
+`Application.kt`는 얇게 유지한다.
+
+```kotlin
+fun Application.module() {
+    configureSerialization()
+    configureMonitoring()
+    configureErrorHandling()
+    configureRouting()
+}
+```
+
+담당 책임은 서버 시작, config 로드, plugin 설치, feature module 연결뿐이다. feature route, HTML parsing, response mapping을 직접 넣지 않는다.
+
+초기 서버는 feature/module 함수 parameter 또는 명시적인 composition으로 dependency를 전달한다. route handler 안에서 scraper, service, HTTP client를 생성하지 않는다. manual wiring이 읽기 어렵거나 test setup을 해치기 전에는 별도 DI framework를 도입하지 않는다. 그 시점이 오면 Ktor built-in DI를 포함해 다시 검토한다.
+
+## Feature Boundary
+
+| File | Responsibility |
+| --- | --- |
+| `*Module.kt` | feature dependency 조립과 Ktor module 연결 |
+| `*Routes.kt` | HTTP input 검증, service 호출, status/response 반환 |
+| `*Service.kt` | use-case 수준 orchestration과 feature 정책 |
+| `*Scraper.kt` | upstream VLR.GG content 요청 |
+| `*Parser.kt` | raw HTML을 내부 source model로 해석 |
+| `*Mapper.kt` | source model을 app-facing response로 변환 |
+| `*Response.kt` | 앱에 공개하는 JSON response model |
+| `*SourceModel.kt` | VLR.GG 원본 구조를 표현하는 server-internal model |
+
+Route handler는 request를 service 호출로 바꾸고 response를 반환하는 곳이다. Jsoup traversal, CSS selector, raw HTML 보정은 route와 service 밖의 parser 경계에 둔다.
+
+## Scraping, Freshness, and Upstream Policy
+
+VLR.GG HTML은 외부의 불안정한 source contract다. DOM 구조와 텍스트 형식이 바뀔 수 있다고 가정한다.
+
+- 앱 요청 시점에 VLR.GG를 조회한다. 최신성이 우선이므로 주기 갱신이나 cache-first 응답을 기본 구조로 두지 않는다.
+- database, durable cache, stale-on-error fallback을 첫 단계에 도입하지 않는다.
+- 같은 canonical upstream resource를 동시에 요청했을 때만 하나의 진행 중 fetch를 공유할 수 있다. 이는 중복 upstream 요청을 줄이기 위한 동시성 보호이며, 이전 성공 데이터를 반환하는 cache가 아니다.
+- upstream network failure 또는 parsing failure가 발생하면 이전 데이터를 반환하지 않고 실패 응답을 반환한다.
+- timeout, user-agent, retry, rate-limit의 구체 값은 scraper 구현 시 기능 요구와 upstream 동작을 근거로 결정한다. 무제한 재시도나 과도한 요청을 만들지 않는다.
+
+Scraper, Parser, Mapper의 경계는 다음과 같다.
+
+- Scraper: 원본 content를 가져온다.
+- Parser: 원본 content를 `SourceModel`로 해석한다.
+- Mapper: `SourceModel`을 app-facing `Response`로 바꾼다.
+
+Jsoup `Document`와 `Element`는 parser 내부에서만 사용한다. `SourceModel`, raw HTML, Jsoup type을 route response로 반환하거나 service 밖으로 노출하지 않는다. 중요한 페이지는 최소 HTML fixture를 사용해 parser 가정을 테스트한다.
+
+## Public API Error Contract
+
+모든 실패 응답은 동일한 JSON envelope를 사용한다. HTTP status는 protocol-level 의미를, `code`는 안정적인 machine-readable 의미를 가진다.
+
+```kotlin
+@Serializable
+data class ApiErrorResponse(
+    val code: ApiErrorCode,
+    val message: String,
+)
+```
+
+`ApiErrorCode`는 `common/http`의 public server API contract다. 첫 구현은 최소한 다음 범주를 다룬다.
+
+| Code | HTTP status | Meaning |
+| --- | --- | --- |
+| `INVALID_REQUEST` | `400 Bad Request` | path/query/body input이 유효하지 않음 |
+| `UPSTREAM_NETWORK_FAILURE` | `502 Bad Gateway` | VLR.GG 요청·연결·timeout 등 upstream 통신 실패 |
+| `SOURCE_PARSING_FAILURE` | `502 Bad Gateway` | 응답은 받았지만 필요한 VLR.GG 구조를 해석할 수 없음 |
+| `INTERNAL_ERROR` | `500 Internal Server Error` | 위 범주 밖의 처리 실패 |
+
+규칙:
+
+- network failure와 parsing failure는 server 내부와 public `code`에서 모두 구분한다.
+- `message`는 개발 중 원인을 파악할 수 있는 안전한 요약이다. 예외 메시지, stack trace, raw HTML, selector, canonical upstream URL을 그대로 넣지 않는다.
+- 내부 failure는 sealed type 또는 focused exception으로 구현할 수 있다. 어느 방식이든 원인, URL, throwable을 내부에서 보존하고 `ErrorHandling` 경계에서 `ApiErrorResponse`로 매핑한다.
+- 앱은 현재 모든 non-success response를 generic `AppResult.Failure`로 변환한다. UI는 `ApiErrorCode`를 해석하지 않는다. 오류별 UI 요구가 생기면 앱 Data·Domain·UI 문서를 함께 갱신한다.
+- API error envelope는 `StatusPages` 등 공통 error handling plugin에서 일관되게 반환한다. Ktor는 예외 처리를 위한 `StatusPages` plugin을 제공한다. [Ktor StatusPages](https://ktor.io/docs/server-status-pages.html)
+
+## Plugins, Logging, and Notification
+
+`plugins`에는 모든 feature에 공통인 Ktor 설정만 둔다.
+
+- `Serialization.kt`: JSON content negotiation
+- `ErrorHandling.kt`: exception/failure를 public error envelope로 매핑
+- `Monitoring.kt`: request logging과 failure logging
+- CORS, authentication 등은 실제 client requirement가 생길 때만 추가
+
+첫 단계의 관측은 별도 log platform 없이 콘솔 로그를 사용한다. 현재 `logback.xml`의 console appender를 기반으로 다음을 구현 시 적용한다.
+
+- Ktor request logging
+- network/parsing failure의 `ApiErrorCode`, canonical upstream URL, cause를 서버 로그에 기록
+- secret, token, client credential, raw HTML을 로그에 기록하지 않음
+
+Discord notification은 선택적인 운영 확장이다. 실제 도입할 때 webhook secret을 environment variable로 주입하고, failure notifier는 best effort로 동작시킨다. Discord 전송 실패는 원래 API failure response를 바꾸거나 새로운 failure를 만들지 않는다. 반복 failure의 notification 제어가 필요해지는 시점에만 throttling을 추가한다.
+
+## Configuration and Deployment
+
+구체적인 배포 공급자는 아직 결정하지 않는다. 배포 환경은 JVM Ktor application 또는 container를 실행할 수 있어야 한다. deployment config, 비용 정책, cloud resource는 실제 배포 작업에서 선택한다.
+
+server config와 secret은 source code에 넣지 않는다. `ServerConfig` 또는 동등한 config boundary를 실제 도입할 때 사용하고, Discord webhook 같은 secret은 environment variable로만 전달한다.
+
+## Testing Expectations
+
+- parser test: HTML fixture를 기반으로 selector와 source-structure 가정을 검증
+- mapper test: `SourceModel`에서 response DTO로 변환되는 규칙을 검증
+- service test: request-time scraping, concurrent fetch coalescing을 구현한 경우 그 정책과 stale fallback 부재를 검증
+- error handling test: 각 failure가 올바른 HTTP status, `ApiErrorCode`, 안전한 `message` envelope로 변환되는지 검증
+- route test: request validation과 success/error response contract를 Ktor `testApplication {}`으로 검증
+
+서버 변경의 기본 검증 명령은 `./gradlew :server:test`다.
+
+## Document Placement and Change Rules
+
+이 문서는 `docs/architecture/server-arch.md`에 둔다. 앱 계층 문서인 `docs/app-arch/`와 구분해, 프로젝트 전체의 server/API/upstream 경계를 관리한다.
+
+- `Application.kt`를 얇게 유지한다.
+- route handler에 scraping/parsing 세부사항을 넣지 않는다.
+- public response model과 server-internal source model을 섞지 않는다.
+- error contract, freshness policy, notification, DI, deployment requirement가 바뀌면 이 문서를 갱신한다.
+- 기능 없는 빈 scaffolding과 구현되지 않은 infrastructure를 먼저 만들지 않는다.

@@ -16,7 +16,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 ## Source of Truth
 
 - 제품 기획과 화면 요구사항에 대해서는 docs/ 와 Stitch를 우선적으로 확인한다.
-- 아키텍처 결정은 `docs/architecture/` 또는 ralplan 결과물을 따른다.
+- 앱 아키텍처 결정은 `docs/app-arch/`, 서버 아키텍처 결정은 `docs/architecture/` 또는 ralplan 결과물을 따른다.
 - 실제 구현 규칙은 루트 `AGENTS.md`와 각 모듈의 `AGENTS.md`를 함께 따른다.
 - 코드와 문서가 충돌하면 현재 코드 구조를 먼저 확인하고, 필요한 경우 문서를 함께 갱신한다.
 
@@ -52,7 +52,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - shared-first 원칙을 따른다. Android/iOS에 중복 구현하기 전에 `commonMain` 구현 가능성을 먼저 검토한다.
 - 앱은 UDF 기반으로 상태를 관리한다.
 - ViewModel은 UI state를 `StateFlow`로 노출한다.
-- Domain layer는 app-facing model과 repository contract의 경계로 사용한다. 단순 Repository 호출만 감싸는 UseCase는 만들지 않는다.
+- Domain layer는 app-facing business model, repository contract, 공통 `AppResult`의 경계로 사용한다. UI는 Domain Model을 직접 사용할 수 있지만 UiModel은 UI layer에만 둔다. 단순 Repository 호출만 감싸는 UseCase는 만들지 않는다.
 - 서버 응답 DTO, local entity, UI model, domain model의 책임을 섞지 않는다.
 
 ## App Development Rules
@@ -61,14 +61,19 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - Screen은 ViewModel을 연결하고, 실제 UI는 Content composable로 분리한다.
 - Navigation은 Screen callback을 통해 처리하고, ViewModel이 back stack을 직접 제어하지 않는다.
 - 화면 상태는 단일 UiState data class로 표현한다.
+- UI는 explicit ViewModel function callback으로 event를 전달한다. `UiAction`, `Effect`, one-off event stream은 초기 구조에 두지 않는다.
+- sealed ContentState는 화면의 주요 콘텐츠 상태가 복잡해질 때만 선택적으로 사용하며, UiState 전체 snapshot을 대체하지 않는다.
 - UI 표시용 문자열/포맷팅 상태는 Domain Model에 넣지 않는다.
+- repository failure는 초기에는 단일 `AppResult.Failure`로 노출하며, raw exception·HTTP code·오류별 UI 분기는 기능 요구가 생길 때만 도입한다.
 
 ## Server Development Rules
 
 - 서버는 Ktor 기반으로 route, service, scraper/parser, response DTO 책임을 분리한다.
 - vlr.gg HTML 구조에 의존하는 parsing 코드는 한 곳에 모아 변경 영향을 줄인다.
 - 앱에 그대로 노출하기 어려운 원본 scraping 결과는 server에서 app-facing response로 가공한다.
-- scraping 실패, HTML 구조 변경, 네트워크 오류를 명시적인 error response 또는 fallback으로 처리한다.
+- scraping은 요청 시점의 최신 조회를 기본으로 하며, 이전 결과를 failure fallback으로 반환하지 않는다.
+- 서버 실패 응답은 HTTP status, stable error code, 안전한 message를 가진 공통 envelope로 반환한다. network와 parsing failure의 내부 구분·세부 원인은 server log에만 둔다.
+- 서버 배포 공급자는 실제 배포 단계에서 정하되, JVM Ktor application 또는 container 실행 환경을 사용한다. Discord notification은 필요한 경우에만 best-effort 운영 알림으로 추가한다.
 
 ## Core Module Rules
 
