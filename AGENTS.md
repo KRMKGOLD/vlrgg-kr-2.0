@@ -25,7 +25,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - App navigation은 Compose Multiplatform Navigation 3를 사용한다.
 - App DI는 Metro DI를 사용한다.
 - Server framework는 Ktor 3를 사용한다.
-- Server scraping과 HTML parsing은 Jsoup을 사용한다.
+- Server scraping subsystem의 HTML DOM parsing은 Jsoup을 사용한다. Upstream content 획득 transport는 기능 구현 시 선택한다.
 - 위 기술이 아직 Gradle에 반영되지 않았더라도, 이는 미확정이 아니라 추후 구현 단계에서 반영할 확정 방향이다.
 - 실제 dependency 추가/변경은 `gradle/libs.versions.toml`과 각 모듈의 `build.gradle.kts`를 기준으로 진행한다.
 
@@ -72,8 +72,9 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - vlr.gg HTML 구조에 의존하는 parsing 코드는 한 곳에 모아 변경 영향을 줄인다.
 - 앱에 그대로 노출하기 어려운 원본 scraping 결과는 server에서 app-facing response로 가공한다.
 - scraping은 요청 시점의 최신 조회를 기본으로 하며, 이전 결과를 failure fallback으로 반환하지 않는다.
-- 서버 실패 응답은 HTTP status, stable error code, 안전한 message를 가진 공통 envelope로 반환한다. network와 parsing failure의 내부 구분·세부 원인은 server log에만 둔다.
-- 서버 배포 공급자는 실제 배포 단계에서 정하되, JVM Ktor application 또는 container 실행 환경을 사용한다. Discord notification은 필요한 경우에만 best-effort 운영 알림으로 추가한다.
+- 서버 실패 응답은 HTTP status, stable error code, 안전한 message를 가진 공통 envelope로 반환한다. upstream 통신 실패는 public `UPSTREAM_NETWORK_FAILURE`, DOM 해석 실패는 public `SOURCE_PARSING_FAILURE`로 구분한다.
+- 예외 문구·upstream URL·selector·원본 HTML·parser 세부사항은 client에 노출하지 않는다. 안전하게 제한한 canonical upstream URL과 cause는 server log에만 기록하며 원본 HTML은 로그에도 남기지 않는다.
+- 서버의 현재 구현은 Kotlin/JVM 기반 Ktor Netty이고 local 실행을 개발 기준으로 삼는다. 미래 배포 packaging·provider·public host·base URL은 실제 배포 단계에서 정한다. Discord notification은 필요한 경우에만 best-effort 운영 알림으로 추가한다.
 
 ## Core Module Rules
 

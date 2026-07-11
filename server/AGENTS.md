@@ -15,7 +15,8 @@
 - VLR.GG HTML selector와 Jsoup traversal은 parser 경계 안에 모은다.
 - `SourceModel`을 route response로 직접 반환하지 않는다.
 - 모든 실패 response는 HTTP status, `ApiErrorCode`, 안전한 message를 가진 공통 envelope로 반환한다.
-- upstream network failure와 source parsing failure는 구분하되, 원본 HTML, Jsoup `Document`, URL, 내부 parser error를 client에 그대로 노출하지 않는다.
+- upstream 통신 실패는 public `UPSTREAM_NETWORK_FAILURE`, DOM 해석 실패는 public `SOURCE_PARSING_FAILURE`로 구분한다. 원본 HTML, Jsoup `Document`, URL, 내부 parser error는 client에 그대로 노출하지 않는다.
+- feature별 endpoint, request parameter, 성공 response contract는 해당 기능의 기획·UI·데이터 요구에서 정하며 아키텍처 예시로 미리 고정하지 않는다.
 - 이전 scraping 결과를 failure fallback으로 반환하지 않는다. 동시 중복 fetch를 공유하는 구현은 필요할 때만 추가한다.
 - console request/failure logging을 기본으로 하고, Discord notification은 실제 운영 요구가 생길 때만 best-effort로 추가한다.
 - 서버 변경 후 가능한 경우 `./gradlew :server:test`로 확인한다.
