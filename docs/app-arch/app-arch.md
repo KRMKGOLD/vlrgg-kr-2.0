@@ -12,7 +12,7 @@ VLR.GG Mobile 2.0 앱은 vlr.gg의 Valorant e-sports 정보를 Android와 iOS에
 
 - 루트 운영 규칙은 `../../AGENTS.md`를 따른다.
 - 앱 아키텍처의 전체 기준은 이 문서를 따른다.
-- 앱 root, Metro graph 수명, Navigation 3 back stack과 복원 계약은 `app-runtime.md`를 따른다.
+- 앱 root, Metro graph, Navigation 3의 기본 runtime 원칙은 `app-runtime.md`를 따른다.
 - UI 세부 규칙은 `ui-layer.md`를 따른다.
 - Domain 세부 규칙은 `domain-layer.md`를 따른다.
 - Data 세부 규칙은 `data-layer.md`를 따른다.
@@ -42,7 +42,7 @@ VLR.GG Mobile 2.0 앱은 vlr.gg의 Valorant e-sports 정보를 Android와 iOS에
 
 Client architecture는 UI, Domain, Data의 세 경계를 가진다. UI는 `StateFlow`로 화면 snapshot을 노출하고 explicit ViewModel function과 Screen callback으로 UDF를 구성한다. Domain Layer는 app-facing business model, repository contract, 공통 `AppResult`를 담당하고, Data Layer는 server API, local cache, mapper, repository implementation을 담당한다. UseCase는 필수 계층이 아니라 필요한 경우에만 생성한다.
 
-레이어 의존성과 별도로 앱 runtime composition은 플랫폼 앱 수명 owner에서 시작한다. Android/iOS host가 `AppGraph`를 한 번 생성해 공통 `App(graph)`에 전달하고, 공통 root가 Metro ViewModel factory를 제공한다. `AppNavHost`는 하나의 root back stack을 소유한다. 상세 수명·복원·테스트 계약은 `app-runtime.md`에만 둔다.
+레이어 의존성과 별도로 앱 runtime composition은 플랫폼 runtime owner에서 시작한다. 필요한 graph는 Compose recomposition 경로 밖에서 준비해 공통 `App`에 전달한다. navigation 상태의 형태와 Metro factory 제공 위치는 기능 요구사항에 맞춰 정하며, 기본 경계는 `app-runtime.md`를 따른다.
 
 서버가 같은 저장소 안에 있고, 스크래핑 데이터를 앱 친화적인 API로 가공해서 제공하기 때문에 앱의 Domain Layer는 상대적으로 작게 유지한다.
 
@@ -66,9 +66,9 @@ Screen (Composable)
 ```text
 commonMain/
   di/
-    AppGraph.kt             # target: ViewModelGraph root contract
+    AppGraph.kt             # target: app runtime DI graph
   ui/
-    App.kt                  # target: App(graph), root Metro factory provider
+    App.kt                  # target: shared app composition root
     theme/
       Theme.kt
       Colors.kt
@@ -77,7 +77,7 @@ commonMain/
     component/
     navigation/
       AppNavKey.kt
-      AppNavHost.kt         # single root back stack owner
+      AppNavHost.kt         # navigation state and entry mapping
     feature/
       home/
         components/
@@ -131,7 +131,7 @@ commonMain/
 
 ## Layer Documents
 
-- `app-runtime.md`: 플랫폼 composition root, `AppGraph` 수명, Metro ViewModel factory, Navigation 3 back stack과 KMP 복원 계약
+- `app-runtime.md`: platform composition, app graph, navigation state의 기본 runtime 원칙과 구현 시 결정 경계
 - `ui-layer.md`: Compose UI, navigation, feature package, UiState/optional ContentState, direct callback UDF 규칙
 - `domain-layer.md`: Domain model, `AppResult`, repository contract, UseCase 생성 조건
 - `data-layer.md`: Remote/local data source, DTO/entity, repository implementation, mapper, error/cache/test 규칙
@@ -163,7 +163,7 @@ commonMain/
 ## Dependency Rules
 
 - 기존 project dependency와 Kotlin Multiplatform 호환 library를 우선한다.
-- Navigation 3와 Metro DI의 runtime 책임은 `app-runtime.md`, Kotlinx Serialization, Ktor Client, Preferences DataStore, Room의 data 책임은 `data-layer.md`에 기록한다.
+- Navigation 3와 Metro DI의 기본 runtime 원칙은 `app-runtime.md`, Kotlinx Serialization, Ktor Client, Preferences DataStore, Room의 data 책임은 `data-layer.md`에 기록한다.
 - 실제 Gradle dependency/version 추가는 기능 구현 작업에서 `gradle/libs.versions.toml`과 관련 모듈 build file을 함께 갱신하며 수행한다.
 - platform-only API와 factory 구현은 해당 platform source set에 둔다. 공통 contract와 정책은 `commonMain`에 유지한다.
 

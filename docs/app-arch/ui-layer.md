@@ -10,15 +10,15 @@ UI Layer는 화면 렌더링, 사용자 이벤트 전달, navigation callback �
 
 `App.kt`는 Compose 앱의 공통 진입점이다.
 
-- 플랫폼 앱 수명 owner가 생성한 `AppGraph`를 parameter로 받는다.
+- 필요한 runtime dependency는 플랫폼 owner가 준비해 전달한다.
 - 공통 Theme를 적용한다.
-- root `LocalMetroViewModelFactory`를 제공한다.
+- Metro ViewModel을 도입하면 적절한 상위 경계에서 factory를 제공한다.
 - 최상위 navigation host를 연결한다.
 - 전역 scaffold나 app-level composition local이 필요하면 이 레벨에서 다룬다.
 - 개별 feature의 세부 UI나 비즈니스 로직을 직접 넣지 않는다.
 - graph를 composable 본문이나 recomposition 경로에서 생성하지 않는다.
 
-Graph와 back stack의 owner, 수명, 복원 및 preview/test seam은 `app-runtime.md`를 따른다.
+Graph와 navigation 상태의 기본 경계, preview/test seam은 `app-runtime.md`를 따른다.
 
 ## `ui/theme`
 
@@ -54,44 +54,21 @@ Android와 iOS는 가능한 동일한 화면 흐름을 가진다. Navigation은 
 
 `AppNavKey.kt`는 앱에서 사용하는 screen key를 모아두는 파일이다.
 
-- key는 `@Serializable sealed interface AppNavKey : NavKey` hierarchy 아래에 둔다.
-- key에는 복원에 필요한 안정적인 식별자만 넣는다.
+- key는 navigation 구현에 맞는 `NavKey` 형태로 둔다.
+- 저장·복원이 필요한 key에는 안정적인 식별자만 넣고 직렬화 가능하게 만든다.
 - route string을 화면 곳곳에 흩뿌리지 않는다.
-- key는 single-module sealed hierarchy 안에 `@Serializable`로 추가하고 Android/iOS 복원 검증을 함께 갱신한다.
 
 ### `AppNavHost.kt`
 
-`AppNavHost.kt`는 앱의 root Navigation 3 상태와 entry mapping을 정의한다.
+`AppNavHost.kt`는 앱 navigation 상태와 entry mapping을 정의한다.
 
 - Screen callback을 기준으로 화면 이동을 처리한다.
-- 하나의 root back stack을 생성하고 단독으로 관리한다.
-- KMP saved state configuration과 `subclassesOfSealed<AppNavKey>()` serializer 계약은 `app-runtime.md`를 따른다.
-- `NavDisplay`는 saveable-state decorator 다음에 ViewModel-store decorator를 설치해 entry 내부 Metro ViewModel을 `NavEntry` 수명에 scope한다.
+- 기능에 필요한 back stack과 scene을 관리한다.
+- 저장·복원 방식은 실제 target과 Navigation 3 API에 맞춰 결정한다.
+- destination별 ViewModel 수명이 필요한 경우 Navigation 3 entry scope를 사용한다.
 - ViewModel이 `NavBackStack` 또는 동등한 navigation state를 직접 다루지 않게 한다.
 
-Navigation 3의 `rememberNavBackStack`은 generic type argument를 받지 않는다. KMP 공통 코드는 non-JVM 복원을 위해 `app-runtime.md`에 정의한 `SavedStateConfiguration`과 초기 key를 함께 전달한다.
-
-```kotlin
-@Composable
-fun AppNavHost() {
-    val backStack = rememberNavBackStack(
-        appNavSavedStateConfiguration,
-        AppNavKey.Main,
-    )
-    NavDisplay(
-        backStack = backStack,
-        entryDecorators = listOf(
-            rememberSaveableStateHolderNavEntryDecorator(),
-            rememberViewModelStoreNavEntryDecorator(),
-        ),
-        entryProvider = entryProvider {
-            // entries
-        },
-    )
-}
-```
-
-두 decorator의 순서는 계약이다. Compose Multiplatform `lifecycle-viewmodel-navigation3` dependency는 실제 Navigation 3 구현 시 함께 도입한다. 전체 runtime 예시, state restoration, deep link/product-flow의 결정 경계는 `app-runtime.md`에서 관리한다.
+전체 runtime 구성, state restoration, deep link와 product-flow의 결정 경계는 `app-runtime.md`에서 관리한다. 구체 API와 dependency는 실제 Navigation 3 구현 작업에서 당시 호환 버전을 기준으로 결정한다.
 
 ## Feature Package Rules
 
@@ -165,7 +142,7 @@ data class MainUiState(
 )
 ```
 
-DI는 Metro DI를 사용한다. Screen의 `metroViewModel()`은 `App(graph)`가 root에 제공한 동일 factory를 사용한다. graph를 feature composable에서 생성하지 않는다. 의존성이 아직 Gradle에 없다면 첫 DI 구성 작업에서 dependency를 반영하고, 실제 binding 규칙을 함께 문서화한다.
+DI는 Metro DI를 사용한다. Screen은 구성된 상위 DI factory를 사용하며 feature composable에서 app graph를 생성하지 않는다. 의존성이 아직 Gradle에 없다면 첫 DI 구성 작업에서 dependency를 반영하고, 실제 binding과 scope 규칙을 함께 문서화한다.
 
 ## UI State Rules
 

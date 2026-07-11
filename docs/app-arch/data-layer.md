@@ -174,7 +174,7 @@ RepositoryImpl은 `commonMain/data/repository`에 둔다.
 
 ## Metro DI
 
-Metro의 app-level graph는 `commonMain/di/AppGraph.kt`, Data Layer binding은 `commonMain/data/di/DataBindings.kt`에 둔다. `AppGraph` 생성 owner, 수명, `ViewModelGraph`와 root factory 계약은 `app-runtime.md`가 유일한 기준이다. Data Layer는 graph를 생성하거나 Compose composition local을 제공하지 않는다.
+Metro의 app-level graph는 `commonMain/di/AppGraph.kt`, Data Layer binding은 `commonMain/data/di/DataBindings.kt`에 둔다. graph의 runtime 준비와 navigation 경계는 `app-runtime.md`의 기본 원칙을 따른다. Data Layer는 app graph를 생성하거나 Compose composition local을 제공하지 않는다.
 
 처음에는 하나의 `DataBindings.kt`에서 영역을 구분한다.
 
