@@ -17,8 +17,8 @@ VLR.GG Mobile 2.0 앱은 vlr.gg의 Valorant e-sports 정보를 Android와 iOS에
 - Domain 세부 규칙은 `domain-layer.md`를 따른다.
 - Data 세부 규칙은 `data-layer.md`를 따른다.
 - 화면 요구사항과 사용자 흐름은 `docs/`의 기획 문서, Stitch 결과물, ralplan 결과물을 따른다.
-- Stitch 기반 `DESIGN.md`가 수립되면 UI, theme, component, visual decision의 기준으로 함께 확인한다.
-- 기능 작업을 시작하기 전 `docs/`, Stitch `DESIGN.md`, ralplan 결과물에 해당 기능의 최신 기획/범위가 업데이트되어 있는지 확인한다.
+- UI, theme, component, visual decision은 [`../../DESIGN.md`](../../DESIGN.md)를 기준으로 함께 확인한다.
+- 기능 작업을 시작하기 전 `docs/`, 루트 `DESIGN.md`, Stitch 결과물, ralplan 결과물에 해당 기능의 최신 기획/범위가 업데이트되어 있는지 확인한다.
 - 기능 문서가 아직 예정 상태라면 빈 문서를 미리 만들지 않고, 해당 기능 작업이 시작될 때 필요한 최소 범위만 `docs/`에 생성하거나 갱신한다.
 - 현재 코드와 문서가 충돌하면 현재 코드 구조를 먼저 확인하고, 변경 의도에 맞게 문서를 함께 갱신한다.
 

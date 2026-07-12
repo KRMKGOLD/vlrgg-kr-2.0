@@ -6,7 +6,7 @@
 
 Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selector, Jsoup `Document`·`Element`, 원본 HTML, scraping 보정은 서버 경계 안에 머문다. 앱은 app-facing API contract만 사용한다.
 
-첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. 이 문서는 첫 feature 구현이나 API 명세가 아니라 Ktor 서버의 아키텍처와 개발 방향을 정한다. 새로운 dependency와 실제 Gradle 설정, endpoint와 성공 response contract는 해당 기능의 기획·UI·데이터 요구가 정해지는 구현 시점에 결정한다.
+첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 일반 콘텐츠 조회에는 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. 단, 1차 MVP의 Match 알림은 사용자가 구독한 경기 상태를 추적해야 하므로 좁은 영속 저장과 scheduler 예외를 가진다. 이 문서는 첫 feature 구현이나 API 명세가 아니라 Ktor 서버의 아키텍처와 개발 방향을 정한다. 새로운 dependency와 실제 Gradle 설정, endpoint와 성공 response contract는 해당 기능의 기획·UI·데이터 요구가 정해지는 구현 시점에 결정한다.
 
 ## Current State and Direction
 
@@ -94,7 +94,7 @@ Route handler는 request를 service 호출로 바꾸고 response를 반환하는
 VLR.GG HTML은 외부의 불안정한 source contract다. DOM 구조와 텍스트 형식이 바뀔 수 있다고 가정한다. Scraping은 서버의 주된 기능이며, Jsoup은 scraping subsystem에서 DOM을 해석하는 필수 parser다.
 
 - 앱 요청 시점에 VLR.GG를 조회한다. 최신성이 우선이므로 주기 갱신이나 cache-first 응답을 기본 구조로 두지 않는다.
-- database, durable cache, stale-on-error fallback을 첫 단계에 도입하지 않는다.
+- 일반 콘텐츠 응답에는 database, durable cache, stale-on-error fallback을 첫 단계에 도입하지 않는다. Match 알림 구독 저장소는 콘텐츠 cache가 아니라 알림 delivery state를 보존하는 feature-specific 예외다.
 - 같은 canonical upstream resource를 동시에 요청했을 때만 하나의 진행 중 fetch를 공유할 수 있다. 이는 중복 upstream 요청을 줄이기 위한 동시성 보호이며, 이전 성공 데이터를 반환하는 cache가 아니다.
 - upstream network failure 또는 parsing failure가 발생하면 이전 데이터를 반환하지 않고 실패 응답을 반환한다.
 - timeout, user-agent, retry, rate-limit의 구체 값은 scraper 구현 시 기능 요구와 upstream 동작을 근거로 결정한다. 무제한 재시도나 과도한 요청을 만들지 않는다.
@@ -110,6 +110,22 @@ Scraper, Parser, Mapper의 경계는 다음과 같다.
 Upstream HTTP transport나 특정 content 획득 API는 고정하지 않으며, 구체적인 획득 방식은 구현 요구에 따라 선택한다.
 
 Jsoup `Document`와 `Element`, CSS selector, raw HTML, parsing 보정은 parser 내부에서만 사용한다. `SourceModel`, raw HTML, Jsoup type을 route response로 반환하거나 scraping 경계 밖으로 노출하지 않는다. 중요한 페이지는 최소 HTML fixture를 사용해 parser 가정을 테스트한다.
+
+## Match Notification Exception
+
+Match 알림은 일반 request-time scraping 정책의 좁은 예외다. 사용자가 특정 Match의 알림을 설정하면 앱은 Match 즐겨찾기를 로컬에 저장하고, 서버에는 익명 설치 단위의 알림 구독을 등록한다.
+
+- Team과 Player 즐겨찾기는 서버 알림 구독을 만들지 않는다.
+- 서버는 활성 구독의 고유 Match ID를 10분마다 확인한다.
+- 같은 Match를 여러 설치가 구독해도 upstream 확인은 Match 단위로 통합한다.
+- 경기 시작과 경기 종료 알림은 각각 한 번만 발송한다.
+- scheduler 재시도와 서버 재시작에도 중복 발송되지 않도록 delivery state를 영속화하고 idempotent하게 처리한다.
+- Match 즐겨찾기 해제는 해당 설치의 알림 구독을 제거한다.
+- 모든 구독이 해제되거나 경기가 종료되고 필요한 알림이 발송되면 해당 Match 추적을 중단한다.
+- 시간 변경, 연기, 취소, parsing/network failure는 서로 구분되는 내부 상태로 다룬다.
+- 알림 구독·delivery state는 이전 scraping 결과를 API failure fallback으로 제공하는 cache가 아니다.
+
+구체적인 scheduler library, database, push provider, 설치 식별자, endpoint와 payload는 Match feature 구현 계획에서 선택한다. secret과 push credential은 source code에 넣지 않는다.
 
 ## Public API Error Contract
 
@@ -170,6 +186,7 @@ server config와 secret은 source code에 넣지 않는다. `ServerConfig` 또�
 - parser test: HTML fixture를 기반으로 selector와 source-structure 가정을 검증
 - mapper test: `SourceModel`에서 response DTO로 변환되는 규칙을 검증
 - service test: request-time scraping, concurrent fetch coalescing을 구현한 경우 그 정책과 stale fallback 부재를 검증
+- notification test: 10분 polling 대상 선정, Match 단위 중복 제거, 시작/종료 1회 발송, retry idempotency, 구독 해제와 terminal cleanup을 검증
 - error handling test: 각 failure가 올바른 HTTP status, `ApiErrorCode`, 안전한 `message` envelope로 변환되는지 검증
 - route test: 기능 기획에서 정한 request validation과 success/error response contract를 Ktor `testApplication {}`으로 검증. [Ktor server testing](https://ktor.io/docs/server-testing.html)
 
