@@ -2,11 +2,11 @@
 
 ## Purpose
 
-`server`는 Ktor 3 기반의 VLR.GG 전용 backend다. 서버는 외부 HTML을 수집·해석하고, 앱이 사용할 수 있는 안정적인 JSON API response로 가공한다.
+`server`는 Ktor 3 기반의 VLR.GG 전용 backend다. 서버의 주된 기능은 외부 HTML을 scraping하고 해석해 앱이 사용할 수 있는 안정적인 JSON API response로 가공하는 것이다.
 
 Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selector, Jsoup `Document`·`Element`, 원본 HTML, scraping 보정은 서버 경계 안에 머문다. 앱은 app-facing API contract만 사용한다.
 
-첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. 새로운 dependency와 실제 Gradle 설정은 해당 기능 구현 시점에 결정한다.
+첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. 이 문서는 첫 feature 구현이나 API 명세가 아니라 Ktor 서버의 아키텍처와 개발 방향을 정한다. 새로운 dependency와 실제 Gradle 설정, endpoint와 성공 response contract는 해당 기능의 기획·UI·데이터 요구가 정해지는 구현 시점에 결정한다.
 
 ## Current State and Direction
 
@@ -19,11 +19,11 @@ Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selecto
 - 실제 기능이 없는 빈 package·file을 미리 만들지 않는다.
 - feature가 충분히 커질 때만 별도 Gradle module 분리를 검토한다.
 
-Ktor는 단일한 프로젝트 구조를 강제하지 않는다. 이 구조는 Ktor module과 feature package를 함께 사용해 현재의 단순성과 이후 확장성을 맞춘다. [Ktor application structure](https://ktor.io/docs/server-application-structure.html), [Ktor modules](https://ktor.io/docs/server-modules.html)
+Ktor는 단일한 프로젝트 구조를 강제하지 않는다. 단일 Gradle module, 논리적 feature 경계, `Application` extension module과 명시적 dependency 전달은 현재의 작은 서버에 맞춰 이 저장소가 선택한 Ktor 지원 방식이다. `plugins/`, `routing/` 같은 디렉터리와 아래 파일명은 Ktor의 필수 구조가 아닌 저장소 관례다. [Ktor application structure](https://ktor.io/docs/server-application-structure.html), [Ktor routing organization](https://ktor.io/docs/server-routing-organization.html), [Ktor modules](https://ktor.io/docs/server-modules.html)
 
 ## Target Package Shape
 
-`server/src/main/kotlin/kr/co/cotton/vlrgg_mobile` 아래를 다음의 목적지로 사용한다.
+`server/src/main/kotlin/kr/co/cotton/vlrgg_mobile` 아래에서 다음과 같은 형태를 사용할 수 있다. 이 트리는 책임 경계를 설명하는 비구속적 예시이며, feature마다 동일한 파일을 모두 만들도록 요구하지 않는다.
 
 ```text
 server/
@@ -44,21 +44,18 @@ server/
     time/
     notification/              # Discord notification을 실제 도입할 때만
   feature/
-    match/
-      MatchModule.kt
-      MatchRoutes.kt
-      MatchService.kt
-      MatchScraper.kt
-      MatchParser.kt
-      MatchMapper.kt
-      MatchResponse.kt
-      MatchSourceModel.kt
-    event/
-    team/
-    player/
+    <feature>/
+      <Feature>Module.kt
+      <Feature>Routes.kt
+      <Feature>Service.kt
+      <Feature>Scraper.kt
+      <Feature>Parser.kt
+      <Feature>Mapper.kt
+      <Feature>Response.kt
+      <Feature>SourceModel.kt
 ```
 
-이 트리는 책임을 위한 기준선이다. 작은 feature는 파일 수를 줄여도 되지만, route·service·scraper/parser·response 책임은 섞지 않는다. 한 feature의 파일 수가 늘어 가독성이 떨어질 때만 `route`, `service`, `scraper`, `model`, `mapper` 같은 feature 내부 package로 나눈다.
+작은 feature는 책임이 명확하다면 파일을 합칠 수 있다. 한 feature의 파일 수가 늘어 가독성이 떨어질 때만 `route`, `service`, `scraper`, `model`, `mapper` 같은 feature 내부 package로 나눈다. endpoint path, request parameter, pagination, 성공 JSON field와 feature별 DTO는 이 예시가 정하지 않으며 이후 기능 기획에서 정의한다.
 
 ## Application Entry and Dependency Composition
 
@@ -79,7 +76,7 @@ fun Application.module() {
 
 ## Feature Boundary
 
-| File | Responsibility |
+| Non-binding example | Responsibility |
 | --- | --- |
 | `*Module.kt` | feature dependency 조립과 Ktor module 연결 |
 | `*Routes.kt` | HTTP input 검증, service 호출, status/response 반환 |
@@ -90,11 +87,11 @@ fun Application.module() {
 | `*Response.kt` | 앱에 공개하는 JSON response model |
 | `*SourceModel.kt` | VLR.GG 원본 구조를 표현하는 server-internal model |
 
-Route handler는 request를 service 호출로 바꾸고 response를 반환하는 곳이다. Jsoup traversal, CSS selector, raw HTML 보정은 route와 service 밖의 parser 경계에 둔다.
+Route handler는 request를 service 호출로 바꾸고 response를 반환하는 곳이다. 작은 feature가 파일을 합치더라도 표의 책임 경계는 유지한다. Jsoup traversal, CSS selector, raw HTML 보정은 route와 service 밖의 parser 경계에 둔다.
 
 ## Scraping, Freshness, and Upstream Policy
 
-VLR.GG HTML은 외부의 불안정한 source contract다. DOM 구조와 텍스트 형식이 바뀔 수 있다고 가정한다.
+VLR.GG HTML은 외부의 불안정한 source contract다. DOM 구조와 텍스트 형식이 바뀔 수 있다고 가정한다. Scraping은 서버의 주된 기능이며, Jsoup은 scraping subsystem에서 DOM을 해석하는 필수 parser다.
 
 - 앱 요청 시점에 VLR.GG를 조회한다. 최신성이 우선이므로 주기 갱신이나 cache-first 응답을 기본 구조로 두지 않는다.
 - database, durable cache, stale-on-error fallback을 첫 단계에 도입하지 않는다.
@@ -104,11 +101,15 @@ VLR.GG HTML은 외부의 불안정한 source contract다. DOM 구조와 텍스�
 
 Scraper, Parser, Mapper의 경계는 다음과 같다.
 
-- Scraper: 원본 content를 가져온다.
-- Parser: 원본 content를 `SourceModel`로 해석한다.
+- Scraper: 구현 시 선택한 transport로 원본 content를 가져온다.
+- Parser: Jsoup DOM parsing으로 원본 content를 `SourceModel`로 해석한다.
 - Mapper: `SourceModel`을 app-facing `Response`로 바꾼다.
 
-Jsoup `Document`와 `Element`는 parser 내부에서만 사용한다. `SourceModel`, raw HTML, Jsoup type을 route response로 반환하거나 service 밖으로 노출하지 않는다. 중요한 페이지는 최소 HTML fixture를 사용해 parser 가정을 테스트한다.
+즉, 기본 책임 흐름은 `Route -> Service -> Scraper -> Parser -> SourceModel -> Mapper -> Response`다. DOM parsing 기술은 Jsoup으로 고정한다.
+
+Upstream HTTP transport나 특정 content 획득 API는 고정하지 않으며, 구체적인 획득 방식은 구현 요구에 따라 선택한다.
+
+Jsoup `Document`와 `Element`, CSS selector, raw HTML, parsing 보정은 parser 내부에서만 사용한다. `SourceModel`, raw HTML, Jsoup type을 route response로 반환하거나 scraping 경계 밖으로 노출하지 않는다. 중요한 페이지는 최소 HTML fixture를 사용해 parser 가정을 테스트한다.
 
 ## Public API Error Contract
 
@@ -158,7 +159,9 @@ Discord notification은 선택적인 운영 확장이다. 실제 도입할 때 w
 
 ## Configuration and Deployment
 
-구체적인 배포 공급자는 아직 결정하지 않는다. 배포 환경은 JVM Ktor application 또는 container를 실행할 수 있어야 한다. deployment config, 비용 정책, cloud resource는 실제 배포 작업에서 선택한다.
+현재 구현은 Kotlin/JVM 기반 Ktor 3와 Netty를 사용하며, 지금은 local 실행을 개발 기준으로 삼는다. 이는 미래 production 배포 형태나 `localhost` base URL을 확정하는 결정이 아니다.
+
+배포 packaging, provider, public host와 base URL, container/cloud resource, client 환경별 설정은 실제 배포 작업에서 선택한다. 현재 구현 사실을 유지하되 미래 환경이 JVM application이나 container여야 한다고 이 문서에서 미리 제한하지 않는다.
 
 server config와 secret은 source code에 넣지 않는다. `ServerConfig` 또는 동등한 config boundary를 실제 도입할 때 사용하고, Discord webhook 같은 secret은 environment variable로만 전달한다.
 
@@ -168,7 +171,7 @@ server config와 secret은 source code에 넣지 않는다. `ServerConfig` 또�
 - mapper test: `SourceModel`에서 response DTO로 변환되는 규칙을 검증
 - service test: request-time scraping, concurrent fetch coalescing을 구현한 경우 그 정책과 stale fallback 부재를 검증
 - error handling test: 각 failure가 올바른 HTTP status, `ApiErrorCode`, 안전한 `message` envelope로 변환되는지 검증
-- route test: request validation과 success/error response contract를 Ktor `testApplication {}`으로 검증
+- route test: 기능 기획에서 정한 request validation과 success/error response contract를 Ktor `testApplication {}`으로 검증. [Ktor server testing](https://ktor.io/docs/server-testing.html)
 
 서버 변경의 기본 검증 명령은 `./gradlew :server:test`다.
 
