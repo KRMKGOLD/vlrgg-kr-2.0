@@ -174,7 +174,7 @@ RepositoryImpl은 `commonMain/data/repository`에 둔다.
 
 ## Metro DI
 
-Metro의 app-level graph는 `commonMain/di/AppGraph.kt`에 둔다. Data Layer binding은 `commonMain/data/di/DataBindings.kt`에 둔다.
+Metro의 app-level graph는 `commonMain/di/AppGraph.kt`, Data Layer binding은 `commonMain/data/di/DataBindings.kt`에 둔다. graph의 runtime 준비와 navigation 경계는 `app-runtime.md`의 기본 원칙을 따른다. Data Layer는 app graph를 생성하거나 Compose composition local을 제공하지 않는다.
 
 처음에는 하나의 `DataBindings.kt`에서 영역을 구분한다.
 
@@ -186,12 +186,12 @@ Metro의 app-level graph는 `commonMain/di/AppGraph.kt`에 둔다. Data Layer bi
 // Network bindings
 ```
 
-- 구현체는 constructor injection을 우선한다.
+- Data binding 구현체는 constructor injection을 우선한다.
 - `HttpClient`, DataStore instance, Room database builder처럼 constructor만으로 만들기 어려운 외부 객체는 data DI boundary에서 제공한다.
 - `remote/di`, `local/di`, `network/di`처럼 package별 DI package를 만들지 않는다.
 - 한 섹션이 커져 읽기 어려워지면 AI가 `data/di` 안의 peer file(`RemoteBindings.kt`, `LocalBindings.kt`, `NetworkBindings.kt`)로 분리할 수 있다.
 
-Metro graph와 binding의 역할은 [Metro dependency graph 문서](https://zacsweers.github.io/metro/latest/dependency-graphs/)를 따른다.
+Metro binding의 역할은 [Metro dependency graph 문서](https://zacsweers.github.io/metro/latest/dependency-graphs/)를 따른다.
 
 ## Dependency Introduction Rules
 

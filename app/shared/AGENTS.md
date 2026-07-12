@@ -3,6 +3,7 @@
 ## Source of Truth
 
 - 상세 앱 설계는 `../../docs/app-arch/app-arch.md`를 따른다.
+- 앱 root, Metro graph, Navigation 3의 기본 runtime 원칙은 `../../docs/app-arch/app-runtime.md`를 따른다.
 - UI, Domain, Data 세부 규칙은 `../../docs/app-arch/`의 layer 문서를 따른다.
 - 루트 운영 규칙은 `../../AGENTS.md`를 함께 따른다.
 - 이 파일에는 `app/shared`에서 바로 적용할 짧은 실행 규칙만 둔다.
@@ -10,6 +11,8 @@
 ## Rules
 
 - Compose UI, ViewModel, UiState, navigation, domain/data 경계는 가능한 `commonMain`에 둔다.
+- 공통 `App`은 플랫폼 runtime owner가 준비한 graph를 받으며, composable에서 app graph를 생성하지 않는다. Metro ViewModel factory는 실제 DI 구성에 맞는 상위 경계에서 제공한다.
+- navigation owner가 필요한 navigation state를 관리한다. 저장·복원이 필요한 key에는 안정적인 식별자만 넣고 직렬화 가능하게 만든다.
 - 새 화면은 `src/commonMain/kotlin/.../ui/feature/{feature}` 아래에 vertical slice로 추가한다.
 - Screen은 ViewModel state를 연결하고, Content composable은 stateless rendering을 담당하게 한다.
 - ViewModel은 navigation back stack, NavController, NavBackStack을 직접 제어하지 않는다.
