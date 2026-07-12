@@ -51,7 +51,7 @@ Team Detail에서는 Event Detail로 직접 이동하지 않는다.
 2. Team header
    - 팀 로고 또는 안정적인 placeholder
    - 팀 이름
-   - 팀 태그와 지역 등 제공 가능한 기본 정보
+   - 제공 가능한 기본 정보
    - 즐겨찾기 토글
 3. Upcoming Matches
 4. Recent Matches
@@ -66,14 +66,14 @@ Team Detail에서는 Event Detail로 직접 이동하지 않는다.
 
 | 영역 | 표시 데이터 |
 | --- | --- |
-| Team header | Team ID, 이름, 태그, 로고, 지역 등 upstream에서 확인 가능한 기본 정보 |
-| Match | Match ID, 예정/완료 시각, 상태, 상대 팀, 스코어 또는 진행 정보, 이벤트 문맥 |
-| Player | Player ID, handle, 실명·국적·역할 등 제공 가능한 기본 정보 |
-| Staff | 이름, 역할 등 제공 가능한 기본 정보 |
-| News | News ID, 제목, 작성자, 작성 시각 등 News 목록 계약의 요약 정보 |
+| Team header | Team을 식별하고 이해하는 데 필요한 기본 정보 |
+| Match | Upcoming/Recent Match를 구분하고 상세로 이동하는 데 필요한 요약 정보 |
+| Player | Current Roster의 Player를 식별하는 요약 정보 |
+| Staff | Staff를 식별하는 요약 정보 |
+| News | News 목록 계약을 따르는 요약 정보 |
 | Favorite | 현재 Team의 로컬 즐겨찾기 여부 |
 
-필드가 source에 존재하지 않는 경우를 빈 문자열이나 임의 값으로 대체하지 않는다. 세부 optionality는 서버 응답 계약을 설계할 때 fixture로 확정한다.
+source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만들어 표시하지 않는다.
 
 ## 화면 상태
 
@@ -136,8 +136,3 @@ https://www.vlr.gg/team/19296/team-korea
 - [ ] Team 즐겨찾기 등록·해제는 서버 notification subscription을 생성하거나 변경하지 않는다.
 - [ ] loading, empty section, partial, error, stale 상태가 유효 콘텐츠와 시각적으로 구분된다.
 - [ ] 서버 parser test는 일반 팀과 이력이 적은 팀 fixture를 모두 검증한다.
-
-## 열린 결정
-
-- Team 기본 정보에서 확정적으로 노출할 필드와 각 필드의 optionality는 실제 HTML fixture 분석 및 서버 응답 계약 작성 시 확정한다.
-- Team 즐겨찾기 persistence 기술은 구현 단계에서 로컬 데이터 형태와 조회 요구에 맞춰 선택한다.

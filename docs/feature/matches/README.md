@@ -170,7 +170,7 @@ Match Detail Basic에 필수인 팀과 상태를 해석하지 못하면 parsing 
 - `Unsubscribing`: 해제 처리 중
 - `SubscriptionError`: 생성 또는 해제가 완료되지 않았으며 사용자에게 재시도 가능한 상태를 제공
 
-서버 subscription 생성에 실패했는데 알림이 설정된 것처럼 표시하거나, 해제 실패를 숨기고 로컬 favorite만 제거해서는 안 된다. 실패 시 일관성 복구 정책은 구현 전에 아래 열린 결정에서 확정한다.
+Match 알림 설정과 즐겨찾기 생성은 하나의 원자적 사용자 동작이다. 서버 subscription 생성에 실패하면 새 local favorite를 되돌리고 전체 설정을 실패 처리한다. 해제 시 서버 unsubscribe가 실패하면 local favorite 제거를 확정하지 않고 기존 favorite/subscribed 상태를 유지한다. 두 경우 모두 실패 범위와 재시도 동작을 제공한다.
 
 ## 사용자 인터랙션
 
@@ -193,6 +193,8 @@ Match Detail Basic에 필수인 팀과 상태를 해석하지 못하면 parsing 
 6. 앱 안에서 다시 요청할 수 없는 상태면 이유와 함께 system settings 이동 action을 제공한다.
 7. 사용자가 취소하면 Match favorite/subscription을 생성하지 않고 상세 화면에 남는다.
 
+server subscription 생성에 실패하면 local favorite를 남기지 않고 전체 설정 실패를 표시한다. 성공한 것으로 보이는 중간 상태를 유지하지 않으며 사용자는 같은 동작을 재시도할 수 있다.
+
 앱 최초 실행에서도 platform이 요청을 허용하는 상태라면 알림 권한을 요청한다. 권한 거부 자체가 News/Matches 등 비알림 기능 사용을 막아서는 안 된다.
 
 ### Match 알림 해제
@@ -200,6 +202,7 @@ Match Detail Basic에 필수인 팀과 상태를 해석하지 못하면 parsing 
 - Match favorite 해제는 local favorite 제거와 해당 Match의 server subscription 취소를 함께 요청한다.
 - MyPage와 Match Detail 어디에서 해제해도 같은 결과가 되어야 한다.
 - Team/Player favorite에는 이 흐름을 적용하지 않는다.
+- server unsubscribe가 실패하면 local favorite 제거도 확정하지 않고 기존 favorite/subscribed 상태와 재시도 동작을 유지한다.
 
 ### 전역 알림 OFF
 
@@ -303,6 +306,9 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 - [ ] dialog 활성화 흐름은 permission 성공 뒤에만 전역 설정을 ON으로 바꾸고 구독을 생성한다.
 - [ ] 앱 내 재요청이 불가능하면 명확한 안내와 system settings 이동 action을 제공한다.
 - [ ] 전역 알림 OFF는 기존 Match favorite를 삭제하지 않지만 사용자 알림 전달을 중단한다.
+- [ ] server subscription 생성에 실패하면 local Match favorite가 남지 않고 전체 설정 실패와 재시도가 표시된다.
+- [ ] server unsubscribe가 실패하면 기존 Match favorite/subscribed 상태가 유지되고 해제 실패와 재시도가 표시된다.
+- [ ] MyPage와 Match Detail은 같은 성공·실패 결과를 표시한다.
 
 ### 서버 추적과 전달
 
@@ -313,12 +319,3 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 - [ ] postponed, cancelled, time-changed, missing 상태가 internal contract에서 terminal completed와 구분된다.
 - [ ] terminal 상태와 알림 의무가 끝난 Match는 polling에서 제거된다.
 - [ ] push provider의 절대적 exactly-once 보장이 아니라 서버 idempotency에 의한 exactly-once intent임을 구현 테스트가 반영한다.
-
-## 열린 결정
-
-다음 결정은 알림 구현 전에 확정해야 한다.
-
-1. local favorite 저장과 server subscription 생성/해제 중 한쪽만 성공했을 때의 보상·재시도 정책
-2. MyPage 전역 알림을 OFF로 바꿀 때 서버 subscription을 유지하되 전달만 억제할지, 서버에 pause 상태를 동기화할지의 구체 contract
-
-위 결정은 MVP 범위 자체를 바꾸지 않으며, API 및 persistence 설계 작업에서 확정한다.

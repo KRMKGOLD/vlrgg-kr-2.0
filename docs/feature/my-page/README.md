@@ -90,7 +90,7 @@ system permission이 거부된 상태는 콘텐츠 오류가 아니라 알림 �
 - Team 또는 Player를 제거하면 로컬 즐겨찾기만 삭제한다.
 - Match를 제거하면 로컬 즐겨찾기를 삭제하고 해당 서버 notification subscription 취소를 요청한다.
 - 즐겨찾기 항목을 누르면 대응하는 Detail로 이동한다.
-- subscription 취소가 실패하면 Match가 제거된 것처럼 확정 표시하지 않고 재시도 가능한 동기화 상태를 제공해야 한다.
+- subscription 취소가 실패하면 local favorite 제거도 확정하지 않는다. 기존 Match favorite/subscribed 상태를 유지하고 해제 실패와 재시도를 표시한다.
 
 ### 전역 알림 토글
 
@@ -131,7 +131,6 @@ Notification subscription persistence와 scheduler는 일반 조회의 request-t
 
 - MyPage 자체에는 upstream VLR.GG URL이 없다.
 - Match tracking의 upstream URL과 상태 판별 규칙은 Matches/Match Detail 기능의 server contract에서 소유한다.
-- push provider, endpoint path, DTO field, 로컬 persistence 기술은 이 제품 문서에서 확정하지 않는다.
 
 ## 테스트 가능한 수용 기준
 
@@ -147,10 +146,7 @@ Notification subscription persistence와 scheduler는 일반 조회의 request-t
 - [ ] 인앱 permission 요청이 불가능하면 system settings 이동 안내를 제공한다.
 - [ ] 최초 permission 요청을 거부해도 MyPage와 즐겨찾기 탐색은 정상 동작한다.
 - [ ] subscription 동기화 실패가 Team/Player 목록이나 성공한 로컬 콘텐츠를 숨기지 않는다.
+- [ ] Match subscription 생성 실패 시 새 local favorite가 남지 않고 전체 설정 실패와 재시도가 표시된다.
+- [ ] Match unsubscribe 실패 시 기존 favorite/subscribed 상태가 유지되고 해제 실패와 재시도가 표시된다.
+- [ ] MyPage와 Match Detail은 같은 Match favorite/subscription 성공·실패 결과를 표시한다.
 - [ ] 서버 scheduler 재시도에도 Match 시작·종료 알림은 각각 최대 1회만 발송된다.
-
-## 열린 결정
-
-- 전역 알림 OFF를 서버에 전달하는 방식과 이미 존재하는 Match subscription의 보존/재활성화 계약은 notification API 설계 시 확정한다. 사용자 관점에서는 즐겨찾기를 유지하고 전달만 중단해야 한다.
-- Match 즐겨찾기 제거 중 unsubscribe 실패가 발생했을 때의 로컬 commit/rollback 및 재시도 정책은 데이터 일관성 설계에서 확정한다.
-- 로컬 목록 snapshot의 보관 필드와 최신 정보 재조회 시점은 각 Detail repository 계약과 함께 확정한다.

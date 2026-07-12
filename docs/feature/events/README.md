@@ -114,7 +114,7 @@ News 표시에 관한 세부 규칙은 News 기능 문서가 소유한다.
 
 ### Event 기본 통계
 
-기본 통계는 1차 MVP에 포함되지만, 원본 초안에는 정확한 필드가 정의되어 있지 않다. 아래의 `구현 차단 열린 결정`이 해결되기 전에는 통계 Response, app Domain Model, 화면 레이아웃을 확정하지 않는다.
+Event Stats는 1차 MVP에 포함되는 정식 섹션이다. upstream Stats resource가 정상 응답하면서 `No stats available`을 나타내면 아직 제공할 통계가 없는 정상 empty state로 처리한다. network 실패, 예상하지 못한 응답, parsing 실패는 통계 없음으로 위장하지 않고 별도 error state와 재시도를 제공한다.
 
 ## 화면 상태
 
@@ -127,7 +127,7 @@ News 표시에 관한 세부 규칙은 News 기능 문서가 소유한다.
 
 - Event List 전체 결과가 없으면 Event가 없다는 안내를 표시한다.
 - Event Detail의 Matches 또는 News가 비어 있으면 해당 섹션 안에서 빈 상태를 표시하며 Event Detail 전체를 실패 처리하지 않는다.
-- 기본 통계가 지원되는 Event지만 값이 없으면 `0`을 추정하지 않고 데이터 없음으로 표시한다.
+- Stats resource가 `No stats available`을 나타내면 값을 `0`으로 추정하지 않고 통계가 아직 없다는 empty state를 표시한다.
 
 ### Populated
 
@@ -136,7 +136,7 @@ News 표시에 관한 세부 규칙은 News 기능 문서가 소유한다.
 
 ### Partial
 
-- Event 기본 정보는 성공했지만 Matches, News 또는 통계 일부가 누락된 경우 성공한 콘텐츠는 유지하고 실패하거나 제공되지 않은 섹션을 명확히 표시한다.
+- Event 기본 정보는 성공했지만 Matches, News 또는 Stats 일부가 실패한 경우 성공한 콘텐츠는 유지하고 실패한 섹션을 명확히 표시한다.
 - 원본에 존재하지 않는 선택 필드를 임의 값으로 채우지 않는다.
 
 ### Error
@@ -175,7 +175,7 @@ MVP에서 제공하지 않는 필터나 브래킷 탭은 비활성 placeholder�
 - VLR.GG Event List와 Event Detail HTML을 요청 시점에 가져온다.
 - DOM을 Jsoup으로 해석하고 server-internal `SourceModel`로 변환한다.
 - 원본 구조를 앱에 적합한 Event List/Detail Response로 정규화한다.
-- Matches, News, 기본 통계의 실제 존재 여부를 구분하며 누락 값을 임의 생성하지 않는다.
+- Matches, News, Stats의 정상 empty와 조회·해석 실패를 구분하며 누락 값을 임의 생성하지 않는다.
 - upstream 통신 실패는 `UPSTREAM_NETWORK_FAILURE`, DOM 해석 실패는 `SOURCE_PARSING_FAILURE` 공통 오류로 반환한다.
 - raw HTML, selector, 원본 예외 문구를 앱에 노출하지 않는다.
 
@@ -187,6 +187,7 @@ MVP에서 제공하지 않는 필터나 브래킷 탭은 비활성 placeholder�
 https://www.vlr.gg/events
 https://www.vlr.gg/events/?page=2
 https://www.vlr.gg/event/2955/esports-world-cup-2026-pacific-qualifier
+https://www.vlr.gg/event/stats/2955/esports-world-cup-2026-pacific-qualifier
 ```
 
 - MVP Event List는 `All` 첫 페이지를 대상으로 하며 `?page=2`는 향후 페이지네이션 분석용 예시다.
@@ -202,23 +203,11 @@ https://www.vlr.gg/event/2955/esports-world-cup-2026-pacific-qualifier
 - [ ] 하단 `Events` 탭, Matches의 Event 참조, Search의 Event 결과에서 Event Detail에 진입할 수 있다.
 - [ ] Team Detail과 Player Detail에는 Event 직접 이동 요소가 없다.
 - [ ] Event Detail이 Event 기본 정보, `Matches All`, `News List`, 기본 통계 영역을 구분한다.
+- [ ] Event Stats가 `No stats available`을 반환하면 정상 empty state를 표시한다.
+- [ ] Event Stats의 network 또는 parsing 실패는 empty와 구분된 error state와 재시도를 표시한다.
 - [ ] Event Detail의 Match와 News가 각각 대응하는 Detail 화면으로 이동한다.
 - [ ] loading, 전체 empty, 섹션 empty, partial, error, stale 상태가 정상 콘텐츠와 시각·의미적으로 구분된다.
 - [ ] 누락된 선택 데이터를 `0`, 빈 문자열 또는 추정 값으로 위장하지 않는다.
 - [ ] 서버 parser fixture가 Event 상태 분류와 Detail 섹션 추출을 검증한다.
 - [ ] 서버 오류에 raw HTML, selector, 원본 예외 또는 민감한 내부 정보가 포함되지 않는다.
 - [ ] 뒤로 가기 시 직전 화면의 탐색 상태가 보존된다.
-
-## 구현 차단 열린 결정
-
-### Event 기본 통계 필드
-
-Event Detail의 `기본 Stats`는 MVP에 포함된 확정 범위지만 정확한 필드가 정의되지 않았다. 구현 전에 대표 Event의 HTML 구조를 분석하고 다음을 확정해야 한다.
-
-- 표시할 통계 필드 이름과 사용자 의미
-- 각 필드의 단위·정렬·순서
-- Event에 따라 값이 없을 때의 선택성 규칙
-- 통계가 전체 Event 기준인지 특정 stage/기간 기준인지
-- 비교 가능한 표 구조인지 요약 값 구조인지
-
-이 결정이 내려지기 전까지 Event List, Event 기본 정보, Matches, News는 구현할 수 있지만 Event 기본 통계의 parser contract와 UI는 구현 차단 상태다.
