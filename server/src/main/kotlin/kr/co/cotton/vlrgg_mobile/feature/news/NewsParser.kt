@@ -9,19 +9,20 @@ private const val VLR_PRIMARY_ORIGIN = "https://www.vlr.gg/"
 private val whitespace = Regex("\\s+")
 private val publicationAuthor = Regex("(?i)\\bby\\s+(.+)$")
 private val entityLink = Regex("^/(team|player|event|match)/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
+private val canonicalNewsPageTarget = Regex("^/news/\\?page=([1-9][0-9]{0,4})$")
+private const val newsListItemSelector = "a.news-item[href], .wf-card > a.wf-module-item[href]"
+private const val newsPaginationSelector = ".wf-pagination a[href], .pagination a[href], [data-news-pagination] a[href]"
 
 /** Owns all Jsoup and VLR.GG DOM assumptions for the News feature. */
 internal class NewsParser {
     fun parseList(html: String, currentPage: Int): NewsListSource {
         val document = Jsoup.parse(html, VLR_PRIMARY_ORIGIN)
-        val articles = document.select("a.news-item[href]").map { item ->
+        val articles = document.select(newsListItemSelector).distinct().map { item ->
             val reference = NewsReference.fromHref(item.attr("href"))
                 ?: throw IllegalStateException("News item reference is missing.")
-            val title = requiredText(item.selectFirst(".news-item-title"), "News item title is missing.")
-            val metadata = requiredText(
-                item.selectFirst(".news-item-desc, .news-item-meta, .ge-text-light"),
-                "News item metadata is missing.",
-            )
+            val metadataElement = item.selectFirst(".news-item-desc, .news-item-meta, .ge-text-light")
+            val metadata = requiredText(metadataElement, "News item metadata is missing.")
+            val title = requiredText(findNewsItemTitle(item, metadataElement), "News item title is missing.")
             val (publishedAt, author) = parsePublicationMetadata(metadata)
 
             NewsSummarySource(
@@ -34,21 +35,22 @@ internal class NewsParser {
 
         return NewsListSource(
             articles = articles,
-            hasNextPage = document.select("a[href]").any { link ->
-                parseNewsPage(link.attr("href"))?.let { it > currentPage } == true
-            },
+            nextPage = document.select(newsPaginationSelector)
+                .mapNotNull { link -> parseCanonicalNewsPage(link.attr("href")) }
+                .firstOrNull { candidate -> candidate == currentPage + 1 && candidate <= MAX_NEWS_PAGE },
         )
     }
 
     fun parseArticle(html: String, reference: NewsReference): NewsArticleSource {
         val document = Jsoup.parse(html, VLR_PRIMARY_ORIGIN)
-        val title = requiredText(
-            document.selectFirst(".article-header-title, .article-title, .wf-title-med, h1"),
-            "Article title is missing.",
-        )
-        val metadata = parseArticleMetadata(document)
         val body = document.selectFirst(".article-body")
             ?: throw IllegalStateException("Article body is missing.")
+        val header = findArticleHeader(body)
+        val title = requiredText(
+            header.selectFirst(".article-header-title, .article-title, .wf-title-med, h1"),
+            "Article title is missing.",
+        )
+        val metadata = parseArticleMetadata(header)
 
         body.select(
             "style, script, .wf-hover-card, .article-ref-card, .sidebar, .comments, .comment, " +
@@ -68,9 +70,9 @@ internal class NewsParser {
         )
     }
 
-    private fun parseArticleMetadata(document: org.jsoup.nodes.Document): ArticleMetadata {
-        val metadata = document.selectFirst(
-            ".article-header-desc, .article-meta, .article-header .ge-text-light, .wf-title-med + .ge-text-light",
+    private fun parseArticleMetadata(header: Element): ArticleMetadata {
+        val metadata = header.selectFirst(
+            ".article-header-desc, .article-meta, .ge-text-light, .wf-title-med + .ge-text-light",
         )
             ?: throw IllegalStateException("Article metadata is missing.")
         val explicitAuthor = metadata.selectFirst(".article-meta-author, [data-news-author]")?.cleanText()
@@ -87,22 +89,51 @@ internal class NewsParser {
         )
     }
 
-    private fun parseBlocks(container: Element): List<NewsSourceBlock> = buildList {
-        container.children().forEach { element ->
-            when (element.normalName()) {
-                "p", "blockquote", "h2", "h3", "h4", "h5", "h6" -> {
-                    parseInline(element).takeIf { it.isNotEmpty() }?.let { content ->
-                        add(NewsParagraphSourceBlock(content))
-                    }
-                }
+    private fun findArticleHeader(body: Element): Element {
+        var child = body
+        var parent = body.parent()
 
-                "figure" -> parseImage(element)?.let(::add)
-                "img" -> parseImageElement(element, caption = null)?.let(::add)
-                "ol", "ul" -> parseList(element)?.let(::add)
-                "div", "section", "main" -> addAll(parseBlocks(element))
+        while (parent != null) {
+            val siblings = parent.children()
+            val childIndex = siblings.indexOf(child)
+            siblings.take(childIndex).asReversed()
+                .firstOrNull { sibling -> sibling.hasClass("article-header") }
+                ?.let { return it }
+            child = parent
+            parent = parent.parent()
+        }
+
+        throw IllegalStateException("Article header is missing.")
+    }
+
+    private fun findNewsItemTitle(item: Element, metadata: Element?): Element? =
+        item.selectFirst(".news-item-title") ?: metadata?.previousElementSibling()
+            ?.takeIf { candidate -> candidate.normalName() == "div" && !candidate.hasAttr("class") }
+
+    private fun parseBlocks(container: Element): List<NewsSourceBlock> = buildList {
+        container.childNodes().forEach { node ->
+            when (node) {
+                is TextNode -> parseDirectTextBlock(node)?.let(::add)
+                is Element -> when (node.normalName()) {
+                    "p", "blockquote", "h2", "h3", "h4", "h5", "h6" -> {
+                        parseInline(node).takeIf { it.isNotEmpty() }?.let { content ->
+                            add(NewsParagraphSourceBlock(content))
+                        }
+                    }
+
+                    "figure" -> parseImage(node)?.let(::add)
+                    "img" -> parseImageElement(node, caption = null)?.let(::add)
+                    "ol", "ul" -> parseList(node)?.let(::add)
+                    "div", "section", "main" -> addAll(parseBlocks(node))
+                }
             }
         }
     }
+
+    private fun parseDirectTextBlock(node: TextNode): NewsParagraphSourceBlock? =
+        node.wholeText.normalizeWhitespace().takeIf { it.isNotEmpty() }?.let { text ->
+            NewsParagraphSourceBlock(content = listOf(NewsTextSourceInline(text)))
+        }
 
     private fun parseImage(figure: Element): NewsImageSourceBlock? =
         figure.selectFirst("img[src]")?.let { image ->
@@ -186,8 +217,11 @@ internal class NewsParser {
         return publishedAt to author
     }
 
-    private fun parseNewsPage(href: String): Int? =
-        Regex("[?&]page=([1-9][0-9]{0,4})(?:&|$)").find(href)?.groupValues?.get(1)?.toIntOrNull()
+    private fun parseCanonicalNewsPage(href: String): Int? =
+        href.toCanonicalNewsPathOrNull()?.let(canonicalNewsPageTarget::matchEntire)
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
 
     private fun requiredText(element: Element?, message: String): String =
         element?.cleanText() ?: throw IllegalStateException(message)
@@ -200,9 +234,17 @@ internal class NewsParser {
         trim { character -> character.isWhitespace() || character == '•' || character == '-' }
 
     private fun String.toVlrPathOrNull(): String? = when {
+        startsWith("//") -> null
         startsWith("/") -> substringBefore('?').substringBefore('#')
         startsWith("https://www.vlr.gg/") -> removePrefix("https://www.vlr.gg").substringBefore('?').substringBefore('#')
         startsWith("https://vlr.gg/") -> removePrefix("https://vlr.gg").substringBefore('?').substringBefore('#')
+        else -> null
+    }
+
+    private fun String.toCanonicalNewsPathOrNull(): String? = when {
+        startsWith("//") -> null
+        startsWith("/") -> this
+        startsWith("https://www.vlr.gg/") -> removePrefix("https://www.vlr.gg")
         else -> null
     }
 

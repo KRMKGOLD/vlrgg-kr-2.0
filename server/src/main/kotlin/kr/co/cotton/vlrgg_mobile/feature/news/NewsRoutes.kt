@@ -6,8 +6,6 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 
-private const val DEFAULT_PAGE = 1
-private const val MAX_PAGE = 10_000
 private val pagePattern = Regex("[1-9][0-9]{0,4}")
 
 internal fun Route.configureNewsRoutes(service: NewsService) {
@@ -26,11 +24,11 @@ private fun ApplicationCall.requireNewsPage(): Int {
     if (!query.names().all { it == "page" }) {
         throw InvalidInputFailure()
     }
-    val values = query.getAll("page") ?: return DEFAULT_PAGE
+    val values = query.getAll("page") ?: return DEFAULT_NEWS_PAGE
     if (values.size != 1 || !pagePattern.matches(values.single())) {
         throw InvalidInputFailure()
     }
-    return values.single().toIntOrNull()?.takeIf { it in DEFAULT_PAGE..MAX_PAGE }
+    return values.single().toIntOrNull()?.takeIf { it in DEFAULT_NEWS_PAGE..MAX_NEWS_PAGE }
         ?: throw InvalidInputFailure()
 }
 

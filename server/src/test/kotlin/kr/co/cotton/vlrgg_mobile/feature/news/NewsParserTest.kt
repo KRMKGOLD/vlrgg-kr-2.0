@@ -27,7 +27,45 @@ class NewsParserTest {
             ),
             page.articles,
         )
-        assertTrue(page.hasNextPage)
+        assertEquals(2, page.nextPage)
+    }
+
+    @Test
+    fun `list parser supports the operational card item title layout`() {
+        val page = parser.parseList(readFixture("news-list-operational-layout.html"), currentPage = 1)
+
+        assertEquals(
+            listOf(
+                NewsSummarySource(
+                    reference = NewsReference("201", "operational-layout-news"),
+                    title = "Operational layout news",
+                    author = "operational-author",
+                    publishedAt = "July 13, 2026",
+                ),
+            ),
+            page.articles,
+        )
+        assertNull(page.nextPage)
+    }
+
+    @Test
+    fun `list parser ignores non pagination and non canonical page links`() {
+        val page = parser.parseList(readFixture("news-list-with-unrelated-page-links.html"), currentPage = 1)
+
+        assertNull(page.nextPage)
+    }
+
+    @Test
+    fun `list parser and mapper never return a page over the documented boundary`() {
+        val parsedPage = parser.parseList(readFixture("news-list-page-boundary.html"), currentPage = 10_000)
+
+        assertNull(parsedPage.nextPage)
+        assertNull(
+            NewsMapper().toListResponse(
+                page = 10_000,
+                source = NewsListSource(articles = emptyList(), nextPage = 10_001),
+            ).nextPage,
+        )
     }
 
     @Test
@@ -117,6 +155,51 @@ class NewsParserTest {
     }
 
     @Test
+    fun `article parser keeps protocol relative links external`() {
+        val article = parser.parseArticle(
+            html = readFixture("news-article-protocol-relative-link.html"),
+            reference = NewsReference("106", "protocol-relative-link"),
+        )
+
+        val link = (article.blocks.single() as NewsParagraphSourceBlock).content[1] as NewsLinkSourceInline
+
+        assertEquals(NewsLinkKindSource.EXTERNAL, link.kind)
+        assertNull(link.reference)
+    }
+
+    @Test
+    fun `article parser reads header metadata only from the article header`() {
+        val article = parser.parseArticle(
+            html = readFixture("news-article-header-scope.html"),
+            reference = NewsReference("107", "header-scope"),
+        )
+
+        assertEquals("Actual article title", article.title)
+        assertEquals("actual-author", article.author)
+        assertEquals("July 13, 2026", article.publishedAt)
+    }
+
+    @Test
+    fun `article parser turns direct prose into ordered paragraph blocks`() {
+        val article = parser.parseArticle(
+            html = readFixture("news-article-mixed-direct-prose.html"),
+            reference = NewsReference("108", "mixed-direct-prose"),
+        )
+
+        assertEquals(
+            listOf(
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Leading direct prose."))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Wrapped direct prose."))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Structured paragraph."))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Middle direct prose."))),
+                NewsListSourceBlock(ordered = false, items = listOf(listOf(NewsTextSourceInline("List item")))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Trailing direct prose."))),
+            ),
+            article.blocks,
+        )
+    }
+
+    @Test
     fun `article parser requires a title and supported body content`() {
         assertFailsWith<IllegalStateException> {
             parser.parseArticle(
@@ -130,10 +213,12 @@ class NewsParserTest {
             parser.parseArticle(
                 html = """
                     <h1 class="article-header-title">Empty body</h1>
-                    <div class="article-header-desc">
-                        <span class="article-meta-time">July 11, 2026</span>
-                        <a class="article-meta-author">author</a>
-                    </div>
+                    <header class="article-header">
+                        <div class="article-header-desc">
+                            <span class="article-meta-time">July 11, 2026</span>
+                            <a class="article-meta-author">author</a>
+                        </div>
+                    </header>
                     <article class="article-body"><iframe>unsupported</iframe></article>
                 """.trimIndent(),
                 reference = NewsReference("105", "empty-body"),

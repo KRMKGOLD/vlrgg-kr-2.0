@@ -1,8 +1,11 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
+internal const val DEFAULT_NEWS_PAGE = 1
+internal const val MAX_NEWS_PAGE = 10_000
+
 internal data class NewsListSource(
     val articles: List<NewsSummarySource>,
-    val hasNextPage: Boolean,
+    val nextPage: Int?,
 )
 
 internal data class NewsSummarySource(

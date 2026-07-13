@@ -4,7 +4,9 @@ package kr.co.cotton.vlrgg_mobile.feature.news
 internal class NewsMapper {
     fun toListResponse(page: Int, source: NewsListSource): NewsListResponse = NewsListResponse(
         page = page,
-        nextPage = (page + 1).takeIf { source.hasNextPage },
+        nextPage = source.nextPage?.takeIf { candidate ->
+            candidate == page + 1 && candidate <= MAX_NEWS_PAGE
+        },
         items = source.articles.map(::toSummaryResponse),
     )
 
