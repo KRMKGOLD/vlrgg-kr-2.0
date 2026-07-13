@@ -12,6 +12,8 @@ application {
 
 dependencies {
     api(projects.core)
+    implementation(libs.jsoup)
+    compileOnly(libs.jspecify)
     implementation(libs.logback)
     implementation(libs.ktor.clientCio)
     implementation(libs.ktor.serializationKotlinxJson)
