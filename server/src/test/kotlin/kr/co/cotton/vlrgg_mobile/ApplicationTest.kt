@@ -67,11 +67,11 @@ class ApplicationTest {
     fun `source parsing failures retain only a canonical URL and cause internally`() {
         val cause = IllegalStateException("selector details")
         val failure = SourceParsingFailure(
-            upstreamUrl = Url("https://www.vlr.gg/private?token=secret"),
+            upstreamUrl = Url("https://user:secret@vlr.gg/private/request-derived?token=secret#fragment"),
             cause = cause,
         )
 
-        assertEquals("https://www.vlr.gg/private", failure.canonicalUpstreamUrl)
+        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         assertSame(cause, failure.cause)
     }
 
@@ -98,7 +98,7 @@ class ApplicationTest {
                 throw InvalidInputFailure()
             }
             get("/test/network") {
-                throw UpstreamNetworkFailure("https://www.vlr.gg/private")
+                throw UpstreamNetworkFailure(Url("https://www.vlr.gg/private?token=secret"))
             }
             get("/test/parsing") {
                 throw SourceParsingFailure(

@@ -2,10 +2,15 @@ package kr.co.cotton.vlrgg_mobile.common.http
 
 import io.ktor.http.*
 
+private const val CANONICAL_VLR_UPSTREAM_LOG_URL = "https://www.vlr.gg/"
+private const val PRIMARY_VLR_UPSTREAM_HOST = "www.vlr.gg"
+private const val ALTERNATE_VLR_UPSTREAM_HOST = "vlr.gg"
+
 internal sealed class ServerFailure(
-    internal open val canonicalUpstreamUrl: String? = null,
+    upstreamUrl: Url? = null,
     cause: Exception? = null,
 ) : RuntimeException(null, cause) {
+    internal val canonicalUpstreamUrl: String? = upstreamUrl?.toSafeCanonicalUpstreamUrl()
     abstract val errorCode: ApiErrorCode
     abstract val status: HttpStatusCode
     abstract val safeMessage: String
@@ -18,9 +23,9 @@ internal class InvalidInputFailure : ServerFailure() {
 }
 
 internal class UpstreamNetworkFailure(
-    override val canonicalUpstreamUrl: String,
+    upstreamUrl: Url,
     cause: Exception? = null,
-) : ServerFailure(canonicalUpstreamUrl, cause) {
+) : ServerFailure(upstreamUrl = upstreamUrl, cause = cause) {
     override val errorCode = ApiErrorCode.UPSTREAM_NETWORK_FAILURE
     override val status = HttpStatusCode.BadGateway
     override val safeMessage = "Unable to retrieve data from the upstream source."
@@ -29,7 +34,7 @@ internal class UpstreamNetworkFailure(
 internal class SourceParsingFailure(
     upstreamUrl: Url,
     cause: Exception,
-) : ServerFailure(upstreamUrl.toSafeCanonicalUpstreamUrl(), cause) {
+) : ServerFailure(upstreamUrl = upstreamUrl, cause = cause) {
     init {
         require(upstreamUrl.host.isNotBlank()) { "Upstream URL must include a host." }
     }
@@ -50,13 +55,19 @@ internal fun ServerFailure.toApiErrorResponse() = ApiErrorResponse(
     message = safeMessage,
 )
 
-internal fun Url.toSafeCanonicalUpstreamUrl(): String = buildString {
-    append(protocol.name)
-    append("://")
-    append(host)
-    if (port != protocol.defaultPort) {
-        append(':')
-        append(port)
-    }
-    append(encodedPath)
-}
+/**
+ * Redacts request-derived URL components before they enter a server log.
+ *
+ * The common server only contacts VLR.GG.  A fixed primary origin keeps user-info, query,
+ * fragment, and path values out of logs even if a future feature builds a URL from input.
+ */
+internal fun Url.toSafeCanonicalUpstreamUrl(): String = CANONICAL_VLR_UPSTREAM_LOG_URL
+
+/** Both VLR.GG HTTPS origins are valid direct targets; redirects between them are never followed. */
+internal fun Url.isAllowedVlrUpstreamUrl(): Boolean =
+    protocol == URLProtocol.HTTPS &&
+        port == URLProtocol.HTTPS.defaultPort &&
+        user.isNullOrEmpty() &&
+        password.isNullOrEmpty() &&
+        (host.equals(PRIMARY_VLR_UPSTREAM_HOST, ignoreCase = true) ||
+            host.equals(ALTERNATE_VLR_UPSTREAM_HOST, ignoreCase = true))

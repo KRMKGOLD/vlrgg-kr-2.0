@@ -100,6 +100,9 @@ VLR.GG HTML은 외부의 불안정한 source contract다. DOM 구조와 텍스�
 - 공통 HTML transport는 Ktor CIO client를 사용한다. transport는 명시적인 `User-Agent`, connect 5초·request/socket 10초의 bounded timeout과 최대 1 MiB response body 기본값을 가지며, manual composition에서 설정을 바꿀 수 있다.
 - transport는 생성한 `HttpClient`를 소유한다. composition root는 `Application.createUpstreamHtmlTransport()`로 application마다 한 번만 만들고 application stopping lifecycle에 cleanup을 연결한 뒤, close 할 수 없는 transport contract만 feature에 전달한다.
 - `get()` 한 번은 upstream 요청 한 번만 수행한다. redirect follow를 비활성화하므로 모든 3xx와 다른 non-success status는 추가 요청 없이 `UPSTREAM_NETWORK_FAILURE`로 매핑하고, retry plugin은 설치하지 않는다. bounded retry가 필요해지면 기능 요구와 upstream 동작을 근거로 별도로 도입한다.
+- transport 경계는 HTTPS의 `www.vlr.gg`와 `vlr.gg`만 direct target으로 허용한다. 두 host는 VLR.GG의 허용된 명시 요청 대상이지만 서로 간 redirect도 follow하지 않으며, HTTP·비표준 port·user-info·그 밖의 host는 요청 전에 실패한다.
+- upstream response는 streaming으로 읽고, non-success status·선언된 body size 초과·읽는 중의 body size 초과처럼 끝까지 소비하지 못한 경우 response raw channel을 취소한다. 이로써 공유 CIO client connection이 미소비 body에 점유되지 않는다.
+- upstream URL은 public response에 넣지 않는다. server log용 canonical URL은 항상 primary origin `https://www.vlr.gg/`로 제한해 request-derived path, query, fragment, user-info를 남기지 않는다. 허용되지 않은 target도 같은 안전한 origin만 기록한다.
 
 Scraper, Parser, Mapper의 경계는 다음과 같다.
 

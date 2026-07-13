@@ -30,11 +30,12 @@ class UpstreamHtmlTransportTest {
     @Test
     fun `redirects map to upstream failure without another request`() {
         var requestCount = 0
+        val body = CancellationTrackingChannel("redirect body")
         withTransport(
             engine = MockEngine {
                 requestCount += 1
                 respond(
-                    content = ByteReadChannel.Empty,
+                    content = body,
                     status = HttpStatusCode.Found,
                     headers = headersOf(HttpHeaders.Location, "https://untrusted.example/redirect"),
                 )
@@ -46,33 +47,64 @@ class UpstreamHtmlTransportTest {
 
             assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
             assertIs<Exception>(failure.cause)
+            assertTrue(body.wasCancelled)
         }
         assertEquals(1, requestCount)
     }
 
     @Test
-    fun `non successful responses map to upstream failure`() = withTransport(
-        engine = MockEngine {
-            respond(ByteReadChannel.Empty, HttpStatusCode.ServiceUnavailable)
-        },
-    ) { transport ->
-        assertFailsWith<UpstreamNetworkFailure> {
-            runBlocking { transport.get(UPSTREAM_URL) }
+    fun `non redirect responses are cancelled before mapping to upstream failure`() {
+        val body = CancellationTrackingChannel("unavailable body")
+        withTransport(
+            engine = MockEngine {
+                respond(body, HttpStatusCode.ServiceUnavailable)
+            },
+        ) { transport ->
+            assertFailsWith<UpstreamNetworkFailure> {
+                runBlocking { transport.get(UPSTREAM_URL) }
+            }
+            assertTrue(body.wasCancelled)
         }
     }
 
     @Test
-    fun `response body larger than the configured limit maps safely`() = withTransport(
-        engine = MockEngine {
-            respond(ByteReadChannel("12345"), HttpStatusCode.OK)
-        },
-        config = UpstreamHtmlTransportConfig(maxResponseBodyBytes = 4),
-    ) { transport ->
-        val failure = assertFailsWith<UpstreamNetworkFailure> {
-            runBlocking { transport.get(UPSTREAM_URL) }
-        }
+    fun `declared response body over the configured limit is cancelled and mapped safely`() {
+        val body = CancellationTrackingChannel("12345")
+        withTransport(
+            engine = MockEngine {
+                respond(
+                    content = body,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentLength, "5"),
+                )
+            },
+            config = UpstreamHtmlTransportConfig(maxResponseBodyBytes = 4),
+        ) { transport ->
+            val failure = assertFailsWith<UpstreamNetworkFailure> {
+                runBlocking { transport.get(UPSTREAM_URL) }
+            }
 
-        assertIs<UpstreamResponseBodyTooLargeException>(failure.cause)
+            assertIs<UpstreamResponseBodyTooLargeException>(failure.cause)
+            assertTrue(body.wasCancelled)
+        }
+    }
+
+    @Test
+    fun `streaming response body over the configured limit is cancelled and mapped safely`() {
+        val body = CancellationTrackingChannel("12345")
+        withTransport(
+            engine = MockEngine {
+                respond(body, HttpStatusCode.OK)
+            },
+            config = UpstreamHtmlTransportConfig(maxResponseBodyBytes = 4),
+        ) { transport ->
+            val failure = assertFailsWith<UpstreamNetworkFailure> {
+                runBlocking { transport.get(UPSTREAM_URL) }
+            }
+
+            assertIs<UpstreamResponseBodyTooLargeException>(failure.cause)
+            assertTrue(body.wasCancelled)
+        }
     }
 
     @Test
@@ -87,6 +119,34 @@ class UpstreamHtmlTransportTest {
                 runBlocking { transport.get(UPSTREAM_URL) }
             }
         }
+    }
+
+    @Test
+    fun `transport allows direct VLR HTTPS origins and rejects every other target before a request`() {
+        var requestCount = 0
+        withTransport(
+            engine = MockEngine { request ->
+                requestCount += 1
+                assertEquals("vlr.gg", request.url.host)
+                respond(ByteReadChannel("ok"), HttpStatusCode.OK)
+            },
+        ) { transport ->
+            assertEquals("ok", transport.get(Url("https://vlr.gg/matches?event=1")))
+
+            listOf(
+                "http://www.vlr.gg/matches",
+                "https://www.vlr.gg:444/matches",
+                "https://user:secret@www.vlr.gg/matches",
+                "https://untrusted.example/request-derived?token=secret#fragment",
+            ).forEach { target ->
+                val failure = assertFailsWith<UpstreamNetworkFailure> {
+                    runBlocking { transport.get(Url(target)) }
+                }
+
+                assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
+            }
+        }
+        assertEquals(1, requestCount)
     }
 
     @Test
@@ -131,5 +191,24 @@ class UpstreamHtmlTransportTest {
 
     private companion object {
         val UPSTREAM_URL = Url("https://www.vlr.gg/")
+    }
+
+    private class CancellationTrackingChannel(
+        content: String,
+        private val backingChannel: ByteChannel = ByteChannel(autoFlush = true),
+    ) : ByteReadChannel by backingChannel {
+        var wasCancelled = false
+            private set
+
+        init {
+            runBlocking {
+                backingChannel.writeFully(content.encodeToByteArray())
+            }
+        }
+
+        override fun cancel(cause: Throwable?) {
+            wasCancelled = true
+            backingChannel.cancel(cause)
+        }
     }
 }

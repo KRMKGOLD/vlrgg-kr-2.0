@@ -13,7 +13,7 @@ import io.ktor.utils.io.*
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
-import kr.co.cotton.vlrgg_mobile.common.http.toSafeCanonicalUpstreamUrl
+import kr.co.cotton.vlrgg_mobile.common.http.isAllowedVlrUpstreamUrl
 
 private const val DEFAULT_USER_AGENT = "VLR.GG-Mobile/2.0"
 private const val DEFAULT_MAX_RESPONSE_BODY_BYTES = 1_048_576
@@ -45,25 +45,31 @@ internal class UpstreamResponseBodyTooLargeException : Exception()
 
 private class UnexpectedUpstreamResponseStatusException : Exception()
 
+private class DisallowedUpstreamUrlException : Exception()
+
 private class KtorUpstreamHtmlTransport(
     private val client: HttpClient,
     private val maxResponseBodyBytes: Int,
 ) : UpstreamHtmlTransport {
     override suspend fun get(url: Url): String {
-        val canonicalUrl = url.toSafeCanonicalUpstreamUrl()
-
         return try {
-            val response = client.get(url)
-            if (!response.status.isSuccess()) {
-                throw UpstreamNetworkFailure(canonicalUrl, UnexpectedUpstreamResponseStatusException())
+            if (!url.isAllowedVlrUpstreamUrl()) {
+                throw UpstreamNetworkFailure(url, DisallowedUpstreamUrlException())
             }
-            response.bodyAsBoundedText(maxResponseBodyBytes)
+
+            client.prepareGet(url).execute { response ->
+                if (!response.status.isSuccess()) {
+                    response.cancelUndrainedBody()
+                    throw UpstreamNetworkFailure(url, UnexpectedUpstreamResponseStatusException())
+                }
+                response.bodyAsBoundedText(maxResponseBodyBytes)
+            }
         } catch (failure: UpstreamNetworkFailure) {
             throw failure
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (exception: Exception) {
-            throw UpstreamNetworkFailure(canonicalUrl, exception)
+            throw UpstreamNetworkFailure(url, exception)
         }
     }
 
@@ -137,32 +143,52 @@ private fun HttpClientConfig<*>.configureUpstreamTransport(config: UpstreamHtmlT
 
 @OptIn(InternalAPI::class)
 private suspend fun HttpResponse.bodyAsBoundedText(maxResponseBodyBytes: Int): String {
-    val declaredLength = headers[HttpHeaders.ContentLength]?.toLongOrNull()
-    if (declaredLength != null && declaredLength > maxResponseBodyBytes) {
-        throw UpstreamResponseBodyTooLargeException()
-    }
-
-    val output = ByteArrayOutputStream()
-    val buffer = ByteArray(minOf(RESPONSE_READ_BUFFER_SIZE, maxResponseBodyBytes))
     val channel = bodyAsChannel()
-    var totalBytes = 0
+    var fullyConsumed = false
 
-    while (true) {
-        val read = channel.readAvailable(buffer)
-        if (read == -1) {
-            break
-        }
-        if (read == 0) {
-            continue
-        }
-        if (read > maxResponseBodyBytes - totalBytes) {
+    try {
+        val declaredLength = headers[HttpHeaders.ContentLength]?.toLongOrNull()
+        if (declaredLength != null && declaredLength > maxResponseBodyBytes) {
             throw UpstreamResponseBodyTooLargeException()
         }
 
-        output.write(buffer, 0, read)
-        totalBytes += read
-    }
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(minOf(RESPONSE_READ_BUFFER_SIZE, maxResponseBodyBytes))
+        var totalBytes = 0
 
-    channel.rethrowCloseCauseIfNeeded()
-    return String(output.toByteArray(), charset() ?: Charsets.UTF_8)
+        while (true) {
+            val read = channel.readAvailable(buffer)
+            if (read == -1) {
+                break
+            }
+            if (read == 0) {
+                continue
+            }
+            if (read > maxResponseBodyBytes - totalBytes) {
+                throw UpstreamResponseBodyTooLargeException()
+            }
+
+            output.write(buffer, 0, read)
+            totalBytes += read
+        }
+
+        channel.rethrowCloseCauseIfNeeded()
+        fullyConsumed = true
+        return String(output.toByteArray(), charset() ?: Charsets.UTF_8)
+    } finally {
+        if (!fullyConsumed) {
+            cancelUndrainedBody()
+        }
+    }
+}
+
+@OptIn(InternalAPI::class)
+private fun HttpResponse.cancelUndrainedBody() {
+    try {
+        rawContent.cancel()
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        // The original upstream failure remains the useful, safe failure to report.
+    }
 }
