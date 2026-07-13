@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Repository-specific CodeRabbit settings. Project conventions are defined in AGENTS.md.
+language: "ko-KR"
+
+reviews:
+  profile: "assertive"
+  high_level_summary: true
+  review_status: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "app/shared/**"
+      instructions: |
+        Compose Multiplatform 공통 코드의 변경을 검토한다.
+        commonMain 우선 원칙, 단일 UiState와 StateFlow 기반 UDF, Navigation 3 및 Metro DI 사용을 확인한다.
+        Screen은 ViewModel 연결과 Content composable을 분리하고, ViewModel이 back stack을 직접 제어하지 않는지 확인한다.
+    - path: "server/**"
+      instructions: |
+        Ktor route, service, scraper/parser, response DTO의 책임 분리를 검토한다.
+        외부 HTML selector 의존성은 parser에 국한하고, 클라이언트 오류 응답에 upstream URL, selector, 원본 HTML, 예외 세부사항을 노출하지 않는지 확인한다.
+    - path: "core/**"
+      instructions: |
+        core 모듈이 Compose UI, 플랫폼 API, Ktor와 같은 framework-specific 의존성 없이 순수 Kotlin 경계를 유지하는지 확인한다.
+    - path: "**/*.gradle.kts"
+      instructions: |
+        의존성 변경이 version catalog와 모듈 경계를 따르는지, 불필요한 의존성이나 플랫폼별 중복 구현을 도입하지 않는지 확인한다.
+
+chat:
+  auto_reply: true
