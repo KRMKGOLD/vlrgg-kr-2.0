@@ -31,7 +31,7 @@ Theme 관련 코드는 `ui/theme` 아래에 둔다.
 - `Typography.kt`
 - `Dimensions.kt`
 
-디자인 시스템이 구체화되면 `DESIGN.md`, Stitch 결과물, 화면 기획 문서를 기준으로 theme를 갱신한다.
+Theme는 [`../../DESIGN.md`](../../DESIGN.md), Stitch 결과물, 화면 기획 문서를 기준으로 갱신한다.
 
 ## `ui/component`
 

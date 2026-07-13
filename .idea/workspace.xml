@@ -4,14 +4,10 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="389f2f93-756c-43fe-b617-ac8c248a43d2" name="Changes" comment="docs: Add repository guidelines for project structure and contribution&#10;&#10;- Create `AGENTS.md` to establish development standards.&#10;- Define directory structure and module organization expectations.&#10;- Document coding style, naming conventions, and testing guidelines.&#10;- Outline requirements for commit messages and pull requests.&#10;- Provide security recommendations for handling secrets and environment variables.">
-      <change afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="389f2f93-756c-43fe-b617-ac8c248a43d2" name="Changes" comment="docs: AGENTS.md 초안 작성">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/shared/src/jvmMain/kotlin/kr/co/cotton/vlrgg_mobile/Platform.jvm.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/shared/src/jvmTest/kotlin/kr/co/cotton/vlrgg_mobile/SharedLogicDesktopTest.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/app-arch/app-arch.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/app-arch/app-arch.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/app-arch/ui-layer.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/app-arch/ui-layer.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -79,7 +75,7 @@
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "external.system.has.shared.sources": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "codex/server-runtime-error-contract",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "/Users/seongha/Desktop/vlrgg-kr-2.0",
     "settings.editor.selected.configurable": "preferences.pluginManager"
@@ -152,7 +148,13 @@
         <option name="Android.Gradle.BeforeRunTask" enabled="true" />
       </method>
     </configuration>
-    <configuration name="iosApp" type="AppleRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="iosApp" TARGET_NAME="iosApp" CONFIG_NAME="Debug" IS_LOCATION_SIMULATION_SUPPORTED="false" SCHEME_NAME="iosApp" IS_LOCATION_SIMULATION_ALLOWED="true" APPLICATION_LANGUAGE="IDELaunchSchemeLanguageUseSystemLanguage" APPLICATION_REGION="" DEVELOPMENT_TEAM="" RUN_TARGET_PROJECT_NAME="iosApp" RUN_TARGET_NAME="iosApp" MAKE_ACTIVE="TRUE" SHOULD_DEBUG_EXTENSIONS="false">
+    <configuration default="true" type="AppleRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="iosApp" TARGET_NAME="iosApp" CONFIG_NAME="Debug" IS_LOCATION_SIMULATION_SUPPORTED="false" IS_LOCATION_SIMULATION_ALLOWED="true" APPLICATION_LANGUAGE="IDELaunchSchemeLanguageUseSystemLanguage" APPLICATION_REGION="" DEVELOPMENT_TEAM="" MAKE_ACTIVE="TRUE" SHOULD_DEBUG_EXTENSIONS="false">
+      <embedded_app_extension_list />
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="iosApp" type="AppleRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="iosApp" TARGET_NAME="iosApp" CONFIG_NAME="Debug" IS_LOCATION_SIMULATION_SUPPORTED="true" SCHEME_NAME="iosApp" IS_LOCATION_SIMULATION_ALLOWED="true" APPLICATION_LANGUAGE="IDELaunchSchemeLanguageUseSystemLanguage" APPLICATION_REGION="" DEVELOPMENT_TEAM="" RUN_TARGET_PROJECT_NAME="iosApp" RUN_TARGET_NAME="iosApp" MAKE_ACTIVE="TRUE" SHOULD_DEBUG_EXTENSIONS="false">
       <embedded_app_extension_list />
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
@@ -179,7 +181,15 @@
       <option name="project" value="LOCAL" />
       <updated>1783497060741</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="docs: AGENTS.md 초안 작성">
+      <option name="closed" value="true" />
+      <created>1783602118139</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1783602118140</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -195,6 +205,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="chore: Initialize Kotlin Multiplatform project with Android, iOS, and Server targets&#10;&#10;- Set up project structure with `app`, `core`, and `server` modules.&#10;- Implement shared UI using Compose Multiplatform.&#10;- Configure Ktor server for the backend.&#10;- Set up Android and iOS entry points.&#10;- Configure build logic using Gradle Version Catalog and Kotlin DSL." />
-    <option name="LAST_COMMIT_MESSAGE" value="chore: Initialize Kotlin Multiplatform project with Android, iOS, and Server targets&#10;&#10;- Set up project structure with `app`, `core`, and `server` modules.&#10;- Implement shared UI using Compose Multiplatform.&#10;- Configure Ktor server for the backend.&#10;- Set up Android and iOS entry points.&#10;- Configure build logic using Gradle Version Catalog and Kotlin DSL." />
+    <MESSAGE value="docs: AGENTS.md 초안 작성" />
+    <option name="LAST_COMMIT_MESSAGE" value="docs: AGENTS.md 초안 작성" />
   </component>
 </project>
