@@ -270,14 +270,15 @@ GET /api/v1/matches/{matchId}
 - `matchId`는 선행 0이 없는 1~10자리 10진수만 허용한다. slug, upstream path, URL은 client 입력이나 API identity로 사용하지 않는다.
 - 성공 목록 response는 `{ category, page, groups }`이고, group은 `{ dateLabel, matches }`다. `category`는 `upcoming` 또는 `results`다.
 - summary는 `{ id, status, timeLabel, relativeTimeLabel?, homeTeam, awayTeam, homeScore?, awayScore?, event }`를 사용한다. team은 `{ name, id? }`, event는 `{ name, series?, id? }`다. ID가 있으면 Team/Event Detail navigation에 사용하며, 없으면 해당 이동 action을 노출하지 않는다.
-- detail은 summary의 핵심 필드와 `scheduledAt?`, `description?`, `seriesFormat?`, `maps`, `headToHead`, `pastMatches`를 flat하게 제공한다. map은 `{ name, homeScore?, awayScore? }`이며 관련 경기는 향후 source가 생길 때 `{ id, homeTeamName, awayTeamName, homeScore?, awayScore? }` 형태를 유지한다.
+- detail은 summary의 핵심 필드와 `scheduledAt?`, `description?`, `seriesFormat?`, `maps`, `headToHead`, `pastMatches`를 flat하게 제공한다. map은 `{ name, homeScore?, awayScore? }`이며 관련 경기는 `{ id, homeTeamName, awayTeamName, homeScore?, awayScore? }` 형태를 사용한다.
 - `status`는 `upcoming`, `live`, `completed`, `postponed`, `cancelled`, `unavailable` 중 하나다. 상태상 없는 score/map은 오류가 아니라 optional field 또는 빈 list로 표현한다.
 
 ### 현재 source 한계와 확장 지점
 
 - VLR.GG 목록 markup은 team/event의 안정적인 식별자와 절대 시각을 제공하지 않는다. 따라서 목록에서는 이름과 source 표시 문자열(`dateLabel`, `timeLabel`, `relativeTimeLabel`)만 제공한다. Detail markup의 안정적인 Team/Event ID는 `id`로 전달하지만, source에 없는 ID·image URL·추정 timestamp를 만들거나 upstream asset URL을 노출하지 않는다.
 - Detail의 `scheduledAt`은 upstream `data-utc-ts`를 안전하게 ISO-8601 UTC로 바꿀 수 있을 때만 포함한다. `timeLabel`은 source에서 읽은 사람이 읽을 수 있는 날짜/시간 label이며 UI가 locale/timezone 표시를 결정한다.
-- 현재 Detail HTML에는 안정적인 Head to Head/Past Matches block이 없다. API는 호환성 있는 빈 `headToHead`/`pastMatches` list를 반환하며, 이 slice는 추가 team/history scraping을 추측해 요청하지 않는다. source contract가 확보되면 parser/source model/mapper만 확장한다.
+- Detail의 `pastMatches`는 각 team history block 안에서 canonical numeric match link를 가진 `.match-histories-item`만 source 순서대로 전달한다. link가 없거나 상대 팀명이 빠진 item은 match identity를 합성하지 않고 제외하며, detail header의 team 순서와 item의 상대 팀/score만 사용한다.
+- `headToHead`는 `.match-h2h-matches`의 row가 canonical numeric match link를 직접 제공할 때만 source 순서대로 전달한다. canonical row reference가 없는 H2H row는 안정 식별자가 없다는 좁은 source limit 때문에 제외하며, event·team·score로 ID를 만들지 않는다; 유효한 row가 없으면 list는 빈 배열이다.
 - 10분 상태 추적, anonymous subscription persistence, delivery marker, scheduler, push provider와 구독 endpoint는 이 조회 slice에 포함하지 않는다. 미래 구현은 기존 문서의 `upcoming/live/completed/postponed/cancelled/unavailable` 내부 상태와 subscription별 start/end 1회 delivery intent를 계약 경계로 사용하되, 조회 response freshness 정책을 바꾸지 않는다.
 
 실패는 서버 공통 error envelope를 그대로 사용한다. transport failure는 `502 UPSTREAM_NETWORK_FAILURE`, 필수 DOM structure failure는 `502 SOURCE_PARSING_FAILURE`이며, 안전한 message 외의 내부 원인은 public response에 포함하지 않는다.

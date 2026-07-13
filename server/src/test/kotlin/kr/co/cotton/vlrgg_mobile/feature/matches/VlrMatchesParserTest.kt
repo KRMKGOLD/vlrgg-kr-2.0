@@ -87,6 +87,23 @@ class VlrMatchesParserTest {
     }
 
     @Test
+    fun `parses linked related sections in source order and skips rows without a stable match reference`() {
+        val detail = parser.parseDetail(fixtureHtml("detail-related-matches.html"), detailUrl, "709685")
+
+        assertEquals(listOf("700001", "700002"), detail.headToHead.map { it.id })
+        assertEquals(listOf("Alpha", "Alpha"), detail.headToHead.map { it.homeTeamName })
+        assertEquals(listOf("Bravo", "Bravo"), detail.headToHead.map { it.awayTeamName })
+        assertEquals(listOf(2, 3), detail.headToHead.map { it.homeScore })
+        assertEquals(listOf(1, 0), detail.headToHead.map { it.awayScore })
+
+        assertEquals(listOf("700101", "700201"), detail.pastMatches.map { it.id })
+        assertEquals(listOf("Alpha", "Bravo"), detail.pastMatches.map { it.homeTeamName })
+        assertEquals(listOf("Delta", "Echo"), detail.pastMatches.map { it.awayTeamName })
+        assertEquals(listOf(13, 8), detail.pastMatches.map { it.homeScore })
+        assertEquals(listOf(10, 13), detail.pastMatches.map { it.awayScore })
+    }
+
+    @Test
     fun `accepts BO1 BO3 BO5 and forfeit detail variants without inventing unavailable maps`() {
         val cases = listOf(
             SeriesCase("detail-bo1.html", "Bo1", 1, 1, 0),

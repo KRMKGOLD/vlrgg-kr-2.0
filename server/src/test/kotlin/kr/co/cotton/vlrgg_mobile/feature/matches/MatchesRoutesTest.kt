@@ -31,7 +31,16 @@ class MatchesRoutesTest {
 
         val detail = client.get("/api/v1/matches/709685")
         assertEquals(HttpStatusCode.OK, detail.status)
-        assertEquals("709685", Json.parseToJsonElement(detail.bodyAsText()).jsonObject["id"]?.jsonPrimitive?.content)
+        val detailBody = Json.parseToJsonElement(detail.bodyAsText()).jsonObject
+        assertEquals("709685", detailBody["id"]?.jsonPrimitive?.content)
+        val headToHead = detailBody["headToHead"]?.jsonArray?.single()?.jsonObject
+        assertEquals("700001", headToHead?.get("id")?.jsonPrimitive?.content)
+        assertEquals("Alpha", headToHead?.get("homeTeamName")?.jsonPrimitive?.content)
+        assertEquals(2, headToHead?.get("homeScore")?.jsonPrimitive?.int)
+        val pastMatch = detailBody["pastMatches"]?.jsonArray?.single()?.jsonObject
+        assertEquals("700101", pastMatch?.get("id")?.jsonPrimitive?.content)
+        assertEquals("Delta", pastMatch?.get("awayTeamName")?.jsonPrimitive?.content)
+        assertEquals(10, pastMatch?.get("awayScore")?.jsonPrimitive?.int)
     }
 
     @Test
@@ -112,8 +121,24 @@ class MatchesRoutesTest {
                 description = null,
                 seriesFormat = null,
                 maps = emptyList(),
-                headToHead = emptyList(),
-                pastMatches = emptyList(),
+                headToHead = listOf(
+                    RelatedMatchResponse(
+                        id = "700001",
+                        homeTeamName = "Alpha",
+                        awayTeamName = "Beta",
+                        homeScore = 2,
+                        awayScore = 1,
+                    ),
+                ),
+                pastMatches = listOf(
+                    RelatedMatchResponse(
+                        id = "700101",
+                        homeTeamName = "Alpha",
+                        awayTeamName = "Delta",
+                        homeScore = 13,
+                        awayScore = 10,
+                    ),
+                ),
             )
         }
     }

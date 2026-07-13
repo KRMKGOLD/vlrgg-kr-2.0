@@ -49,7 +49,7 @@ internal data class MatchMapSource(
     val awayScore: Int?,
 )
 
-/** Reserved for a future source-backed related-match section; it is never serialized directly. */
+/** Source-backed related-match data. It is never serialized directly. */
 internal data class RelatedMatchSource(
     val id: String,
     val homeTeamName: String,

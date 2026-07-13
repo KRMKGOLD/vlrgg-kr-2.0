@@ -91,10 +91,8 @@ internal class VlrMatchesParser(
             maps = document.select(".vm-stats-game[data-game-id]")
                 .filter { it.attr("data-game-id") != ALL_MAPS_GAME_ID }
                 .mapNotNull(::parseMapOrNull),
-            // The VLR.GG detail document has no stable head-to-head/past-match block. Do not issue
-            // additional speculative requests; the public empty lists distinguish that source limit.
-            headToHead = emptyList(),
-            pastMatches = emptyList(),
+            headToHead = document.parseHeadToHead(summary),
+            pastMatches = document.parsePastMatches(summary),
         )
     }
 
@@ -137,6 +135,73 @@ internal class VlrMatchesParser(
             name = name,
             homeScore = scores.getOrNull(HOME_TEAM_INDEX),
             awayScore = scores.getOrNull(AWAY_TEAM_INDEX),
+        )
+    }
+
+    /**
+     * H2H rows do not expose team names of their own. They are therefore usable only when the
+     * row itself has the canonical match path; the two participants are the enclosing detail's
+     * validated team pair and the score slots preserve the row's left-to-right order.
+     */
+    private fun Document.parseHeadToHead(summary: MatchSummarySource): List<RelatedMatchSource> =
+        select(".match-h2h-matches").flatMap { section ->
+            section.children()
+                .filter { it.`is`("a.wf-module-item.mod-h2h") }
+                .mapNotNull { row -> row.toHeadToHeadOrNull(summary) }
+        }
+
+    private fun Element.toHeadToHeadOrNull(summary: MatchSummarySource): RelatedMatchSource? {
+        val id = attr("href").extractMatchIdOrNull() ?: return null
+        val scores = selectFirst(".match-h2h-matches-score")
+            ?.children()
+            ?.takeIf { it.size == REQUIRED_TEAM_COUNT }
+            ?.map { it.normalizedText().toScoreOrNull() }
+            ?: return null
+
+        return RelatedMatchSource(
+            id = id,
+            homeTeamName = summary.homeTeam.name,
+            awayTeamName = summary.awayTeam.name,
+            homeScore = scores[HOME_TEAM_INDEX],
+            awayScore = scores[AWAY_TEAM_INDEX],
+        )
+    }
+
+    /**
+     * Each history card is ordered by the same validated detail-team order. Individual entries
+     * must carry their own canonical match path and an opponent name; invalid entries cannot be
+     * recovered from event, score, or display text and are omitted independently.
+     */
+    private fun Document.parsePastMatches(summary: MatchSummarySource): List<RelatedMatchSource> =
+        select(".match-histories").flatMapIndexed { teamIndex, section ->
+            val teamName = when (teamIndex) {
+                HOME_TEAM_INDEX -> summary.homeTeam.name
+                AWAY_TEAM_INDEX -> summary.awayTeam.name
+                else -> return@flatMapIndexed emptyList()
+            }
+            section.children()
+                .filter { it.`is`("a.match-histories-item") }
+                .mapNotNull { row -> row.toPastMatchOrNull(teamName) }
+        }
+
+    private fun Element.toPastMatchOrNull(teamName: String): RelatedMatchSource? {
+        val id = attr("href").extractMatchIdOrNull() ?: return null
+        val opponentName = selectFirst(".match-histories-item-opponent-name")
+            ?.normalizedText()
+            .orNullIfBlank()
+            ?: return null
+        val scores = selectFirst(".match-histories-item-result")
+            ?.children()
+            ?.takeIf { it.size == REQUIRED_TEAM_COUNT }
+            ?.map { it.normalizedText().toScoreOrNull() }
+            ?: return null
+
+        return RelatedMatchSource(
+            id = id,
+            homeTeamName = teamName,
+            awayTeamName = opponentName,
+            homeScore = scores[HOME_TEAM_INDEX],
+            awayScore = scores[AWAY_TEAM_INDEX],
         )
     }
 
