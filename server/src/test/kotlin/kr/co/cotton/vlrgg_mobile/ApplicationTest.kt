@@ -55,6 +55,24 @@ class ApplicationTest {
             ApiErrorCode.INTERNAL_ERROR,
             "An unexpected server error occurred.",
         )
+        assertError(
+            "/missing",
+            HttpStatusCode.NotFound,
+            ApiErrorCode.NOT_FOUND,
+            "Requested resource was not found.",
+        )
+    }
+
+    @Test
+    fun `source parsing failures retain only a canonical URL and cause internally`() {
+        val cause = IllegalStateException("selector details")
+        val failure = SourceParsingFailure(
+            upstreamUrl = Url("https://www.vlr.gg/private?token=secret"),
+            cause = cause,
+        )
+
+        assertEquals("https://www.vlr.gg/private", failure.canonicalUpstreamUrl)
+        assertSame(cause, failure.cause)
     }
 
     private suspend fun ApplicationTestBuilder.assertError(
@@ -84,7 +102,7 @@ class ApplicationTest {
             }
             get("/test/parsing") {
                 throw SourceParsingFailure(
-                    canonicalUpstreamUrl = "https://www.vlr.gg/private",
+                    upstreamUrl = Url("https://www.vlr.gg/private?token=secret"),
                     cause = IllegalStateException("selector details"),
                 )
             }

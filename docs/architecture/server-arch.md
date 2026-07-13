@@ -97,8 +97,9 @@ VLR.GG HTML은 외부의 불안정한 source contract다. DOM 구조와 텍스�
 - 일반 콘텐츠 응답에는 database, durable cache, stale-on-error fallback을 첫 단계에 도입하지 않는다. Match 알림 구독 저장소는 콘텐츠 cache가 아니라 알림 delivery state를 보존하는 feature-specific 예외다.
 - 같은 canonical upstream resource를 동시에 요청했을 때만 하나의 진행 중 fetch를 공유할 수 있다. 이는 중복 upstream 요청을 줄이기 위한 동시성 보호이며, 이전 성공 데이터를 반환하는 cache가 아니다.
 - upstream network failure 또는 parsing failure가 발생하면 이전 데이터를 반환하지 않고 실패 응답을 반환한다.
-- 공통 HTML transport는 Ktor CIO client를 사용한다. transport는 명시적인 `User-Agent`, connect 5초·request/socket 10초의 bounded timeout 기본값을 가지며, manual composition에서 설정을 바꿀 수 있다.
-- transport는 생성한 `HttpClient`를 소유한다. composition root는 `Application.createUpstreamHtmlTransport()`로 만들고 application stopping lifecycle에 cleanup을 연결한다. `get()` 한 번은 upstream 요청 한 번만 수행하며 retry plugin은 설치하지 않는다. bounded retry가 필요해지면 기능 요구와 upstream 동작을 근거로 별도로 도입한다.
+- 공통 HTML transport는 Ktor CIO client를 사용한다. transport는 명시적인 `User-Agent`, connect 5초·request/socket 10초의 bounded timeout과 최대 1 MiB response body 기본값을 가지며, manual composition에서 설정을 바꿀 수 있다.
+- transport는 생성한 `HttpClient`를 소유한다. composition root는 `Application.createUpstreamHtmlTransport()`로 application마다 한 번만 만들고 application stopping lifecycle에 cleanup을 연결한 뒤, close 할 수 없는 transport contract만 feature에 전달한다.
+- `get()` 한 번은 upstream 요청 한 번만 수행한다. redirect follow를 비활성화하므로 모든 3xx와 다른 non-success status는 추가 요청 없이 `UPSTREAM_NETWORK_FAILURE`로 매핑하고, retry plugin은 설치하지 않는다. bounded retry가 필요해지면 기능 요구와 upstream 동작을 근거로 별도로 도입한다.
 
 Scraper, Parser, Mapper의 경계는 다음과 같다.
 
@@ -145,6 +146,7 @@ data class ApiErrorResponse(
 | Code | HTTP status | Meaning |
 | --- | --- | --- |
 | `INVALID_REQUEST` | `400 Bad Request` | path/query/body input이 유효하지 않음 |
+| `NOT_FOUND` | `404 Not Found` | 요청한 route가 존재하지 않음 |
 | `UPSTREAM_NETWORK_FAILURE` | `502 Bad Gateway` | VLR.GG 요청·연결·timeout 등 upstream 통신 실패 |
 | `SOURCE_PARSING_FAILURE` | `502 Bad Gateway` | 응답은 받았지만 필요한 VLR.GG 구조를 해석할 수 없음 |
 | `INTERNAL_ERROR` | `500 Internal Server Error` | 위 범주 밖의 처리 실패 |
@@ -153,7 +155,8 @@ data class ApiErrorResponse(
 
 - network failure와 parsing failure는 server 내부와 public `code`에서 모두 구분한다.
 - `message`는 개발 중 원인을 파악할 수 있는 안전한 요약이다. 예외 메시지, stack trace, raw HTML, selector, canonical upstream URL을 그대로 넣지 않는다.
-- 내부 failure는 sealed type 또는 focused exception으로 구현할 수 있다. 어느 방식이든 원인, URL, throwable을 내부에서 보존하고 `ErrorHandling` 경계에서 `ApiErrorResponse`로 매핑한다.
+- parsing failure는 canonical upstream URL과 `Exception` cause를 server 내부에 반드시 보존한다. request cancellation과 JVM `Error`는 public error envelope로 변환하지 않고 전파한다.
+- 내부 failure는 sealed type 또는 focused exception으로 구현할 수 있다. 어느 방식이든 원인과 URL을 내부에서 보존하고 `ErrorHandling` 경계에서 `ApiErrorResponse`로 매핑한다.
 - 앱은 현재 모든 non-success response를 generic `AppResult.Failure`로 변환한다. UI는 `ApiErrorCode`를 해석하지 않는다. 오류별 UI 요구가 생기면 앱 Data·Domain·UI 문서를 함께 갱신한다.
 - API error envelope는 `StatusPages` 등 공통 error handling plugin에서 일관되게 반환한다. Ktor는 예외 처리를 위한 `StatusPages` plugin을 제공한다. [Ktor StatusPages](https://ktor.io/docs/server-status-pages.html)
 

@@ -4,7 +4,7 @@ import io.ktor.http.*
 
 internal sealed class ServerFailure(
     internal open val canonicalUpstreamUrl: String? = null,
-    cause: Throwable? = null,
+    cause: Exception? = null,
 ) : RuntimeException(null, cause) {
     abstract val errorCode: ApiErrorCode
     abstract val status: HttpStatusCode
@@ -19,7 +19,7 @@ internal class InvalidInputFailure : ServerFailure() {
 
 internal class UpstreamNetworkFailure(
     override val canonicalUpstreamUrl: String,
-    cause: Throwable? = null,
+    cause: Exception? = null,
 ) : ServerFailure(canonicalUpstreamUrl, cause) {
     override val errorCode = ApiErrorCode.UPSTREAM_NETWORK_FAILURE
     override val status = HttpStatusCode.BadGateway
@@ -27,15 +27,19 @@ internal class UpstreamNetworkFailure(
 }
 
 internal class SourceParsingFailure(
-    override val canonicalUpstreamUrl: String? = null,
-    cause: Throwable? = null,
-) : ServerFailure(canonicalUpstreamUrl, cause) {
+    upstreamUrl: Url,
+    cause: Exception,
+) : ServerFailure(upstreamUrl.toSafeCanonicalUpstreamUrl(), cause) {
+    init {
+        require(upstreamUrl.host.isNotBlank()) { "Upstream URL must include a host." }
+    }
+
     override val errorCode = ApiErrorCode.SOURCE_PARSING_FAILURE
     override val status = HttpStatusCode.BadGateway
     override val safeMessage = "Unable to parse data from the upstream source."
 }
 
-internal class InternalServerFailure(cause: Throwable? = null) : ServerFailure(cause = cause) {
+internal class InternalServerFailure(cause: Exception) : ServerFailure(cause = cause) {
     override val errorCode = ApiErrorCode.INTERNAL_ERROR
     override val status = HttpStatusCode.InternalServerError
     override val safeMessage = "An unexpected server error occurred."
@@ -45,3 +49,14 @@ internal fun ServerFailure.toApiErrorResponse() = ApiErrorResponse(
     code = errorCode,
     message = safeMessage,
 )
+
+internal fun Url.toSafeCanonicalUpstreamUrl(): String = buildString {
+    append(protocol.name)
+    append("://")
+    append(host)
+    if (port != protocol.defaultPort) {
+        append(':')
+        append(port)
+    }
+    append(encodedPath)
+}

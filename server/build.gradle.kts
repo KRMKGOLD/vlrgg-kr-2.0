@@ -12,7 +12,6 @@ application {
 
 dependencies {
     api(projects.core)
-    implementation(libs.jsoup)
     implementation(libs.logback)
     implementation(libs.ktor.clientCio)
     implementation(libs.ktor.serializationKotlinxJson)
@@ -21,6 +20,7 @@ dependencies {
     implementation(libs.ktor.serverCore)
     implementation(libs.ktor.serverNetty)
     implementation(libs.ktor.serverStatusPages)
+    testImplementation(libs.ktor.clientMock)
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
 }
