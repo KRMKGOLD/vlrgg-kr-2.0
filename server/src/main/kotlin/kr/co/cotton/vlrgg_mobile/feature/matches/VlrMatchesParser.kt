@@ -4,13 +4,17 @@ import io.ktor.http.*
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
-internal class VlrMatchesParser {
+internal class VlrMatchesParser(
+    private val htmlParser: (String) -> Document = Jsoup::parse,
+) {
     fun parseList(html: String, upstreamUrl: Url): MatchesPageSource = parse(upstreamUrl) {
-        val document = Jsoup.parse(html)
+        val document = htmlParser(html)
         MatchesPageSource(
             groups = document.select("div.wf-label.mod-large").map { dateLabel ->
                 val card = dateLabel.nextElementSibling()
@@ -31,7 +35,7 @@ internal class VlrMatchesParser {
     }
 
     fun parseDetail(html: String, upstreamUrl: Url, matchId: String): MatchDetailSource = parse(upstreamUrl) {
-        val document = Jsoup.parse(html)
+        val document = htmlParser(html)
         val header = document.selectFirst("div.match-header")
             ?: sourceStructureError("Match header is missing.")
         val versus = header.selectFirst("div.match-header-vs")
@@ -46,12 +50,10 @@ internal class VlrMatchesParser {
         val notes = score.children()
             .filter { it.hasClass("match-header-vs-note") }
             .map { it.requiredText() }
-        val status = notes.firstOrNull()?.toMatchStatus()
+        val status = score.statusFromModifierOrNull()
+            ?: notes.firstOrNull()?.toMatchStatus()
             ?: sourceStructureError("Match status is missing.")
-        val scoreValues = score.selectFirst("div.js-spoiler")
-            ?.select("span.match-header-vs-score-winner, span.match-header-vs-score-loser")
-            ?.map { it.normalizedText().toScoreOrNull() }
-            .orEmpty()
+        val scoreValues = score.extractScoreValues()
         val event = header.selectFirst("a.match-header-event")
             ?: sourceStructureError("Match event is missing.")
         val eventSeries = event.selectFirst(".match-header-event-series")?.normalizedText().orNullIfBlank()
@@ -152,6 +154,49 @@ internal class VlrMatchesParser {
         .joinToString(" ")
         .orNullIfBlank()
 
+    /**
+     * VLR's detail state is normally encoded in an `mod-*` class. It must take priority over
+     * the adjacent text because upcoming pages can use a countdown there instead of a state word.
+     */
+    private fun Element.statusFromModifierOrNull(): MatchStatusSource? = getAllElements()
+        .asSequence()
+        .flatMap { element -> element.classNames().asSequence() }
+        .mapNotNull { className -> className.removePrefix(STATUS_MODIFIER_PREFIX).toKnownMatchStatusOrNull() }
+        .firstOrNull()
+
+    /**
+     * A score is only trusted when a single detail score subtree contains exactly
+     * `[home score, separator, away score]`. This rejects unrelated numeric descendants and
+     * preserves the same left-to-right order as the two validated team links.
+     */
+    private fun Element.extractScoreValues(): List<Int?> = select("div.js-spoiler, div.match-header-vs-score")
+        .asSequence()
+        .mapNotNull { scoreMarkup -> scoreMarkup.strictScorePairOrNull() }
+        .firstOrNull()
+        .orEmpty()
+
+    private fun Element.strictScorePairOrNull(): List<Int>? {
+        val slots = children()
+        if (slots.isClassifiedScorePair()) {
+            return slots.toScorePairOrNull()
+        }
+        if (slots.size != SCORE_SLOT_COUNT || slots[SCORE_SEPARATOR_INDEX].normalizedText() != SCORE_SEPARATOR) {
+            return null
+        }
+        return slots.toScorePairOrNull()
+    }
+
+    private fun List<Element>.toScorePairOrNull(): List<Int>? {
+        val homeScore = get(HOME_SCORE_INDEX).normalizedText().toStrictScoreOrNull() ?: return null
+        val awayScore = last().normalizedText().toStrictScoreOrNull() ?: return null
+        return listOf(homeScore, awayScore)
+    }
+
+    private fun List<Element>.isClassifiedScorePair(): Boolean =
+        size == CLASSIFIED_SCORE_SLOT_COUNT &&
+            ((get(HOME_SCORE_INDEX).hasClass(HOME_SCORE_CLASS) && last().hasClass(AWAY_SCORE_CLASS)) ||
+                (get(HOME_SCORE_INDEX).hasClass(AWAY_SCORE_CLASS) && last().hasClass(HOME_SCORE_CLASS)))
+
     private fun Element.requiredText(selector: String): String = selectFirst(selector)
         ?.normalizedText()
         .orNullIfBlank()
@@ -167,13 +212,16 @@ internal class VlrMatchesParser {
         ?.takeUnless { it.isEmpty() || it == "-" || it == "–" || it == "—" }
         ?.toIntOrNull()
 
-    private fun String.toMatchStatus(): MatchStatusSource = when (trim().lowercase()) {
+    private fun String.toMatchStatus(): MatchStatusSource = toKnownMatchStatusOrNull() ?: MatchStatusSource.UNAVAILABLE
+
+    private fun String.toKnownMatchStatusOrNull(): MatchStatusSource? = when (trim().lowercase()) {
         "upcoming" -> MatchStatusSource.UPCOMING
         "live", "in progress" -> MatchStatusSource.LIVE
         "completed", "final" -> MatchStatusSource.COMPLETED
         "postponed", "delayed" -> MatchStatusSource.POSTPONED
         "cancelled", "canceled" -> MatchStatusSource.CANCELLED
-        else -> MatchStatusSource.UNAVAILABLE
+        "unavailable" -> MatchStatusSource.UNAVAILABLE
+        else -> null
     }
 
     private fun MatchStatusSource.defaultTimeLabel(): String = when (this) {
@@ -201,6 +249,8 @@ internal class VlrMatchesParser {
         block()
     } catch (failure: SourceParsingFailure) {
         throw failure
+    } catch (cancellation: CancellationException) {
+        throw cancellation
     } catch (failure: Exception) {
         throw SourceParsingFailure(upstreamUrl, failure)
     }
@@ -216,6 +266,14 @@ internal class VlrMatchesParser {
         const val AWAY_TEAM_INDEX = 1
         const val MATCH_ID_GROUP = 1
         const val ALL_MAPS_GAME_ID = "all"
+        const val STATUS_MODIFIER_PREFIX = "mod-"
+        const val SCORE_SLOT_COUNT = 3
+        const val CLASSIFIED_SCORE_SLOT_COUNT = 2
+        const val HOME_SCORE_INDEX = 0
+        const val SCORE_SEPARATOR_INDEX = 1
+        const val SCORE_SEPARATOR = ":"
+        const val HOME_SCORE_CLASS = "match-header-vs-score-winner"
+        const val AWAY_SCORE_CLASS = "match-header-vs-score-loser"
     }
 }
 
@@ -223,4 +281,8 @@ private fun String?.orNullIfBlank(): String? = this?.trimmedOrNull()
 
 private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 
+private fun String.toStrictScoreOrNull(): Int? = takeIf { STRICT_SCORE_REGEX.matches(it) }?.toIntOrNull()
+
 private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
+
+private val STRICT_SCORE_REGEX = Regex("\\d+")

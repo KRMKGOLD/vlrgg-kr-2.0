@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches
 
 import io.ktor.http.*
+import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kotlin.test.*
 
@@ -77,6 +78,15 @@ class VlrMatchesParserTest {
     }
 
     @Test
+    fun `prefers detail status modifier and reads unclassed score slots in team order`() {
+        val detail = parser.parseDetail(fixtureHtml("detail-upcoming-unclassed-score.html"), detailUrl, "709685")
+
+        assertEquals(MatchStatusSource.UPCOMING, detail.summary.status)
+        assertEquals(12, detail.summary.homeScore)
+        assertEquals(10, detail.summary.awayScore)
+    }
+
+    @Test
     fun `accepts BO1 BO3 BO5 and forfeit detail variants without inventing unavailable maps`() {
         val cases = listOf(
             SeriesCase("detail-bo1.html", "Bo1", 1, 1, 0),
@@ -106,6 +116,18 @@ class VlrMatchesParserTest {
 
         assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         assertNotNull(failure.cause)
+    }
+
+    @Test
+    fun `propagates parser cancellation without converting it to a source parsing failure`() {
+        val cancellation = CancellationException("request cancelled")
+        val cancellingParser = VlrMatchesParser { throw cancellation }
+
+        val thrown = assertFailsWith<CancellationException> {
+            cancellingParser.parseList("<html></html>", listUrl)
+        }
+
+        assertSame(cancellation, thrown)
     }
 
     private data class SeriesCase(
