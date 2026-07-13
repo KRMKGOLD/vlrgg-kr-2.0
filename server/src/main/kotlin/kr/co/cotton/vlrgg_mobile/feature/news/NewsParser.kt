@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
@@ -8,16 +9,20 @@ import org.jsoup.nodes.TextNode
 private const val VLR_PRIMARY_ORIGIN = "https://www.vlr.gg/"
 private val whitespace = Regex("\\s+")
 private val publicationAuthor = Regex("(?i)\\bby\\s+(.+)$")
-private val entityLink = Regex("^/(team|player|event|match)/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
+private val entityLink = Regex("^/(team|player|event)/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
+private val matchLink = Regex("^/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
 private val canonicalNewsPageTarget = Regex("^/news/\\?page=([1-9][0-9]{0,4})$")
-private const val newsListItemSelector = "a.news-item[href], .wf-card > a.wf-module-item[href]"
-private const val newsPaginationSelector = ".wf-pagination a[href], .pagination a[href], [data-news-pagination] a[href]"
+private const val legacyNewsListItemSelector = "a.news-item[href]"
+private const val operationalNewsActionSelector = "#wrapper .col-container > .col.mod-1 > .action-container"
+private const val newsPaginationSelector =
+    ".wf-pagination a[href], [data-news-pagination] a[href], " +
+        "#wrapper .col-container > .col.mod-1 > .action-container > .action-container-pages a[href]"
 
 /** Owns all Jsoup and VLR.GG DOM assumptions for the News feature. */
 internal class NewsParser {
     fun parseList(html: String, currentPage: Int): NewsListSource {
         val document = Jsoup.parse(html, VLR_PRIMARY_ORIGIN)
-        val articles = document.select(newsListItemSelector).distinct().map { item ->
+        val articles = findNewsListItems(document).map { item ->
             val reference = NewsReference.fromHref(item.attr("href"))
                 ?: throw IllegalStateException("News item reference is missing.")
             val metadataElement = item.selectFirst(".news-item-desc, .news-item-meta, .ge-text-light")
@@ -106,16 +111,35 @@ internal class NewsParser {
         throw IllegalStateException("Article header is missing.")
     }
 
+    private fun findNewsListItems(document: Document): List<Element> = buildList {
+        addAll(document.select(legacyNewsListItemSelector))
+        document.select(operationalNewsActionSelector)
+            .filter { action -> action.children().any { it.hasClass("action-container-pages") } }
+            .mapNotNull { action -> action.previousElementSibling() }
+            .filter { card -> card.hasClass("wf-card") }
+            .forEach { card ->
+                addAll(
+                    card.children().filter { item ->
+                        item.normalName() == "a" && item.hasClass("wf-module-item") && item.hasAttr("href")
+                    },
+                )
+            }
+    }.distinct()
+
     private fun findNewsItemTitle(item: Element, metadata: Element?): Element? =
-        item.selectFirst(".news-item-title") ?: metadata?.previousElementSibling()
-            ?.takeIf { candidate -> candidate.normalName() == "div" && !candidate.hasAttr("class") }
+        item.selectFirst(".news-item-title") ?: metadata?.parent()
+            ?.takeIf { content -> content.parent() === item }
+            ?.children()
+            ?.firstOrNull { candidate ->
+                candidate.normalName() == "div" && !candidate.hasAttr("class") && candidate !== metadata
+            }
 
     private fun parseBlocks(container: Element): List<NewsSourceBlock> = buildList {
         container.childNodes().forEach { node ->
             when (node) {
                 is TextNode -> parseDirectTextBlock(node)?.let(::add)
                 is Element -> when (node.normalName()) {
-                    "p", "blockquote", "h2", "h3", "h4", "h5", "h6" -> {
+                    "p", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6" -> {
                         parseInline(node).takeIf { it.isNotEmpty() }?.let { content ->
                             add(NewsParagraphSourceBlock(content))
                         }
@@ -188,13 +212,21 @@ internal class NewsParser {
             val kind = when (match.groupValues[1]) {
                 "team" -> NewsLinkKindSource.TEAM
                 "player" -> NewsLinkKindSource.PLAYER
-                "event" -> NewsLinkKindSource.EVENT
-                else -> NewsLinkKindSource.MATCH
+                else -> NewsLinkKindSource.EVENT
             }
             return NewsLinkSourceInline(
                 label = label,
                 kind = kind,
                 reference = "${match.groupValues[2]}/${match.groupValues[3]}",
+            )
+        }
+
+        val matchPath = localPath?.let(matchLink::matchEntire)
+        if (matchPath != null) {
+            return NewsLinkSourceInline(
+                label = label,
+                kind = NewsLinkKindSource.MATCH,
+                reference = "${matchPath.groupValues[1]}/${matchPath.groupValues[2]}",
             )
         }
 

@@ -45,7 +45,24 @@ class NewsParserTest {
             ),
             page.articles,
         )
-        assertNull(page.nextPage)
+        assertEquals(2, page.nextPage)
+    }
+
+    @Test
+    fun `list parser limits module item fallback to the news list card`() {
+        val page = parser.parseList(readFixture("news-list-with-mixed-cards.html"), currentPage = 1)
+
+        assertEquals(
+            listOf(
+                NewsSummarySource(
+                    reference = NewsReference("202", "actual-news-card"),
+                    title = "Actual news card",
+                    author = "news-author",
+                    publishedAt = "July 13, 2026",
+                ),
+            ),
+            page.articles,
+        )
     }
 
     @Test
@@ -168,6 +185,31 @@ class NewsParserTest {
     }
 
     @Test
+    fun `article parser recognizes only VLR numeric paths as matches`() {
+        val article = parser.parseArticle(
+            html = readFixture("news-article-match-links.html"),
+            reference = NewsReference("110", "match-links"),
+        )
+
+        val links = (article.blocks.single() as NewsParagraphSourceBlock).content
+            .filterIsInstance<NewsLinkSourceInline>()
+
+        assertEquals(
+            listOf(
+                NewsLinkSourceInline("Local match", NewsLinkKindSource.MATCH, "12345/local-match"),
+                NewsLinkSourceInline("VLR match", NewsLinkKindSource.MATCH, "23456/host-match"),
+                NewsLinkSourceInline("Protocol relative", NewsLinkKindSource.EXTERNAL, null),
+                NewsLinkSourceInline("External", NewsLinkKindSource.EXTERNAL, null),
+                NewsLinkSourceInline("Legacy match route", NewsLinkKindSource.INTERNAL_UNSUPPORTED, null),
+                NewsLinkSourceInline("Team", NewsLinkKindSource.TEAM, "2/team"),
+                NewsLinkSourceInline("Player", NewsLinkKindSource.PLAYER, "3/player"),
+                NewsLinkSourceInline("Event", NewsLinkKindSource.EVENT, "4/event"),
+            ),
+            links,
+        )
+    }
+
+    @Test
     fun `article parser reads header metadata only from the article header`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-header-scope.html"),
@@ -194,6 +236,23 @@ class NewsParserTest {
                 NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Middle direct prose."))),
                 NewsListSourceBlock(ordered = false, items = listOf(listOf(NewsTextSourceInline("List item")))),
                 NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Trailing direct prose."))),
+            ),
+            article.blocks,
+        )
+    }
+
+    @Test
+    fun `article parser keeps section h1 in its original block order`() {
+        val article = parser.parseArticle(
+            html = readFixture("news-article-section-heading.html"),
+            reference = NewsReference("109", "section-heading"),
+        )
+
+        assertEquals(
+            listOf(
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Before the section."))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Section heading"))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("After the section."))),
             ),
             article.blocks,
         )

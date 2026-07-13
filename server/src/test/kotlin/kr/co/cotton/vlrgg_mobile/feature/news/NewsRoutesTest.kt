@@ -41,6 +41,10 @@ class NewsRoutesTest {
         assertEquals("list", detailJson["blocks"]?.jsonArray?.get(2)?.jsonObject?.get("type")?.jsonPrimitive?.content)
         assertEquals("TEAM", detailBody.findLinkKind("Sentinels"))
         assertTrue(detailBody.contains("\"label\":\"TenZ\",\"kind\":\"PLAYER\""))
+        assertEquals("EVENT", detailBody.findLinkKind("event"))
+        assertEquals("MATCH", detailBody.findLinkKind("match"))
+        assertEquals(JsonNull, detailBody.findLink("event")?.get("reference"))
+        assertEquals(JsonNull, detailBody.findLink("match")?.get("reference"))
         assertFalse(detailBody.contains("wf-hover-card"))
         assertFalse(detailBody.contains("hidden hover-card text"))
         assertFalse(detailBody.contains("article-body"))
@@ -129,16 +133,16 @@ class NewsRoutesTest {
     private fun readFixture(name: String): String =
         requireNotNull(javaClass.getResource("/fixtures/$name")) { "Missing fixture: $name" }.readText()
 
-    private fun String.findLinkKind(label: String): String? {
+    private fun String.findLink(label: String): JsonObject? {
         val blocks = Json.parseToJsonElement(this).jsonObject["blocks"]?.jsonArray.orEmpty()
         return blocks
             .flatMap { block -> block.jsonObject["content"]?.jsonArray.orEmpty() }
             .firstOrNull { inline -> inline.jsonObject["label"]?.jsonPrimitive?.content == label }
             ?.jsonObject
-            ?.get("kind")
-            ?.jsonPrimitive
-            ?.content
     }
+
+    private fun String.findLinkKind(label: String): String? =
+        findLink(label)?.get("kind")?.jsonPrimitive?.content
 
     private fun JsonElement?.orEmpty(): JsonArray = this as? JsonArray ?: JsonArray(emptyList())
 
