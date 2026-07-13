@@ -1,0 +1,94 @@
+package kr.co.cotton.vlrgg_mobile.feature.news
+
+internal data class NewsListSource(
+    val articles: List<NewsSummarySource>,
+    val hasNextPage: Boolean,
+)
+
+internal data class NewsSummarySource(
+    val reference: NewsReference,
+    val title: String,
+    val author: String,
+    val publishedAt: String,
+)
+
+internal data class NewsArticleSource(
+    val reference: NewsReference,
+    val title: String,
+    val author: String,
+    val publishedAt: String,
+    val blocks: List<NewsSourceBlock>,
+)
+
+internal sealed interface NewsSourceBlock
+
+internal data class NewsParagraphSourceBlock(
+    val content: List<NewsSourceInline>,
+) : NewsSourceBlock
+
+internal data class NewsImageSourceBlock(
+    val imageUrl: String,
+    val caption: String?,
+) : NewsSourceBlock
+
+internal data class NewsListSourceBlock(
+    val ordered: Boolean,
+    val items: List<List<NewsSourceInline>>,
+) : NewsSourceBlock
+
+internal sealed interface NewsSourceInline
+
+internal data class NewsTextSourceInline(
+    val text: String,
+) : NewsSourceInline
+
+internal data class NewsLinkSourceInline(
+    val label: String,
+    val kind: NewsLinkKindSource,
+    val reference: String?,
+) : NewsSourceInline
+
+internal enum class NewsLinkKindSource {
+    TEAM,
+    PLAYER,
+    EVENT,
+    MATCH,
+    INTERNAL_UNSUPPORTED,
+    EXTERNAL,
+}
+
+/** A validated, canonical relative VLR.GG news path, never a caller-supplied URL. */
+internal data class NewsReference(
+    val articleId: String,
+    val slug: String,
+) {
+    val value: String = "$articleId/$slug"
+
+    companion object {
+        private val articleIdPattern = Regex("[1-9][0-9]{0,9}")
+        private val slugPattern = Regex("[a-z0-9][a-z0-9-]{0,127}")
+
+        fun fromPath(articleId: String, slug: String): NewsReference? =
+            if (articleIdPattern.matches(articleId) && slugPattern.matches(slug)) {
+                NewsReference(articleId = articleId, slug = slug)
+            } else {
+                null
+            }
+
+        fun fromHref(href: String): NewsReference? {
+            val path = href
+                .removePrefix("https://www.vlr.gg")
+                .removePrefix("https://vlr.gg")
+                .substringBefore('?')
+                .substringBefore('#')
+                .trimEnd('/')
+            val segments = path.split('/')
+
+            return if (segments.size == 3 && segments.first().isEmpty()) {
+                fromPath(segments[1], segments[2])
+            } else {
+                null
+            }
+        }
+    }
+}
