@@ -104,6 +104,28 @@ class VlrMatchesParserTest {
     }
 
     @Test
+    fun `keeps linked H2H rows when their score markup is absent or malformed`() {
+        val detail = parser.parseDetail(fixtureHtml("detail-h2h-without-score.html"), detailUrl, "709685")
+
+        assertEquals(listOf("700301", "700302"), detail.headToHead.map { it.id })
+        assertEquals(listOf("Alpha", "Alpha"), detail.headToHead.map { it.homeTeamName })
+        assertEquals(listOf("Bravo", "Bravo"), detail.headToHead.map { it.awayTeamName })
+        assertEquals(listOf(null, null), detail.headToHead.map { it.homeScore })
+        assertEquals(listOf(null, null), detail.headToHead.map { it.awayScore })
+    }
+
+    @Test
+    fun `keeps linked past rows when their score markup is absent or malformed`() {
+        val detail = parser.parseDetail(fixtureHtml("detail-past-without-score.html"), detailUrl, "709685")
+
+        assertEquals(listOf("700401", "700402"), detail.pastMatches.map { it.id })
+        assertEquals(listOf("Alpha", "Alpha"), detail.pastMatches.map { it.homeTeamName })
+        assertEquals(listOf("Delta", "Echo"), detail.pastMatches.map { it.awayTeamName })
+        assertEquals(listOf(null, null), detail.pastMatches.map { it.homeScore })
+        assertEquals(listOf(null, null), detail.pastMatches.map { it.awayScore })
+    }
+
+    @Test
     fun `accepts BO1 BO3 BO5 and forfeit detail variants without inventing unavailable maps`() {
         val cases = listOf(
             SeriesCase("detail-bo1.html", "Bo1", 1, 1, 0),

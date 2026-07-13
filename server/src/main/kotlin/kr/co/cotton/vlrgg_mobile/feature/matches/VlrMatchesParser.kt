@@ -152,25 +152,21 @@ internal class VlrMatchesParser(
 
     private fun Element.toHeadToHeadOrNull(summary: MatchSummarySource): RelatedMatchSource? {
         val id = attr("href").extractMatchIdOrNull() ?: return null
-        val scores = selectFirst(".match-h2h-matches-score")
-            ?.children()
-            ?.takeIf { it.size == REQUIRED_TEAM_COUNT }
-            ?.map { it.normalizedText().toScoreOrNull() }
-            ?: return null
+        val scores = relatedScorePairOrNull(".match-h2h-matches-score")
 
         return RelatedMatchSource(
             id = id,
             homeTeamName = summary.homeTeam.name,
             awayTeamName = summary.awayTeam.name,
-            homeScore = scores[HOME_TEAM_INDEX],
-            awayScore = scores[AWAY_TEAM_INDEX],
+            homeScore = scores?.get(HOME_TEAM_INDEX),
+            awayScore = scores?.get(AWAY_TEAM_INDEX),
         )
     }
 
     /**
      * Each history card is ordered by the same validated detail-team order. Individual entries
-     * must carry their own canonical match path and an opponent name; invalid entries cannot be
-     * recovered from event, score, or display text and are omitted independently.
+     * must carry their own canonical match path and an opponent name; invalid identities cannot
+     * be recovered from event, score, or display text and are omitted independently.
      */
     private fun Document.parsePastMatches(summary: MatchSummarySource): List<RelatedMatchSource> =
         select(".match-histories").flatMapIndexed { teamIndex, section ->
@@ -190,19 +186,27 @@ internal class VlrMatchesParser(
             ?.normalizedText()
             .orNullIfBlank()
             ?: return null
-        val scores = selectFirst(".match-histories-item-result")
-            ?.children()
-            ?.takeIf { it.size == REQUIRED_TEAM_COUNT }
-            ?.map { it.normalizedText().toScoreOrNull() }
-            ?: return null
+        val scores = relatedScorePairOrNull(".match-histories-item-result")
 
         return RelatedMatchSource(
             id = id,
             homeTeamName = teamName,
             awayTeamName = opponentName,
-            homeScore = scores[HOME_TEAM_INDEX],
-            awayScore = scores[AWAY_TEAM_INDEX],
+            homeScore = scores?.get(HOME_TEAM_INDEX),
+            awayScore = scores?.get(AWAY_TEAM_INDEX),
         )
+    }
+
+    /** A related row remains valid without a trustworthy score pair because scores are optional. */
+    private fun Element.relatedScorePairOrNull(selector: String): List<Int>? {
+        val slots = selectFirst(selector)
+            ?.children()
+            ?.takeIf { it.size == REQUIRED_TEAM_COUNT }
+            ?: return null
+        val homeScore = slots[HOME_TEAM_INDEX].normalizedText().toScoreOrNull() ?: return null
+        val awayScore = slots[AWAY_TEAM_INDEX].normalizedText().toScoreOrNull() ?: return null
+
+        return listOf(homeScore, awayScore)
     }
 
     private fun Element.requiredEventName(): String {
