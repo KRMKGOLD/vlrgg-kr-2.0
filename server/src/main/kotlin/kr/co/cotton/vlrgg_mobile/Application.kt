@@ -3,8 +3,10 @@ package kr.co.cotton.vlrgg_mobile
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import kr.co.cotton.vlrgg_mobile.plugins.configureErrorHandling
+import kr.co.cotton.vlrgg_mobile.plugins.configureMonitoring
+import kr.co.cotton.vlrgg_mobile.plugins.configureSerialization
+import kr.co.cotton.vlrgg_mobile.routing.configureRouting
 
 fun main() {
     embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
@@ -12,9 +14,8 @@ fun main() {
 }
 
 fun Application.module() {
-    routing {
-        get("/") {
-            call.respondText(sayHello("Ktor"))
-        }
-    }
+    configureSerialization()
+    configureMonitoring()
+    configureErrorHandling()
+    configureRouting()
 }

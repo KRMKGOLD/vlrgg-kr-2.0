@@ -10,7 +10,7 @@ Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selecto
 
 ## Current State and Direction
 
-현재 `server`는 `Application.kt`의 root route만 있는 최소 Ktor template이다. scraper, API contract, cache, DI, error handler는 아직 구현되지 않았다.
+현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 갖춘 최소 Ktor 기반이다. feature scraper, 성공 API contract, cache와 DI는 아직 구현되지 않았다.
 
 구현이 시작되면 단일 `:server` Gradle module 안에서 feature-based modular structure를 사용한다.
 
@@ -97,7 +97,8 @@ VLR.GG HTML은 외부의 불안정한 source contract다. DOM 구조와 텍스�
 - 일반 콘텐츠 응답에는 database, durable cache, stale-on-error fallback을 첫 단계에 도입하지 않는다. Match 알림 구독 저장소는 콘텐츠 cache가 아니라 알림 delivery state를 보존하는 feature-specific 예외다.
 - 같은 canonical upstream resource를 동시에 요청했을 때만 하나의 진행 중 fetch를 공유할 수 있다. 이는 중복 upstream 요청을 줄이기 위한 동시성 보호이며, 이전 성공 데이터를 반환하는 cache가 아니다.
 - upstream network failure 또는 parsing failure가 발생하면 이전 데이터를 반환하지 않고 실패 응답을 반환한다.
-- timeout, user-agent, retry, rate-limit의 구체 값은 scraper 구현 시 기능 요구와 upstream 동작을 근거로 결정한다. 무제한 재시도나 과도한 요청을 만들지 않는다.
+- 공통 HTML transport는 Ktor CIO client를 사용한다. transport는 명시적인 `User-Agent`, connect 5초·request/socket 10초의 bounded timeout 기본값을 가지며, manual composition에서 설정을 바꿀 수 있다.
+- transport는 생성한 `HttpClient`를 소유한다. composition root는 `Application.createUpstreamHtmlTransport()`로 만들고 application stopping lifecycle에 cleanup을 연결한다. `get()` 한 번은 upstream 요청 한 번만 수행하며 retry plugin은 설치하지 않는다. bounded retry가 필요해지면 기능 요구와 upstream 동작을 근거로 별도로 도입한다.
 
 Scraper, Parser, Mapper의 경계는 다음과 같다.
 
@@ -107,7 +108,7 @@ Scraper, Parser, Mapper의 경계는 다음과 같다.
 
 즉, 기본 책임 흐름은 `Route -> Service -> Scraper -> Parser -> SourceModel -> Mapper -> Response`다. DOM parsing 기술은 Jsoup으로 고정한다.
 
-Upstream HTTP transport나 특정 content 획득 API는 고정하지 않으며, 구체적인 획득 방식은 구현 요구에 따라 선택한다.
+공통 upstream HTTP transport는 Ktor CIO로 정했다. feature별 request 조립과 content 획득 API는 구현 요구에 따라 정하되, feature는 manual wiring으로 전달받은 transport를 사용한다.
 
 Jsoup `Document`와 `Element`, CSS selector, raw HTML, parsing 보정은 parser 내부에서만 사용한다. `SourceModel`, raw HTML, Jsoup type을 route response로 반환하거나 scraping 경계 밖으로 노출하지 않는다. 중요한 페이지는 최소 HTML fixture를 사용해 parser 가정을 테스트한다.
 
