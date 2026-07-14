@@ -4,6 +4,7 @@ language: "ko-KR"
 
 reviews:
   profile: "assertive"
+  request_changes_workflow: true
   high_level_summary: true
   review_status: true
   poem: false
