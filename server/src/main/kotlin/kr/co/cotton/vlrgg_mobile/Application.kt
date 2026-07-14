@@ -22,9 +22,11 @@ internal fun Application.module(newsService: NewsService? = null) {
     configureSerialization()
     configureMonitoring()
     configureErrorHandling()
+    val upstreamHtmlTransport = createUpstreamHtmlTransport()
     configureRouting(
+        upstreamHtmlTransport = upstreamHtmlTransport,
         newsService = newsService ?: NewsService(
-            scraper = NewsScraper(createUpstreamHtmlTransport()),
+            scraper = NewsScraper(upstreamHtmlTransport),
             parser = NewsParser(),
             mapper = NewsMapper(),
         ),
