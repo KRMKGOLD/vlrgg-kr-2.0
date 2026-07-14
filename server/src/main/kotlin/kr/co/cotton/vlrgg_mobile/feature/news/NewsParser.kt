@@ -6,7 +6,6 @@ import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 
-private const val VLR_PRIMARY_ORIGIN = "https://www.vlr.gg/"
 private val whitespace = Regex("\\s+")
 private val publicationAuthor = Regex("(?i)\\bby\\s+(.+)$")
 private val entityLink = Regex("^/(team|player|event)/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
@@ -18,13 +17,15 @@ private const val newsPaginationSelector =
     ".wf-pagination a[href], [data-news-pagination] a[href], " +
         "#wrapper .col-container > .col.mod-1 > .action-container > .action-container-pages a[href]"
 
+internal class NewsParsingException(message: String) : IllegalStateException(message)
+
 /** Owns all Jsoup and VLR.GG DOM assumptions for the News feature. */
 internal class NewsParser {
     fun parseList(html: String, currentPage: Int): NewsListSource {
         val document = Jsoup.parse(html, VLR_PRIMARY_ORIGIN)
         val articles = findNewsListItems(document).map { item ->
             val reference = NewsReference.fromHref(item.attr("href"))
-                ?: throw IllegalStateException("News item reference is missing.")
+                ?: throw NewsParsingException("News item reference is missing.")
             val metadataElement = item.selectFirst(".news-item-desc, .news-item-meta, .ge-text-light")
             val metadata = requiredText(metadataElement, "News item metadata is missing.")
             val title = requiredText(findNewsItemTitle(item, metadataElement), "News item title is missing.")
@@ -49,7 +50,7 @@ internal class NewsParser {
     fun parseArticle(html: String, reference: NewsReference): NewsArticleSource {
         val document = Jsoup.parse(html, VLR_PRIMARY_ORIGIN)
         val body = document.selectFirst(".article-body")
-            ?: throw IllegalStateException("Article body is missing.")
+            ?: throw NewsParsingException("Article body is missing.")
         val header = findArticleHeader(body)
         val title = requiredText(
             header.selectFirst(".article-header-title, .article-title, .wf-title-med, h1"),
@@ -63,7 +64,7 @@ internal class NewsParser {
         ).remove()
         val blocks = parseBlocks(body)
         if (blocks.isEmpty()) {
-            throw IllegalStateException("Article body has no supported content blocks.")
+            throw NewsParsingException("Article body has no supported content blocks.")
         }
 
         return NewsArticleSource(
@@ -79,7 +80,7 @@ internal class NewsParser {
         val metadata = header.selectFirst(
             ".article-header-desc, .article-meta, .ge-text-light, .wf-title-med + .ge-text-light",
         )
-            ?: throw IllegalStateException("Article metadata is missing.")
+            ?: throw NewsParsingException("Article metadata is missing.")
         val explicitAuthor = metadata.selectFirst(".article-meta-author, [data-news-author]")?.cleanText()
         val explicitPublishedAt = metadata.selectFirst(".article-meta-time, [data-news-published-at], time")?.cleanText()
 
@@ -108,7 +109,7 @@ internal class NewsParser {
             parent = parent.parent()
         }
 
-        throw IllegalStateException("Article header is missing.")
+        throw NewsParsingException("Article header is missing.")
     }
 
     private fun findNewsListItems(document: Document): List<Element> = buildList {
@@ -149,6 +150,7 @@ internal class NewsParser {
                     "img" -> parseImageElement(node, caption = null)?.let(::add)
                     "ol", "ul" -> parseList(node)?.let(::add)
                     "div", "section", "main" -> addAll(parseBlocks(node))
+                    else -> addAll(parseBlocks(node))
                 }
             }
         }
@@ -239,12 +241,12 @@ internal class NewsParser {
 
     private fun parsePublicationMetadata(metadata: String): Pair<String, String> {
         val authorMatch = publicationAuthor.find(metadata)
-            ?: throw IllegalStateException("Article author is missing.")
+            ?: throw NewsParsingException("Article author is missing.")
         val author = authorMatch.groupValues[1].trimSourceDecoration()
         val publishedAt = metadata.substring(0, authorMatch.range.first).trimSourceDecoration()
 
         if (author.isBlank() || publishedAt.isBlank()) {
-            throw IllegalStateException("Article publication metadata is incomplete.")
+            throw NewsParsingException("Article publication metadata is incomplete.")
         }
         return publishedAt to author
     }
@@ -256,7 +258,7 @@ internal class NewsParser {
             ?.toIntOrNull()
 
     private fun requiredText(element: Element?, message: String): String =
-        element?.cleanText() ?: throw IllegalStateException(message)
+        element?.cleanText() ?: throw NewsParsingException(message)
 
     private fun Element.cleanText(): String? = text().normalizeWhitespace().takeIf { it.isNotEmpty() }
 

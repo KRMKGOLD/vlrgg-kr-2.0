@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
-import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 
 /** Coordinates one fresh upstream request with parsing and public response mapping. */
@@ -26,9 +25,7 @@ internal class NewsService(
 
     private fun <T> parse(scraped: NewsScrapedHtml, parse: (String) -> T): T = try {
         parse(scraped.html)
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (exception: Exception) {
+    } catch (exception: NewsParsingException) {
         throw SourceParsingFailure(upstreamUrl = scraped.upstreamUrl, cause = exception)
     }
 }

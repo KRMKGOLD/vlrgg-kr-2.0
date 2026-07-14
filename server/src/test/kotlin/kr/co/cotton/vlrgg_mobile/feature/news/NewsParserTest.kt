@@ -288,8 +288,27 @@ class NewsParserTest {
     }
 
     @Test
+    fun `article parser preserves supported content nested in unknown direct children`() {
+        val article = parser.parseArticle(
+            html = readFixture("news-article-unknown-wrappers.html"),
+            reference = NewsReference("112", "unknown-wrappers"),
+        )
+
+        assertEquals(
+            listOf(
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Before wrappers."))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Table paragraph."))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Span prose."))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("Preformatted prose."))),
+                NewsParagraphSourceBlock(listOf(NewsTextSourceInline("After wrappers."))),
+            ),
+            article.blocks,
+        )
+    }
+
+    @Test
     fun `article parser requires a title and supported body content`() {
-        assertFailsWith<IllegalStateException> {
+        assertFailsWith<NewsParsingException> {
             parser.parseArticle(
                 html = """
                     <article class="article-body"><p>Body without a title.</p></article>
@@ -297,7 +316,7 @@ class NewsParserTest {
                 reference = NewsReference("104", "missing-title"),
             )
         }
-        assertFailsWith<IllegalStateException> {
+        assertFailsWith<NewsParsingException> {
             parser.parseArticle(
                 html = """
                     <h1 class="article-header-title">Empty body</h1>

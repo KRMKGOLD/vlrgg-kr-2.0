@@ -3,7 +3,7 @@ package kr.co.cotton.vlrgg_mobile.feature.news
 import io.ktor.http.*
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 
-private const val VLR_PRIMARY_ORIGIN = "https://www.vlr.gg"
+internal const val VLR_PRIMARY_ORIGIN = "https://www.vlr.gg"
 
 internal class NewsScraper(
     private val transport: UpstreamHtmlTransport,

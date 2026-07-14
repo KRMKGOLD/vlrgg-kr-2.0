@@ -12,7 +12,7 @@ application {
 
 dependencies {
     api(projects.core)
-    compileOnly(libs.jspecify)
+    implementation(libs.jspecify)
     implementation(libs.jsoup)
     implementation(libs.logback)
     implementation(libs.ktor.clientCio)
