@@ -40,11 +40,12 @@ class NewsRoutesTest {
         assertEquals("image", detailJson["blocks"]?.jsonArray?.get(1)?.jsonObject?.get("type")?.jsonPrimitive?.content)
         assertEquals("list", detailJson["blocks"]?.jsonArray?.get(2)?.jsonObject?.get("type")?.jsonPrimitive?.content)
         assertEquals("TEAM", detailBody.findLinkKind("Sentinels"))
-        assertTrue(detailBody.contains("\"label\":\"TenZ\",\"kind\":\"PLAYER\""))
+        assertEquals("PLAYER", detailBody.findLinkKind("TenZ"))
         assertEquals("EVENT", detailBody.findLinkKind("event"))
         assertEquals("MATCH", detailBody.findLinkKind("match"))
         assertEquals(JsonNull, detailBody.findLink("event")?.get("reference"))
         assertEquals(JsonNull, detailBody.findLink("match")?.get("reference"))
+        assertNull(detailBody.findLink("missing link"))
         assertFalse(detailBody.contains("wf-hover-card"))
         assertFalse(detailBody.contains("hidden hover-card text"))
         assertFalse(detailBody.contains("article-body"))
@@ -136,9 +137,16 @@ class NewsRoutesTest {
     private fun String.findLink(label: String): JsonObject? {
         val blocks = Json.parseToJsonElement(this).jsonObject["blocks"]?.jsonArray.orEmpty()
         return blocks
-            .flatMap { block -> block.jsonObject["content"]?.jsonArray.orEmpty() }
+            .flatMap { block -> block.jsonObject.inlineElements() }
             .firstOrNull { inline -> inline.jsonObject["label"]?.jsonPrimitive?.content == label }
             ?.jsonObject
+    }
+
+    private fun JsonObject.inlineElements(): List<JsonElement> = buildList {
+        addAll(this@inlineElements["content"]?.jsonArray.orEmpty())
+        this@inlineElements["items"]?.jsonArray.orEmpty().forEach { item ->
+            addAll(item.jsonArray)
+        }
     }
 
     private fun String.findLinkKind(label: String): String? =
