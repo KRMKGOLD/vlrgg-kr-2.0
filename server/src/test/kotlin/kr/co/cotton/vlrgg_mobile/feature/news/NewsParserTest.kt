@@ -86,6 +86,18 @@ class NewsParserTest {
     }
 
     @Test
+    fun `news reference accepts exact VLR href forms but rejects untrusted hosts`() {
+        val expected = NewsReference("111", "canonical-news")
+
+        assertEquals(expected, NewsReference.fromHref("/111/canonical-news"))
+        assertEquals(expected, NewsReference.fromHref("https://www.vlr.gg/111/canonical-news?source=list"))
+        assertEquals(expected, NewsReference.fromHref("http://vlr.gg/111/canonical-news#article"))
+        assertEquals(expected, NewsReference.fromHref("//www.vlr.gg/111/canonical-news"))
+        assertNull(NewsReference.fromHref("//evil.example/111/canonical-news"))
+        assertNull(NewsReference.fromHref("https://www.vlr.gg.evil/111/canonical-news"))
+    }
+
+    @Test
     fun `article parser preserves supported blocks and excludes non article text`() {
         val article = parser.parseArticle(
             html = readFixture("news-article.html"),
@@ -182,6 +194,23 @@ class NewsParserTest {
 
         assertEquals(NewsLinkKindSource.EXTERNAL, link.kind)
         assertNull(link.reference)
+    }
+
+    @Test
+    fun `article parser preserves spaces between adjacent links`() {
+        val article = parser.parseArticle(
+            html = readFixture("news-article-adjacent-links.html"),
+            reference = NewsReference("111", "adjacent-links"),
+        )
+
+        assertEquals(
+            listOf(
+                NewsLinkSourceInline("Alpha", NewsLinkKindSource.TEAM, "2/alpha"),
+                NewsTextSourceInline(" "),
+                NewsLinkSourceInline("Bravo", NewsLinkKindSource.TEAM, "3/bravo"),
+            ),
+            (article.blocks.single() as NewsParagraphSourceBlock).content,
+        )
     }
 
     @Test

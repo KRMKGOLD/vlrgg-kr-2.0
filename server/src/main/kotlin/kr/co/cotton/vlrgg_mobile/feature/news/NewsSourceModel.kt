@@ -76,12 +76,11 @@ internal data class NewsReference(
                 NewsReference(articleId = articleId, slug = slug)
             } else {
                 null
-            }
+        }
 
         fun fromHref(href: String): NewsReference? {
-            val path = href
-                .removePrefix("https://www.vlr.gg")
-                .removePrefix("https://vlr.gg")
+            val path = (href.toVlrPathOrNull()
+                ?: return null)
                 .substringBefore('?')
                 .substringBefore('#')
                 .trimEnd('/')
@@ -92,6 +91,17 @@ internal data class NewsReference(
             } else {
                 null
             }
+        }
+
+        private fun String.toVlrPathOrNull(): String? = when {
+            startsWith("/") && !startsWith("//") -> this
+            startsWith("https://www.vlr.gg/") -> removePrefix("https://www.vlr.gg")
+            startsWith("https://vlr.gg/") -> removePrefix("https://vlr.gg")
+            startsWith("http://www.vlr.gg/") -> removePrefix("http://www.vlr.gg")
+            startsWith("http://vlr.gg/") -> removePrefix("http://vlr.gg")
+            startsWith("//www.vlr.gg/") -> removePrefix("//www.vlr.gg")
+            startsWith("//vlr.gg/") -> removePrefix("//vlr.gg")
+            else -> null
         }
     }
 }

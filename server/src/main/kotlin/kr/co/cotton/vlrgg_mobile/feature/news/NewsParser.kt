@@ -282,7 +282,7 @@ internal class NewsParser {
 
     private fun MutableList<NewsSourceInline>.appendText(rawText: String) {
         val normalized = rawText.replace(whitespace, " ")
-        if (normalized.isBlank()) return
+        if (normalized.isEmpty()) return
 
         val last = lastOrNull()
         if (last is NewsTextSourceInline) {

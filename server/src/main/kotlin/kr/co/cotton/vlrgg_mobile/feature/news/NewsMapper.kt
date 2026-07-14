@@ -36,12 +36,22 @@ internal class NewsMapper {
 
     private fun toInlineResponse(source: NewsSourceInline): NewsArticleInlineResponse = when (source) {
         is NewsTextSourceInline -> NewsTextInlineResponse(source.text)
-        is NewsLinkSourceInline -> NewsLinkInlineResponse(
-            label = source.label,
-            kind = NewsLinkKind.valueOf(source.kind.name),
-            reference = source.reference.takeIf {
-                source.kind == NewsLinkKindSource.TEAM || source.kind == NewsLinkKindSource.PLAYER
-            },
-        )
+        is NewsLinkSourceInline -> {
+            val kind = when (source.kind) {
+                NewsLinkKindSource.TEAM -> NewsLinkKind.TEAM
+                NewsLinkKindSource.PLAYER -> NewsLinkKind.PLAYER
+                NewsLinkKindSource.EVENT -> NewsLinkKind.EVENT
+                NewsLinkKindSource.MATCH -> NewsLinkKind.MATCH
+                NewsLinkKindSource.INTERNAL_UNSUPPORTED -> NewsLinkKind.INTERNAL_UNSUPPORTED
+                NewsLinkKindSource.EXTERNAL -> NewsLinkKind.EXTERNAL
+            }
+            NewsLinkInlineResponse(
+                label = source.label,
+                kind = kind,
+                reference = source.reference.takeIf {
+                    kind == NewsLinkKind.TEAM || kind == NewsLinkKind.PLAYER
+                },
+            )
+        }
     }
 }
