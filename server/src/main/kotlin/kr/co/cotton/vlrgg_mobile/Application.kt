@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import kr.co.cotton.vlrgg_mobile.common.scraping.createUpstreamHtmlTransport
 import kr.co.cotton.vlrgg_mobile.plugins.configureErrorHandling
 import kr.co.cotton.vlrgg_mobile.plugins.configureMonitoring
 import kr.co.cotton.vlrgg_mobile.plugins.configureSerialization
@@ -17,5 +18,5 @@ fun Application.module() {
     configureSerialization()
     configureMonitoring()
     configureErrorHandling()
-    configureRouting()
+    configureRouting(createUpstreamHtmlTransport())
 }
