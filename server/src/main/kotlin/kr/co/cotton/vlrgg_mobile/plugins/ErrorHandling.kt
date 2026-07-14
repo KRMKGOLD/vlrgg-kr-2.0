@@ -28,6 +28,10 @@ fun Application.configureErrorHandling() {
             call.respond(failure.status, failure.toApiErrorResponse())
         }
         status(HttpStatusCode.NotFound) { call, status ->
+            if (call.response.status() != null) {
+                return@status
+            }
+
             call.respond(
                 status,
                 ApiErrorResponse(
