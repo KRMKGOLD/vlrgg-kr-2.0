@@ -49,7 +49,7 @@ internal class VlrMatchesParser(
             ?: sourceStructureError("Match status is missing.")
         val notes = score.children()
             .filter { it.hasClass("match-header-vs-note") }
-            .map { it.requiredText() }
+            .mapNotNull { it.normalizedText().orNullIfBlank() }
         val status = score.statusFromModifierOrNull()
             ?: notes.firstOrNull()?.toMatchStatus()
             ?: sourceStructureError("Match status is missing.")
@@ -210,7 +210,8 @@ internal class VlrMatchesParser(
     }
 
     private fun Element.requiredEventName(): String {
-        return select("div")
+        val directDivs = children().filter { it.`is`("div") }
+        return (directDivs + directDivs.flatMap { it.children().filter { child -> child.`is`("div") } })
             .firstOrNull { !it.hasClass("match-header-event-series") && it.ownText().trimmedOrNull() != null }
             ?.ownText()
             .trimmedOrNull()
@@ -308,11 +309,28 @@ internal class VlrMatchesParser(
             .toString()
     }.getOrNull()
 
-    private fun String.extractMatchIdOrNull(): String? = MATCH_PATH_REGEX.matchEntire(this)?.groupValues?.get(MATCH_ID_GROUP)
+    private fun String.extractMatchIdOrNull(): String? = canonicalVlrPathOrNull()
+        ?.let(MATCH_PATH_REGEX::matchEntire)
+        ?.groupValues
+        ?.get(MATCH_ID_GROUP)
 
-    private fun String.extractTeamIdOrNull(): String? = TEAM_PATH_REGEX.matchEntire(this)?.groupValues?.get(MATCH_ID_GROUP)
+    private fun String.extractTeamIdOrNull(): String? = canonicalVlrPathOrNull()
+        ?.let(TEAM_PATH_REGEX::matchEntire)
+        ?.groupValues
+        ?.get(MATCH_ID_GROUP)
 
-    private fun String.extractEventIdOrNull(): String? = EVENT_PATH_REGEX.matchEntire(this)?.groupValues?.get(MATCH_ID_GROUP)
+    private fun String.extractEventIdOrNull(): String? = canonicalVlrPathOrNull()
+        ?.let(EVENT_PATH_REGEX::matchEntire)
+        ?.groupValues
+        ?.get(MATCH_ID_GROUP)
+
+    private fun String.canonicalVlrPathOrNull(): String? {
+        val href = trim()
+        if (href.startsWith("/")) return href
+        return CANONICAL_VLR_ORIGINS
+            .firstOrNull(href::startsWith)
+            ?.let(href::removePrefix)
+    }
 
     private inline fun <T> parse(upstreamUrl: Url, block: () -> T): T = try {
         block()
@@ -326,9 +344,10 @@ internal class VlrMatchesParser(
 
     private companion object {
         val WHITESPACE = Regex("\\s+")
-        val MATCH_PATH_REGEX = Regex("/([1-9]\\d{0,9})(?:/[^?#]+)?")
-        val TEAM_PATH_REGEX = Regex("/team/([1-9]\\d{0,9})(?:/[^?#]+)?")
-        val EVENT_PATH_REGEX = Regex("/event/([1-9]\\d{0,9})(?:/[^?#]+)?")
+        val MATCH_PATH_REGEX = Regex("/([1-9]\\d{0,9})(?:/[^?#]*)?(?:[?#].*)?")
+        val TEAM_PATH_REGEX = Regex("/team/([1-9]\\d{0,9})(?:/[^?#]*)?(?:[?#].*)?")
+        val EVENT_PATH_REGEX = Regex("/event/([1-9]\\d{0,9})(?:/[^?#]*)?(?:[?#].*)?")
+        val CANONICAL_VLR_ORIGINS = listOf("https://www.vlr.gg", "https://vlr.gg")
         val UPSTREAM_UTC_TIMESTAMP_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
         const val REQUIRED_TEAM_COUNT = 2
         const val HOME_TEAM_INDEX = 0

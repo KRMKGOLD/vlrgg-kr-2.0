@@ -87,6 +87,19 @@ class VlrMatchesParserTest {
     }
 
     @Test
+    fun `ignores blank detail notes and accepts canonical VLR link query fragments`() {
+        val detail = parser.parseDetail(fixtureHtml("detail-parser-boundaries.html"), detailUrl, "709685")
+
+        assertEquals(MatchStatusSource.COMPLETED, detail.summary.status)
+        assertEquals("Bo3", detail.seriesFormat)
+        assertEquals("Fixture Event", detail.summary.event.name)
+        assertEquals("2955", detail.summary.event.id)
+        assertEquals("11060", detail.summary.homeTeam.id)
+        assertEquals("8185", detail.summary.awayTeam.id)
+        assertEquals(listOf("700001"), detail.headToHead.map { it.id })
+    }
+
+    @Test
     fun `parses linked related sections in source order and skips rows without a stable match reference`() {
         val detail = parser.parseDetail(fixtureHtml("detail-related-matches.html"), detailUrl, "709685")
 
