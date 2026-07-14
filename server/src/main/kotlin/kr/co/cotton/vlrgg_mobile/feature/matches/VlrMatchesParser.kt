@@ -164,21 +164,27 @@ internal class VlrMatchesParser(
     }
 
     /**
-     * Each history card is ordered by the same validated detail-team order. Individual entries
-     * must carry their own canonical match path and an opponent name; invalid identities cannot
-     * be recovered from event, score, or display text and are omitted independently.
+     * The source marks only the first detail team with `mod-first`; section order is not an
+     * identity. The available sections must have exactly one marker, otherwise assigning either
+     * validated team to a history section would be ambiguous and the optional section is omitted.
      */
-    private fun Document.parsePastMatches(summary: MatchSummarySource): List<RelatedMatchSource> =
-        select(".match-histories").flatMapIndexed { teamIndex, section ->
-            val teamName = when (teamIndex) {
-                HOME_TEAM_INDEX -> summary.homeTeam.name
-                AWAY_TEAM_INDEX -> summary.awayTeam.name
-                else -> return@flatMapIndexed emptyList()
+    private fun Document.parsePastMatches(summary: MatchSummarySource): List<RelatedMatchSource> {
+        val sections = select(".match-histories")
+        if (sections.size > REQUIRED_TEAM_COUNT || sections.count { it.hasClass(FIRST_TEAM_CLASS) } != 1) {
+            return emptyList()
+        }
+
+        return sections.flatMap { section ->
+            val teamName = if (section.hasClass(FIRST_TEAM_CLASS)) {
+                summary.homeTeam.name
+            } else {
+                summary.awayTeam.name
             }
             section.children()
                 .filter { it.`is`("a.match-histories-item") }
                 .mapNotNull { row -> row.toPastMatchOrNull(teamName) }
         }
+    }
 
     private fun Element.toPastMatchOrNull(teamName: String): RelatedMatchSource? {
         val id = attr("href").extractMatchIdOrNull() ?: return null
@@ -231,6 +237,7 @@ internal class VlrMatchesParser(
     private fun Element.statusFromModifierOrNull(): MatchStatusSource? = getAllElements()
         .asSequence()
         .flatMap { element -> element.classNames().asSequence() }
+        .filter { className -> className.startsWith(STATUS_MODIFIER_PREFIX) }
         .mapNotNull { className -> className.removePrefix(STATUS_MODIFIER_PREFIX).toKnownMatchStatusOrNull() }
         .firstOrNull()
 
@@ -355,6 +362,7 @@ internal class VlrMatchesParser(
         const val MATCH_ID_GROUP = 1
         const val ALL_MAPS_GAME_ID = "all"
         const val STATUS_MODIFIER_PREFIX = "mod-"
+        const val FIRST_TEAM_CLASS = "mod-first"
         const val SCORE_SLOT_COUNT = 3
         const val CLASSIFIED_SCORE_SLOT_COUNT = 2
         const val HOME_SCORE_INDEX = 0

@@ -78,7 +78,7 @@ class VlrMatchesParserTest {
     }
 
     @Test
-    fun `prefers detail status modifier and reads unclassed score slots in team order`() {
+    fun `uses only mod prefixed status classes and reads unclassed score slots in team order`() {
         val detail = parser.parseDetail(fixtureHtml("detail-upcoming-unclassed-score.html"), detailUrl, "709685")
 
         assertEquals(MatchStatusSource.UPCOMING, detail.summary.status)
@@ -114,6 +114,17 @@ class VlrMatchesParserTest {
         assertEquals(listOf("Delta", "Echo"), detail.pastMatches.map { it.awayTeamName })
         assertEquals(listOf(13, 8), detail.pastMatches.map { it.homeScore })
         assertEquals(listOf(10, 13), detail.pastMatches.map { it.awayScore })
+    }
+
+    @Test
+    fun `uses the past match first marker instead of section order while preserving row order`() {
+        val detail = parser.parseDetail(fixtureHtml("detail-past-reversed-history-order.html"), detailUrl, "709685")
+
+        assertEquals(listOf("700501", "700601"), detail.pastMatches.map { it.id })
+        assertEquals(listOf("Bravo", "Alpha"), detail.pastMatches.map { it.homeTeamName })
+        assertEquals(listOf("Foxtrot", "Delta"), detail.pastMatches.map { it.awayTeamName })
+        assertEquals(listOf(8, 13), detail.pastMatches.map { it.homeScore })
+        assertEquals(listOf(13, 10), detail.pastMatches.map { it.awayScore })
     }
 
     @Test
