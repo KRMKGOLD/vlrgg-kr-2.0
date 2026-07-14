@@ -6,6 +6,7 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
+import io.ktor.util.reflect.*
 import kotlinx.serialization.json.*
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
@@ -61,6 +62,38 @@ class ApplicationTest {
             ApiErrorCode.NOT_FOUND,
             "Requested resource was not found.",
         )
+    }
+
+    @Test
+    fun `unmatched routes use the common 404 envelope without replacing explicit 404 responses`() = testApplication {
+        val explicitError = ApiErrorResponse(
+            code = ApiErrorCode.NOT_FOUND,
+            message = "The requested test resource was not found.",
+        )
+        application {
+            module()
+            routing {
+                get("/test/explicit-not-found") {
+                    call.response.status(HttpStatusCode.NotFound)
+                    call.respond(explicitError, typeInfo<ApiErrorResponse>())
+                }
+            }
+        }
+
+        assertError(
+            "/missing",
+            HttpStatusCode.NotFound,
+            ApiErrorCode.NOT_FOUND,
+            "Requested resource was not found.",
+        )
+
+        val response = client.get("/test/explicit-not-found")
+        val body = response.bodyAsText()
+
+        assertEquals(HttpStatusCode.NotFound, response.status)
+        assertEquals(ContentType.Application.Json, response.contentType())
+        assertEquals(explicitError, Json.decodeFromString<ApiErrorResponse>(body))
+        assertFalse(body.contains("Requested resource was not found."))
     }
 
     @Test
