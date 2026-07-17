@@ -6,12 +6,18 @@ import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 import kr.co.cotton.vlrgg_mobile.feature.matches.configureMatchesFeature
+import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
+import kr.co.cotton.vlrgg_mobile.feature.news.configureNewsRoutes
 
-internal fun Application.configureRouting(upstreamHtmlTransport: UpstreamHtmlTransport) {
+internal fun Application.configureRouting(
+    upstreamHtmlTransport: UpstreamHtmlTransport,
+    newsService: NewsService,
+) {
     routing {
         get("/health") {
             call.respond(HealthResponse(status = "ok"))
         }
+        configureNewsRoutes(newsService)
     }
     configureMatchesFeature(upstreamHtmlTransport)
 }

@@ -4,6 +4,8 @@ import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import kr.co.cotton.vlrgg_mobile.common.scraping.createUpstreamHtmlTransport
+import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
+import kr.co.cotton.vlrgg_mobile.feature.news.createDefaultNewsService
 import kr.co.cotton.vlrgg_mobile.plugins.configureErrorHandling
 import kr.co.cotton.vlrgg_mobile.plugins.configureMonitoring
 import kr.co.cotton.vlrgg_mobile.plugins.configureSerialization
@@ -14,9 +16,13 @@ fun main() {
         .start(wait = true)
 }
 
-fun Application.module() {
+internal fun Application.module(newsService: NewsService? = null) {
     configureSerialization()
     configureMonitoring()
     configureErrorHandling()
-    configureRouting(createUpstreamHtmlTransport())
+    val upstreamHtmlTransport = createUpstreamHtmlTransport()
+    configureRouting(
+        upstreamHtmlTransport = upstreamHtmlTransport,
+        newsService = newsService ?: createDefaultNewsService(upstreamHtmlTransport),
+    )
 }

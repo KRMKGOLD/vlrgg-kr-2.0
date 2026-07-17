@@ -153,7 +153,44 @@ https://www.vlr.gg/news
 https://www.vlr.gg/news/?page=2
 ```
 
-News Detail의 실제 canonical URL은 News List에서 얻은 기사 reference를 사용한다. 이 문서에서 앱 API endpoint나 response field 이름은 확정하지 않는다.
+News Detail의 실제 canonical URL은 News List에서 얻은 기사 reference를 사용한다.
+
+## Server API v1 contract
+
+News 구현은 아래 versioned JSON contract를 사용한다. `publishedAt`은 source가 제공한 게시 시각 텍스트이며, 상대 시간 같은 UI formatting은 앱에서 처리한다. raw HTML, CSS selector, Jsoup type, upstream page URL, 외부 링크 URL, 내부 오류는 response에 포함하지 않는다.
+
+### News List
+
+`GET /api/v1/news?page={page}`
+
+- `page`는 생략하면 `1`이며, `1`부터 `10000`까지의 leading zero 없는 정수 하나만 허용한다. 다른 query parameter나 중복 parameter는 `INVALID_REQUEST`다.
+- 성공 response는 `{ page, nextPage, items }`다. `nextPage`는 다음 페이지가 없으면 `null`이다.
+- 각 item은 `{ reference, title, author, publishedAt }`다. `reference`는 `{articleId}/{slug}` 형식의 canonical relative reference다.
+
+```json
+{
+  "page": 1,
+  "nextPage": 2,
+  "items": [
+    {
+      "reference": "101/champions-run",
+      "title": "Champions run",
+      "author": "raezeri",
+      "publishedAt": "July 13, 2026"
+    }
+  ]
+}
+```
+
+### News Detail
+
+`GET /api/v1/news/{articleId}/{slug}`
+
+- `articleId`와 `slug`는 List가 반환한 `reference`의 두 segment를 그대로 사용한다. 둘 중 하나라도 canonical 형식이 아니면 `INVALID_REQUEST`다.
+- 성공 response는 `{ reference, title, author, publishedAt, blocks }`다. block은 원문 순서를 유지하는 tagged object다: `paragraph`의 `content`, `image`의 `imageUrl`/선택 `caption`, `list`의 `ordered`/`items`.
+- paragraph와 list item의 content는 `text` 또는 `link` tagged object다. link의 `kind`는 `TEAM`, `PLAYER`, `EVENT`, `MATCH`, `INTERNAL_UNSUPPORTED`, `EXTERNAL` 중 하나다. Team과 Player만 app-routable `reference`를 가지며, Event·Match는 type만 보존하고 MVP에서 route하지 않는다.
+
+모든 비성공 response는 공통 `{ code, message }` envelope를 사용한다. invalid page/reference는 `400 INVALID_REQUEST`, transport failure는 `502 UPSTREAM_NETWORK_FAILURE`, 필수 DOM structure failure는 `502 SOURCE_PARSING_FAILURE`다.
 
 ### News Detail parsing 경계
 
