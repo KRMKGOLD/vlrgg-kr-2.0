@@ -272,6 +272,8 @@ internal class NewsParser {
         startsWith("/") -> substringBefore('?').substringBefore('#')
         startsWith("https://www.vlr.gg/") -> removePrefix("https://www.vlr.gg").substringBefore('?').substringBefore('#')
         startsWith("https://vlr.gg/") -> removePrefix("https://vlr.gg").substringBefore('?').substringBefore('#')
+        startsWith("http://www.vlr.gg/") -> removePrefix("http://www.vlr.gg").substringBefore('?').substringBefore('#')
+        startsWith("http://vlr.gg/") -> removePrefix("http://vlr.gg").substringBefore('?').substringBefore('#')
         else -> null
     }
 

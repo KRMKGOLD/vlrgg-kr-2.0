@@ -227,6 +227,8 @@ class NewsParserTest {
             listOf(
                 NewsLinkSourceInline("Local match", NewsLinkKindSource.MATCH, "12345/local-match"),
                 NewsLinkSourceInline("VLR match", NewsLinkKindSource.MATCH, "23456/host-match"),
+                NewsLinkSourceInline("HTTP VLR match", NewsLinkKindSource.MATCH, "34567/http-host-match"),
+                NewsLinkSourceInline("HTTP www VLR match", NewsLinkKindSource.MATCH, "45678/http-www-host-match"),
                 NewsLinkSourceInline("Protocol relative", NewsLinkKindSource.EXTERNAL, null),
                 NewsLinkSourceInline("External", NewsLinkKindSource.EXTERNAL, null),
                 NewsLinkSourceInline("Legacy match route", NewsLinkKindSource.INTERNAL_UNSUPPORTED, null),

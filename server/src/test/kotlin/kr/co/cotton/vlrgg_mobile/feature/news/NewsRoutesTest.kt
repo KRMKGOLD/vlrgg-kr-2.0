@@ -114,6 +114,7 @@ class NewsRoutesTest {
         assertEquals(code, Json.decodeFromString<ApiErrorResponse>(body).code)
         assertFalse(body.contains("vlr.gg"))
         assertFalse(body.contains("article-body"))
+        assertFalse(body.contains("network details"))
     }
 
     private fun serviceForFixtures(onRequest: (Url) -> Unit = {}): NewsService = NewsService(
