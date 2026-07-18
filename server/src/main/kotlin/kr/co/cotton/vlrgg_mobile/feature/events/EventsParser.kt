@@ -186,9 +186,10 @@ internal class EventsParser {
         ?.normalizedText()
         .orNullIfBlank()
 
-    private fun Element.statusToken(): String = classNames()
-        .firstOrNull { it.startsWith(STATUS_MODIFIER_PREFIX) }
-        ?.removePrefix(STATUS_MODIFIER_PREFIX)
+    private fun Element.statusToken(): String = attr("data-event-status").orNullIfBlank()
+        ?: classNames()
+            .firstOrNull { it.startsWith(STATUS_MODIFIER_PREFIX) }
+            ?.removePrefix(STATUS_MODIFIER_PREFIX)
         ?: normalizedText()
 
     private fun Element.regionCode(): String? = classNames()
@@ -321,7 +322,10 @@ private fun String.toNonNegativeIntOrNull(): Int? = replace(",", "")
     ?.toIntOrNull()
     ?.takeIf { it >= 0 }
 
-private fun String.toStatDoubleOrNull(): Double? = replace(",", "").removeSuffix("%").toDoubleOrNull()
+private fun String.toStatDoubleOrNull(): Double? = replace(",", "")
+    .removeSuffix("%")
+    .toDoubleOrNull()
+    ?.takeIf { it.isFinite() }
 
 private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
     when {

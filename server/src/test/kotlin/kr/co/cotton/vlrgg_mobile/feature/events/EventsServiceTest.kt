@@ -38,7 +38,13 @@ class EventsServiceTest {
         val service = DefaultEventsService(scraper, EventsParser(), EventsMapper())
 
         assertTrue(service.getEventList().ongoing.isNotEmpty())
-        assertFailsWith<UpstreamNetworkFailure> { service.getEventList() }
+        val failure = try {
+            service.getEventList()
+            null
+        } catch (failure: UpstreamNetworkFailure) {
+            failure
+        }
+        assertNotNull(failure)
         Unit
     }
 

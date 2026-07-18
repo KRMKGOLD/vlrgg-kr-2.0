@@ -45,6 +45,27 @@ class EventsParserTest {
     }
 
     @Test
+    fun `event status reads source attribute when visible text and modifier class are absent`() {
+        val listHtml = fixture("event-list.html").replace(
+            "<span class=\"event-item-desc-item-status mod-ongoing\">ongoing</span>",
+            "<span class=\"event-item-desc-item-status\" data-event-status=\"ongoing\"></span>",
+        )
+        val detailHtml = fixture("event-detail.html").replace(
+            "<h1 class=\"event-header-main-title\">Masters Seoul</h1>",
+            "<h1 class=\"event-header-main-title\">Masters Seoul</h1><span data-event-status=\"ongoing\"></span>",
+        )
+
+        assertEquals(
+            EventStatusSource.ONGOING,
+            parser.parseEventList(pageHtml(listHtml, "/events")).events.single { it.id == "100" }.status,
+        )
+        assertEquals(
+            EventStatusSource.ONGOING,
+            parser.parseEventDetail(pageHtml(detailHtml, "/event/100"), "100").status,
+        )
+    }
+
+    @Test
     fun `event matches parse all summaries statuses scores and absent scores`() {
         val result = parser.parseEventMatches(page("event-matches.html", "/event/matches/100/?series_id=all"), "100")
         val empty = parser.parseEventMatches(page("event-matches-empty.html", "/event/matches/200/?series_id=all"), "200")
@@ -144,6 +165,18 @@ class EventsParserTest {
         assertEquals(1.32, player.rating)
         assertEquals(82.0, player.killAssistSurvivedTradedPercentage)
         assertIs<EventStatsSource.NoStatsAvailable>(unavailable)
+    }
+
+    @Test
+    fun `event stats reject non-finite numeric source values`() {
+        val fixture = fixture("event-stats.html")
+        val nanResult = parser.parseEventStats(pageHtml(fixture.replace(">1.32<", ">NaN<"), "/event/stats/100"))
+        val infinityResult = parser.parseEventStats(
+            pageHtml(fixture.replace(">1.32<", ">Infinity<"), "/event/stats/100"),
+        )
+
+        assertNull(assertIs<EventStatsSource.Available>(nanResult).players.first().rating)
+        assertNull(assertIs<EventStatsSource.Available>(infinityResult).players.first().rating)
     }
 
     @Test
