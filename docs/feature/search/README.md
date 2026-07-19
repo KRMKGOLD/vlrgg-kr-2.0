@@ -183,7 +183,7 @@ GET /api/v1/search?q={query}
 - Event `period`는 검색 결과가 직접 제공하는 기간 문자열만 포함하며 같은 영역에 중첩된 상금 등 다른 metadata는 포함하지 않는다.
 - 정상적인 결과 없음과 지원하지 않는 결과 타입만 존재하는 경우 `results`는 빈 배열이다.
 - 지원 타입을 알 수 없는 타입으로 추정하지 않는다. 지원 결과가 전부 malformed이거나 필수 결과 container를 해석할 수 없으면 빈 결과가 아니라 parsing failure다.
-- 결과 수 sentinel과 canonical 검색 링크가 불일치하거나 지원 링크의 class/path 구조가 바뀌면 빈 결과가 아니라 parsing failure다.
+- 결과 수 sentinel이 존재하면 그 수와 canonical 검색 source element 수가 정확히 일치해야 한다. 중복 링크와 지원하지 않는 타입도 각각 source element 한 개로 세며, 불일치하거나 지원 링크의 class/path 구조가 바뀌면 빈 결과가 아니라 parsing failure다.
 
 ### 실패 response
 

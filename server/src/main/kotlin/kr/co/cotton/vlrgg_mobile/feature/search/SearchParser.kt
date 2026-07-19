@@ -31,8 +31,7 @@ internal class SearchParser {
 
         if (
             supportedResultElements.any { it !in resultElements } ||
-            foundResultCount == 0 && canonicalResultElements.isNotEmpty() ||
-            foundResultCount != null && foundResultCount > 0 && canonicalResultElements.isEmpty()
+            foundResultCount != null && foundResultCount != canonicalResultElements.size
         ) {
             throw IllegalStateException("Search result structure is inconsistent.")
         }

@@ -97,6 +97,20 @@ class SearchParserTest {
     }
 
     @Test
+    fun `parser fails closed when Found count exceeds canonical source elements`() {
+        assertFailsWith<SourceParsingFailure> {
+            parser.parse(readFixture("found-count-underflow.html"), upstreamUrl)
+        }
+    }
+
+    @Test
+    fun `parser fails closed when duplicate canonical source elements exceed Found count`() {
+        assertFailsWith<SourceParsingFailure> {
+            parser.parse(readFixture("found-count-overflow.html"), upstreamUrl)
+        }
+    }
+
+    @Test
     fun `parser ignores malformed and polluted cards while retaining valid results`() {
         val source = parser.parse(readFixture("mixed-results.html"), upstreamUrl)
 
