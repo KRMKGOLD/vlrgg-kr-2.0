@@ -3,7 +3,12 @@ package kr.co.cotton.vlrgg_mobile.feature.search
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.server.engine.*
+import io.ktor.server.netty.*
 import io.ktor.server.testing.*
+import java.net.Socket
+import java.nio.charset.StandardCharsets
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import kr.co.cotton.vlrgg_mobile.module
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
@@ -43,6 +48,38 @@ class SearchRoutesTest {
             "/api/v1/search?q=${"a".repeat(81)}",
         ).forEach { path ->
             assertError(client.get(path), HttpStatusCode.BadRequest, ApiErrorCode.INVALID_REQUEST)
+        }
+
+        assertTrue(scraper.requestedQueries.isEmpty())
+    }
+
+    @Test
+    fun `route maps a malformed percent encoded query to invalid request without scraping`() = runBlocking {
+        val scraper = RecordingSearchScraper()
+        val server = embeddedServer(Netty, host = "127.0.0.1", port = 0) {
+            module(searchService = SearchService(scraper, SearchMapper()))
+        }.start(wait = false)
+
+        try {
+            val connector = server.engine.resolvedConnectors().single()
+            val response = Socket(connector.host, connector.port).use { socket ->
+                socket.soTimeout = 5_000
+                socket.getOutputStream().apply {
+                    write(
+                        "GET /api/v1/search?q=% HTTP/1.1\r\n".toByteArray(StandardCharsets.US_ASCII),
+                    )
+                    write("Host: ${connector.host}:${connector.port}\r\n".toByteArray(StandardCharsets.US_ASCII))
+                    write("Connection: close\r\n\r\n".toByteArray(StandardCharsets.US_ASCII))
+                    flush()
+                }
+                socket.getInputStream().bufferedReader(StandardCharsets.UTF_8).readText()
+            }
+
+            assertTrue(response.startsWith("HTTP/1.1 400"), response)
+            assertContains(response, ApiErrorCode.INVALID_REQUEST.name)
+            assertFalse(response.contains(ApiErrorCode.INTERNAL_ERROR.name))
+        } finally {
+            server.stop(1_000, 1_000)
         }
 
         assertTrue(scraper.requestedQueries.isEmpty())

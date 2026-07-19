@@ -2,6 +2,7 @@ package kr.co.cotton.vlrgg_mobile.plugins
 
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -9,11 +10,17 @@ import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
 import kr.co.cotton.vlrgg_mobile.common.http.InternalServerFailure
+import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.http.ServerFailure
 import kr.co.cotton.vlrgg_mobile.common.http.toApiErrorResponse
 
 fun Application.configureErrorHandling() {
     install(StatusPages) {
+        exception<BadRequestException> { call, cause ->
+            val failure = InvalidInputFailure(cause)
+            call.application.logFailure(call, failure)
+            call.respond(failure.status, failure.toApiErrorResponse())
+        }
         exception<ServerFailure> { call, failure ->
             call.application.logFailure(call, failure)
             call.respond(failure.status, failure.toApiErrorResponse())

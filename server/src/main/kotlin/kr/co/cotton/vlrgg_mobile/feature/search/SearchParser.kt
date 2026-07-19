@@ -6,9 +6,11 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
 private val SEARCH_RESULT_PATH = Regex(
-    "^/search/r/(series|event|team|player)/([1-9][0-9]{0,9})/idx/?(?:[?#].*)?$",
+    "^/search/r/(eventgroup|event|team|player)/([1-9][0-9]{0,9})/idx/?(?:[?#].*)?$",
 )
-private val SUPPORTED_SEARCH_RESULT_PREFIX = Regex("^/search/r/(series|event|team|player)/")
+private val SUPPORTED_SEARCH_RESULT_PREFIX = Regex("^/search/r/(eventgroup|event|team|player)/")
+private val FOUND_RESULTS_PATTERN = Regex("\\bFound\\s+([0-9]+)\\s+results?\\b", RegexOption.IGNORE_CASE)
+private const val CANONICAL_SEARCH_RESULT_PREFIX = "/search/r/"
 
 /** The only search component that knows the VLR.GG DOM shape and CSS class names. */
 internal class SearchParser {
@@ -17,17 +19,30 @@ internal class SearchParser {
             .selectFirst("#wrapper .col.mod-1")
             ?: throw IllegalStateException("Search results container is missing.")
 
-        val resultElements = resultsContainer.children()
-            .asSequence()
-            .filter { it.hasClass("wf-card") }
-            .flatMap { card -> card.select("a.search-item").asSequence() }
-            .toList()
+        val canonicalResultElements = resultsContainer.select("a[href^='$CANONICAL_SEARCH_RESULT_PREFIX']")
+        val supportedResultElements = canonicalResultElements.filter { result ->
+            SUPPORTED_SEARCH_RESULT_PREFIX.containsMatchIn(result.attr("href"))
+        }
+        val resultElements = resultsContainer.select(".wf-card a.search-item[href]")
+        val foundResultCount = FOUND_RESULTS_PATTERN.find(resultsContainer.text())
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+
+        if (
+            supportedResultElements.any { it !in resultElements } ||
+            foundResultCount == 0 && canonicalResultElements.isNotEmpty() ||
+            foundResultCount != null && foundResultCount > 0 && canonicalResultElements.isEmpty()
+        ) {
+            throw IllegalStateException("Search result structure is inconsistent.")
+        }
+
         val results = resultElements
             .asSequence()
             .mapNotNull(::parseResult)
             .distinctBy { result -> result.type to result.id }
             .toList()
-        if (results.isEmpty() && resultElements.any { SUPPORTED_SEARCH_RESULT_PREFIX.containsMatchIn(it.attr("href")) }) {
+        if (results.isEmpty() && supportedResultElements.isNotEmpty()) {
             throw IllegalStateException("All supported search results are malformed.")
         }
 
@@ -43,16 +58,20 @@ internal class SearchParser {
         val name = card.selectFirst(".search-item-title")?.normalizedText().orEmpty()
         if (name.isEmpty()) return null
 
+        val descriptionElement = card.selectFirst(".search-item-desc")
         return SearchSourceResult(
             type = type,
             id = id,
             name = name,
-            description = card.selectFirst(".search-item-desc")?.normalizedText()?.ifEmpty { null },
+            description = when (type) {
+                SearchSourceResultType.EVENT -> descriptionElement?.eventPeriod()
+                else -> descriptionElement?.normalizedText()?.ifEmpty { null }
+            },
         )
     }
 
     private fun String.toSourceType(): SearchSourceResultType? = when (this) {
-        "series" -> SearchSourceResultType.SERIES
+        "eventgroup" -> SearchSourceResultType.SERIES
         "event" -> SearchSourceResultType.EVENT
         "team" -> SearchSourceResultType.TEAM
         "player" -> SearchSourceResultType.PLAYER
@@ -60,4 +79,12 @@ internal class SearchParser {
     }
 
     private fun Element.normalizedText(): String = text().replace(Regex("\\s+"), " ").trim()
+
+    private fun Element.eventPeriod(): String? = ownText()
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .trimEnd { character ->
+            character.isWhitespace() || character == '·' || character == '•' || character == '⋅'
+        }
+        .ifEmpty { null }
 }
