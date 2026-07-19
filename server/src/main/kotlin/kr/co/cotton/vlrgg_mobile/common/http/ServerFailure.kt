@@ -16,7 +16,7 @@ internal sealed class ServerFailure(
     abstract val safeMessage: String
 }
 
-internal class InvalidInputFailure : ServerFailure() {
+internal class InvalidInputFailure(cause: Exception? = null) : ServerFailure(cause = cause) {
     override val errorCode = ApiErrorCode.INVALID_REQUEST
     override val status = HttpStatusCode.BadRequest
     override val safeMessage = "Request input is invalid."

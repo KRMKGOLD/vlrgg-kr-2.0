@@ -8,6 +8,8 @@ import kr.co.cotton.vlrgg_mobile.feature.events.EventsService
 import kr.co.cotton.vlrgg_mobile.feature.events.createEventsService
 import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
 import kr.co.cotton.vlrgg_mobile.feature.news.createDefaultNewsService
+import kr.co.cotton.vlrgg_mobile.feature.search.SearchService
+import kr.co.cotton.vlrgg_mobile.feature.search.createSearchService
 import kr.co.cotton.vlrgg_mobile.plugins.configureErrorHandling
 import kr.co.cotton.vlrgg_mobile.plugins.configureMonitoring
 import kr.co.cotton.vlrgg_mobile.plugins.configureSerialization
@@ -21,6 +23,7 @@ fun main() {
 internal fun Application.module(
     newsService: NewsService? = null,
     eventsService: EventsService? = null,
+    searchService: SearchService? = null,
 ) {
     configureSerialization()
     configureMonitoring()
@@ -30,5 +33,6 @@ internal fun Application.module(
         upstreamHtmlTransport = upstreamHtmlTransport,
         newsService = newsService ?: createDefaultNewsService(upstreamHtmlTransport),
         eventsService = eventsService ?: createEventsService(upstreamHtmlTransport),
+        searchService = searchService ?: createSearchService(upstreamHtmlTransport),
     )
 }
