@@ -10,11 +10,14 @@ import kr.co.cotton.vlrgg_mobile.feature.events.configureEventsRoutes
 import kr.co.cotton.vlrgg_mobile.feature.matches.configureMatchesFeature
 import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
 import kr.co.cotton.vlrgg_mobile.feature.news.configureNewsRoutes
+import kr.co.cotton.vlrgg_mobile.feature.search.SearchService
+import kr.co.cotton.vlrgg_mobile.feature.search.configureSearchRoutes
 
 internal fun Application.configureRouting(
     upstreamHtmlTransport: UpstreamHtmlTransport,
     newsService: NewsService,
     eventsService: EventsService,
+    searchService: SearchService,
 ) {
     routing {
         get("/health") {
@@ -22,6 +25,7 @@ internal fun Application.configureRouting(
         }
         configureNewsRoutes(newsService)
         configureEventsRoutes(eventsService)
+        configureSearchRoutes(searchService)
     }
     configureMatchesFeature(upstreamHtmlTransport)
 }

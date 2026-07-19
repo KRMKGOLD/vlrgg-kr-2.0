@@ -144,6 +144,52 @@ Search는 Phase 4 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 - upstream 통신 실패와 parsing 실패를 각각 `UPSTREAM_NETWORK_FAILURE`, `SOURCE_PARSING_FAILURE`로 반환한다.
 - raw HTML, selector, canonical upstream URL과 원본 예외를 앱에 노출하지 않는다.
 
+## 확정 서버 API 계약
+
+### 요청
+
+```text
+GET /api/v1/search?q={query}
+```
+
+- `q`는 필수 단일 query parameter이며 다른 query parameter는 허용하지 않는다.
+- 서버는 앞뒤 공백을 제거한 query를 검색과 성공 response에 사용한다.
+- 정규화한 query는 1~80자이고 문자 또는 숫자를 하나 이상 포함해야 한다.
+- 제어 문자를 포함하거나 공백·기호만으로 구성된 query는 upstream 요청 없이 거절한다.
+
+### 성공 response
+
+```json
+{
+  "query": "Sentinels",
+  "results": [
+    {
+      "type": "team",
+      "reference": {
+        "resource": "team",
+        "id": "2"
+      },
+      "name": "Sentinels",
+      "tagOrRegion": "SEN · United States"
+    }
+  ]
+}
+```
+
+- `type`과 `reference.resource`는 `series`, `event`, `team`, `player` 중 하나다.
+- `reference.id`는 VLR.GG 결과 링크에서 추출한 선행 0 없는 양의 10진 식별자이며 JSON string으로 반환한다.
+- 모든 결과는 `reference`와 `name`을 가진다.
+- 타입별 optional 보조 필드는 Series `scope`, Event `period`, Team `tagOrRegion`, Player `identity`다. 원본에 값이 없으면 `null`이다.
+- 정상적인 결과 없음과 지원하지 않는 결과 타입만 존재하는 경우 `results`는 빈 배열이다.
+- 지원 타입을 알 수 없는 타입으로 추정하지 않는다. 지원 결과가 전부 malformed이거나 필수 결과 container를 해석할 수 없으면 빈 결과가 아니라 parsing failure다.
+
+### 실패 response
+
+- query validation 실패: `400 Bad Request`, `INVALID_REQUEST`
+- upstream 조회 실패: `502 Bad Gateway`, `UPSTREAM_NETWORK_FAILURE`
+- source DOM 해석 실패: `502 Bad Gateway`, `SOURCE_PARSING_FAILURE`
+- 모든 실패는 공통 `ApiErrorResponse`를 사용하며 raw HTML, selector, upstream URL, 내부 예외 문구를 포함하지 않는다.
+
 ## Upstream 및 parser 참고
 
 제품 화면의 app route/API endpoint와 아래 VLR.GG upstream URL을 혼동하지 않는다.
