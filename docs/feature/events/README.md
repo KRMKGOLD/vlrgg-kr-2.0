@@ -179,6 +179,24 @@ MVP에서 제공하지 않는 필터나 브래킷 탭은 비활성 placeholder�
 - upstream 통신 실패는 `UPSTREAM_NETWORK_FAILURE`, DOM 해석 실패는 `SOURCE_PARSING_FAILURE` 공통 오류로 반환한다.
 - raw HTML, selector, 원본 예외 문구를 앱에 노출하지 않는다.
 
+### 서버 API 계약
+
+Event Detail의 섹션별 partial 상태와 독립 재시도를 지원하기 위해 기본 정보, 경기, 뉴스, 통계를 각각 조회한다.
+
+```text
+GET /api/v1/events
+GET /api/v1/events/{eventId}
+GET /api/v1/events/{eventId}/matches
+GET /api/v1/events/{eventId}/news
+GET /api/v1/events/{eventId}/stats
+```
+
+- `matches`는 upstream Event Matches의 `series_id=all` 결과를 사용한다.
+- `matches.items`는 Matches 목록의 `MatchSummaryResponse` 계약을 재사용한다. `event`는 현재 Event의 `id`와 이름을 담고, Event 내부 단계 표시는 `event.series`에 둔다.
+- Event Detail 원본에는 상태가 항상 존재하지 않으므로 상세 응답의 `status`는 선택 값이다. 목록 응답의 상태 그룹은 필수다.
+- Event News 원본에는 작성자가 항상 존재하지 않으므로 Event News 요약의 `author`는 선택 값이다. 제목, canonical News reference, 작성 시각은 필수다.
+- 섹션 하나의 network 또는 parsing 실패가 다른 섹션의 성공 응답을 대체하지 않는다. 각 실패는 공통 오류 envelope로 독립 반환한다.
+
 ## Upstream 및 parser 참고
 
 제품 화면의 app route/API endpoint와 아래 VLR.GG upstream URL을 혼동하지 않는다.
