@@ -46,6 +46,20 @@ class TeamDetailParserTest {
     }
 
     @Test
+    fun `parser excludes direct known match anchors without the Team news class`() {
+        listOf(
+            """<a href="/601/alpha-vs-bravo" class="match-item"><div class="match-item-time">5:00 PM</div><div class="match-item-vs">Alpha vs Bravo</div><div class="match-item-event">Group</div></a>""",
+            """<a href="/698887/kiwoom-drx-vs-detonation-focusme" class="wf-card fc-flex m-item"><div class="m-item-event">VCT 26: PAC Stage 2</div><div class="m-item-team">KIWOOM DRX</div><div class="m-item-result">4d 2h</div><div class="m-item-team">DetonatioN FocusMe</div><div class="m-item-date">2026/07/17</div></a>""",
+        ).forEach { matchAnchor ->
+            val content = activeContent().copy(
+                newsHtml = """<html><body><div class="team-header"></div><div class="wf-card">$matchAnchor</div></body></html>""",
+            )
+
+            assertTrue(parser.parse(content).news.isEmpty())
+        }
+    }
+
+    @Test
     fun `parser excludes an overview match module contaminating the verified Team news card`() {
         val content = activeContent().copy(
             newsHtml = fixture("active-team-news.html").replace(
@@ -91,6 +105,18 @@ class TeamDetailParserTest {
     }
 
     @Test
+    fun `parser fails closed for a non-anchor Team news candidate`() {
+        val content = activeContent().copy(
+            newsHtml = fixture("active-team-news.html").replace(
+                "</div><div class=\"wf-card\">",
+                """<div class="wf-module-item" href="/700700/drifted-news"><div class="ge-text-light">2026/06/18</div><div>Drifted news</div></div></div><div class="wf-card">""",
+            ),
+        )
+
+        assertFailsWith<SourceParsingFailure> { parser.parse(content) }
+    }
+
+    @Test
     fun `parser accepts sparse team and missing news section as empty optional content`() {
         val source = parser.parse(sparseContent())
 
@@ -126,6 +152,18 @@ class TeamDetailParserTest {
         val content = activeContent().copy(
             overviewHtml = fixture("active-team-overview.html")
                 .replace("class=\"wf-card fc-flex m-item\"", "class=\"wf-card fc-flex team-match\""),
+        )
+
+        assertFailsWith<SourceParsingFailure> { parser.parse(content) }
+    }
+
+    @Test
+    fun `parser fails closed for a non-anchor match candidate in an observed section`() {
+        val content = activeContent().copy(
+            overviewHtml = fixture("active-team-overview.html").replace(
+                "<h2 class=\"wf-label mod-large\">Upcoming matches</h2><div>",
+                """<h2 class="wf-label mod-large">Upcoming matches</h2><div><div class="m-item"><div class="m-item-team">Unexpected</div></div>""",
+            ),
         )
 
         assertFailsWith<SourceParsingFailure> { parser.parse(content) }

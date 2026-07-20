@@ -43,15 +43,9 @@ internal class TeamDetailParser {
             sourceStructureError("Team news container is malformed.")
         }
 
-        val items = container.children().filter { item ->
-            item.normalName() == "a" && item.hasClass(NEWS_ITEM_CLASS)
-        }
-        if (items.isEmpty()) {
-            if (container.select("a").isNotEmpty()) sourceStructureError("Team news item structure is inconsistent.")
-            return@parseSafely emptyList()
-        }
-
-        items.mapNotNull(::parseNewsItem).distinctBy { it.reference.value }
+        container.children()
+            .mapNotNull(::parseNewsChild)
+            .distinctBy { it.reference.value }
     }
 
     private fun parseProfile(document: Document): TeamProfileSource {
@@ -65,15 +59,25 @@ internal class TeamDetailParser {
 
     private fun parseMatchSection(document: Document, heading: String): List<TeamMatchSource> {
         val section = document.sectionFollowing(heading) ?: return emptyList()
-        val candidates = section.flatMap { it.select(MATCH_ITEM_SELECTOR) }
+        val candidates = section.matchCandidates()
         if (candidates.isEmpty()) {
             if (section.flatMap { it.select("a") }.isNotEmpty()) {
                 sourceStructureError("Match section candidate structure is inconsistent.")
             }
             return emptyList()
         }
+        if (candidates.any { it.normalName() != "a" || !it.hasAttr("href") }) {
+            sourceStructureError("Match section candidate structure is inconsistent.")
+        }
         return candidates.mapNotNull(::parseMatchOrExcludeContaminated)
             .distinctBy(TeamMatchSource::id)
+    }
+
+    private fun List<Element>.matchCandidates(): List<Element> = flatMap { sectionElement ->
+        buildList {
+            if (sectionElement.hasClass(MATCH_ITEM_CLASS)) add(sectionElement)
+            addAll(sectionElement.select(".$MATCH_ITEM_CLASS"))
+        }
     }
 
     private fun parseMatchOrExcludeContaminated(element: Element): TeamMatchSource? {
@@ -144,9 +148,14 @@ internal class TeamDetailParser {
         )
     }
 
-    private fun parseNewsItem(element: Element): TeamNewsSource? {
-        if (element.isKnownMatchModule()) return null
+    private fun parseNewsChild(element: Element): TeamNewsSource? = when {
+        element.isKnownMatchModule() -> null
+        element.normalName() != "a" || !element.hasClass(NEWS_ITEM_CLASS) ->
+            sourceStructureError("Team news item structure is inconsistent.")
+        else -> parseNewsItem(element)
+    }
 
+    private fun parseNewsItem(element: Element): TeamNewsSource? {
         val href = element.attr("href")
         if (href.isEmpty()) sourceStructureError("News reference is missing.")
         val reference = NewsReference.fromHref(href)
@@ -232,7 +241,7 @@ internal class TeamDetailParser {
         const val UPCOMING_MATCHES_HEADING = "Upcoming matches"
         const val RECENT_RESULTS_HEADING = "Recent Results"
         const val CURRENT_ROSTER_HEADING = "Current Roster"
-        const val MATCH_ITEM_SELECTOR = "a.m-item[href]"
+        const val MATCH_ITEM_CLASS = "m-item"
         const val MATCH_TEAM_NAME_SELECTOR = ".m-item-team-name"
         const val MATCH_EVENT_SELECTOR = ".m-item-event"
         const val MATCH_RESULT_SELECTOR = ".m-item-result"
