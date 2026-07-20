@@ -4,8 +4,8 @@ import io.ktor.http.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
-import kr.co.cotton.vlrgg_mobile.feature.news.NewsReference
 import kotlin.test.*
 
 class TeamDetailMapperServiceTest {

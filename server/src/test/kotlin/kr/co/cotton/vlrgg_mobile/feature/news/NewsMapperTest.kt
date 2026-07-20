@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
+import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

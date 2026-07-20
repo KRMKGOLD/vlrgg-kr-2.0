@@ -3,7 +3,7 @@ package kr.co.cotton.vlrgg_mobile.feature.teams
 import io.ktor.http.*
 import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
-import kr.co.cotton.vlrgg_mobile.feature.news.NewsReference
+import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element

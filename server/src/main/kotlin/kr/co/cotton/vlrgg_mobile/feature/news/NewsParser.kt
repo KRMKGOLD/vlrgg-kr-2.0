@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
+import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element

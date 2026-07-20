@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 
 /** Coordinates one fresh upstream request with parsing and public response mapping. */
 internal class NewsService(
