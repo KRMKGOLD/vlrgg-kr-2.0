@@ -49,8 +49,8 @@ class TeamDetailMapperServiceTest {
 
         assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         assertEquals(
-            setOf("/team/8185/", "/team/news/8185/"),
-            transport.requestedPaths.toSet(),
+            mapOf("/team/8185/" to 2, "/team/news/8185/" to 2),
+            transport.requestedPaths.groupingBy { it }.eachCount(),
         )
         assertEquals(4, transport.requestedPaths.size)
     }
