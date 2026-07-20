@@ -148,6 +148,18 @@ class TeamDetailParserTest {
     }
 
     @Test
+    fun `parser fails closed for every noncanonical selected match candidate`() {
+        listOf("/not-a-match/unsafe", "/675208/bad?token=private").forEach { invalidHref ->
+            val content = activeContent().copy(
+                overviewHtml = fixture("active-team-overview.html")
+                    .replace("/698887/kiwoom-drx-vs-detonation-focusme", invalidHref),
+            )
+
+            assertFailsWith<SourceParsingFailure> { parser.parse(content) }
+        }
+    }
+
+    @Test
     fun `parser fails closed when an observed match section drifts from supported candidates`() {
         val content = activeContent().copy(
             overviewHtml = fixture("active-team-overview.html")
@@ -174,6 +186,16 @@ class TeamDetailParserTest {
         val content = activeContent().copy(
             overviewHtml = fixture("active-team-overview.html")
                 .replace("/player/4462/mako", "/player/4462/"),
+        )
+
+        assertFailsWith<SourceParsingFailure> { parser.parse(content) }
+    }
+
+    @Test
+    fun `parser fails closed for a noncanonical selected roster candidate`() {
+        val content = activeContent().copy(
+            overviewHtml = fixture("active-team-overview.html")
+                .replace("/player/4462/mako", "/player/not-an-id/unsafe"),
         )
 
         assertFailsWith<SourceParsingFailure> { parser.parse(content) }

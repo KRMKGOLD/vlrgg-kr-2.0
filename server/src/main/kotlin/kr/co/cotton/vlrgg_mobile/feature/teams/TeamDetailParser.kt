@@ -72,7 +72,7 @@ internal class TeamDetailParser {
         if (candidates.any { it.normalName() != "a" || !it.hasAttr("href") }) {
             sourceStructureError("Match section candidate structure is inconsistent.")
         }
-        return candidates.mapNotNull(::parseMatchOrExcludeContaminated)
+        return candidates.map(::parseMatch)
             .distinctBy(TeamMatchSource::id)
     }
 
@@ -81,13 +81,6 @@ internal class TeamDetailParser {
             if (sectionElement.hasClass(MATCH_ITEM_CLASS)) add(sectionElement)
             addAll(sectionElement.select(".$MATCH_ITEM_CLASS"))
         }
-    }
-
-    private fun parseMatchOrExcludeContaminated(element: Element): TeamMatchSource? {
-        val href = element.attr("href")
-        if (href.matches(MATCH_PATH_PATTERN)) return parseMatch(element)
-        if (href.isMalformedCanonicalPath()) sourceStructureError("Match reference is malformed.")
-        return null
     }
 
     private fun parseMatch(element: Element): TeamMatchSource {
@@ -128,19 +121,12 @@ internal class TeamDetailParser {
             if (content.select("a").isNotEmpty()) sourceStructureError("Roster item structure is inconsistent.")
             return emptyList()
         }
-        return candidates.mapNotNull(::parseRosterMemberOrExcludeContaminated)
+        return candidates.map(::parseRosterMember)
             .distinctBy(TeamRosterMemberSource::id)
     }
 
-    private fun parseRosterMemberOrExcludeContaminated(element: Element): TeamRosterMemberSource? {
+    private fun parseRosterMember(element: Element): TeamRosterMemberSource {
         val link = element.selectFirst("a") ?: sourceStructureError("Roster member link is missing.")
-        val href = link.attr("href")
-        if (href.matches(PLAYER_PATH_PATTERN)) return parseRosterMember(link)
-        if (href.isMalformedCanonicalPlayerPath()) sourceStructureError("Player reference is malformed.")
-        return null
-    }
-
-    private fun parseRosterMember(link: Element): TeamRosterMemberSource {
         val id = link.attr("href").matchedId(PLAYER_PATH_PATTERN)
             ?: sourceStructureError("Player identifier is missing.")
         return TeamRosterMemberSource(
@@ -207,16 +193,6 @@ internal class TeamDetailParser {
 
     private fun String.matchedId(pattern: Regex): String? = pattern.matchEntire(this)?.groups?.get(1)?.value
 
-    private fun String.isMalformedCanonicalPath(): Boolean = startsWith("/") &&
-        drop(1).firstOrNull()?.isDigit() == true &&
-        !contains('?') &&
-        !contains('#')
-
-    private fun String.isMalformedCanonicalPlayerPath(): Boolean = startsWith(PLAYER_PATH_PREFIX) &&
-        removePrefix(PLAYER_PATH_PREFIX).firstOrNull()?.isDigit() == true &&
-        !contains('?') &&
-        !contains('#')
-
     private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
 
     private inline fun <T> parseSafely(upstreamUrl: Url, block: () -> T): T = try {
@@ -266,7 +242,6 @@ internal class TeamDetailParser {
 
         val MATCH_PATH_PATTERN = Regex("^/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
         val PLAYER_PATH_PATTERN = Regex("^/player/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
-        const val PLAYER_PATH_PREFIX = "/player/"
         val WHITESPACE = Regex("\\s+")
     }
 }
