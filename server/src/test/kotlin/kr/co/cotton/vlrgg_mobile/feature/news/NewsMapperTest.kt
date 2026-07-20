@@ -10,7 +10,7 @@ class NewsMapperTest {
         val sourceKinds = NewsLinkKindSource.entries
         val response = NewsMapper().toArticleResponse(
             NewsArticleSource(
-                reference = NewsReference("111", "link-kinds"),
+                reference = newsReference("111", "link-kinds"),
                 title = "Link kinds",
                 author = "author",
                 publishedAt = "July 14, 2026",

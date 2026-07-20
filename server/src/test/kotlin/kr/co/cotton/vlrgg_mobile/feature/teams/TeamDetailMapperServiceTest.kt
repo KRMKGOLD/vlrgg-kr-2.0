@@ -1,0 +1,199 @@
+package kr.co.cotton.vlrgg_mobile.feature.teams
+
+import io.ktor.http.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
+import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
+import kotlin.test.*
+
+class TeamDetailMapperServiceTest {
+    @Test
+    fun `mapper preserves stable string IDs and omitted optional source values`() {
+        val response = TeamDetailMapper().map(
+            TeamId.fromPath("9999999999"),
+            TeamDetailSource(
+                profile = TeamProfileSource("Example", null, null),
+                upcomingMatches = listOf(TeamMatchSource("123", null, null, "Example", "Opponent", null, null)),
+                recentMatches = emptyList(),
+                players = listOf(TeamRosterMemberSource("456", "player", null, emptyList())),
+                staff = emptyList(),
+                news = listOf(TeamNewsSource(NewsReference.fromPath("789", "article")!!, "Article", null)),
+            ),
+        )
+
+        assertEquals("9999999999", response.id)
+        assertEquals("123", response.upcomingMatches.single().id)
+        assertEquals("456", response.players.single().id)
+        assertEquals("789/article", response.news.single().reference)
+        assertNull(response.tag)
+        assertNull(response.upcomingMatches.single().eventName)
+    }
+
+    @Test
+    fun `service fetches both pages for each request and retains no stale result`() = runBlocking {
+        val transport = FixtureTransport()
+        val service = service(transport)
+
+        val first = service.get(TeamId.fromPath("8185"))
+        assertEquals("8185", first.id)
+
+        transport.failOn("/team/news/8185/")
+        val failure = assertFailsWith<UpstreamNetworkFailure> {
+            service.get(TeamId.fromPath("8185"))
+        }
+
+        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
+        val requestedPaths = transport.requestedPaths
+        assertEquals(
+            mapOf("/team/8185/" to 2, "/team/news/8185/" to 2),
+            requestedPaths.groupingBy { it }.eachCount(),
+        )
+        assertEquals(4, requestedPaths.size)
+    }
+
+    @Test
+    fun `service preserves upstream failures from either source fetch`() = runBlocking {
+        listOf("/team/8185/", "/team/news/8185/").forEach { failedPath ->
+            val failure = assertFailsWith<UpstreamNetworkFailure> {
+                service(FixtureTransport(failedPath = failedPath)).get(TeamId.fromPath("8185"))
+            }
+            assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
+        }
+    }
+
+    @Test
+    fun `service preserves cancellation from transport`() = runBlocking<Unit> {
+        assertFailsWith<CancellationException> {
+            service(FixtureTransport(cancellationPath = "/team/news/8185/")).get(TeamId.fromPath("8185"))
+        }
+    }
+
+    @Test
+    fun `scraper begins both source fetches before either response is released`() = runBlocking {
+        val transport = ConcurrentFixtureTransport()
+        val result = async { TeamDetailScraper(transport).scrape(TeamId.fromPath("8185")) }
+
+        withTimeout(1_000) { transport.bothRequestsStarted.await() }
+        val startedPaths = transport.requestedPaths
+        assertEquals(setOf("/team/8185/", "/team/news/8185/"), startedPaths.toSet())
+        assertEquals(2, startedPaths.size)
+
+        transport.releaseResponses.complete(Unit)
+        assertEquals("<overview>", result.await().overviewHtml)
+        assertEquals("<news>", result.await().newsHtml)
+    }
+
+    @Test
+    fun `scraper propagates source failure and cancellation without extra requests`() = runBlocking {
+        val networkTransport = FailingConcurrentTransport(
+            UpstreamNetworkFailure(Url("https://www.vlr.gg/team/news/8185/")),
+        )
+        withTimeout(5_000) {
+            assertFailsWith<UpstreamNetworkFailure> {
+                TeamDetailScraper(networkTransport).scrape(TeamId.fromPath("8185"))
+            }
+        }
+        val networkPaths = networkTransport.requestedPaths
+        assertEquals(setOf("/team/8185/", "/team/news/8185/"), networkPaths.toSet())
+        assertEquals(2, networkPaths.size)
+
+        val cancellationTransport = FailingConcurrentTransport(CancellationException("cancel"))
+        val cancellation = withTimeout(5_000) {
+            assertFailsWith<CancellationException> {
+                TeamDetailScraper(cancellationTransport).scrape(TeamId.fromPath("8185"))
+            }
+        }
+        assertEquals("cancel", cancellation.message)
+        val cancellationPaths = cancellationTransport.requestedPaths
+        assertEquals(setOf("/team/8185/", "/team/news/8185/"), cancellationPaths.toSet())
+        assertEquals(2, cancellationPaths.size)
+    }
+
+    private fun service(transport: UpstreamHtmlTransport) = TeamDetailService(
+        TeamDetailScraper(transport), TeamDetailParser(), TeamDetailMapper(),
+    )
+
+    private class FixtureTransport(
+        private var failedPath: String? = null,
+        private val cancellationPath: String? = null,
+    ) : UpstreamHtmlTransport {
+        private val lock = Any()
+        private val recordedPaths = mutableListOf<String>()
+
+        val requestedPaths: List<String>
+            get() = synchronized(lock) { recordedPaths.toList() }
+
+        fun failOn(path: String) {
+            synchronized(lock) {
+                failedPath = path
+            }
+        }
+
+        override suspend fun get(url: Url): String {
+            val path = url.encodedPath
+            val shouldFail = synchronized(lock) {
+                recordedPaths += path
+                path == failedPath
+            }
+            if (path == cancellationPath) throw CancellationException("cancel")
+            if (shouldFail) throw UpstreamNetworkFailure(url)
+            return when (path) {
+                "/team/8185/" -> fixture("active-team-overview.html")
+                "/team/news/8185/" -> fixture("active-team-news.html")
+                else -> error("Unexpected upstream path: ${url.encodedPath}")
+            }
+        }
+
+        private fun fixture(name: String): String = checkNotNull(
+            javaClass.classLoader.getResource("fixtures/teams/$name"),
+        ).readText()
+    }
+
+    private class ConcurrentFixtureTransport : UpstreamHtmlTransport {
+        private val lock = Any()
+        private val recordedPaths = mutableListOf<String>()
+        val bothRequestsStarted = CompletableDeferred<Unit>()
+        val releaseResponses = CompletableDeferred<Unit>()
+
+        val requestedPaths: List<String>
+            get() = synchronized(lock) { recordedPaths.toList() }
+
+        override suspend fun get(url: Url): String {
+            synchronized(lock) {
+                recordedPaths += url.encodedPath
+                if (recordedPaths.size == 2) bothRequestsStarted.complete(Unit)
+            }
+            releaseResponses.await()
+            return if (url.encodedPath == "/team/8185/") "<overview>" else "<news>"
+        }
+    }
+
+    private class FailingConcurrentTransport(
+        private val failure: Throwable,
+    ) : UpstreamHtmlTransport {
+        private val lock = Any()
+        private val recordedPaths = mutableListOf<String>()
+        private val bothRequestsStarted = CompletableDeferred<Unit>()
+
+        val requestedPaths: List<String>
+            get() = synchronized(lock) { recordedPaths.toList() }
+
+        override suspend fun get(url: Url): String {
+            synchronized(lock) {
+                recordedPaths += url.encodedPath
+                if (recordedPaths.size == 2) bothRequestsStarted.complete(Unit)
+            }
+            bothRequestsStarted.await()
+            return when (url.encodedPath) {
+                "/team/8185/" -> "<overview>"
+                "/team/news/8185/" -> throw failure
+                else -> error("Unexpected upstream path: ${url.encodedPath}")
+            }
+        }
+    }
+}

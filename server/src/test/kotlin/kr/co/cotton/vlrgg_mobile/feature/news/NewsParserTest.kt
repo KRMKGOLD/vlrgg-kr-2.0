@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
+import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import kotlin.test.*
 
 class NewsParserTest {
@@ -13,13 +14,13 @@ class NewsParserTest {
         assertEquals(
             listOf(
                 NewsSummarySource(
-                    reference = NewsReference("101", "champions-run"),
+                    reference = newsReference("101", "champions-run"),
                     title = "Champions run",
                     author = "raezeri",
                     publishedAt = "July 13, 2026",
                 ),
                 NewsSummarySource(
-                    reference = NewsReference("102", "roster-update"),
+                    reference = newsReference("102", "roster-update"),
                     title = "Roster update",
                     author = "jenopelle",
                     publishedAt = "July 12, 2026",
@@ -37,7 +38,7 @@ class NewsParserTest {
         assertEquals(
             listOf(
                 NewsSummarySource(
-                    reference = NewsReference("201", "operational-layout-news"),
+                    reference = newsReference("201", "operational-layout-news"),
                     title = "Operational layout news",
                     author = "operational-author",
                     publishedAt = "July 13, 2026",
@@ -55,7 +56,7 @@ class NewsParserTest {
         assertEquals(
             listOf(
                 NewsSummarySource(
-                    reference = NewsReference("202", "actual-news-card"),
+                    reference = newsReference("202", "actual-news-card"),
                     title = "Actual news card",
                     author = "news-author",
                     publishedAt = "July 13, 2026",
@@ -87,7 +88,7 @@ class NewsParserTest {
 
     @Test
     fun `news reference accepts exact VLR href forms but rejects untrusted hosts`() {
-        val expected = NewsReference("111", "canonical-news")
+        val expected = newsReference("111", "canonical-news")
 
         assertEquals(expected, NewsReference.fromHref("/111/canonical-news"))
         assertEquals(expected, NewsReference.fromHref("https://www.vlr.gg/111/canonical-news?source=list"))
@@ -95,13 +96,37 @@ class NewsParserTest {
         assertEquals(expected, NewsReference.fromHref("//www.vlr.gg/111/canonical-news"))
         assertNull(NewsReference.fromHref("//evil.example/111/canonical-news"))
         assertNull(NewsReference.fromHref("https://www.vlr.gg.evil/111/canonical-news"))
+        assertTrue(NewsReference.isTrustedHref("https://www.vlr.gg/not-a-news-reference"))
+        assertTrue(NewsReference.isTrustedHref("http://vlr.gg/not-a-news-reference"))
+        assertTrue(NewsReference.isTrustedHref("//www.vlr.gg/not-a-news-reference"))
+        assertFalse(NewsReference.isTrustedHref("https://untrusted.example/not-a-news-reference"))
+    }
+
+    @Test
+    fun `news reference exists only for canonical values and preserves value equality`() {
+        val expected = newsReference("111", "canonical-news")
+
+        assertEquals(expected, NewsReference.fromPath("111", "canonical-news"))
+        assertEquals(expected, NewsReference.fromHref("/111/canonical-news"))
+        assertEquals("111/canonical-news", expected.value)
+        assertEquals(expected.hashCode(), newsReference("111", "canonical-news").hashCode())
+
+        listOf("0", "01", "10000000000", "not-a-number").forEach { articleId ->
+            assertNull(NewsReference.fromPath(articleId, "canonical-news"))
+        }
+        listOf("", "Uppercase", "contains_underscore", "too/many-segments").forEach { slug ->
+            assertNull(NewsReference.fromPath("111", slug))
+        }
+        listOf("/0/canonical-news", "/01/canonical-news", "/111/Uppercase", "/111/").forEach { href ->
+            assertNull(NewsReference.fromHref(href))
+        }
     }
 
     @Test
     fun `article parser preserves supported blocks and excludes non article text`() {
         val article = parser.parseArticle(
             html = readFixture("news-article.html"),
-            reference = NewsReference("101", "champions-run"),
+            reference = newsReference("101", "champions-run"),
         )
 
         assertEquals("Champions run", article.title)
@@ -170,7 +195,7 @@ class NewsParserTest {
     fun `article parser treats missing optional image data as a partial article instead of a failure`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-without-optional-image.html"),
-            reference = NewsReference("103", "text-only-article"),
+            reference = newsReference("103", "text-only-article"),
         )
 
         assertEquals(
@@ -187,7 +212,7 @@ class NewsParserTest {
     fun `article parser keeps protocol relative links external`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-protocol-relative-link.html"),
-            reference = NewsReference("106", "protocol-relative-link"),
+            reference = newsReference("106", "protocol-relative-link"),
         )
 
         val link = (article.blocks.single() as NewsParagraphSourceBlock).content[1] as NewsLinkSourceInline
@@ -200,7 +225,7 @@ class NewsParserTest {
     fun `article parser preserves spaces between adjacent links`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-adjacent-links.html"),
-            reference = NewsReference("111", "adjacent-links"),
+            reference = newsReference("111", "adjacent-links"),
         )
 
         assertEquals(
@@ -217,7 +242,7 @@ class NewsParserTest {
     fun `article parser recognizes only VLR numeric paths as matches`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-match-links.html"),
-            reference = NewsReference("110", "match-links"),
+            reference = newsReference("110", "match-links"),
         )
 
         val links = (article.blocks.single() as NewsParagraphSourceBlock).content
@@ -244,7 +269,7 @@ class NewsParserTest {
     fun `article parser reads header metadata only from the article header`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-header-scope.html"),
-            reference = NewsReference("107", "header-scope"),
+            reference = newsReference("107", "header-scope"),
         )
 
         assertEquals("Actual article title", article.title)
@@ -256,7 +281,7 @@ class NewsParserTest {
     fun `article parser turns direct prose into ordered paragraph blocks`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-mixed-direct-prose.html"),
-            reference = NewsReference("108", "mixed-direct-prose"),
+            reference = newsReference("108", "mixed-direct-prose"),
         )
 
         assertEquals(
@@ -276,7 +301,7 @@ class NewsParserTest {
     fun `article parser keeps section h1 in its original block order`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-section-heading.html"),
-            reference = NewsReference("109", "section-heading"),
+            reference = newsReference("109", "section-heading"),
         )
 
         assertEquals(
@@ -293,7 +318,7 @@ class NewsParserTest {
     fun `article parser preserves supported content nested in unknown direct children`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-unknown-wrappers.html"),
-            reference = NewsReference("112", "unknown-wrappers"),
+            reference = newsReference("112", "unknown-wrappers"),
         )
 
         assertEquals(
@@ -315,7 +340,7 @@ class NewsParserTest {
                 html = """
                     <article class="article-body"><p>Body without a title.</p></article>
                 """.trimIndent(),
-                reference = NewsReference("104", "missing-title"),
+                reference = newsReference("104", "missing-title"),
             )
         }
         assertFailsWith<NewsParsingException> {
@@ -330,7 +355,7 @@ class NewsParserTest {
                     </header>
                     <article class="article-body"><iframe>unsupported</iframe></article>
                 """.trimIndent(),
-                reference = NewsReference("105", "empty-body"),
+                reference = newsReference("105", "empty-body"),
             )
         }
     }

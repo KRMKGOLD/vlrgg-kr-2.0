@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
 import io.ktor.http.*
+import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 
 internal const val VLR_PRIMARY_ORIGIN = "https://www.vlr.gg"
