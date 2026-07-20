@@ -79,12 +79,13 @@ class TeamDetailMapperServiceTest {
         val result = async { TeamDetailScraper(transport).scrape(TeamId.fromPath("8185")) }
 
         withTimeout(1_000) { transport.bothRequestsStarted.await() }
-        assertEquals(setOf("/team/8185/", "/team/news/8185/"), transport.requestedPaths.toSet())
+        val startedPaths = transport.requestedPaths
+        assertEquals(setOf("/team/8185/", "/team/news/8185/"), startedPaths.toSet())
+        assertEquals(2, startedPaths.size)
 
         transport.releaseResponses.complete(Unit)
         assertEquals("<overview>", result.await().overviewHtml)
         assertEquals("<news>", result.await().newsHtml)
-        assertEquals(2, transport.requestedPaths.size)
     }
 
     @Test
@@ -97,8 +98,9 @@ class TeamDetailMapperServiceTest {
                 TeamDetailScraper(networkTransport).scrape(TeamId.fromPath("8185"))
             }
         }
-        assertEquals(setOf("/team/8185/", "/team/news/8185/"), networkTransport.requestedPaths.toSet())
-        assertEquals(2, networkTransport.requestedPaths.size)
+        val networkPaths = networkTransport.requestedPaths
+        assertEquals(setOf("/team/8185/", "/team/news/8185/"), networkPaths.toSet())
+        assertEquals(2, networkPaths.size)
 
         val cancellationTransport = FailingConcurrentTransport(CancellationException("cancel"))
         val cancellation = withTimeout(5_000) {
@@ -107,8 +109,9 @@ class TeamDetailMapperServiceTest {
             }
         }
         assertEquals("cancel", cancellation.message)
-        assertEquals(setOf("/team/8185/", "/team/news/8185/"), cancellationTransport.requestedPaths.toSet())
-        assertEquals(2, cancellationTransport.requestedPaths.size)
+        val cancellationPaths = cancellationTransport.requestedPaths
+        assertEquals(setOf("/team/8185/", "/team/news/8185/"), cancellationPaths.toSet())
+        assertEquals(2, cancellationPaths.size)
     }
 
     private fun service(transport: UpstreamHtmlTransport) = TeamDetailService(
@@ -152,14 +155,18 @@ class TeamDetailMapperServiceTest {
     }
 
     private class ConcurrentFixtureTransport : UpstreamHtmlTransport {
-        val requestedPaths = mutableListOf<String>()
+        private val lock = Any()
+        private val recordedPaths = mutableListOf<String>()
         val bothRequestsStarted = CompletableDeferred<Unit>()
         val releaseResponses = CompletableDeferred<Unit>()
 
+        val requestedPaths: List<String>
+            get() = synchronized(lock) { recordedPaths.toList() }
+
         override suspend fun get(url: Url): String {
-            synchronized(requestedPaths) {
-                requestedPaths += url.encodedPath
-                if (requestedPaths.size == 2) bothRequestsStarted.complete(Unit)
+            synchronized(lock) {
+                recordedPaths += url.encodedPath
+                if (recordedPaths.size == 2) bothRequestsStarted.complete(Unit)
             }
             releaseResponses.await()
             return if (url.encodedPath == "/team/8185/") "<overview>" else "<news>"
@@ -169,13 +176,17 @@ class TeamDetailMapperServiceTest {
     private class FailingConcurrentTransport(
         private val failure: Throwable,
     ) : UpstreamHtmlTransport {
-        val requestedPaths = mutableListOf<String>()
+        private val lock = Any()
+        private val recordedPaths = mutableListOf<String>()
         private val bothRequestsStarted = CompletableDeferred<Unit>()
 
+        val requestedPaths: List<String>
+            get() = synchronized(lock) { recordedPaths.toList() }
+
         override suspend fun get(url: Url): String {
-            synchronized(requestedPaths) {
-                requestedPaths += url.encodedPath
-                if (requestedPaths.size == 2) bothRequestsStarted.complete(Unit)
+            synchronized(lock) {
+                recordedPaths += url.encodedPath
+                if (recordedPaths.size == 2) bothRequestsStarted.complete(Unit)
             }
             bothRequestsStarted.await()
             return when (url.encodedPath) {

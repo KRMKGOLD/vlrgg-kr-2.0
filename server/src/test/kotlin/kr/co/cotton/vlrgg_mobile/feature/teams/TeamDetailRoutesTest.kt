@@ -89,8 +89,9 @@ class TeamDetailRoutesTest {
                 "/api/v1/teams/8185?unknown=1",
             ).forEach { path -> assertError(client.get(path), HttpStatusCode.BadRequest, ApiErrorCode.INVALID_REQUEST) }
         }
-        assertEquals(setOf("/team/9999999999/", "/team/news/9999999999/"), transport.requestedPaths.toSet())
-        assertEquals(2, transport.requestedPaths.size)
+        val requestedPaths = transport.requestedPaths
+        assertEquals(setOf("/team/9999999999/", "/team/news/9999999999/"), requestedPaths.toSet())
+        assertEquals(2, requestedPaths.size)
     }
 
     @Test
@@ -137,15 +138,23 @@ class TeamDetailRoutesTest {
         private val newsHtml: String = fixture("active-team-news.html"),
         private val failedPath: String? = null,
     ) : UpstreamHtmlTransport {
-        val requestedPaths = mutableListOf<String>()
+        private val lock = Any()
+        private val recordedPaths = mutableListOf<String>()
+
+        val requestedPaths: List<String>
+            get() = synchronized(lock) { recordedPaths.toList() }
 
         override suspend fun get(url: Url): String {
-            requestedPaths += url.encodedPath
-            if (url.encodedPath == failedPath) throw UpstreamNetworkFailure(url)
+            val path = url.encodedPath
+            val shouldFail = synchronized(lock) {
+                recordedPaths += path
+                path == failedPath
+            }
+            if (shouldFail) throw UpstreamNetworkFailure(url)
             return when {
-                url.encodedPath.startsWith("/team/news/") -> newsHtml
-                url.encodedPath.startsWith("/team/") -> overviewHtml
-                else -> error("Unexpected upstream path: ${url.encodedPath}")
+                path.startsWith("/team/news/") -> newsHtml
+                path.startsWith("/team/") -> overviewHtml
+                else -> error("Unexpected upstream path: $path")
             }
         }
 
