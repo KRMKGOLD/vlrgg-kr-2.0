@@ -48,11 +48,12 @@ class TeamDetailMapperServiceTest {
         }
 
         assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
+        val requestedPaths = transport.requestedPaths
         assertEquals(
             mapOf("/team/8185/" to 2, "/team/news/8185/" to 2),
-            transport.requestedPaths.groupingBy { it }.eachCount(),
+            requestedPaths.groupingBy { it }.eachCount(),
         )
-        assertEquals(4, transport.requestedPaths.size)
+        assertEquals(4, requestedPaths.size)
     }
 
     @Test
@@ -118,17 +119,27 @@ class TeamDetailMapperServiceTest {
         private var failedPath: String? = null,
         private val cancellationPath: String? = null,
     ) : UpstreamHtmlTransport {
-        val requestedPaths = mutableListOf<String>()
+        private val lock = Any()
+        private val recordedPaths = mutableListOf<String>()
+
+        val requestedPaths: List<String>
+            get() = synchronized(lock) { recordedPaths.toList() }
 
         fun failOn(path: String) {
-            failedPath = path
+            synchronized(lock) {
+                failedPath = path
+            }
         }
 
         override suspend fun get(url: Url): String {
-            requestedPaths += url.encodedPath
-            if (url.encodedPath == cancellationPath) throw CancellationException("cancel")
-            if (url.encodedPath == failedPath) throw UpstreamNetworkFailure(url)
-            return when (url.encodedPath) {
+            val path = url.encodedPath
+            val shouldFail = synchronized(lock) {
+                recordedPaths += path
+                path == failedPath
+            }
+            if (path == cancellationPath) throw CancellationException("cancel")
+            if (shouldFail) throw UpstreamNetworkFailure(url)
+            return when (path) {
                 "/team/8185/" -> fixture("active-team-overview.html")
                 "/team/news/8185/" -> fixture("active-team-news.html")
                 else -> error("Unexpected upstream path: ${url.encodedPath}")
