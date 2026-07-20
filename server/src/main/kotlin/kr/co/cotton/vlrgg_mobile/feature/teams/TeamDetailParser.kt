@@ -145,6 +145,8 @@ internal class TeamDetailParser {
     }
 
     private fun parseNewsItem(element: Element): TeamNewsSource? {
+        if (element.isKnownMatchModule()) return null
+
         val href = element.attr("href")
         if (href.isEmpty()) sourceStructureError("News reference is missing.")
         val reference = NewsReference.fromHref(href)
@@ -162,6 +164,9 @@ internal class TeamDetailParser {
             publishedDateText = element.selectFirst(".$NEWS_DATE_CLASS")?.normalizedTextOrNull(),
         )
     }
+
+    private fun Element.isKnownMatchModule(): Boolean = hasClass(MATCH_MODULE_CLASS) ||
+        selectFirst(MATCH_MODULE_CONTENT_SELECTOR) != null
 
     private fun Document.sectionFollowing(heading: String): List<Element>? {
         val sectionHeading = select(SECTION_HEADING_SELECTOR)
@@ -238,6 +243,8 @@ internal class TeamDetailParser {
         const val TEAM_NEWS_CONTAINER_CLASS = "wf-card"
         const val NEWS_ITEM_CLASS = "wf-module-item"
         const val NEWS_DATE_CLASS = "ge-text-light"
+        const val MATCH_MODULE_CLASS = "match-item"
+        const val MATCH_MODULE_CONTENT_SELECTOR = ".match-item-time, .match-item-vs, .match-item-event"
         const val PLAYERS_LABEL = "players"
         const val STAFF_LABEL = "staff"
         const val REQUIRED_TEAM_COUNT = 2

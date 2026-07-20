@@ -24,6 +24,28 @@ class TeamDetailParserTest {
     }
 
     @Test
+    fun `parser excludes a match module contaminating the verified Team news card`() {
+        val content = activeContent().copy(
+            newsHtml = fixture("active-team-news.html").replace(
+                "</div><div class=\"wf-card\">",
+                """  <a href="/601/alpha-vs-bravo" class="wf-module-item match-item">
+    <div class="match-item-time">5:00 PM</div>
+    <div class="match-item-vs"><div class="match-item-vs-team">Alpha</div><div class="match-item-vs-team">Bravo</div></div>
+    <div class="match-item-event"><div class="match-item-event-series">Group</div>Stage</div>
+  </a>
+</div><div class="wf-card">""",
+            ),
+        )
+
+        val source = parser.parse(content)
+
+        assertEquals(
+            listOf("700755/kiwoom-drx-releases-rookie-hermes", "672565/rrq-and-krx-eliminate-dfm"),
+            source.news.map { it.reference.value },
+        )
+    }
+
+    @Test
     fun `parser accepts sparse team and missing news section as empty optional content`() {
         val source = parser.parse(sparseContent())
 
