@@ -1,11 +1,16 @@
 package kr.co.cotton.vlrgg_mobile.common.scraping
 
 /** A validated, canonical relative VLR.GG news path, never a caller-supplied URL. */
-internal data class NewsReference(
+internal class NewsReference private constructor(
     val articleId: String,
     val slug: String,
 ) {
     val value: String = "$articleId/$slug"
+
+    override fun equals(other: Any?): Boolean =
+        other is NewsReference && articleId == other.articleId && slug == other.slug
+
+    override fun hashCode(): Int = 31 * articleId.hashCode() + slug.hashCode()
 
     companion object {
         private val articleIdPattern = Regex("[1-9][0-9]{0,9}")
