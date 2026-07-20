@@ -6,13 +6,13 @@
 
 Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selector, Jsoup `Document`·`Element`, 원본 HTML, scraping 보정은 서버 경계 안에 머문다. 앱은 app-facing API contract만 사용한다.
 
-첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 일반 콘텐츠 조회에는 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. 단, 1차 MVP의 Match 알림은 사용자가 구독한 경기 상태를 추적해야 하므로 좁은 영속 저장과 scheduler 예외를 가진다. 이 문서는 첫 feature 구현이나 API 명세가 아니라 Ktor 서버의 아키텍처와 개발 방향을 정한다. 새로운 dependency와 실제 Gradle 설정, endpoint와 성공 response contract는 해당 기능의 기획·UI·데이터 요구가 정해지는 구현 시점에 결정한다.
+첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 일반 콘텐츠 조회에는 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. 단, 1차 MVP의 Match 알림은 사용자가 구독한 경기 상태를 추적해야 하므로 좁은 영속 저장과 scheduler 예외를 가진다. 이 문서는 개별 feature 구현이나 API 명세가 아니라 Ktor 서버의 아키텍처와 개발 방향을 정한다. 새로운 dependency와 실제 Gradle 설정, endpoint와 성공 response contract는 해당 기능의 기획·UI·데이터 요구가 정해지는 구현 시점에 결정한다.
 
 ## Current State and Direction
 
-현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 갖춘 최소 Ktor 기반이다. feature scraper, 성공 API contract, cache와 DI는 아직 구현되지 않았다.
+현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search API를 구현했으며, 후속 server-owned feature API를 순차적으로 개발 중이다. 일반 콘텐츠 조회를 위한 cache와 별도 DI framework는 도입하지 않았다.
 
-구현이 시작되면 단일 `:server` Gradle module 안에서 feature-based modular structure를 사용한다.
+서버 기능은 단일 `:server` Gradle module 안에서 feature-based modular structure로 개발한다.
 
 - feature는 route부터 app-facing response까지 한 흐름을 소유한다.
 - 공통 Ktor plugin, public HTTP contract, scraping utility는 feature 밖의 좁은 공통 영역에 둔다.
