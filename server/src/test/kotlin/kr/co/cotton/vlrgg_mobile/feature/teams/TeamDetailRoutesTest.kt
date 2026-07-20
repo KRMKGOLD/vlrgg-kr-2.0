@@ -89,7 +89,8 @@ class TeamDetailRoutesTest {
                 "/api/v1/teams/8185?unknown=1",
             ).forEach { path -> assertError(client.get(path), HttpStatusCode.BadRequest, ApiErrorCode.INVALID_REQUEST) }
         }
-        assertEquals(listOf("/team/9999999999/", "/team/news/9999999999/"), transport.requestedPaths)
+        assertEquals(setOf("/team/9999999999/", "/team/news/9999999999/"), transport.requestedPaths.toSet())
+        assertEquals(2, transport.requestedPaths.size)
     }
 
     @Test

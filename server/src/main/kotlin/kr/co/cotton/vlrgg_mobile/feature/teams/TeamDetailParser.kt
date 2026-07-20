@@ -178,9 +178,9 @@ internal class TeamDetailParser {
     }
 
     private fun Element.isKnownMatchModule(): Boolean = hasClass(MATCH_MODULE_CLASS) ||
-        hasClass(OVERVIEW_MATCH_MODULE_CLASS) ||
+        hasClass(MATCH_ITEM_CLASS) ||
         selectFirst(MATCH_MODULE_CONTENT_SELECTOR) != null ||
-        selectFirst(OVERVIEW_MATCH_MODULE_CONTENT_SELECTOR) != null
+        selectFirst(MATCH_ITEM_CONTENT_SELECTOR) != null
 
     private fun Document.sectionFollowing(heading: String): List<Element>? {
         val sectionHeading = select(SECTION_HEADING_SELECTOR)
@@ -195,7 +195,7 @@ internal class TeamDetailParser {
         }
     }
 
-    private fun Element.isSectionHeading(): Boolean = tagName() == "h2" && hasClass("wf-label") && hasClass("mod-large")
+    private fun Element.isSectionHeading(): Boolean = this.`is`(SECTION_HEADING_SELECTOR)
 
     private fun Element.requiredText(selector: String, message: String): String = selectFirst(selector)
         ?.normalizedTextOrNull()
@@ -259,8 +259,7 @@ internal class TeamDetailParser {
         const val NEWS_DATE_CLASS = "ge-text-light"
         const val MATCH_MODULE_CLASS = "match-item"
         const val MATCH_MODULE_CONTENT_SELECTOR = ".match-item-time, .match-item-vs, .match-item-event"
-        const val OVERVIEW_MATCH_MODULE_CLASS = "m-item"
-        const val OVERVIEW_MATCH_MODULE_CONTENT_SELECTOR = ".m-item-event, .m-item-team, .m-item-result, .m-item-date"
+        const val MATCH_ITEM_CONTENT_SELECTOR = ".m-item-event, .m-item-team, .m-item-result, .m-item-date"
         const val PLAYERS_LABEL = "players"
         const val STAFF_LABEL = "staff"
         const val REQUIRED_TEAM_COUNT = 2

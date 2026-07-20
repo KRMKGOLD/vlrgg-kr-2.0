@@ -15,12 +15,25 @@ internal class TeamDetailMapper {
     )
 
     private fun TeamMatchSource.toResponse() = TeamMatchResponse(
-        id, eventName, eventStage, teamName, opponentName, statusText, scheduledAtText,
+        id = id,
+        eventName = eventName,
+        eventStage = eventStage,
+        teamName = teamName,
+        opponentName = opponentName,
+        statusText = statusText,
+        scheduledAtText = scheduledAtText,
     )
 
     private fun TeamRosterMemberSource.toResponse() = TeamRosterMemberResponse(
-        id, handle, realName, roleLabels,
+        id = id,
+        handle = handle,
+        realName = realName,
+        roleLabels = roleLabels,
     )
 
-    private fun TeamNewsSource.toResponse() = TeamNewsResponse(reference.value, title, publishedDateText)
+    private fun TeamNewsSource.toResponse() = TeamNewsResponse(
+        reference = reference.value,
+        title = title,
+        publishedDateText = publishedDateText,
+    )
 }
