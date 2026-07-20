@@ -40,9 +40,14 @@ class TeamDetailMapperServiceTest {
         val service = service(transport)
 
         val first = service.get(TeamId.fromPath("8185"))
-        val second = service.get(TeamId.fromPath("8185"))
+        assertEquals("8185", first.id)
 
-        assertEquals(first, second)
+        transport.failOn("/team/news/8185/")
+        val failure = assertFailsWith<UpstreamNetworkFailure> {
+            service.get(TeamId.fromPath("8185"))
+        }
+
+        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         assertEquals(
             setOf("/team/8185/", "/team/news/8185/"),
             transport.requestedPaths.toSet(),
@@ -110,10 +115,14 @@ class TeamDetailMapperServiceTest {
     )
 
     private class FixtureTransport(
-        private val failedPath: String? = null,
+        private var failedPath: String? = null,
         private val cancellationPath: String? = null,
     ) : UpstreamHtmlTransport {
         val requestedPaths = mutableListOf<String>()
+
+        fun failOn(path: String) {
+            failedPath = path
+        }
 
         override suspend fun get(url: Url): String {
             requestedPaths += url.encodedPath
