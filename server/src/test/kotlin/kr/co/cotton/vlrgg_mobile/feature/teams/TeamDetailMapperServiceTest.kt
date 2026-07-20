@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
+import kr.co.cotton.vlrgg_mobile.feature.news.NewsReference
 import kotlin.test.*
 
 class TeamDetailMapperServiceTest {
@@ -18,14 +19,14 @@ class TeamDetailMapperServiceTest {
                 recentMatches = emptyList(),
                 players = listOf(TeamRosterMemberSource("456", "player", null, emptyList())),
                 staff = emptyList(),
-                news = listOf(TeamNewsSource("789", "Article", null)),
+                news = listOf(TeamNewsSource(NewsReference.fromPath("789", "article")!!, "Article", null)),
             ),
         )
 
         assertEquals("9999999999", response.id)
         assertEquals("123", response.upcomingMatches.single().id)
         assertEquals("456", response.players.single().id)
-        assertEquals("789", response.news.single().id)
+        assertEquals("789/article", response.news.single().reference)
         assertNull(response.tag)
         assertNull(response.upcomingMatches.single().eventName)
     }

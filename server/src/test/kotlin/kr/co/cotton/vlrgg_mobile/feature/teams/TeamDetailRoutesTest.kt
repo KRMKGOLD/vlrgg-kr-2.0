@@ -9,6 +9,8 @@ import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
+import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
+import kr.co.cotton.vlrgg_mobile.feature.news.createDefaultNewsService
 import kr.co.cotton.vlrgg_mobile.feature.search.SearchMapper
 import kr.co.cotton.vlrgg_mobile.feature.search.SearchSourceModel
 import kr.co.cotton.vlrgg_mobile.feature.search.SearchSourceResult
@@ -27,7 +29,10 @@ class TeamDetailRoutesTest {
         assertEquals("8185", body["id"]?.jsonPrimitive?.content)
         assertEquals("698887", body["upcomingMatches"]?.jsonArray?.single()?.jsonObject?.get("id")?.jsonPrimitive?.content)
         assertEquals("4462", body["players"]?.jsonArray?.single()?.jsonObject?.get("id")?.jsonPrimitive?.content)
-        assertEquals("700755", body["news"]?.jsonArray?.first()?.jsonObject?.get("id")?.jsonPrimitive?.content)
+        assertEquals(
+            "700755/kiwoom-drx-releases-rookie-hermes",
+            body["news"]?.jsonArray?.first()?.jsonObject?.get("reference")?.jsonPrimitive?.content,
+        )
     }
 
     @Test
@@ -40,6 +45,31 @@ class TeamDetailRoutesTest {
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals(searchReferenceId, Json.parseToJsonElement(response.bodyAsText()).jsonObject["id"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `Team news reference forms the existing News endpoint contract`() = withTeamApplication(
+        transport = FixtureTransport(),
+        newsService = createDefaultNewsService(ArticleFixtureTransport()),
+    ) {
+        val team = Json.parseToJsonElement(client.get("/api/v1/teams/8185").bodyAsText()).jsonObject
+        val reference = team["news"]!!.jsonArray.first().jsonObject["reference"]!!.jsonPrimitive.content
+
+        val response = client.get("/api/v1/news/$reference")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(reference, Json.parseToJsonElement(response.bodyAsText()).jsonObject["reference"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `route rejects missing Team IDs before any upstream fetch`() {
+        val transport = FixtureTransport()
+        withTeamApplication(transport) {
+            listOf("/api/v1/teams", "/api/v1/teams/").forEach { path ->
+                assertError(client.get(path), HttpStatusCode.BadRequest, ApiErrorCode.INVALID_REQUEST)
+            }
+        }
+        assertTrue(transport.requestedPaths.isEmpty())
     }
 
     @Test
@@ -84,9 +114,15 @@ class TeamDetailRoutesTest {
 
     private fun withTeamApplication(
         transport: FixtureTransport,
+        newsService: NewsService? = null,
         block: suspend ApplicationTestBuilder.() -> Unit,
     ) = testApplication {
-        application { module(teamDetailService = createTeamDetailService(transport)) }
+        application {
+            module(
+                newsService = newsService,
+                teamDetailService = createTeamDetailService(transport),
+            )
+        }
         block()
     }
 
@@ -117,5 +153,11 @@ class TeamDetailRoutesTest {
                 TeamDetailRoutesTest::class.java.classLoader.getResource("fixtures/teams/$name"),
             ).readText()
         }
+    }
+
+    private class ArticleFixtureTransport : UpstreamHtmlTransport {
+        override suspend fun get(url: Url): String = checkNotNull(
+            javaClass.classLoader.getResource("fixtures/news-article.html"),
+        ).readText()
     }
 }

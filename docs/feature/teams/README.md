@@ -128,13 +128,13 @@ source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만
   "recentMatches": [],
   "players": [{ "id": "4462", "handle": "MaKo", "realName": "...", "roleLabels": [] }],
   "staff": [{ "id": "775", "handle": "termi", "realName": "...", "roleLabels": ["head coach"] }],
-  "news": [{ "id": "700755", "title": "...", "publishedDateText": "..." }]
+  "news": [{ "reference": "700755/kiwoom-drx-releases-rookie-hermes", "title": "...", "publishedDateText": "..." }]
 }
 ```
 
-`name`, match `teamName`/`opponentName`, roster `handle`, and news `title` are required when their supported source item exists. `tag`, `country`, match metadata, roster `realName`, and news publication text are nullable only when the source omits them. An absent optional section, including a Team news page with no news section, serializes as its corresponding empty array; the server does not invent blank source values. A malformed canonical supported item or required Team structure returns the shared `502 SOURCE_PARSING_FAILURE` envelope rather than silently returning false partial data; unrelated or contaminated links are excluded.
+`name`, match `teamName`/`opponentName`, roster `handle`, and news `title` are required when their supported source item exists. Each Team news `reference` is the canonical `articleId/slug` String required directly by `GET /api/v1/news/{articleId}/{slug}`; it is not reconstructed from missing source values. `tag`, `country`, match metadata, roster `realName`, and news publication text are nullable only when the source omits them. An absent or verified-empty optional section, including a Team news page with no news container, serializes as its corresponding empty array; an observed section/container/candidate that has drifted or is malformed returns `502 SOURCE_PARSING_FAILURE` rather than silently returning false partial data, while unrelated or contaminated links outside the verified section are excluded.
 
-Invalid/missing/duplicate/unknown query input and malformed, leading-zero, or overlong Team IDs return `400 INVALID_REQUEST` before any upstream request. Either upstream fetch failure returns `502 UPSTREAM_NETWORK_FAILURE`; parser failures return `502 SOURCE_PARSING_FAILURE`. These common envelopes contain only the stable code and safe message, never upstream URLs, selectors, raw HTML, or exception text.
+Invalid/missing/duplicate/unknown query input and malformed, leading-zero, or overlong Team IDs (including `/api/v1/teams` with no ID) return `400 INVALID_REQUEST` before any upstream request. Either upstream fetch failure returns `502 UPSTREAM_NETWORK_FAILURE`; parser failures return `502 SOURCE_PARSING_FAILURE`. These common envelopes contain only the stable code and safe message, never upstream URLs, selectors, raw HTML, or exception text.
 
 ## Upstream URL 및 파서 메모
 

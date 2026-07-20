@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.teams
 
 import io.ktor.http.*
+import kr.co.cotton.vlrgg_mobile.feature.news.NewsReference
 
 /** Raw, feature-internal material returned by the Team overview and news pages. */
 internal data class TeamDetailUpstreamContent(
@@ -44,7 +45,7 @@ internal data class TeamRosterMemberSource(
 )
 
 internal data class TeamNewsSource(
-    val id: String,
+    val reference: NewsReference,
     val title: String,
     val publishedDateText: String?,
 )

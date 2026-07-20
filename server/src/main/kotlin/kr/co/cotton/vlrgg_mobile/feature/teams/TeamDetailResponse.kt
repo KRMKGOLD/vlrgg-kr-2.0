@@ -37,7 +37,8 @@ internal data class TeamRosterMemberResponse(
 
 @Serializable
 internal data class TeamNewsResponse(
-    val id: String,
+    /** Canonical News reference, directly usable as /api/v1/news/{reference}. */
+    val reference: String,
     val title: String,
     val publishedDateText: String?,
 )

@@ -22,5 +22,5 @@ internal class TeamDetailMapper {
         id, handle, realName, roleLabels,
     )
 
-    private fun TeamNewsSource.toResponse() = TeamNewsResponse(id, title, publishedDateText)
+    private fun TeamNewsSource.toResponse() = TeamNewsResponse(reference.value, title, publishedDateText)
 }

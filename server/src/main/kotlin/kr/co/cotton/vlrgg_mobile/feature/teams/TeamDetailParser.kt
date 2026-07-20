@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile.feature.teams
 import io.ktor.http.*
 import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.feature.news.NewsReference
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -36,11 +37,21 @@ internal class TeamDetailParser {
 
     private fun parseNews(html: String, upstreamUrl: Url): List<TeamNewsSource> = parseSafely(upstreamUrl) {
         val document = Jsoup.parse(html)
-        requireNotNull(document.selectFirst(TEAM_HEADER_SELECTOR)) { "Team news header is missing." }
-        document.select(NEWS_ITEM_SELECTOR)
-            .filter { it.attr("href").matches(NEWS_PATH_PATTERN) }
-            .map(::parseNewsItem)
-            .distinctBy(TeamNewsSource::id)
+        val header = requireNotNull(document.selectFirst(TEAM_HEADER_SELECTOR)) { "Team news header is missing." }
+        val container = header.nextElementSibling() ?: return@parseSafely emptyList()
+        if (!container.hasClass(TEAM_NEWS_CONTAINER_CLASS)) {
+            sourceStructureError("Team news container is malformed.")
+        }
+
+        val items = container.children().filter { item ->
+            item.normalName() == "a" && item.hasClass(NEWS_ITEM_CLASS)
+        }
+        if (items.isEmpty()) {
+            if (container.select("a").isNotEmpty()) sourceStructureError("Team news item structure is inconsistent.")
+            return@parseSafely emptyList()
+        }
+
+        items.mapNotNull(::parseNewsItem).distinctBy { it.reference.value }
     }
 
     private fun parseProfile(document: Document): TeamProfileSource {
@@ -54,10 +65,22 @@ internal class TeamDetailParser {
 
     private fun parseMatchSection(document: Document, heading: String): List<TeamMatchSource> {
         val section = document.sectionFollowing(heading) ?: return emptyList()
-        return section.flatMap { it.select(MATCH_ITEM_SELECTOR) }
-            .filter { it.attr("href").matches(MATCH_PATH_PATTERN) }
-            .map(::parseMatch)
+        val candidates = section.flatMap { it.select(MATCH_ITEM_SELECTOR) }
+        if (candidates.isEmpty()) {
+            if (section.flatMap { it.select("a") }.isNotEmpty()) {
+                sourceStructureError("Match section candidate structure is inconsistent.")
+            }
+            return emptyList()
+        }
+        return candidates.mapNotNull(::parseMatchOrExcludeContaminated)
             .distinctBy(TeamMatchSource::id)
+    }
+
+    private fun parseMatchOrExcludeContaminated(element: Element): TeamMatchSource? {
+        val href = element.attr("href")
+        if (href.matches(MATCH_PATH_PATTERN)) return parseMatch(element)
+        if (href.isMalformedCanonicalPath()) sourceStructureError("Match reference is malformed.")
+        return null
     }
 
     private fun parseMatch(element: Element): TeamMatchSource {
@@ -80,6 +103,9 @@ internal class TeamDetailParser {
 
     private fun parseRoster(document: Document): Pair<List<TeamRosterMemberSource>, List<TeamRosterMemberSource>> {
         val rosterSection = document.sectionFollowing(CURRENT_ROSTER_HEADING) ?: return emptyList<TeamRosterMemberSource>() to emptyList()
+        if (rosterSection.isNotEmpty() && rosterSection.flatMap { it.select(ROSTER_LABEL_SELECTOR) }.isEmpty()) {
+            sourceStructureError("Roster section structure is inconsistent.")
+        }
         return rosterSection.rosterItemsFor(PLAYERS_LABEL) to rosterSection.rosterItemsFor(STAFF_LABEL)
     }
 
@@ -88,13 +114,23 @@ internal class TeamDetailParser {
             .flatMap { it.select(ROSTER_LABEL_SELECTOR).asSequence() }
             .firstOrNull { it.normalizedTextOrNull()?.equals(label, ignoreCase = true) == true }
             ?: return emptyList()
-        return sectionLabel.nextElementSibling()
-            ?.select(ROSTER_ITEM_SELECTOR)
-            .orEmpty()
-            .mapNotNull { it.selectFirst("a[href]") }
-            .filter { it.attr("href").matches(PLAYER_PATH_PATTERN) }
-            .map(::parseRosterMember)
+        val content = sectionLabel.nextElementSibling()
+            ?: sourceStructureError("Roster group content is missing.")
+        val candidates = content.select(ROSTER_ITEM_SELECTOR)
+        if (candidates.isEmpty()) {
+            if (content.select("a").isNotEmpty()) sourceStructureError("Roster item structure is inconsistent.")
+            return emptyList()
+        }
+        return candidates.mapNotNull(::parseRosterMemberOrExcludeContaminated)
             .distinctBy(TeamRosterMemberSource::id)
+    }
+
+    private fun parseRosterMemberOrExcludeContaminated(element: Element): TeamRosterMemberSource? {
+        val link = element.selectFirst("a") ?: sourceStructureError("Roster member link is missing.")
+        val href = link.attr("href")
+        if (href.matches(PLAYER_PATH_PATTERN)) return parseRosterMember(link)
+        if (href.isMalformedCanonicalPlayerPath()) sourceStructureError("Player reference is malformed.")
+        return null
     }
 
     private fun parseRosterMember(link: Element): TeamRosterMemberSource {
@@ -108,14 +144,20 @@ internal class TeamDetailParser {
         )
     }
 
-    private fun parseNewsItem(element: Element): TeamNewsSource {
-        val id = element.attr("href").matchedId(NEWS_PATH_PATTERN)
-            ?: sourceStructureError("News identifier is missing.")
+    private fun parseNewsItem(element: Element): TeamNewsSource? {
+        val href = element.attr("href")
+        if (href.isEmpty()) sourceStructureError("News reference is missing.")
+        val reference = NewsReference.fromHref(href)
+            ?: if (href.startsWith("/") && !href.startsWith("//")) {
+                sourceStructureError("News reference is malformed.")
+            } else {
+                return null
+            }
         val title = element.attr("title").normalizedTextOrNull()
             ?: element.children().firstOrNull { !it.hasClass(NEWS_DATE_CLASS) }?.normalizedTextOrNull()
             ?: sourceStructureError("News title is missing.")
         return TeamNewsSource(
-            id = id,
+            reference = reference,
             title = title,
             publishedDateText = element.selectFirst(".$NEWS_DATE_CLASS")?.normalizedTextOrNull(),
         )
@@ -145,6 +187,16 @@ internal class TeamDetailParser {
     private fun String.normalizedTextOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
 
     private fun String.matchedId(pattern: Regex): String? = pattern.matchEntire(this)?.groups?.get(1)?.value
+
+    private fun String.isMalformedCanonicalPath(): Boolean = startsWith("/") &&
+        drop(1).firstOrNull()?.isDigit() == true &&
+        !contains('?') &&
+        !contains('#')
+
+    private fun String.isMalformedCanonicalPlayerPath(): Boolean = startsWith(PLAYER_PATH_PREFIX) &&
+        removePrefix(PLAYER_PATH_PREFIX).firstOrNull()?.isDigit() == true &&
+        !contains('?') &&
+        !contains('#')
 
     private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
 
@@ -183,7 +235,8 @@ internal class TeamDetailParser {
         const val ROSTER_HANDLE_SELECTOR = ".team-roster-item-name-alias"
         const val ROSTER_REAL_NAME_SELECTOR = ".team-roster-item-name-real"
         const val ROSTER_ROLE_SELECTOR = ".team-roster-item-name-role"
-        const val NEWS_ITEM_SELECTOR = "a.wf-module-item[href]"
+        const val TEAM_NEWS_CONTAINER_CLASS = "wf-card"
+        const val NEWS_ITEM_CLASS = "wf-module-item"
         const val NEWS_DATE_CLASS = "ge-text-light"
         const val PLAYERS_LABEL = "players"
         const val STAFF_LABEL = "staff"
@@ -191,7 +244,7 @@ internal class TeamDetailParser {
 
         val MATCH_PATH_PATTERN = Regex("^/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
         val PLAYER_PATH_PATTERN = Regex("^/player/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
-        val NEWS_PATH_PATTERN = Regex("^/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
+        const val PLAYER_PATH_PREFIX = "/player/"
         val WHITESPACE = Regex("\\s+")
     }
 }
