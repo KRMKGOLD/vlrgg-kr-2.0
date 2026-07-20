@@ -96,6 +96,10 @@ class NewsParserTest {
         assertEquals(expected, NewsReference.fromHref("//www.vlr.gg/111/canonical-news"))
         assertNull(NewsReference.fromHref("//evil.example/111/canonical-news"))
         assertNull(NewsReference.fromHref("https://www.vlr.gg.evil/111/canonical-news"))
+        assertTrue(NewsReference.isTrustedHref("https://www.vlr.gg/not-a-news-reference"))
+        assertTrue(NewsReference.isTrustedHref("http://vlr.gg/not-a-news-reference"))
+        assertTrue(NewsReference.isTrustedHref("//www.vlr.gg/not-a-news-reference"))
+        assertFalse(NewsReference.isTrustedHref("https://untrusted.example/not-a-news-reference"))
     }
 
     @Test

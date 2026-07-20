@@ -46,6 +46,51 @@ class TeamDetailParserTest {
     }
 
     @Test
+    fun `parser excludes an overview match module contaminating the verified Team news card`() {
+        val content = activeContent().copy(
+            newsHtml = fixture("active-team-news.html").replace(
+                "</div><div class=\"wf-card\">",
+                """  <a href="/698887/kiwoom-drx-vs-detonation-focusme" class="wf-module-item wf-card fc-flex m-item">
+    <div class="m-item-event"><div>VCT 26: PAC Stage 2</div>Group Stage · W1</div>
+    <div class="m-item-team"><span class="m-item-team-name">KIWOOM DRX</span></div>
+    <div class="m-item-result"><span>4d 2h</span></div>
+    <div class="m-item-team"><span class="m-item-team-name">DetonatioN FocusMe</span></div>
+    <div class="m-item-date"><div>2026/07/17</div>7:00 pm</div>
+  </a>
+</div><div class="wf-card">""",
+            ),
+        )
+
+        assertEquals(expectedNewsReferences, parser.parse(content).news.map { it.reference.value })
+    }
+
+    @Test
+    fun `parser fails closed for malformed trusted absolute Team news hrefs`() {
+        listOf(
+            "https://www.vlr.gg/not-a-news-reference",
+            "http://vlr.gg/not-a-news-reference",
+            "//www.vlr.gg/not-a-news-reference",
+        ).forEach { malformedHref ->
+            val content = activeContent().copy(
+                newsHtml = fixture("active-team-news.html")
+                    .replace("/700755/kiwoom-drx-releases-rookie-hermes", malformedHref),
+            )
+
+            assertFailsWith<SourceParsingFailure> { parser.parse(content) }
+        }
+    }
+
+    @Test
+    fun `parser excludes malformed untrusted Team news contamination`() {
+        val content = activeContent().copy(
+            newsHtml = fixture("active-team-news.html")
+                .replace("https://untrusted.example/700000/private", "https://untrusted.example/not-a-news-reference"),
+        )
+
+        assertEquals(expectedNewsReferences, parser.parse(content).news.map { it.reference.value })
+    }
+
+    @Test
     fun `parser accepts sparse team and missing news section as empty optional content`() {
         val source = parser.parse(sparseContent())
 
@@ -152,4 +197,11 @@ class TeamDetailParserTest {
     private fun fixture(name: String): String = checkNotNull(
         javaClass.classLoader.getResource("fixtures/teams/$name"),
     ).readText()
+
+    private companion object {
+        val expectedNewsReferences = listOf(
+            "700755/kiwoom-drx-releases-rookie-hermes",
+            "672565/rrq-and-krx-eliminate-dfm",
+        )
+    }
 }

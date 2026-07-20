@@ -33,6 +33,9 @@ internal data class NewsReference(
             }
         }
 
+        /** True only for relative or explicitly accepted VLR.GG href forms. */
+        fun isTrustedHref(href: String): Boolean = href.toVlrPathOrNull() != null
+
         private fun String.toVlrPathOrNull(): String? = when {
             startsWith("/") && !startsWith("//") -> this
             startsWith("https://www.vlr.gg/") -> removePrefix("https://www.vlr.gg")
