@@ -8,7 +8,7 @@ class TeamDetailParserTest {
     private val parser = TeamDetailParser()
 
     @Test
-    fun `parser separates active team sections and excludes contaminated links`() {
+    fun `parser reads live wrapped Team news and excludes contaminated links`() {
         val source = parser.parse(activeContent())
 
         assertEquals(TeamProfileSource("KIWOOM DRX", "KRX", "South Korea"), source.profile)
@@ -52,7 +52,7 @@ class TeamDetailParserTest {
             """<a href="/698887/kiwoom-drx-vs-detonation-focusme" class="wf-card fc-flex m-item"><div class="m-item-event">VCT 26: PAC Stage 2</div><div class="m-item-team">KIWOOM DRX</div><div class="m-item-result">4d 2h</div><div class="m-item-team">DetonatioN FocusMe</div><div class="m-item-date">2026/07/17</div></a>""",
         ).forEach { matchAnchor ->
             val content = activeContent().copy(
-                newsHtml = """<html><body><div class="team-header"></div><div class="wf-card">$matchAnchor</div></body></html>""",
+                newsHtml = """<html><body><div class="wf-card mod-header"><div class="team-header"></div></div><div class="wf-card">$matchAnchor</div></body></html>""",
             )
 
             assertTrue(parser.parse(content).news.isEmpty())
@@ -203,7 +203,18 @@ class TeamDetailParserTest {
     @Test
     fun `parser fails closed when the observed Team news container drifts`() {
         val content = activeContent().copy(
-            newsHtml = fixture("active-team-news.html").replaceFirst("class=\"wf-card\"", "class=\"team-news-card\""),
+            newsHtml = fixture("active-team-news.html")
+                .replaceFirst("class=\"wf-card\">\n<a", "class=\"team-news-card\">\n<a"),
+        )
+
+        assertFailsWith<SourceParsingFailure> { parser.parse(content) }
+    }
+
+    @Test
+    fun `parser fails closed when the live Team news header card drifts`() {
+        val content = activeContent().copy(
+            newsHtml = fixture("active-team-news.html")
+                .replaceFirst("class=\"wf-card mod-header\"", "class=\"team-header-card\""),
         )
 
         assertFailsWith<SourceParsingFailure> { parser.parse(content) }

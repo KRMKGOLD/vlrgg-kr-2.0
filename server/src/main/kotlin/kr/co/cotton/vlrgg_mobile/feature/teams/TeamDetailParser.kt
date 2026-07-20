@@ -38,7 +38,10 @@ internal class TeamDetailParser {
     private fun parseNews(html: String, upstreamUrl: Url): List<TeamNewsSource> = parseSafely(upstreamUrl) {
         val document = Jsoup.parse(html)
         val header = requireNotNull(document.selectFirst(TEAM_HEADER_SELECTOR)) { "Team news header is missing." }
-        val container = header.nextElementSibling() ?: return@parseSafely emptyList()
+        val headerCard = header.parent()
+            ?.takeIf { it.hasClass(TEAM_NEWS_CONTAINER_CLASS) }
+            ?: sourceStructureError("Team news header card is malformed.")
+        val container = headerCard.nextElementSibling() ?: return@parseSafely emptyList()
         if (!container.hasClass(TEAM_NEWS_CONTAINER_CLASS)) {
             sourceStructureError("Team news container is malformed.")
         }
