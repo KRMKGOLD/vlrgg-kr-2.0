@@ -86,16 +86,21 @@ class TeamDetailMapperServiceTest {
         val networkTransport = FailingConcurrentTransport(
             UpstreamNetworkFailure(Url("https://www.vlr.gg/team/news/8185/")),
         )
-        assertFailsWith<UpstreamNetworkFailure> {
-            TeamDetailScraper(networkTransport).scrape(TeamId.fromPath("8185"))
+        withTimeout(5_000) {
+            assertFailsWith<UpstreamNetworkFailure> {
+                TeamDetailScraper(networkTransport).scrape(TeamId.fromPath("8185"))
+            }
         }
         assertEquals(setOf("/team/8185/", "/team/news/8185/"), networkTransport.requestedPaths.toSet())
         assertEquals(2, networkTransport.requestedPaths.size)
 
         val cancellationTransport = FailingConcurrentTransport(CancellationException("cancel"))
-        assertFailsWith<CancellationException> {
-            TeamDetailScraper(cancellationTransport).scrape(TeamId.fromPath("8185"))
+        val cancellation = withTimeout(5_000) {
+            assertFailsWith<CancellationException> {
+                TeamDetailScraper(cancellationTransport).scrape(TeamId.fromPath("8185"))
+            }
         }
+        assertEquals("cancel", cancellation.message)
         assertEquals(setOf("/team/8185/", "/team/news/8185/"), cancellationTransport.requestedPaths.toSet())
         assertEquals(2, cancellationTransport.requestedPaths.size)
     }

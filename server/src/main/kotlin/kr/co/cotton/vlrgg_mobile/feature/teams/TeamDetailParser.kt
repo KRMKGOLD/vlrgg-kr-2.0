@@ -77,9 +77,10 @@ internal class TeamDetailParser {
     }
 
     private fun List<Element>.matchCandidates(): List<Element> = flatMap { sectionElement ->
-        buildList {
-            if (sectionElement.hasClass(MATCH_ITEM_CLASS)) add(sectionElement)
-            addAll(sectionElement.select(".$MATCH_ITEM_CLASS"))
+        if (sectionElement.hasClass(MATCH_ITEM_CLASS)) {
+            listOf(sectionElement)
+        } else {
+            sectionElement.select(".$MATCH_ITEM_CLASS")
         }
     }
 
@@ -195,6 +196,8 @@ internal class TeamDetailParser {
 
     private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
 
+    // This parser boundary fails closed by mapping all non-cancellation exceptions to SourceParsingFailure.
+    @Suppress("TooGenericExceptionCaught")
     private inline fun <T> parseSafely(upstreamUrl: Url, block: () -> T): T = try {
         block()
     } catch (exception: CancellationException) {
