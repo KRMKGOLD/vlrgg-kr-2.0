@@ -12,12 +12,15 @@ import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
 import kr.co.cotton.vlrgg_mobile.feature.news.configureNewsRoutes
 import kr.co.cotton.vlrgg_mobile.feature.search.SearchService
 import kr.co.cotton.vlrgg_mobile.feature.search.configureSearchRoutes
+import kr.co.cotton.vlrgg_mobile.feature.teams.TeamDetailService
+import kr.co.cotton.vlrgg_mobile.feature.teams.configureTeamDetailRoutes
 
 internal fun Application.configureRouting(
     upstreamHtmlTransport: UpstreamHtmlTransport,
     newsService: NewsService,
     eventsService: EventsService,
     searchService: SearchService,
+    teamDetailService: TeamDetailService,
 ) {
     routing {
         get("/health") {
@@ -26,6 +29,7 @@ internal fun Application.configureRouting(
         configureNewsRoutes(newsService)
         configureEventsRoutes(eventsService)
         configureSearchRoutes(searchService)
+        configureTeamDetailRoutes(teamDetailService)
     }
     configureMatchesFeature(upstreamHtmlTransport)
 }

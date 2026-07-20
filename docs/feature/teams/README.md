@@ -112,6 +112,30 @@ source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만
 - upstream DOM 구조, selector, 원본 HTML, 내부 오류를 앱 응답에 노출하지 않는다.
 - 일반 조회 실패 시 이전 결과를 성공 응답으로 반환하는 stale fallback을 사용하지 않는다.
 
+## Server API 계약
+
+`GET /api/v1/teams/{teamId}`는 Team overview와 Team news를 요청 시점에 각각 조회해 하나의 응답으로 반환한다. `teamId`와 응답 안의 Team·Match·Player·Staff·News 식별자는 모두 JSON String이며, path의 Team ID는 `[1-9][0-9]{0,9}`에 맞는 canonical decimal만 허용한다. 따라서 Search의 Team `reference.id` String은 변환 없이 이 endpoint path에 사용할 수 있다.
+
+성공 응답은 다음 field를 가진다.
+
+```json
+{
+  "id": "8185",
+  "name": "KIWOOM DRX",
+  "tag": "KRX",
+  "country": "South Korea",
+  "upcomingMatches": [{ "id": "698887", "eventName": "...", "eventStage": "...", "teamName": "...", "opponentName": "...", "statusText": "...", "scheduledAtText": "..." }],
+  "recentMatches": [],
+  "players": [{ "id": "4462", "handle": "MaKo", "realName": "...", "roleLabels": [] }],
+  "staff": [{ "id": "775", "handle": "termi", "realName": "...", "roleLabels": ["head coach"] }],
+  "news": [{ "id": "700755", "title": "...", "publishedDateText": "..." }]
+}
+```
+
+`name`, match `teamName`/`opponentName`, roster `handle`, and news `title` are required when their supported source item exists. `tag`, `country`, match metadata, roster `realName`, and news publication text are nullable only when the source omits them. An absent optional section, including a Team news page with no news section, serializes as its corresponding empty array; the server does not invent blank source values. A malformed canonical supported item or required Team structure returns the shared `502 SOURCE_PARSING_FAILURE` envelope rather than silently returning false partial data; unrelated or contaminated links are excluded.
+
+Invalid/missing/duplicate/unknown query input and malformed, leading-zero, or overlong Team IDs return `400 INVALID_REQUEST` before any upstream request. Either upstream fetch failure returns `502 UPSTREAM_NETWORK_FAILURE`; parser failures return `502 SOURCE_PARSING_FAILURE`. These common envelopes contain only the stable code and safe message, never upstream URLs, selectors, raw HTML, or exception text.
+
 ## Upstream URL 및 파서 메모
 
 제품 화면 계약과 분리해 parser fixture 선정에만 사용한다.
