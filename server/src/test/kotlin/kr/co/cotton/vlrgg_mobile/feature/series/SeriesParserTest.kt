@@ -49,6 +49,16 @@ class SeriesParserTest {
     }
 
     @Test
+    fun `parser fails closed when the selected event container has an unexpected direct child`() {
+        assertParsingFailure("unexpected-container-child.html")
+    }
+
+    @Test
+    fun `parser fails closed when a selected event card has no href`() {
+        assertParsingFailure("href-less-event-card.html")
+    }
+
+    @Test
     fun `parser fails closed for unknown contradictory and malformed source structures`() {
         listOf(
             "unknown-status.html",
@@ -59,10 +69,14 @@ class SeriesParserTest {
             "missing-series-name.html",
             "missing-required-structure.html",
         ).forEach { fixture ->
-            val failure = assertFailsWith<SourceParsingFailure> { parse(fixture) }
-            assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
-            assertIs<IllegalStateException>(failure.cause)
+            assertParsingFailure(fixture)
         }
+    }
+
+    private fun assertParsingFailure(fixture: String) {
+        val failure = assertFailsWith<SourceParsingFailure> { parse(fixture) }
+        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
+        assertIs<IllegalStateException>(failure.cause)
     }
 
     private fun parse(fixture: String): SeriesSource = parser.parse(

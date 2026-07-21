@@ -13,7 +13,10 @@ internal class SeriesParser {
             ?: sourceStructureError("Series header is missing.")
         val container = document.selectFirst(SERIES_EVENTS_CONTAINER_SELECTOR)
             ?: sourceStructureError("Series event container is missing.")
-        val sections = container.children().filter { it.hasClass(SERIES_SECTION_CLASS) }
+        val sections = container.children()
+        if (sections.any { !it.hasClass(SERIES_SECTION_CLASS) }) {
+            sourceStructureError("Series event container contains an unexpected child.")
+        }
         if (sections.isEmpty()) sourceStructureError("Series event sections are missing.")
 
         SeriesSource(
@@ -141,7 +144,7 @@ internal class SeriesParser {
         const val SERIES_SECTION_LABEL_CLASS = "wf-label"
         const val UPCOMING_SECTION_CLASS = "mod-upcoming"
         const val COMPLETED_SECTION_CLASS = "mod-completed"
-        const val SERIES_EVENT_CARD_SELECTOR = "a.event-item[href]"
+        const val SERIES_EVENT_CARD_SELECTOR = "a.event-item"
         const val SERIES_EVENT_LINK_SELECTOR = "a[href^='/event/']"
         const val SERIES_EVENT_NAME_SELECTOR = ".event-item-title"
         const val SERIES_EVENT_STATUS_SELECTOR = ".event-item-desc-item-status, [data-event-status]"
