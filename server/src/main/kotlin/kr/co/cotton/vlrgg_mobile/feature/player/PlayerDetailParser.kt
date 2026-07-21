@@ -85,14 +85,14 @@ internal class PlayerDetailParser {
                 ?.toIntOrNull()
                 ?.takeIf { it in MIN_PERCENT..MAX_PERCENT },
             roundsPlayed = cells[2].nonNegativeIntOrNull(),
-            rating = cells[3].finiteDoubleOrNull(),
-            averageCombatScore = cells[4].finiteDoubleOrNull(),
-            killDeathRatio = cells[5].finiteDoubleOrNull(),
+            rating = cells[3].nonNegativeFiniteDoubleOrNull(),
+            averageCombatScore = cells[4].nonNegativeFiniteDoubleOrNull(),
+            killDeathRatio = cells[5].nonNegativeFiniteDoubleOrNull(),
             kastPercent = cells[6].percentOrNull(),
-            averageDamagePerRound = cells[7].finiteDoubleOrNull(),
-            killsPerRound = cells[8].finiteDoubleOrNull(),
-            assistsPerRound = cells[9].finiteDoubleOrNull(),
-            firstKillDeathRatio = cells[10].finiteDoubleOrNull(),
+            averageDamagePerRound = cells[7].nonNegativeFiniteDoubleOrNull(),
+            killsPerRound = cells[8].nonNegativeFiniteDoubleOrNull(),
+            assistsPerRound = cells[9].nonNegativeFiniteDoubleOrNull(),
+            firstKillDeathRatio = cells[10].nonNegativeFiniteDoubleOrNull(),
             kills = cells[11].nonNegativeIntOrNull(),
             deaths = cells[12].nonNegativeIntOrNull(),
             assists = cells[13].nonNegativeIntOrNull(),
@@ -176,7 +176,7 @@ internal class PlayerDetailParser {
     private fun String.matchedId(pattern: Regex): String? = pattern.matchEntire(this)?.groups?.get(1)?.value
     private fun Element.nonNegativeIntOrNull(): Int? =
         normalizedText().replace(",", "").toIntOrNull()?.takeIf { it >= 0 }
-    private fun Element.finiteDoubleOrNull(): Double? =
+    private fun Element.nonNegativeFiniteDoubleOrNull(): Double? =
         normalizedText().replace(",", "").toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 }
     private fun Element.percentOrNull(): Int? =
         PERCENT_PATTERN.matchEntire(normalizedText())
