@@ -70,13 +70,17 @@ internal class PlayerDetailParser {
         if (cells.size != AGENT_STAT_COLUMN_COUNT) sourceStructureError("Agent stat row is malformed.")
         val agentName = cells[0].selectFirst("img[alt]")?.attr("alt")?.normalizedStringOrNull()
             ?: sourceStructureError("Agent name is missing.")
-        val usage = USAGE_PATTERN.matchEntire(cells[1].normalizedText())
+        val usage = MAPS_PLAYED_PATTERN.matchEntire(cells[1].normalizedText())
             ?: sourceStructureError("Agent usage is malformed.")
         return AgentStatSource(
             agentName = agentName,
             mapsPlayed = usage.groupValues[1].toIntOrNull()
                 ?: sourceStructureError("Agent maps played is malformed."),
-            pickRatePercent = usage.groupValues[2].toIntOrNull(),
+            pickRatePercent = PICK_RATE_PATTERN.matchEntire(cells[1].normalizedText())
+                ?.groupValues
+                ?.get(1)
+                ?.toIntOrNull()
+                ?.takeIf { it in MIN_PICK_RATE_PERCENT..MAX_PICK_RATE_PERCENT },
             roundsPlayed = cells[2].nonNegativeIntOrNull(),
             rating = cells[3].finiteDoubleOrNull(),
             averageCombatScore = cells[4].finiteDoubleOrNull(),
@@ -150,8 +154,12 @@ internal class PlayerDetailParser {
         }
     }
 
-    private fun List<Element>.matchingElements(selector: String): List<Element> =
-        flatMap { it.select(selector) }.distinct()
+    private fun List<Element>.matchingElements(selector: String): List<Element> = flatMap { element ->
+        buildList {
+            if (element.`is`(selector)) add(element)
+            addAll(element.select(selector))
+        }
+    }.distinct()
 
     private fun Element.requiredText(selector: String, message: String): String =
         selectFirst(selector)?.normalizedTextOrNull() ?: sourceStructureError(message)
@@ -216,7 +224,10 @@ internal class PlayerDetailParser {
         const val MAX_RECENT_MATCHES = 5
         val TEAM_PATH_PATTERN = Regex("^/team/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
         val MATCH_PATH_PATTERN = Regex("^/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
-        val USAGE_PATTERN = Regex("^\\(([0-9]+)\\)\\s+([0-9]+)%$")
+        const val MIN_PICK_RATE_PERCENT = 0
+        const val MAX_PICK_RATE_PERCENT = 100
+        val MAPS_PLAYED_PATTERN = Regex("^\\(([0-9]+)\\)(?:\\s+.*)?$")
+        val PICK_RATE_PATTERN = Regex("^\\([0-9]+\\)\\s+([0-9]+)%$")
         val VLR_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
         val WHITESPACE = Regex("\\s+")
     }

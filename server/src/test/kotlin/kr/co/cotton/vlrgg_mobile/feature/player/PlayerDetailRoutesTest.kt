@@ -76,6 +76,8 @@ class PlayerDetailRoutesTest {
             listOf(
                 "/api/v1/players",
                 "/api/v1/players/",
+                "/api/v1/players/488/",
+                "/api/v1/players/488/extra/path",
                 "/api/v1/players/0",
                 "/api/v1/players/00488",
                 "/api/v1/players/not-a-number",
@@ -83,6 +85,15 @@ class PlayerDetailRoutesTest {
                 "/api/v1/players/488?view=all",
                 "/api/v1/players/488?view=all&view=compact",
             ).forEach { path -> assertError(client.get(path), HttpStatusCode.BadRequest, ApiErrorCode.INVALID_REQUEST) }
+        }
+        assertTrue(transport.requestedPaths.isEmpty())
+    }
+
+    @Test
+    fun `Player trailing-path guard does not replace global not found outside the Player prefix`() {
+        val transport = FixtureTransport()
+        withPlayerApplication(transport) {
+            assertError(client.get("/api/v1/playerss/488/extra"), HttpStatusCode.NotFound, ApiErrorCode.NOT_FOUND)
         }
         assertTrue(transport.requestedPaths.isEmpty())
     }

@@ -9,6 +9,8 @@ import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 internal fun Route.configurePlayerDetailRoutes(service: PlayerDetailService) {
     get("/api/v1/players") { throw InvalidInputFailure() }
     get("/api/v1/players/") { throw InvalidInputFailure() }
+    get("/api/v1/players/{playerId}/") { throw InvalidInputFailure() }
+    get("/api/v1/players/{playerId}/{...}") { throw InvalidInputFailure() }
     get("/api/v1/players/{playerId}") {
         if (call.request.queryParameters.names().isNotEmpty()) throw InvalidInputFailure()
         call.respond(service.get(PlayerId.fromPath(call.parameters["playerId"])))
