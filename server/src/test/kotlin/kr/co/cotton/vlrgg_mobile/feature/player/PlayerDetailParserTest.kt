@@ -38,7 +38,7 @@ class PlayerDetailParserTest {
     }
 
     @Test
-    fun `parser includes a direct Recent Match card while preserving section scope`() {
+    fun `parser deduplicates a direct Recent Match card while preserving section scope`() {
         val source = parser.parse(content("player-detail-direct-match.html"))
 
         assertEquals(listOf("700002"), source.recentMatches.map(PlayerRecentMatchSource::id))
@@ -48,8 +48,18 @@ class PlayerDetailParserTest {
     fun `parser keeps missing and malformed optional pick rates null without dropping valid Agent Stats`() {
         val source = parser.parse(content("player-detail-optional-pick-rate.html"))
 
-        assertEquals(listOf("sage", "brimstone"), source.agentStats.map(AgentStatSource::agentName))
-        assertEquals(listOf(null, null), source.agentStats.map(AgentStatSource::pickRatePercent))
+        assertEquals(listOf("sage", "brimstone"), source.agentStats.take(2).map(AgentStatSource::agentName))
+        assertEquals(listOf(null, null), source.agentStats.take(2).map(AgentStatSource::pickRatePercent))
+    }
+
+    @Test
+    fun `parser accepts KAST percent boundaries and maps malformed optional values to null`() {
+        val source = parser.parse(content("player-detail-optional-pick-rate.html"))
+
+        assertEquals(
+            listOf(0, 100, null, null, null, null, null, null, null),
+            source.agentStats.map(AgentStatSource::kastPercent),
+        )
     }
 
     @Test

@@ -80,7 +80,7 @@ internal class PlayerDetailParser {
                 ?.groupValues
                 ?.get(1)
                 ?.toIntOrNull()
-                ?.takeIf { it in MIN_PICK_RATE_PERCENT..MAX_PICK_RATE_PERCENT },
+                ?.takeIf { it in MIN_PERCENT..MAX_PERCENT },
             roundsPlayed = cells[2].nonNegativeIntOrNull(),
             rating = cells[3].finiteDoubleOrNull(),
             averageCombatScore = cells[4].finiteDoubleOrNull(),
@@ -174,7 +174,11 @@ internal class PlayerDetailParser {
     private fun Element.finiteDoubleOrNull(): Double? =
         normalizedText().replace(",", "").toDoubleOrNull()?.takeIf(Double::isFinite)
     private fun Element.percentOrNull(): Int? =
-        normalizedText().removeSuffix("%").trim().toIntOrNull()?.takeIf { it >= 0 }
+        PERCENT_PATTERN.matchEntire(normalizedText())
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+            ?.takeIf { it in MIN_PERCENT..MAX_PERCENT }
     private fun Set<String>.toMatchOutcome(): PlayerMatchOutcomeSource = when {
         MATCH_WIN_CLASS in this -> PlayerMatchOutcomeSource.WIN
         MATCH_LOSS_CLASS in this -> PlayerMatchOutcomeSource.LOSS
@@ -224,10 +228,11 @@ internal class PlayerDetailParser {
         const val MAX_RECENT_MATCHES = 5
         val TEAM_PATH_PATTERN = Regex("^/team/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
         val MATCH_PATH_PATTERN = Regex("^/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
-        const val MIN_PICK_RATE_PERCENT = 0
-        const val MAX_PICK_RATE_PERCENT = 100
+        const val MIN_PERCENT = 0
+        const val MAX_PERCENT = 100
         val MAPS_PLAYED_PATTERN = Regex("^\\(([0-9]+)\\)(?:\\s+.*)?$")
         val PICK_RATE_PATTERN = Regex("^\\([0-9]+\\)\\s+([0-9]+)%$")
+        val PERCENT_PATTERN = Regex("^([0-9]+)%$")
         val VLR_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
         val WHITESPACE = Regex("\\s+")
     }
