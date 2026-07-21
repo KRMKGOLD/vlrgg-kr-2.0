@@ -10,6 +10,8 @@ import kr.co.cotton.vlrgg_mobile.feature.events.configureEventsRoutes
 import kr.co.cotton.vlrgg_mobile.feature.matches.configureMatchesFeature
 import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
 import kr.co.cotton.vlrgg_mobile.feature.news.configureNewsRoutes
+import kr.co.cotton.vlrgg_mobile.feature.player.PlayerDetailService
+import kr.co.cotton.vlrgg_mobile.feature.player.configurePlayerDetailRoutes
 import kr.co.cotton.vlrgg_mobile.feature.search.SearchService
 import kr.co.cotton.vlrgg_mobile.feature.search.configureSearchRoutes
 import kr.co.cotton.vlrgg_mobile.feature.teams.TeamDetailService
@@ -21,6 +23,7 @@ internal fun Application.configureRouting(
     eventsService: EventsService,
     searchService: SearchService,
     teamDetailService: TeamDetailService,
+    playerDetailService: PlayerDetailService,
 ) {
     routing {
         get("/health") {
@@ -30,6 +33,7 @@ internal fun Application.configureRouting(
         configureEventsRoutes(eventsService)
         configureSearchRoutes(searchService)
         configureTeamDetailRoutes(teamDetailService)
+        configurePlayerDetailRoutes(playerDetailService)
     }
     configureMatchesFeature(upstreamHtmlTransport)
 }

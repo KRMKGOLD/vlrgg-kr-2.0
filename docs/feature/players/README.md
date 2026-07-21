@@ -108,6 +108,49 @@ Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표
 - upstream DOM 구조, selector, 원본 HTML, 내부 오류를 앱 응답에 노출하지 않는다.
 - 일반 조회 실패 시 이전 결과를 성공 응답으로 반환하는 stale fallback을 사용하지 않는다.
 
+## Server public API contract
+
+### GET /api/v1/players/{playerId}
+
+- playerId는 `[1-9][0-9]{0,9}` 형식의 canonical decimal String이다. 선행 0, 0, 11자리 이상, 비숫자 값은 허용하지 않는다.
+- 경로 ID는 Search의 Player 결과 `reference.id`와 Team Detail Current Roster의 `players[].id`를 변환 없이 그대로 사용할 수 있다.
+- query parameter는 지원하지 않는다. 누락된 ID, trailing path, 중복 또는 알려지지 않은 query를 포함한 모든 잘못된 입력은 upstream 요청 전에 `400 INVALID_REQUEST`를 반환한다.
+- 매 요청마다 `https://www.vlr.gg/player/{playerId}/?timespan=all`을 한 번 조회한다. cache, retry, stale-success fallback은 사용하지 않는다.
+
+성공 응답 shape는 아래와 같다. 모든 ID는 앱 navigation을 위한 String이고, upstream slug나 URL은 노출하지 않는다.
+
+```json
+{
+  "id": "488",
+  "profile": {
+    "handle": "Rb",
+    "realName": "Goo Sang-min",
+    "aliases": ["ClokingRb"],
+    "countryCode": "kr",
+    "countryName": "SOUTH KOREA"
+  },
+  "currentTeam": { "id": "11060", "name": "Nongshim RedForce" },
+  "agentStats": [{
+    "agentName": "jett", "mapsPlayed": 134, "pickRatePercent": 25,
+    "roundsPlayed": 2680, "rating": 1.07, "averageCombatScore": 235.1,
+    "killDeathRatio": 1.3, "kastPercent": 72, "averageDamagePerRound": 140.5,
+    "killsPerRound": 0.83, "assistsPerRound": 0.13, "firstKillDeathRatio": 1.25,
+    "kills": 2224, "deaths": 1712, "assists": 355, "firstKills": 545, "firstDeaths": 435
+  }],
+  "recentMatches": [{
+    "id": "708427", "eventName": "EWC 2026", "eventStage": "Playoffs · CF",
+    "teamA": { "name": "Nongshim RedForce", "tag": "NS" },
+    "teamB": { "name": "BBL Esports", "tag": "BBL" },
+    "teamAScore": 2, "teamBScore": 0, "outcome": "WIN", "playedOn": "2026-07-12"
+  }]
+}
+```
+
+- `currentTeam`은 없을 수 있고, `agentStats`와 `recentMatches`는 빈 배열일 수 있다.
+- agentStats의 optional numeric metric과 Recent Match score/date/stage는 source에 없거나 유효하게 해석할 수 없으면 `null`이다. 값 0을 임의로 만들지 않는다.
+- recentMatches는 source 순서의 최대 5개다. source에서 제공하지 않는 ID나 timestamp는 만들지 않는다.
+- upstream network failure는 `502 UPSTREAM_NETWORK_FAILURE`, DOM parsing failure는 `502 SOURCE_PARSING_FAILURE` 공통 envelope로만 노출한다. URL, slug, selector, raw HTML, 내부 exception text는 public response에 포함하지 않는다.
+
 ## Upstream URL 및 파서 메모
 
 제품 화면 계약과 분리해 parser fixture 선정에만 사용한다.
