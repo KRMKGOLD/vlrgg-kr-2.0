@@ -28,9 +28,11 @@ internal class SeriesParser {
     }
 
     private fun parseSection(section: Element): List<SeriesEventSource> {
-        val label = section.children().firstOrNull { it.hasClass(SERIES_SECTION_LABEL_CLASS) }
-            ?: sourceStructureError("Series event section label is missing.")
-        if (!label.hasRecognizedSectionStatus()) {
+        val label = section.children()
+            .filter { it.hasClass(SERIES_SECTION_LABEL_CLASS) }
+            .singleOrNull()
+            ?: sourceStructureError("Series event section label is missing or ambiguous.")
+        if (!label.hasUnambiguousRecognizedSectionStatus()) {
             sourceStructureError("Series event section is unsupported.")
         }
 
@@ -53,9 +55,9 @@ internal class SeriesParser {
         imageUrl = card.selectFirst(SERIES_EVENT_IMAGE_SELECTOR)?.attr("src")?.toPublicImageUrl(),
     )
 
-    private fun Element.hasRecognizedSectionStatus(): Boolean = classNames().any {
-        it == UPCOMING_SECTION_CLASS || it == COMPLETED_SECTION_CLASS
-    }
+    private fun Element.hasUnambiguousRecognizedSectionStatus(): Boolean = classNames()
+        .filter { it == UPCOMING_SECTION_CLASS || it == COMPLETED_SECTION_CLASS }
+        .singleOrNull() != null
 
     private fun Element.toSeriesEventStatus(): SeriesEventStatusSource {
         val values = buildList {

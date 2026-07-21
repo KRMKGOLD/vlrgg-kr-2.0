@@ -59,6 +59,12 @@ class SeriesParserTest {
     }
 
     @Test
+    fun `parser fails closed when direct section label metadata is duplicate or contradictory`() {
+        assertParsingFailure("duplicate-section-labels.html")
+        assertParsingFailure("contradictory-section-status.html")
+    }
+
+    @Test
     fun `parser fails closed for unknown contradictory and malformed source structures`() {
         listOf(
             "unknown-status.html",
