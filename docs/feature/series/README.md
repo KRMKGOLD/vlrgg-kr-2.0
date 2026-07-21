@@ -125,6 +125,44 @@ Standings나 지원하지 않는 고급 기능은 비활성 탭 또는 placehold
 - upstream 통신 실패와 parsing 실패를 각각 `UPSTREAM_NETWORK_FAILURE`, `SOURCE_PARSING_FAILURE`로 반환한다.
 - raw HTML, selector, canonical upstream URL과 원본 예외를 앱에 노출하지 않는다.
 
+## 확정 서버 API 계약
+
+### 요청
+
+```text
+GET /api/v1/series/{seriesId}
+```
+
+- `seriesId`는 Search의 `eventgroup` 결과가 반환하는 것과 같은 canonical ID다. 선행 0이 없는 양의 10진 JSON String이며 길이는 1~10자다.
+- Search의 Series `reference.id`는 변환 없이 이 endpoint의 `{seriesId}`로 사용할 수 있다.
+- 정확한 path만 허용한다. trailing slash 또는 추가 segment와 모든 query parameter는 upstream 요청 전에 `400 INVALID_REQUEST`로 거절한다.
+
+### 성공 response
+
+```json
+{
+  "id": "85",
+  "name": "Valorant Challengers League 2026",
+  "description": "Riot's official Tier 2 tournament circuit.",
+  "upcomingEvents": [],
+  "completedEvents": []
+}
+```
+
+- `id`와 `name`은 필수다. `description`과 원본이 실제로 제공하는 기본 메타데이터는 nullable이다.
+- Event item은 Events API의 `EventSummaryResponse`와 같은 `id`, `name`, `status`, `dateLabel`, `regionCode`, `imageUrl` 의미를 사용한다. 별도의 Series 전용 fake field를 만들지 않는다.
+- Event `id`는 String이며 `GET /api/v1/events/{eventId}`에 직접 사용할 수 있다.
+- `ONGOING`, `UPCOMING`은 `upcomingEvents`에, `COMPLETED`, `PAUSED`는 `completedEvents`에 둔다. 각 item의 실제 `status`는 보존한다.
+- 동일 Event ID가 반복되면 첫 source 순서를 유지해 한 번만 반환한다. 같은 ID가 서로 다른 status로 나타나면 source parsing failure다.
+
+### upstream, parsing, 실패
+
+- 각 요청은 `https://www.vlr.gg/series/{seriesId}`를 정확히 한 번 request-time GET한다. cache, retry, stale-success fallback, 이전 응답 재사용은 없다.
+- series identity 또는 event container가 없거나, 관찰된 알 수 없는 status, 필수 Event ID/name/status 누락, 선택된 row/section의 구조 오류, 중복 Event의 상충 status는 `SOURCE_PARSING_FAILURE`로 fail closed 한다.
+- 명시적으로 비었거나 검증된 빈 섹션은 빈 list가 된다. 누락된 optional row field만 `null`이며, parser drift를 empty/partial success로 숨기지 않는다.
+- invalid request는 `400 INVALID_REQUEST`, upstream GET 실패는 `502 UPSTREAM_NETWORK_FAILURE`, DOM 해석 실패는 `502 SOURCE_PARSING_FAILURE`다. 모든 실패는 공통 안전 envelope를 사용하며 raw HTML, selector, 임의 upstream URL, 내부 예외 message를 노출하지 않는다.
+- `CancellationException`은 public failure envelope로 바꾸지 않고 전파한다.
+
 ## Upstream 및 parser 참고
 
 제품 화면의 app route/API endpoint와 아래 VLR.GG upstream URL을 혼동하지 않는다.
