@@ -12,6 +12,8 @@ import kr.co.cotton.vlrgg_mobile.feature.player.PlayerDetailService
 import kr.co.cotton.vlrgg_mobile.feature.player.createPlayerDetailService
 import kr.co.cotton.vlrgg_mobile.feature.search.SearchService
 import kr.co.cotton.vlrgg_mobile.feature.search.createSearchService
+import kr.co.cotton.vlrgg_mobile.feature.series.SeriesService
+import kr.co.cotton.vlrgg_mobile.feature.series.createSeriesService
 import kr.co.cotton.vlrgg_mobile.feature.teams.TeamDetailService
 import kr.co.cotton.vlrgg_mobile.feature.teams.createTeamDetailService
 import kr.co.cotton.vlrgg_mobile.plugins.configureErrorHandling
@@ -28,6 +30,7 @@ internal fun Application.module(
     newsService: NewsService? = null,
     eventsService: EventsService? = null,
     searchService: SearchService? = null,
+    seriesService: SeriesService? = null,
     teamDetailService: TeamDetailService? = null,
     playerDetailService: PlayerDetailService? = null,
 ) {
@@ -40,6 +43,7 @@ internal fun Application.module(
         newsService = newsService ?: createDefaultNewsService(upstreamHtmlTransport),
         eventsService = eventsService ?: createEventsService(upstreamHtmlTransport),
         searchService = searchService ?: createSearchService(upstreamHtmlTransport),
+        seriesService = seriesService ?: createSeriesService(upstreamHtmlTransport),
         teamDetailService = teamDetailService ?: createTeamDetailService(upstreamHtmlTransport),
         playerDetailService = playerDetailService ?: createPlayerDetailService(upstreamHtmlTransport),
     )
