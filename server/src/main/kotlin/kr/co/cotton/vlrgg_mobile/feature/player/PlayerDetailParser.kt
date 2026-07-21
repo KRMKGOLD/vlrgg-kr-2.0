@@ -62,7 +62,10 @@ internal class PlayerDetailParser {
 
     private fun parseAgentStats(document: Document): List<AgentStatSource> {
         val table = document.selectFirst(AGENT_STATS_TABLE_SELECTOR) ?: return emptyList()
-        return table.select("tbody > tr").map(::parseAgentStat)
+        val body = table.selectFirst("tbody") ?: sourceStructureError("Agent Stats table body is missing.")
+        val rows = body.children()
+        if (rows.any { it.normalName() != "tr" }) sourceStructureError("Agent Stats table rows are malformed.")
+        return rows.map(::parseAgentStat)
     }
 
     private fun parseAgentStat(row: Element): AgentStatSource {
@@ -108,7 +111,9 @@ internal class PlayerDetailParser {
         if (candidates.any { it.normalName() != "a" || !it.hasAttr("href") }) {
             sourceStructureError("Recent Match structure is inconsistent.")
         }
-        return candidates.take(MAX_RECENT_MATCHES).map(::parseRecentMatch)
+        return candidates.map(::parseRecentMatch)
+            .distinctBy(PlayerRecentMatchSource::id)
+            .take(MAX_RECENT_MATCHES)
     }
 
     private fun parseRecentMatch(card: Element): PlayerRecentMatchSource {
@@ -172,7 +177,7 @@ internal class PlayerDetailParser {
     private fun Element.nonNegativeIntOrNull(): Int? =
         normalizedText().replace(",", "").toIntOrNull()?.takeIf { it >= 0 }
     private fun Element.finiteDoubleOrNull(): Double? =
-        normalizedText().replace(",", "").toDoubleOrNull()?.takeIf(Double::isFinite)
+        normalizedText().replace(",", "").toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 }
     private fun Element.percentOrNull(): Int? =
         PERCENT_PATTERN.matchEntire(normalizedText())
             ?.groupValues

@@ -45,6 +45,13 @@ class PlayerDetailParserTest {
     }
 
     @Test
+    fun `parser deduplicates recent matches by stable ID before applying the cap`() {
+        val source = parser.parse(content("player-detail-duplicate-matches.html"))
+
+        assertEquals(listOf("700001", "700002", "700003", "700004", "700005"), source.recentMatches.map(PlayerRecentMatchSource::id))
+    }
+
+    @Test
     fun `parser keeps missing and malformed optional pick rates null without dropping valid Agent Stats`() {
         val source = parser.parse(content("player-detail-optional-pick-rate.html"))
 
@@ -63,8 +70,22 @@ class PlayerDetailParserTest {
     }
 
     @Test
+    fun `parser keeps zero optional doubles and maps negative doubles to null`() {
+        val stat = parser.parse(content("player-detail-optional-doubles.html")).agentStats.single()
+
+        assertNull(stat.rating)
+        assertEquals(0.0, stat.averageCombatScore)
+        assertNull(stat.killDeathRatio)
+        assertNull(stat.averageDamagePerRound)
+        assertNull(stat.killsPerRound)
+        assertNull(stat.assistsPerRound)
+        assertNull(stat.firstKillDeathRatio)
+    }
+
+    @Test
     fun `parser rejects missing required structure and observed stat drift safely`() {
         assertFailsWith<SourceParsingFailure> { parser.parse(content("player-detail-required-structure-missing.html")) }
+        assertFailsWith<SourceParsingFailure> { parser.parse(content("player-detail-stats-without-tbody.html")) }
         assertFailsWith<SourceParsingFailure> {
             parser.parse(content("player-detail.html").copy(html = fixture("player-detail.html").replace("(134) 25%</td><td>2680", "(134) 25%</td>")))
         }
