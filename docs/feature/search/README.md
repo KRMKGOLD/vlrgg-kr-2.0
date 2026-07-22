@@ -6,6 +6,11 @@ Search는 사용자가 이름이나 키워드로 Series, Event, Team, Player를 
 
 이 문서는 제품 동작을 정의한다. 시각 언어와 공통 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
+## 구현 상태 (2026-07-22)
+
+- **Backend: 구현 완료.** `GET /api/v1/search?q={query}`의 입력 검증, Series/Event/Team/Player response 정규화, parser/route 테스트가 구현되어 있다.
+- **App: 미구현.** Search Screen, 입력·상태 관리, 타입별 결과 렌더링과 Detail navigation은 아직 구현되어 있지 않다.
+
 ## MVP 범위
 
 Search는 Phase 4 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포함된다.
@@ -217,8 +222,8 @@ https://www.vlr.gg/search/?q=search_keyword
 - [ ] 입력 전 상태, 결과 없음, loading, populated, partial, error, stale 상태가 서로 구분된다.
 - [ ] 공백만 있는 검색어는 서버 요청을 만들지 않는다.
 - [ ] 검색 실패가 검색 결과 없음으로 표시되지 않는다.
-- [ ] parser fixture가 네 지원 타입, 결과 없음, 누락 보조 정보, 예상하지 못한 타입을 검증한다.
-- [ ] 서버 오류가 raw HTML, selector 또는 내부 예외 정보를 노출하지 않는다.
+- [x] parser fixture가 네 지원 타입, 결과 없음, 누락 보조 정보, 예상하지 못한 타입을 검증한다.
+- [x] 서버 오류가 raw HTML, selector 또는 내부 예외 정보를 노출하지 않는다.
 
 ## 열린 결정
 

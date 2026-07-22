@@ -35,6 +35,21 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | 5 | Match Detail Basic, Series Detail | [`matches/README.md`](matches/README.md), [`series/README.md`](series/README.md) |
 | Cross-feature | MyPage, Team·Player·Match 즐겨찾기, Match 알림, About | [`my-page/README.md`](my-page/README.md), [`about/README.md`](about/README.md) |
 
+## 구현 상태 (2026-07-22)
+
+아래 상태는 원격 `main`의 `d220a69b59d4863c0ade0e09c77c1192c36bba95` 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. `app/shared`는 아직 템플릿 단계이므로, 앱 화면·원격 DTO/Domain 매핑·내비게이션·로컬 즐겨찾기 구현은 이 표의 모든 feature에서 미구현이다.
+
+| Feature slice | Backend | App |
+| --- | --- | --- |
+| News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | 미구현 |
+| Matches | 콘텐츠 조회 구현 완료 — Upcoming/Results 목록과 Match Detail API. 알림 구독·scheduler·delivery는 미구현 | 미구현 |
+| Events | 구현 완료 — 목록, 상세, Matches, News, Stats API | 미구현 |
+| Search | 구현 완료 — Series/Event/Team/Player 결과 API | 미구현 |
+| Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | 미구현 |
+| Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | 미구현 |
+| Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | 미구현 |
+| MyPage, 즐겨찾기, Match 알림, About | Match 알림의 서버 구독·polling·delivery 미구현 | 앱 로컬 저장·권한 흐름 미구현 |
+
 ## MVP 제외 범위
 
 - Team·Player 알림 구독

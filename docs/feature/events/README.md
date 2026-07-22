@@ -6,6 +6,11 @@ Events 기능은 사용자가 Valorant 대회의 현재 진행 상태를 훑고,
 
 이 문서는 제품 동작을 정의한다. 색상, 타이포그래피, 공통 컴포넌트와 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
+## 구현 상태 (2026-07-22)
+
+- **Backend: 구현 완료.** Event 목록, 상세, Matches, News, Stats endpoint와 scraper/parser/mapper 및 fixture/route 테스트가 구현되어 있다.
+- **App: 미구현.** Event 목록·상세 Compose UI, 섹션별 상태/재시도, 관련 Detail navigation은 아직 구현되어 있지 않다.
+
 ## MVP 범위
 
 Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포함된다.
@@ -226,6 +231,6 @@ https://www.vlr.gg/event/stats/2955/esports-world-cup-2026-pacific-qualifier
 - [ ] Event Detail의 Match와 News가 각각 대응하는 Detail 화면으로 이동한다.
 - [ ] loading, 전체 empty, 섹션 empty, partial, error, stale 상태가 정상 콘텐츠와 시각·의미적으로 구분된다.
 - [ ] 누락된 선택 데이터를 `0`, 빈 문자열 또는 추정 값으로 위장하지 않는다.
-- [ ] 서버 parser fixture가 Event 상태 분류와 Detail 섹션 추출을 검증한다.
-- [ ] 서버 오류에 raw HTML, selector, 원본 예외 또는 민감한 내부 정보가 포함되지 않는다.
+- [x] 서버 parser fixture가 Event 상태 분류와 Detail 섹션 추출을 검증한다.
+- [x] 서버 오류에 raw HTML, selector, 원본 예외 또는 민감한 내부 정보가 포함되지 않는다.
 - [ ] 뒤로 가기 시 직전 화면의 탐색 상태가 보존된다.

@@ -1,5 +1,10 @@
 # Player 기능 기획
 
+## 구현 상태 (2026-07-22)
+
+- **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 전체 기간 Player 정보, 현재 팀, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
+- **App: 미구현.** Player Detail UI, 로컬 즐겨찾기, MyPage 연동과 Team/Match navigation은 아직 구현되어 있지 않다.
+
 ## 목적과 사용자 가치
 
 Player Detail은 사용자가 선수의 기본 정보, 현재 소속, 주로 사용한 Agent와 핵심 성과 지표, 최근 경기를 빠르게 파악하고 관련 Team과 Match로 탐색하게 한다.
