@@ -48,7 +48,7 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | 미구현 |
 | Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | 미구현 |
 | Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | 미구현 |
-| MyPage, 즐겨찾기, Match 알림, About | Match 알림의 서버 구독·polling·delivery와 앱 로컬 저장/권한 흐름은 미구현 | 미구현 |
+| MyPage, 즐겨찾기, Match 알림, About | Match 알림의 서버 구독·polling·delivery 미구현 | 앱 로컬 저장·권한 흐름 미구현 |
 
 ## MVP 제외 범위
 
