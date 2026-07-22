@@ -4,6 +4,12 @@
 
 이 문서는 Upcoming/Live, Results, Match Detail, Match 즐겨찾기와 시작·종료 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
+## 구현 상태 (2026-07-22)
+
+- **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
+- **Backend Match 알림/구독: 미구현.** 구독 생성·해제 API, 영속 저장, 10분 polling, 시작/종료 delivery, idempotency는 아직 없다.
+- **App: 미구현.** 목록·상세 UI, 내비게이션, 로컬 Match 즐겨찾기, 권한 및 전역 알림 흐름은 아직 구현되어 있지 않다.
+
 ## 목적과 사용자 가치
 
 - 예정, 진행 중, 완료 경기를 시간과 상태 중심으로 빠르게 확인하게 한다.
@@ -321,7 +327,7 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 - [ ] 목록 pagination이 중복 항목 없이 동작하고 추가 페이지 실패 시 기존 목록을 유지한다.
 - [ ] 경기 항목은 Match Detail로, Event reference는 Event Detail로 이동한다.
 - [ ] Match Detail은 Event, 경기 설명, 양 팀, 스코어, 상태, 맵, Head to Head, Past Matches를 사용 가능한 범위에서 표시한다.
-- [ ] BO1/BO3/BO5와 FFW fixture에서 상태별 선택성이 parsing failure와 구분된다.
+- [x] BO1/BO3/BO5와 FFW fixture에서 상태별 선택성이 parsing failure와 구분된다.
 - [ ] loading, empty, partial, error, stale/unavailable 표현이 정상 populated 상태와 구분된다.
 
 ### 즐겨찾기, 권한, 전역 설정

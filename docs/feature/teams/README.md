@@ -1,5 +1,10 @@
 # Team 기능 기획
 
+## 구현 상태 (2026-07-22)
+
+- **Backend: 구현 완료.** `GET /api/v1/teams/{teamId}`가 Team overview와 news를 요청 시점에 수집해 app-facing response로 반환하며 parser/route 테스트가 있다.
+- **App: 미구현.** Team Detail UI, 로컬 즐겨찾기, MyPage 연동과 관련 Detail navigation은 아직 구현되어 있지 않다.
+
 ## 목적과 사용자 가치
 
 Team Detail은 사용자가 팀의 정체성, 예정·최근 경기, 현재 로스터, 관련 뉴스를 한 화면에서 확인하고 연결된 Match, Player, News로 탐색하게 한다. 정보가 적은 일회성 팀도 실제로 존재하는 범위만 정직하게 보여준다.
@@ -159,4 +164,4 @@ https://www.vlr.gg/team/19296/team-korea
 - [ ] 즐겨찾기 등록 후 Team이 MyPage의 Team 그룹에 나타나고, 제거 후 사라진다.
 - [ ] Team 즐겨찾기 등록·해제는 서버 notification subscription을 생성하거나 변경하지 않는다.
 - [ ] loading, empty section, partial, error, stale 상태가 유효 콘텐츠와 시각적으로 구분된다.
-- [ ] 서버 parser test는 일반 팀과 이력이 적은 팀 fixture를 모두 검증한다.
+- [x] 서버 parser test는 일반 팀과 이력이 적은 팀 fixture를 모두 검증한다.

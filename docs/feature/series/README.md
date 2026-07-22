@@ -6,6 +6,11 @@ Series Detail은 같은 대회 체계에 속한 Event를 예정·완료 기준�
 
 이 문서는 제품 동작을 정의한다. 시각 언어와 공통 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
+## 구현 상태 (2026-07-22)
+
+- **Backend: 구현 완료.** `GET /api/v1/series/{seriesId}`가 Series와 Upcoming/Completed Event 그룹을 반환하며 parser/mapper/service/route 테스트가 있다.
+- **App: 미구현.** Series Detail UI, Search 결과 진입, Event navigation과 화면 상태 관리는 아직 구현되어 있지 않다.
+
 ## MVP 범위
 
 Series Detail은 **Phase 5** 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포함된다.
@@ -186,5 +191,5 @@ https://www.vlr.gg/series/85/valorant-challengers-league-2026
 - [ ] 한 섹션만 비거나 실패한 상태가 전체 empty/error와 구분된다.
 - [ ] loading, empty, populated, partial, error, stale 상태가 정상 콘텐츠와 구분된다.
 - [ ] Standings와 기타 제외 기능이 placeholder로 노출되지 않는다.
-- [ ] parser fixture가 Upcoming/Completed Event 상태 그룹을 검증한다.
-- [ ] 서버 오류가 raw HTML, selector 또는 내부 예외 정보를 노출하지 않는다.
+- [x] parser fixture가 Upcoming/Completed Event 상태 그룹을 검증한다.
+- [x] 서버 오류가 raw HTML, selector 또는 내부 예외 정보를 노출하지 않는다.

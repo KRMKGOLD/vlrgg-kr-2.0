@@ -4,6 +4,11 @@
 
 이 문서는 News List와 News Detail의 제품 요구사항을 정의한다. 공통 시각 언어와 접근성은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 기능 관계와 내비게이션은 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
+## 구현 상태 (2026-07-22)
+
+- **Backend: 구현 완료.** `GET /api/v1/news`와 `GET /api/v1/news/{articleId}/{slug}`는 route, scraper, parser, mapper, response 및 fixture/route 테스트로 구현되어 있다.
+- **App: 미구현.** 목록·상세 Compose UI, remote DTO/Domain 매핑, pagination 상태, 본문 렌더링과 내부 링크 navigation은 아직 구현되어 있지 않다.
+
 ## 목적과 사용자 가치
 
 - 최신 Valorant eSports 뉴스를 모바일에서 빠르게 훑고 앱 안에서 읽을 수 있게 한다.
@@ -215,7 +220,7 @@ VLR.GG DOM은 불안정한 외부 contract다. selector나 보정 규칙은 pars
 - [ ] Back으로 News List에 돌아오면 이전 페이지와 스크롤 위치가 복원된다.
 - [ ] 최초 로딩, 빈 결과, pagination 일부 실패, 전체 실패가 서로 구분된다.
 - [ ] 서버 response와 앱 모델에 raw HTML, Jsoup type, CSS selector가 노출되지 않는다.
-- [ ] parser fixture가 hover-card 비혼입, 내부 링크 분류, 이미지/캡션, 목록 처리를 검증한다.
+- [x] parser fixture가 hover-card 비혼입, 내부 링크 분류, 이미지/캡션, 목록 처리를 검증한다.
 
 ## 열린 결정
 
