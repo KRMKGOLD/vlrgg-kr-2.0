@@ -10,7 +10,7 @@ Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selecto
 
 ## Current State and Direction
 
-현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API를 구현했다. 일반 콘텐츠 조회를 위한 cache와 별도 DI framework, Match 알림의 구독 API·영속 저장·scheduler·delivery는 도입하지 않았다.
+원격 `main`의 `d220a69b59d4863c0ade0e09c77c1192c36bba95` 기준으로 현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API를 구현했다. 일반 콘텐츠 조회를 위한 cache와 별도 DI framework, Match 알림의 구독 API·영속 저장·scheduler·delivery는 도입하지 않았다.
 
 서버 기능은 단일 `:server` Gradle module 안에서 feature-based modular structure로 개발한다.
 
