@@ -220,7 +220,7 @@ https://www.vlr.gg/search/?q=search_keyword
 - [ ] Search에서 뒤로 가면 진입 전 화면과 스크롤·선택·필터 상태가 복원된다.
 - [ ] Detail에서 Search로 돌아오면 검색어와 결과가 복원된다.
 - [ ] 입력 전 상태, 결과 없음, loading, populated, partial, error, stale 상태가 서로 구분된다.
-- [x] 공백만 있는 검색어는 서버 요청을 만들지 않는다.
+- [ ] 공백만 있는 검색어는 서버 요청을 만들지 않는다.
 - [ ] 검색 실패가 검색 결과 없음으로 표시되지 않는다.
 - [x] parser fixture가 네 지원 타입, 결과 없음, 누락 보조 정보, 예상하지 못한 타입을 검증한다.
 - [x] 서버 오류가 raw HTML, selector 또는 내부 예외 정보를 노출하지 않는다.
