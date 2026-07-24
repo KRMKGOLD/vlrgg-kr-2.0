@@ -7,6 +7,7 @@ import io.ktor.server.routing.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.hideFromOpenApi
+import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
 
 internal fun Route.configureSeriesRoutes(service: SeriesService) {
     get("/api/v1/series") { throw InvalidInputFailure() }.hideFromOpenApi()
@@ -22,9 +23,6 @@ internal fun Route.configureSeriesRoutes(service: SeriesService) {
         operationDescription = "Returns the series and its upcoming and completed events. Query parameters are not accepted.",
         tag = "Series",
     ) {
-        path("seriesId") {
-            description = "Positive decimal series ID containing up to 10 digits and no leading zeroes."
-            required = true
-        }
+        positiveDecimalIdPath("seriesId")
     }
 }

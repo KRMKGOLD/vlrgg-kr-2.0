@@ -6,6 +6,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
+import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
 
 private val eventIdPattern = Regex("[1-9][0-9]{0,9}")
 
@@ -69,8 +70,5 @@ private fun ApplicationCall.requireNoQueryParameters() {
 }
 
 private fun io.ktor.openapi.Parameters.Builder.eventIdParameter() {
-    path("eventId") {
-        description = "Positive decimal event ID containing up to 10 digits and no leading zeroes."
-        required = true
-    }
+    positiveDecimalIdPath("eventId")
 }

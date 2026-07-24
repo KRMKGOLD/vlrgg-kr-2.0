@@ -6,7 +6,10 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
+import kr.co.cotton.vlrgg_mobile.routing.canonicalDecimalPageQuery
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
+import kr.co.cotton.vlrgg_mobile.routing.newsSlugPath
+import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
 
 private val pagePattern = Regex("[1-9][0-9]{0,4}")
 
@@ -20,10 +23,12 @@ internal fun Route.configureNewsRoutes(service: NewsService) {
             operationDescription = "Returns a page of current news articles. Only the optional page query parameter is accepted.",
             tag = "News",
         ) {
-            query("page") {
-                description = "Optional decimal page number from 1 through 99,999 without leading zeroes. Defaults to 1."
-                required = false
-            }
+            canonicalDecimalPageQuery(
+                default = DEFAULT_NEWS_PAGE,
+                maximum = MAX_NEWS_PAGE,
+                pattern = "^(?:[1-9][0-9]{0,3}|10000)$",
+                maximumLength = 5,
+            )
         }
         get("/{articleId}/{slug}") {
             call.respond(service.getArticle(call.requireNewsReference()))
@@ -33,14 +38,8 @@ internal fun Route.configureNewsRoutes(service: NewsService) {
             operationDescription = "Returns an article identified by its canonical numeric ID and slug. Query parameters are not accepted.",
             tag = "News",
         ) {
-            path("articleId") {
-                description = "Positive decimal article ID containing up to 10 digits and no leading zeroes."
-                required = true
-            }
-            path("slug") {
-                description = "Canonical article slug paired with the article ID."
-                required = true
-            }
+            positiveDecimalIdPath("articleId")
+            newsSlugPath()
         }
     }
 }

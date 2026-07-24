@@ -7,6 +7,7 @@ import io.ktor.server.routing.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.hideFromOpenApi
+import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
 
 internal fun Route.configureTeamDetailRoutes(service: TeamDetailService) {
     get("/api/v1/teams") {
@@ -24,9 +25,6 @@ internal fun Route.configureTeamDetailRoutes(service: TeamDetailService) {
         operationDescription = "Returns the current team profile, matches, roster, and related news. Query parameters are not accepted.",
         tag = "Teams",
     ) {
-        path("teamId") {
-            description = "Positive decimal team ID containing up to 10 digits and no leading zeroes."
-            required = true
-        }
+        positiveDecimalIdPath("teamId")
     }
 }

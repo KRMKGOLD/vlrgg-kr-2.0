@@ -4,7 +4,9 @@ import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
+import kr.co.cotton.vlrgg_mobile.routing.canonicalDecimalPageQuery
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
+import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
 
 internal fun Application.configureMatchesRoutes(service: MatchesService) {
     routing {
@@ -17,10 +19,12 @@ internal fun Application.configureMatchesRoutes(service: MatchesService) {
                 operationDescription = "Returns upcoming matches for an optional page. Only the page query parameter is accepted.",
                 tag = "Matches",
             ) {
-                query(PAGE_PARAMETER) {
-                    description = "Optional decimal page number from 1 through 1,000 without leading zeroes. Defaults to 1."
-                    required = false
-                }
+                canonicalDecimalPageQuery(
+                    default = DEFAULT_PAGE,
+                    maximum = MAXIMUM_PAGE,
+                    pattern = "^(?:[1-9][0-9]{0,2}|1000)$",
+                    maximumLength = 4,
+                )
             }
             get("results") {
                 call.respond(service.getMatches(MatchListCategory.RESULTS, call.validatedPage()))
@@ -30,10 +34,12 @@ internal fun Application.configureMatchesRoutes(service: MatchesService) {
                 operationDescription = "Returns completed match results for an optional page. Only the page query parameter is accepted.",
                 tag = "Matches",
             ) {
-                query(PAGE_PARAMETER) {
-                    description = "Optional decimal page number from 1 through 1,000 without leading zeroes. Defaults to 1."
-                    required = false
-                }
+                canonicalDecimalPageQuery(
+                    default = DEFAULT_PAGE,
+                    maximum = MAXIMUM_PAGE,
+                    pattern = "^(?:[1-9][0-9]{0,2}|1000)$",
+                    maximumLength = 4,
+                )
             }
             get("{matchId}") {
                 call.respond(service.getMatch(call.validatedMatchId()))
@@ -43,10 +49,7 @@ internal fun Application.configureMatchesRoutes(service: MatchesService) {
                 operationDescription = "Returns details for one match. Query parameters are not accepted.",
                 tag = "Matches",
             ) {
-                path("matchId") {
-                    description = "Positive decimal match ID containing up to 10 digits and no leading zeroes."
-                    required = true
-                }
+                positiveDecimalIdPath("matchId")
             }
         }
     }
