@@ -1,5 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.common.scraping
 
+import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_REGEX
+
 /** A validated, canonical relative VLR.GG news path, never a caller-supplied URL. */
 internal class NewsReference private constructor(
     val articleId: String,
@@ -13,7 +15,7 @@ internal class NewsReference private constructor(
     override fun hashCode(): Int = 31 * articleId.hashCode() + slug.hashCode()
 
     companion object {
-        private val articleIdPattern = Regex("[1-9][0-9]{0,9}")
+        private val articleIdPattern = Regex(POSITIVE_DECIMAL_ID_REGEX)
         private val slugPattern = Regex("[a-z0-9][a-z0-9-]{0,127}")
 
         fun fromPath(articleId: String, slug: String): NewsReference? =

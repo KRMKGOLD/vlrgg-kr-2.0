@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.player
 
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
+import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_REGEX
 
 /** A VLR.GG player ID accepted only in its canonical positive-decimal form. */
 @JvmInline
@@ -15,4 +16,4 @@ internal value class PlayerId private constructor(
     }
 }
 
-private val PLAYER_ID_PATTERN = Regex("[1-9][0-9]{0,9}")
+private val PLAYER_ID_PATTERN = Regex(POSITIVE_DECIMAL_ID_REGEX)

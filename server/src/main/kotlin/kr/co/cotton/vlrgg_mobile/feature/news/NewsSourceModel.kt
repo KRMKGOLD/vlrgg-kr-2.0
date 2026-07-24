@@ -2,7 +2,8 @@ package kr.co.cotton.vlrgg_mobile.feature.news
 
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 
-internal const val DEFAULT_NEWS_PAGE = 1
+internal const val MINIMUM_NEWS_PAGE = 1
+internal const val DEFAULT_NEWS_PAGE = MINIMUM_NEWS_PAGE
 internal const val MAX_NEWS_PAGE = 10_000
 
 internal data class NewsListSource(

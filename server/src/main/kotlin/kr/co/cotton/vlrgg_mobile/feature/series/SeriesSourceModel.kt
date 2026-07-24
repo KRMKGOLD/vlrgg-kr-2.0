@@ -2,8 +2,9 @@ package kr.co.cotton.vlrgg_mobile.feature.series
 
 import io.ktor.http.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
+import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_REGEX
 
-private val SERIES_ID_PATTERN = Regex("[1-9][0-9]{0,9}")
+private val SERIES_ID_PATTERN = Regex(POSITIVE_DECIMAL_ID_REGEX)
 
 /** A canonical VLR series identifier shared directly with Search result references. */
 @JvmInline

@@ -21,8 +21,13 @@ import kr.co.cotton.vlrgg_mobile.plugins.configureMonitoring
 import kr.co.cotton.vlrgg_mobile.plugins.configureSerialization
 import kr.co.cotton.vlrgg_mobile.routing.configureRouting
 
+private const val API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE = "VLRGG_ENABLE_API_DOCUMENTATION"
+
 fun main() {
-    embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
+    val enableApiDocumentation = System.getenv(API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE) == "true"
+    embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = {
+        module(enableApiDocumentation = enableApiDocumentation)
+    })
         .start(wait = true)
 }
 
@@ -33,6 +38,7 @@ internal fun Application.module(
     seriesService: SeriesService? = null,
     teamDetailService: TeamDetailService? = null,
     playerDetailService: PlayerDetailService? = null,
+    enableApiDocumentation: Boolean = false,
 ) {
     configureSerialization()
     configureMonitoring()
@@ -46,5 +52,6 @@ internal fun Application.module(
         seriesService = seriesService ?: createSeriesService(upstreamHtmlTransport),
         teamDetailService = teamDetailService ?: createTeamDetailService(upstreamHtmlTransport),
         playerDetailService = playerDetailService ?: createPlayerDetailService(upstreamHtmlTransport),
+        enableApiDocumentation = enableApiDocumentation,
     )
 }
