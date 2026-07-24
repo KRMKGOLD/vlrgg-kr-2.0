@@ -28,10 +28,11 @@ internal fun Application.configureRouting(
     teamDetailService: TeamDetailService,
     playerDetailService: PlayerDetailService,
 ) {
+    configureOpenApiDocumentation()
     routing {
         get("/health") {
             call.respond(HealthResponse(status = "ok"))
-        }
+        }.hideFromOpenApi()
         configureNewsRoutes(newsService)
         configureEventsRoutes(eventsService)
         configureSearchRoutes(searchService)

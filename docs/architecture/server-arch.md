@@ -10,7 +10,7 @@ Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selecto
 
 ## Current State and Direction
 
-원격 `main`의 `d220a69b59d4863c0ade0e09c77c1192c36bba95` 기준으로 현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API를 구현했다. 일반 콘텐츠 조회를 위한 cache와 별도 DI framework, Match 알림의 구독 API·영속 저장·scheduler·delivery는 도입하지 않았다.
+현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API와 런타임 OpenAPI/Swagger 개발 문서를 구현했다. 일반 콘텐츠 조회를 위한 cache와 별도 DI framework, Match 알림의 구독 API·영속 저장·scheduler·delivery는 도입하지 않았다.
 
 서버 기능은 단일 `:server` Gradle module 안에서 feature-based modular structure로 개발한다.
 
@@ -162,6 +162,14 @@ data class ApiErrorResponse(
 - 내부 failure는 sealed type 또는 focused exception으로 구현할 수 있다. 어느 방식이든 원인과 URL을 내부에서 보존하고 `ErrorHandling` 경계에서 `ApiErrorResponse`로 매핑한다.
 - 앱 Data Layer를 구현할 때 모든 non-success response는 generic `AppResult.Failure`로 변환한다. UI는 `ApiErrorCode`를 해석하지 않는다. 오류별 UI 요구가 생기면 앱 Data·Domain·UI 문서를 함께 갱신한다.
 - API error envelope는 `StatusPages` 등 공통 error handling plugin에서 일관되게 반환한다. Ktor는 예외 처리를 위한 `StatusPages` plugin을 제공한다. [Ktor StatusPages](https://ktor.io/docs/server-status-pages.html)
+
+## OpenAPI and Swagger Development Documentation
+
+현재 작은 개발 서버는 Ktor runtime routing metadata를 사용해 `/openapi.json`과 `/swagger`를 제공한다. 각 public `/api/v1` GET route는 실제 response DTO와 `ApiErrorResponse` schema를 재사용해 문서화하며, `/health`, validation-only guard route, 문서 route 자체는 spec에서 제외한다. 이 문서화 계층은 Route -> Service -> Scraper -> Parser -> SourceModel -> Mapper -> Response의 feature 흐름이나 scraping 동작을 바꾸지 않는다.
+
+문서는 app-facing path, request validation, response DTO, stable error code만 노출한다. raw HTML, selector, Jsoup type, upstream URL, exception, SourceModel과 같은 server-internal detail은 OpenAPI description이나 schema에 넣지 않는다.
+
+현재 개발 기본값에서는 별도 config abstraction 없이 두 endpoint가 노출된다. 향후 public deployment에서는 API surface와 구현 세부사항을 탐색할 수 있는 운영상 위험이 있으므로, deployment boundary에서 docs 접근을 제한하거나 해당 environment에서 route를 비활성화한 뒤 노출해야 한다. Swagger UI는 Ktor 기본 설정의 외부 Swagger UI asset을 사용하므로, 제한된 network/CSP 환경에서 운영하려면 asset hosting 정책도 함께 결정한다.
 
 ## Plugins, Logging, and Notification
 
