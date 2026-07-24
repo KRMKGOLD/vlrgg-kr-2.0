@@ -169,7 +169,7 @@ data class ApiErrorResponse(
 
 문서는 app-facing path, request validation, response DTO, stable error code만 노출한다. raw HTML, selector, Jsoup type, upstream URL, exception, SourceModel과 같은 server-internal detail은 OpenAPI description이나 schema에 넣지 않는다.
 
-현재 개발 기본값에서는 별도 config abstraction 없이 두 endpoint가 노출된다. 향후 public deployment에서는 API surface와 구현 세부사항을 탐색할 수 있는 운영상 위험이 있으므로, deployment boundary에서 docs 접근을 제한하거나 해당 environment에서 route를 비활성화한 뒤 노출해야 한다. Swagger UI는 Ktor 기본 설정의 외부 Swagger UI asset을 사용하므로, 제한된 network/CSP 환경에서 운영하려면 asset hosting 정책도 함께 결정한다.
+문서 route는 `VLRGG_ENABLE_API_DOCUMENTATION` environment variable이 정확히 `true`일 때만 등록되며, 기본값은 비활성이다. local 개발에서 문서를 보려면 `VLRGG_ENABLE_API_DOCUMENTATION=true ./gradlew :server:run`으로 실행한다. 향후 public deployment에서 노출을 검토할 때는 API surface와 구현 세부사항을 탐색할 수 있는 위험을 고려해 접근 정책을 먼저 결정해야 하며, Swagger UI가 Ktor 기본 설정의 외부 asset을 사용하므로 asset self-hosting 또는 version pinning도 함께 결정할 때까지는 문서 노출을 유지하지 않는다.
 
 ## Plugins, Logging, and Notification
 

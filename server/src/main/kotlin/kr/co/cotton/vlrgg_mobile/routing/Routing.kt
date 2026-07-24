@@ -27,8 +27,11 @@ internal fun Application.configureRouting(
     seriesService: SeriesService,
     teamDetailService: TeamDetailService,
     playerDetailService: PlayerDetailService,
+    enableApiDocumentation: Boolean,
 ) {
-    configureOpenApiDocumentation()
+    if (enableApiDocumentation) {
+        configureOpenApiDocumentation()
+    }
     routing {
         get("/health") {
             call.respond(HealthResponse(status = "ok"))

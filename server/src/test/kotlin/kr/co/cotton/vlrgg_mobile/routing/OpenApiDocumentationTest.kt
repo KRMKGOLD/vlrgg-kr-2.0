@@ -6,6 +6,8 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.*
+import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
+import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
 import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_OPENAPI_PATTERN
 import kr.co.cotton.vlrgg_mobile.feature.news.MAX_NEWS_PAGE
 import kr.co.cotton.vlrgg_mobile.feature.news.MINIMUM_NEWS_PAGE
@@ -16,7 +18,7 @@ class OpenApiDocumentationTest {
 
     @Test
     fun `OpenAPI JSON documents public API routes and excludes documentation routes`() = testApplication {
-        application { module() }
+        application { module(enableApiDocumentation = true) }
 
         val response = client.get("/openapi.json")
         val specification = response.bodyAsText()
@@ -53,7 +55,7 @@ class OpenApiDocumentationTest {
 
     @Test
     fun `OpenAPI parameter schemas mirror server validation constraints`() = testApplication {
-        application { module() }
+        application { module(enableApiDocumentation = true) }
 
         val paths = openApiPaths()
 
@@ -135,7 +137,7 @@ class OpenApiDocumentationTest {
 
     @Test
     fun `Swagger UI and OpenAPI error schemas expose only public contract details`() = testApplication {
-        application { module() }
+        application { module(enableApiDocumentation = true) }
 
         val swagger = client.get("/swagger")
         val specification = client.get("/openapi.json").bodyAsText()
@@ -153,6 +155,25 @@ class OpenApiDocumentationTest {
         assertTrue(specification.contains("INTERNAL_ERROR"))
         listOf("Jsoup", "selector", "SourceModel", "raw HTML", "https://www.vlr.gg/").forEach {
             assertFalse(specification.contains(it), "OpenAPI document must not expose $it")
+        }
+    }
+
+    @Test
+    fun `OpenAPI documentation routes require explicit opt-in`() = testApplication {
+        application { module() }
+
+        listOf("/openapi.json", "/swagger").forEach { path ->
+            val response = client.get(path)
+
+            assertEquals(HttpStatusCode.NotFound, response.status)
+            assertEquals(ContentType.Application.Json, response.contentType())
+            assertEquals(
+                ApiErrorResponse(
+                    code = ApiErrorCode.NOT_FOUND,
+                    message = "Requested resource was not found.",
+                ),
+                Json.decodeFromString<ApiErrorResponse>(response.bodyAsText()),
+            )
         }
     }
 
