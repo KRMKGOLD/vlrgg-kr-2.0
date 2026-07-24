@@ -92,13 +92,18 @@ class NewsRoutesTest {
 
     @Test
     fun `news detail ignores query parameters`() = testApplication {
+        val requestedUrls = mutableListOf<Url>()
         application {
-            module(newsService = serviceForFixtures())
+            module(newsService = serviceForFixtures(onRequest = requestedUrls::add))
         }
 
         val response = client.get("/api/v1/news/101/champions-run?preview=true")
 
         assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(
+            listOf("https://www.vlr.gg/101/champions-run"),
+            requestedUrls.map(Url::toString),
+        )
     }
 
     @Test
