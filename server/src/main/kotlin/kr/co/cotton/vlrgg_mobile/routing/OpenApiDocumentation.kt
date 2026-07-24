@@ -14,7 +14,7 @@ private const val OPEN_API_PATH = "/openapi.json"
 private const val SWAGGER_PATH = "/swagger"
 private const val POSITIVE_DECIMAL_ID_PATTERN = "^[1-9][0-9]{0,9}$"
 private const val NEWS_SLUG_PATTERN = "^[a-z0-9][a-z0-9-]{0,127}$"
-private const val SEARCH_QUERY_PATTERN = "^(?!.*[\\u0000-\\u001F\\u007F-\\u009F])(?=.*[\\p{L}\\p{N}]).+$"
+private const val SEARCH_QUERY_PATTERN = "^[^\\u0000-\\u001F\\u007F-\\u009F]+$"
 
 /** Registers development-only API documentation without changing feature routing or services. */
 @OptIn(ExperimentalKtorApi::class)
@@ -131,7 +131,7 @@ internal fun Parameters.Builder.canonicalDecimalPageQuery(
 
 internal fun Parameters.Builder.searchQuery() {
     query("q") {
-        description = "Required search text. Validation trims surrounding whitespace before enforcing the documented length."
+        description = "Required search text. The server trims surrounding whitespace, then requires 1 to 80 characters and at least one Unicode letter or digit; ISO control characters are rejected."
         required = true
         schema = JsonSchema(
             type = JsonType.STRING,
@@ -142,7 +142,7 @@ internal fun Parameters.Builder.searchQuery() {
         extension("x-server-trim-before-validation", true)
         extension("x-server-trimmed-minimum-length", 1)
         extension("x-server-trimmed-maximum-length", 80)
-        extension("x-server-requires-letter-or-digit", true)
+        extension("x-server-requires-unicode-letter-or-digit", true)
         extension("x-server-rejects-iso-control", true)
     }
 }

@@ -93,14 +93,29 @@ class OpenApiDocumentationTest {
 
         val search = paths.parameter("/api/v1/search", "q")
         val searchSchema = search.schema()
+        assertTrue(search.string("description").contains("trims surrounding whitespace"))
+        assertTrue(search.string("description").contains("Unicode letter or digit"))
         assertEquals("string", searchSchema.string("type"))
         assertEquals(1, searchSchema.int("minLength"))
-        assertTrue(searchSchema.string("pattern").contains("\\p{L}"))
+        val searchPattern = searchSchema.string("pattern")
+        assertEquals("^[^\\u0000-\\u001F\\u007F-\\u009F]+$", searchPattern)
+        assertFalse(searchPattern.contains("\\p{"))
+        val portableSearchPattern = Regex(searchPattern)
+        listOf("masters tokyo", "발로란트 검색").forEach { query ->
+            assertTrue(portableSearchPattern.matches(query), "Expected standard pattern to accept $query")
+        }
+        listOf(
+            "line${'\n'}break",
+            "delete${0x7F.toChar()}",
+            "control${0x9F.toChar()}",
+        ).forEach { query ->
+            assertFalse(portableSearchPattern.matches(query), "Expected standard pattern to reject controls")
+        }
         assertTrue(search.boolean("x-server-single-value"))
         assertTrue(search.boolean("x-server-trim-before-validation"))
         assertEquals(1, search.int("x-server-trimmed-minimum-length"))
         assertEquals(80, search.int("x-server-trimmed-maximum-length"))
-        assertTrue(search.boolean("x-server-requires-letter-or-digit"))
+        assertTrue(search.boolean("x-server-requires-unicode-letter-or-digit"))
         assertTrue(search.boolean("x-server-rejects-iso-control"))
     }
 
