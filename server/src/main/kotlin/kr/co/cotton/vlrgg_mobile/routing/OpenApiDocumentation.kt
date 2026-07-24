@@ -9,12 +9,13 @@ import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
 import io.ktor.utils.io.*
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
+import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_OPENAPI_PATTERN
 
 private const val OPEN_API_PATH = "/openapi.json"
 private const val SWAGGER_PATH = "/swagger"
-private const val POSITIVE_DECIMAL_ID_PATTERN = "^[1-9][0-9]{0,9}$"
 private const val NEWS_SLUG_PATTERN = "^[a-z0-9][a-z0-9-]{0,127}$"
 private const val SEARCH_QUERY_PATTERN = "^[^\\u0000-\\u001F\\u007F-\\u009F]+$"
+private val OPEN_API_REMOTE_PATH = OPEN_API_PATH.removePrefix("/")
 
 /** Registers development-only API documentation without changing feature routing or services. */
 @OptIn(ExperimentalKtorApi::class)
@@ -37,7 +38,7 @@ internal fun Application.configureOpenApiDocumentation() {
         swaggerUI(SWAGGER_PATH) {
             info = baseDocument.info
             this.source = source
-            remotePath = "openapi.json"
+            remotePath = OPEN_API_REMOTE_PATH
         }
     }
 }
@@ -88,7 +89,7 @@ internal fun Parameters.Builder.positiveDecimalIdPath(name: String) {
             type = JsonType.STRING,
             minLength = 1,
             maxLength = 10,
-            pattern = POSITIVE_DECIMAL_ID_PATTERN,
+            pattern = POSITIVE_DECIMAL_ID_OPENAPI_PATTERN,
         )
     }
 }
@@ -108,6 +109,7 @@ internal fun Parameters.Builder.newsSlugPath() {
 
 internal fun Parameters.Builder.canonicalDecimalPageQuery(
     default: Int,
+    minimum: Int,
     maximum: Int,
     pattern: String,
     maximumLength: Int,
@@ -122,7 +124,7 @@ internal fun Parameters.Builder.canonicalDecimalPageQuery(
             pattern = pattern,
             default = GenericElement(default.toString()),
         )
-        extension("x-server-minimum", GenericElement(default))
+        extension("x-server-minimum", GenericElement(minimum))
         extension("x-server-maximum", GenericElement(maximum))
         extension("x-server-canonical-decimal", true)
         extension("x-server-single-value", true)

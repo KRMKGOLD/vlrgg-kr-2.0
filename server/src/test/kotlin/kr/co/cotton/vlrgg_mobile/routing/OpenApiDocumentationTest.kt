@@ -6,6 +6,9 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.*
+import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_OPENAPI_PATTERN
+import kr.co.cotton.vlrgg_mobile.feature.news.MAX_NEWS_PAGE
+import kr.co.cotton.vlrgg_mobile.feature.news.MINIMUM_NEWS_PAGE
 import kr.co.cotton.vlrgg_mobile.module
 import kotlin.test.*
 
@@ -57,7 +60,8 @@ class OpenApiDocumentationTest {
         assertCanonicalPage(
             paths = paths,
             path = "/api/v1/news",
-            maximum = 10_000,
+            minimum = MINIMUM_NEWS_PAGE,
+            maximum = MAX_NEWS_PAGE,
             maximumLength = 5,
             pattern = "^(?:[1-9][0-9]{0,3}|10000)$",
         )
@@ -65,6 +69,7 @@ class OpenApiDocumentationTest {
             assertCanonicalPage(
                 paths = paths,
                 path = path,
+                minimum = 1,
                 maximum = 1_000,
                 maximumLength = 4,
                 pattern = "^(?:[1-9][0-9]{0,2}|1000)$",
@@ -90,6 +95,15 @@ class OpenApiDocumentationTest {
         assertEquals(1, slug.int("minLength"))
         assertEquals(128, slug.int("maxLength"))
         assertEquals("^[a-z0-9][a-z0-9-]{0,127}$", slug.string("pattern"))
+
+        val newsPagePattern = paths.parameter("/api/v1/news", "page").schema().string("pattern")
+        val compiledNewsPagePattern = Regex(newsPagePattern)
+        assertTrue(compiledNewsPagePattern.matches(MAX_NEWS_PAGE.toString()))
+        assertFalse(compiledNewsPagePattern.matches((MAX_NEWS_PAGE + 1).toString()))
+
+        val newsArticleDescription = paths["/api/v1/news/{articleId}/{slug}"]!!
+            .jsonObject["get"]!!.jsonObject.string("description")
+        assertTrue(newsArticleDescription.contains("Query parameters are ignored."))
 
         val search = paths.parameter("/api/v1/search", "q")
         val searchSchema = search.schema()
@@ -125,10 +139,12 @@ class OpenApiDocumentationTest {
 
         val swagger = client.get("/swagger")
         val specification = client.get("/openapi.json").bodyAsText()
+        val swaggerHtml = swagger.bodyAsText()
 
         assertEquals(HttpStatusCode.OK, swagger.status)
         assertEquals(ContentType.Text.Html.withCharset(Charsets.UTF_8), swagger.contentType())
-        assertTrue(swagger.bodyAsText().contains("Swagger UI"))
+        assertTrue(swaggerHtml.contains("Swagger UI"))
+        assertTrue(swaggerHtml.contains("openapi.json"))
         assertTrue(specification.contains("ApiErrorResponse"))
         assertTrue(specification.contains("INVALID_REQUEST"))
         assertTrue(specification.contains("NOT_FOUND"))
@@ -147,6 +163,7 @@ class OpenApiDocumentationTest {
     private fun assertCanonicalPage(
         paths: JsonObject,
         path: String,
+        minimum: Int,
         maximum: Int,
         maximumLength: Int,
         pattern: String,
@@ -161,7 +178,7 @@ class OpenApiDocumentationTest {
         assertEquals(1, schema.int("minLength"))
         assertEquals(maximumLength, schema.int("maxLength"))
         assertEquals(pattern, schema.string("pattern"))
-        assertEquals(1, parameter.int("x-server-minimum"))
+        assertEquals(minimum, parameter.int("x-server-minimum"))
         assertEquals(maximum, parameter.int("x-server-maximum"))
         assertTrue(parameter.boolean("x-server-canonical-decimal"))
         assertTrue(parameter.boolean("x-server-single-value"))
@@ -175,7 +192,7 @@ class OpenApiDocumentationTest {
         assertEquals("string", schema.string("type"))
         assertEquals(1, schema.int("minLength"))
         assertEquals(10, schema.int("maxLength"))
-        assertEquals("^[1-9][0-9]{0,9}$", schema.string("pattern"))
+        assertEquals(POSITIVE_DECIMAL_ID_OPENAPI_PATTERN, schema.string("pattern"))
     }
 
     private fun JsonObject.parameter(path: String, name: String): JsonObject = this[path]!!

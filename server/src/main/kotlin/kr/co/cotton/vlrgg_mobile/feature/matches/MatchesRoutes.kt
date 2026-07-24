@@ -1,9 +1,11 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches
 
 import io.ktor.server.application.*
+import io.ktor.openapi.Parameters
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
+import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_REGEX
 import kr.co.cotton.vlrgg_mobile.routing.canonicalDecimalPageQuery
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
@@ -18,14 +20,7 @@ internal fun Application.configureMatchesRoutes(service: MatchesService) {
                 summary = "Get upcoming matches",
                 operationDescription = "Returns upcoming matches for an optional page. Only the page query parameter is accepted.",
                 tag = "Matches",
-            ) {
-                canonicalDecimalPageQuery(
-                    default = DEFAULT_PAGE,
-                    maximum = MAXIMUM_PAGE,
-                    pattern = "^(?:[1-9][0-9]{0,2}|1000)$",
-                    maximumLength = 4,
-                )
-            }
+            ) { matchesPageQuery() }
             get("results") {
                 call.respond(service.getMatches(MatchListCategory.RESULTS, call.validatedPage()))
             }.describePublicGet<MatchesPageResponse>(
@@ -33,14 +28,7 @@ internal fun Application.configureMatchesRoutes(service: MatchesService) {
                 summary = "Get match results",
                 operationDescription = "Returns completed match results for an optional page. Only the page query parameter is accepted.",
                 tag = "Matches",
-            ) {
-                canonicalDecimalPageQuery(
-                    default = DEFAULT_PAGE,
-                    maximum = MAXIMUM_PAGE,
-                    pattern = "^(?:[1-9][0-9]{0,2}|1000)$",
-                    maximumLength = 4,
-                )
-            }
+            ) { matchesPageQuery() }
             get("{matchId}") {
                 call.respond(service.getMatch(call.validatedMatchId()))
             }.describePublicGet<MatchDetailResponse>(
@@ -88,4 +76,14 @@ private const val DEFAULT_PAGE = 1
 private const val MINIMUM_PAGE = 1
 private const val MAXIMUM_PAGE = 1_000
 private const val SINGLE_PARAMETER_VALUE = 1
-private val MATCH_ID_REGEX = Regex("[1-9]\\d{0,9}")
+private val MATCH_ID_REGEX = Regex(POSITIVE_DECIMAL_ID_REGEX)
+
+private fun Parameters.Builder.matchesPageQuery() {
+    canonicalDecimalPageQuery(
+        default = DEFAULT_PAGE,
+        minimum = MINIMUM_PAGE,
+        maximum = MAXIMUM_PAGE,
+        pattern = "^(?:[1-9][0-9]{0,2}|1000)$",
+        maximumLength = 4,
+    )
+}

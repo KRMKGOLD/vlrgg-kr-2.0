@@ -25,6 +25,7 @@ internal fun Route.configureNewsRoutes(service: NewsService) {
         ) {
             canonicalDecimalPageQuery(
                 default = DEFAULT_NEWS_PAGE,
+                minimum = MINIMUM_NEWS_PAGE,
                 maximum = MAX_NEWS_PAGE,
                 pattern = "^(?:[1-9][0-9]{0,3}|10000)$",
                 maximumLength = 5,
@@ -35,7 +36,7 @@ internal fun Route.configureNewsRoutes(service: NewsService) {
         }.describePublicGet<NewsArticleResponse>(
             operationId = "getNewsArticle",
             summary = "Get a news article",
-            operationDescription = "Returns an article identified by its canonical numeric ID and slug. Query parameters are not accepted.",
+            operationDescription = "Returns an article identified by its canonical numeric ID and slug. Query parameters are ignored.",
             tag = "News",
         ) {
             positiveDecimalIdPath("articleId")
@@ -53,7 +54,7 @@ private fun ApplicationCall.requireNewsPage(): Int {
     if (values.size != 1 || !pagePattern.matches(values.single())) {
         throw InvalidInputFailure()
     }
-    return values.single().toIntOrNull()?.takeIf { it in DEFAULT_NEWS_PAGE..MAX_NEWS_PAGE }
+    return values.single().toIntOrNull()?.takeIf { it in MINIMUM_NEWS_PAGE..MAX_NEWS_PAGE }
         ?: throw InvalidInputFailure()
 }
 

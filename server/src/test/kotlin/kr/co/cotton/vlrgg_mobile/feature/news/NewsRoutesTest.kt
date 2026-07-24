@@ -77,6 +77,31 @@ class NewsRoutesTest {
     }
 
     @Test
+    fun `news list enforces configured page bounds`() = testApplication {
+        application {
+            module(newsService = serviceForFixtures())
+        }
+
+        assertEquals(HttpStatusCode.OK, client.get("/api/v1/news?page=$MAX_NEWS_PAGE").status)
+        assertError(
+            "/api/v1/news?page=${MAX_NEWS_PAGE + 1}",
+            HttpStatusCode.BadRequest,
+            ApiErrorCode.INVALID_REQUEST,
+        )
+    }
+
+    @Test
+    fun `news detail ignores query parameters`() = testApplication {
+        application {
+            module(newsService = serviceForFixtures())
+        }
+
+        val response = client.get("/api/v1/news/101/champions-run?preview=true")
+
+        assertEquals(HttpStatusCode.OK, response.status)
+    }
+
+    @Test
     fun `news routes map transport and parsing failures to safe envelopes`() = testApplication {
         application {
             module(newsService = NewsService(NewsScraper(FailingTransport), NewsParser(), NewsMapper()))
@@ -122,7 +147,7 @@ class NewsRoutesTest {
             HtmlTransport { url ->
                 onRequest(url)
                 when (url.encodedPath) {
-                    "/news" -> readFixture("news-list-page-1.html")
+                    "/news", "/news/" -> readFixture("news-list-page-1.html")
                     "/101/champions-run" -> readFixture("news-article.html")
                     else -> error("Unexpected requested path: ${url.encodedPath}")
                 }

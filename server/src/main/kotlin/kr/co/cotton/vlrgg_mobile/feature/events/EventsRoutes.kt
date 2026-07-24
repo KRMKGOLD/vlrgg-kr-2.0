@@ -5,10 +5,11 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
+import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_REGEX
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
 
-private val eventIdPattern = Regex("[1-9][0-9]{0,9}")
+private val eventIdPattern = Regex(POSITIVE_DECIMAL_ID_REGEX)
 
 internal fun Route.configureEventsRoutes(eventsService: EventsService) {
     route("/api/v1/events") {
