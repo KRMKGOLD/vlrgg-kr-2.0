@@ -161,12 +161,16 @@ MyPage ─────────────────→ Favorite Team / Pl
 ## Match 알림 공통 계약
 
 - 사용자가 Match Detail에서 특정 경기에 알림을 직접 설정한다.
+- Match 알림의 전송 provider는 FCM이다. 앱이 제시하는 `FCM registration value`는 사용자 인증이 아니라 한 익명 push target의 전송 주소다.
+- 서로 다른 registration value는 독립 target이며, 앱과 서버는 물리 기기나 FID를 기준으로 이전 값과 현재 값을 병합·대체·이관하지 않는다. 이전 target의 독립 구독과 일시적 중복 전달은 MVP에서 허용한다.
+- 같은 target/Match의 설정과 해제는 각각 alarm ON/OFF로 수렴하므로 응답이 불확실한 요청을 안전하게 반복할 수 있다.
+- MyPage의 전역 OFF는 즐겨찾기를 보존하고 현재 registration value의 target만 비활성화한다. 알 수 없는 이전 target까지 물리 기기 단위로 해제하지 않는다.
 - 서버는 활성 구독의 고유 Match ID를 10분마다 확인한다.
-- 경기 시작 알림을 한 번 발송한다.
-- 경기 종료 알림을 한 번 발송한다.
-- scheduler 재시도나 서버 재시작으로 중복 알림이 발생하지 않도록 idempotent delivery를 보장한다.
+- 서버는 subscription별 경기 시작·종료 intent를 각각 한 번으로 관리하고 scheduler 재시도나 서버 재시작에도 완료한 intent를 의도적으로 반복하지 않는다. 이는 FCM transport나 기기 표시의 exactly-once 보장이 아니다.
 - 완료된 경기의 추적과 구독 작업을 종료한다.
 - 경기 취소·연기·시간 변경·upstream 누락은 내부 상태로 구분한다.
+
+target/subscription의 상세 의미는 [Matches 추적 계약](matches/README.md#10분-match-추적-및-알림-contract), current-target OFF는 [Matches 전역 알림 계약](matches/README.md#전역-알림-off), registration 동기화·provider-invalid target 정리·credential 경계는 [서버 아키텍처 문서](../architecture/server-arch.md#match-notification-planned-exception)가 소유한다.
 
 알림 권한과 앱 설정은 다음 흐름을 따른다.
 

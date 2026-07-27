@@ -88,17 +88,19 @@ system permission이 거부된 상태는 콘텐츠 오류가 아니라 알림 �
 ### 즐겨찾기
 
 - Team 또는 Player를 제거하면 로컬 즐겨찾기만 삭제한다.
-- Match를 제거하면 로컬 즐겨찾기를 삭제하고 해당 서버 notification subscription 취소를 요청한다.
+- Match를 제거하면 로컬 즐겨찾기를 삭제하고 현재 앱이 제시할 수 있는 registration value의 해당 서버 notification subscription 취소를 요청한다.
 - 즐겨찾기 항목을 누르면 대응하는 Detail로 이동한다.
 - subscription 취소가 실패하면 local favorite 제거도 확정하지 않는다. 기존 Match favorite/subscribed 상태를 유지하고 해제 실패와 재시도를 표시한다.
+- 같은 target/Match의 취소를 반복하면 alarm OFF로 수렴하므로 응답이 불확실한 경우 같은 동작을 안전하게 재시도할 수 있다.
 
 ### 전역 알림 토글
 
 - ON 전환 시 system permission을 확인한다.
 - permission 요청이 가능한 상태라면 platform permission을 요청하고, 성공한 뒤에만 앱 전역 설정을 ON으로 확정한다.
 - 인앱 요청이 더 이상 허용되지 않는 상태라면 설명과 함께 앱의 system settings로 이동하는 동작을 제공한다.
-- OFF 전환 시 Match 알림 전달을 비활성화한다.
+- OFF 전환 시 현재 앱이 제시할 수 있는 `FCM registration value`의 push target에 연결된 Match 알림을 비활성화한다.
 - OFF 전환만으로 Team/Player 즐겨찾기나 Match 즐겨찾기를 삭제하지 않는다.
+- 현재 값만으로 알 수 없는 이전 registration value는 같은 물리 기기의 target으로 추론하거나 해제하지 않는다. 따라서 이전 target의 독립 구독은 남을 수 있으며, 이 current-target 의미는 [Matches 문서](../matches/README.md#전역-알림-off)를 따른다.
 - OFF 상태에서 Match Detail이 알림을 요청하면 활성화 필요 dialog를 띄우며, 사용자가 활성화를 선택하면 같은 permission 확인 흐름을 수행한다.
 
 ### 앱 최초 실행
@@ -118,14 +120,11 @@ system permission이 거부된 상태는 콘텐츠 오류가 아니라 알림 �
 
 ### 서버
 
-- 계정 없이 익명 installation/push target과 Match subscription을 저장한다.
-- 활성 subscription의 고유 Match ID를 10분마다 확인한다.
-- 시작 알림 1회와 종료 알림 1회를 중복 없이 전달하도록 idempotency를 보장한다.
-- Match가 terminal state에 도달하고 알림 의무가 끝나면 tracking을 중단한다.
-- 앱의 unsubscribe 요청을 반영해 더 이상 해당 target으로 알림을 보내지 않는다.
+- 계정 없이 현재 앱이 제시한 registration value의 익명 push target과 Match subscription을 저장한다.
+- 앱의 unsubscribe 요청을 반영해 요청에 포함된 target의 해당 Match subscription을 alarm OFF로 수렴시킨다.
 - Team/Player 즐겨찾기 데이터를 저장하거나 추적하지 않는다.
 
-Notification subscription persistence와 scheduler는 일반 조회의 request-time scraping 원칙에 대한 기능 한정 예외다.
+Notification subscription persistence와 scheduler는 일반 조회의 request-time scraping 원칙에 대한 기능 한정 예외다. 고유 Match polling, start/end delivery intent와 terminal cleanup의 상세 계약은 [Matches 문서](../matches/README.md#10분-match-추적-및-알림-contract)가 소유한다.
 
 ## Upstream 및 구현 메모
 
@@ -140,8 +139,9 @@ Notification subscription persistence와 scheduler는 일반 조회의 request-t
 - [ ] 각 그룹이 비어 있을 때 다른 그룹과 독립적인 empty state를 표시한다.
 - [ ] 각 즐겨찾기 항목은 대응하는 Detail로 이동한다.
 - [ ] Team/Player 즐겨찾기 제거는 로컬 데이터만 변경하며 notification subscription에는 영향을 주지 않는다.
-- [ ] Match 즐겨찾기 제거는 대응하는 서버 subscription을 취소한다.
-- [ ] 전역 알림 OFF는 어떤 즐겨찾기도 삭제하지 않으면서 알림 전달을 비활성화한다.
+- [ ] Match 즐겨찾기 제거는 현재 registration value의 대응 서버 subscription을 취소하며 반복 요청은 alarm OFF로 수렴한다.
+- [ ] 전역 알림 OFF는 어떤 즐겨찾기도 삭제하지 않으면서 현재 registration value의 target만 비활성화한다.
+- [ ] 전역 알림 OFF는 알 수 없는 이전 registration value를 같은 물리 기기의 target으로 추론하거나 해제했다고 표현하지 않는다.
 - [ ] system permission이 없는 상태에서 ON을 선택하면 허용 가능한 경우 permission을 요청하고 성공 후에만 ON이 된다.
 - [ ] 인앱 permission 요청이 불가능하면 system settings 이동 안내를 제공한다.
 - [ ] 최초 permission 요청을 거부해도 MyPage와 즐겨찾기 탐색은 정상 동작한다.
@@ -149,4 +149,3 @@ Notification subscription persistence와 scheduler는 일반 조회의 request-t
 - [ ] Match subscription 생성 실패 시 새 local favorite가 남지 않고 전체 설정 실패와 재시도가 표시된다.
 - [ ] Match unsubscribe 실패 시 기존 favorite/subscribed 상태가 유지되고 해제 실패와 재시도가 표시된다.
 - [ ] MyPage와 Match Detail은 같은 Match favorite/subscription 성공·실패 결과를 표시한다.
-- [ ] 서버 scheduler 재시도에도 Match 시작·종료 알림은 각각 최대 1회만 발송된다.
