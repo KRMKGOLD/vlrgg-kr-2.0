@@ -219,6 +219,7 @@ server subscription 생성이 확정적으로 실패하면 local favorite를 남
 - MyPage의 전역 OFF는 기존 Match favorite를 Team/Player favorite로 변환하거나 삭제하지 않는다.
 - 전역 OFF는 현재 앱이 제시할 수 있는 registration value의 push target에 연결된 Match 알림만 비활성화한다.
 - 현재 target에 연결된 여러 Match subscription 중 일부만 OFF로 확인되거나 응답이 불확실하면 앱은 전역 OFF를 완료 상태로 표시하지 않는다. 이미 OFF로 확인된 subscription은 그대로 유지하고 미확정 subscription만 pending으로 표시해 재시도·재동기화하며, 이 과정에서도 모든 favorite는 보존한다.
+- 전역 OFF가 pending인 동안 사용자가 개별 Match 알림을 다시 ON으로 선택하면 그 선택이 최신 전역·Match 의도가 된다. 앱은 남은 전역 OFF 재시도를 중단하고 전역 ON 활성화 흐름 뒤 해당 Match를 설정하며, 지연된 이전 bulk OFF 요청이나 응답이 이 ON을 되돌려서는 안 된다.
 - 앱과 서버는 현재 값만으로 알 수 없는 이전 registration value를 같은 물리 기기의 target으로 추론하거나 해제하지 않는다. 이전 target의 구독은 독립적으로 완료·명시적 해제·provider invalid 처리될 때까지 유효할 수 있고, 이전 target과 현재 target의 일시적 중복 전달은 MVP에서 허용한다.
 - OFF 상태에서 새 Match 알림을 요청하면 activation-required dialog를 표시한다.
 
@@ -356,6 +357,7 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 - [ ] 앱 내 재요청이 불가능하면 명확한 안내와 system settings 이동 action을 제공한다.
 - [ ] 전역 알림 OFF는 기존 Match favorite를 삭제하지 않고 현재 registration value의 알림만 비활성화하며, 알 수 없는 이전 target까지 해제했다고 표현하지 않는다.
 - [ ] 전역 알림 OFF가 부분 성공하거나 응답이 불확실하면 완료로 표시하지 않고, 이미 OFF인 subscription을 되돌리지 않으면서 미확정 subscription만 재시도·재동기화한다.
+- [ ] 전역 OFF pending 중 개별 Match를 ON으로 선택하면 남은 OFF 재시도를 중단하고 해당 ON 의도를 우선하며, 지연된 bulk OFF가 이를 되돌리지 않는다.
 - [ ] server subscription 생성에 실패하면 local Match favorite가 남지 않고 전체 설정 실패와 재시도가 표시된다.
 - [ ] server unsubscribe가 실패하면 기존 Match favorite/subscribed 상태가 유지되고 해제 실패와 재시도가 표시된다.
 - [ ] MyPage와 Match Detail은 같은 성공·실패 결과를 표시한다.
