@@ -212,13 +212,17 @@ server subscription 생성이 확정적으로 실패하면 local favorite를 남
 - Team/Player favorite에는 이 흐름을 적용하지 않는다.
 - server unsubscribe가 실패하면 local favorite 제거도 확정하지 않고 기존 favorite/subscribed 상태와 재시도 동작을 유지한다.
 - 같은 target/Match의 해제를 반복하면 alarm OFF로 수렴한다. 한 registration value의 해제 요청은 다른 value의 subscription을 변경하지 않는다.
+- 같은 target/Match의 설정과 해제가 교차하면 최종 상태는 앱이 발행한 최신 사용자 의도에 수렴해야 한다. 늦게 도착한 이전 요청이나 그 재시도가 이후 의도를 되돌려서는 안 된다. 이를 증명할 version/generation 또는 request ordering과 endpoint field는 Match 알림 구현 계획에서 정한다.
 
 ### 전역 알림 OFF
 
 - MyPage의 전역 OFF는 기존 Match favorite를 Team/Player favorite로 변환하거나 삭제하지 않는다.
 - 전역 OFF는 현재 앱이 제시할 수 있는 registration value의 push target에 연결된 Match 알림만 비활성화한다.
+- 현재 target에 연결된 여러 Match subscription 중 일부만 OFF로 확인되거나 응답이 불확실하면 앱은 전역 OFF를 완료 상태로 표시하지 않는다. 이미 OFF로 확인된 subscription은 그대로 유지하고 미확정 subscription만 pending으로 표시해 재시도·재동기화하며, 이 과정에서도 모든 favorite는 보존한다.
 - 앱과 서버는 현재 값만으로 알 수 없는 이전 registration value를 같은 물리 기기의 target으로 추론하거나 해제하지 않는다. 이전 target의 구독은 독립적으로 완료·명시적 해제·provider invalid 처리될 때까지 유효할 수 있고, 이전 target과 현재 target의 일시적 중복 전달은 MVP에서 허용한다.
 - OFF 상태에서 새 Match 알림을 요청하면 activation-required dialog를 표시한다.
+
+여러 subscription을 비활성화하는 endpoint 형태와 서버 transaction 경계는 Match 알림 구현 계획에서 정하되, 부분 성공을 전체 성공으로 보고해서는 안 된다.
 
 ## 10분 Match 추적 및 알림 contract
 
@@ -344,12 +348,14 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 - [ ] Match favorite는 MyPage에 표시되고 MyPage와 Match Detail 모두에서 같은 상세 화면으로 이동한다.
 - [ ] 같은 registration value와 Match의 알림 설정을 반복하면 중복 없이 alarm ON으로 수렴하고, 응답이 불확실한 요청을 안전하게 재시도할 수 있다.
 - [ ] Match favorite 해제는 현재 registration value의 대응 subscription도 취소하며 반복 해제는 alarm OFF로 수렴한다.
+- [ ] 같은 target/Match의 설정과 해제가 교차하거나 이전 요청이 지연되어도 최종 상태는 최신 사용자 의도에 수렴한다.
 - [ ] Team/Player favorite는 Match 알림 subscription을 만들지 않는다.
 - [ ] 최초 앱 실행에서 platform이 허용하면 알림 권한을 요청하며, 거부해도 비알림 기능을 사용할 수 있다.
 - [ ] 전역 OFF 또는 권한 비활성 상태에서 Match 알림을 누르면 activation-required dialog가 표시된다.
 - [ ] dialog 활성화 흐름은 permission 성공 뒤에만 전역 설정을 ON으로 바꾸고 구독을 생성한다.
 - [ ] 앱 내 재요청이 불가능하면 명확한 안내와 system settings 이동 action을 제공한다.
 - [ ] 전역 알림 OFF는 기존 Match favorite를 삭제하지 않고 현재 registration value의 알림만 비활성화하며, 알 수 없는 이전 target까지 해제했다고 표현하지 않는다.
+- [ ] 전역 알림 OFF가 부분 성공하거나 응답이 불확실하면 완료로 표시하지 않고, 이미 OFF인 subscription을 되돌리지 않으면서 미확정 subscription만 재시도·재동기화한다.
 - [ ] server subscription 생성에 실패하면 local Match favorite가 남지 않고 전체 설정 실패와 재시도가 표시된다.
 - [ ] server unsubscribe가 실패하면 기존 Match favorite/subscribed 상태가 유지되고 해제 실패와 재시도가 표시된다.
 - [ ] MyPage와 Match Detail은 같은 성공·실패 결과를 표시한다.

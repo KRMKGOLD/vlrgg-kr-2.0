@@ -133,9 +133,9 @@ Match 알림은 일반 request-time scraping 정책의 좁은 예외로 기획�
 
 선택한 Firebase SDK registration 흐름이 현재 적용 가능한 registration value를 앱에 제공하면 앱은 그 값을 서버에 동기화한다. 새 값의 동기화는 새 독립 target의 등록이며, 이전 값을 발견·병합·비활성화하거나 기존 구독을 이관하지 않는다. 정확한 callback/API와 legacy registration token 또는 FID 기반 mode는 구현 시점의 Firebase SDK에 맞춰 선택한다.
 
-FCM send 결과가 target을 영구적으로 사용할 수 없다고 증명하면 서버는 그 registration value만 제거한다. HTTP v1 `UNREGISTERED`는 해당 값의 삭제 근거이며, `INVALID_ARGUMENT`는 outbound message payload가 별도로 유효하다고 확인된 경우에만 invalid-target 근거로 사용한다. 이 정리는 물리 기기 단위 해제, 다른 value의 구독 변경, 또는 일반 stale-target batch가 아니다.
+FCM send 결과가 target을 영구적으로 사용할 수 없다고 증명하면 서버는 그 registration value만 제거한다. HTTP v1 `UNREGISTERED`는 해당 값의 삭제 근거이며, `INVALID_ARGUMENT`는 outbound message payload가 별도로 유효하다고 확인된 경우에만 invalid-target 근거로 사용한다. 그 밖의 미분류 결과는 invalid-target의 증거로 사용하지 않는다. 이 정리는 물리 기기 단위 해제, 다른 value의 구독 변경, 또는 일반 stale-target batch가 아니다.
 
-구체적인 scheduler library, database, endpoint와 payload, provider adapter, retry/backoff, concurrency와 transaction 경계는 Match feature 구현 계획에서 선택한다. FCM registration value와 Firebase Admin credential은 public response나 log에 넣지 않는다.
+구체적인 scheduler library, database, endpoint와 payload, provider adapter, delivery intent 식별자와 상태 전이, FCM 호출 전후 marker 기록·원자성, retry/backoff·횟수·provider 오류 분류, concurrency와 transaction 경계는 Match feature 구현 계획에서 선택한다. FCM registration value와 Firebase Admin credential은 public response나 log에 넣지 않는다.
 
 ## Public API Error Contract
 

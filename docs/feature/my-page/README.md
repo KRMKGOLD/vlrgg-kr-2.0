@@ -77,7 +77,7 @@ Search에서 Back하면 MyPage의 선택, 스크롤, 콘텐츠 상태를 보존�
 | Loading | 로컬 즐겨찾기와 알림 설정을 읽는 동안 각 그룹의 안정적인 skeleton 또는 loading 상태를 표시한다. |
 | Populated | Match, Team, Player 그룹을 분리해 표시하고 각 항목의 현재 동작을 제공한다. |
 | Empty | 전체 즐겨찾기가 없으면 개인화 시작 방법을 안내하며, 각 그룹에도 독립적인 빈 상태를 제공한다. |
-| Partial | 로컬 즐겨찾기는 표시할 수 있지만 권한 확인 또는 Match subscription 동기화가 실패한 경우 성공한 로컬 콘텐츠를 유지하고 실패 범위를 명시한다. |
+| Partial | 로컬 즐겨찾기는 표시할 수 있지만 권한 확인 또는 Match subscription 동기화가 실패한 경우 성공한 로컬 콘텐츠를 유지하고 실패 범위를 명시한다. 전역 OFF가 일부 subscription에만 반영되거나 응답이 불확실한 경우에도 미확정 항목과 복구 동작을 표시한다. |
 | Error | 로컬 persistence 자체를 읽지 못하면 일반화된 오류와 재시도 동작을 표시한다. |
 | Stale | 저장된 Match 요약이 최신 상태가 아닐 수 있으면 마지막 갱신 또는 재확인 필요 상태를 명시한다. |
 
@@ -88,10 +88,11 @@ system permission이 거부된 상태는 콘텐츠 오류가 아니라 알림 �
 ### 즐겨찾기
 
 - Team 또는 Player를 제거하면 로컬 즐겨찾기만 삭제한다.
-- Match를 제거하면 로컬 즐겨찾기를 삭제하고 현재 앱이 제시할 수 있는 registration value의 해당 서버 notification subscription 취소를 요청한다.
+- Match를 제거하면 현재 앱이 제시할 수 있는 registration value의 해당 서버 notification subscription 취소를 먼저 요청하고, 로컬 즐겨찾기는 제거 대기 상태로 유지한다. 서버가 alarm OFF를 확인한 뒤에만 로컬 삭제를 확정한다.
 - 즐겨찾기 항목을 누르면 대응하는 Detail로 이동한다.
 - subscription 취소가 실패하면 local favorite 제거도 확정하지 않는다. 기존 Match favorite/subscribed 상태를 유지하고 해제 실패와 재시도를 표시한다.
 - 같은 target/Match의 취소를 반복하면 alarm OFF로 수렴하므로 응답이 불확실한 경우 같은 동작을 안전하게 재시도할 수 있다.
+- 제거 재시도가 이전 설정 요청과 교차해도 지연된 요청이 최신 사용자 의도를 되돌리지 않아야 하며, 상세 ordering contract는 [Matches 문서](../matches/README.md#match-알림-해제)를 따른다.
 
 ### 전역 알림 토글
 
@@ -100,6 +101,7 @@ system permission이 거부된 상태는 콘텐츠 오류가 아니라 알림 �
 - 인앱 요청이 더 이상 허용되지 않는 상태라면 설명과 함께 앱의 system settings로 이동하는 동작을 제공한다.
 - OFF 전환 시 현재 앱이 제시할 수 있는 `FCM registration value`의 push target에 연결된 Match 알림을 비활성화한다.
 - OFF 전환만으로 Team/Player 즐겨찾기나 Match 즐겨찾기를 삭제하지 않는다.
+- 현재 target의 모든 Match subscription이 OFF로 확인될 때까지 전역 토글은 전환 중 상태를 유지한다. 일부만 성공하거나 응답이 불확실하면 OFF 완료로 표시하지 않고, 성공한 항목은 유지한 채 미확정 항목과 재시도·재동기화 동작을 보여준다.
 - 현재 값만으로 알 수 없는 이전 registration value는 같은 물리 기기의 target으로 추론하거나 해제하지 않는다. 따라서 이전 target의 독립 구독은 남을 수 있으며, 이 current-target 의미는 [Matches 문서](../matches/README.md#전역-알림-off)를 따른다.
 - OFF 상태에서 Match Detail이 알림을 요청하면 활성화 필요 dialog를 띄우며, 사용자가 활성화를 선택하면 같은 permission 확인 흐름을 수행한다.
 
@@ -139,8 +141,9 @@ Notification subscription persistence와 scheduler는 일반 조회의 request-t
 - [ ] 각 그룹이 비어 있을 때 다른 그룹과 독립적인 empty state를 표시한다.
 - [ ] 각 즐겨찾기 항목은 대응하는 Detail로 이동한다.
 - [ ] Team/Player 즐겨찾기 제거는 로컬 데이터만 변경하며 notification subscription에는 영향을 주지 않는다.
-- [ ] Match 즐겨찾기 제거는 현재 registration value의 대응 서버 subscription을 취소하며 반복 요청은 alarm OFF로 수렴한다.
+- [ ] Match 즐겨찾기 제거는 현재 registration value의 대응 서버 subscription을 먼저 취소하고 alarm OFF 확인 뒤에만 로컬 삭제를 확정하며, 반복 요청은 alarm OFF로 수렴한다.
 - [ ] 전역 알림 OFF는 어떤 즐겨찾기도 삭제하지 않으면서 현재 registration value의 target만 비활성화한다.
+- [ ] 전역 알림 OFF가 부분 성공하거나 응답이 불확실하면 완료로 표시하지 않고 미확정 subscription의 재시도·재동기화를 제공한다.
 - [ ] 전역 알림 OFF는 알 수 없는 이전 registration value를 같은 물리 기기의 target으로 추론하거나 해제했다고 표현하지 않는다.
 - [ ] system permission이 없는 상태에서 ON을 선택하면 허용 가능한 경우 permission을 요청하고 성공 후에만 ON이 된다.
 - [ ] 인앱 permission 요청이 불가능하면 system settings 이동 안내를 제공한다.
