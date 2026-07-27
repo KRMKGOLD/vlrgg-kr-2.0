@@ -118,19 +118,24 @@ Jsoup `Document`와 `Element`, CSS selector, raw HTML, parsing 보정은 parser 
 
 ## Match Notification: Planned Exception
 
-Match 알림은 일반 request-time scraping 정책의 좁은 예외로 기획되어 있지만 아직 구현되지 않았다. 현재 서버에는 구독 endpoint, 익명 설치 식별, 영속 저장, polling scheduler, push/delivery provider 또는 delivery state가 없다. 구현 시 사용자가 특정 Match의 알림을 설정하면 앱은 Match 즐겨찾기를 로컬에 저장하고, 서버에는 익명 설치 단위의 알림 구독을 등록한다.
+Match 알림은 일반 request-time scraping 정책의 좁은 예외로 기획되어 있지만 아직 구현되지 않았다. 전송 provider는 FCM으로 정한다. 현재 서버에는 구독 endpoint, FCM 연동, 영속 저장, polling scheduler 또는 delivery state가 없다. 구현 시 사용자가 특정 Match의 알림을 설정하면 앱은 Match 즐겨찾기를 로컬에 저장하고, 서버에는 앱이 제시한 `FCM registration value`와 Match의 알림 구독을 등록한다.
+
+`FCM registration value`는 한 익명 push target의 전송 주소일 뿐 사용자 인증이나 물리 기기 소유 증명이 아니다. 서로 다른 registration value는 같은 기기에서 생성되었더라도 독립 target이며, 서버는 FID나 다른 기기 식별자로 값을 병합·대체·이관하지 않는다. 구독과 current-target OFF의 상세 제품 의미는 [Matches 기능 문서](../feature/matches/README.md)가 소유한다.
 
 - Team과 Player 즐겨찾기는 서버 알림 구독을 만들지 않는다.
 - 서버는 활성 구독의 고유 Match ID를 10분마다 확인한다.
-- 같은 Match를 여러 설치가 구독해도 upstream 확인은 Match 단위로 통합한다.
-- 경기 시작과 경기 종료 알림은 각각 한 번만 발송한다.
-- scheduler 재시도와 서버 재시작에도 중복 발송되지 않도록 delivery state를 영속화하고 idempotent하게 처리한다.
-- Match 즐겨찾기 해제는 해당 설치의 알림 구독을 제거한다.
+- 같은 Match를 여러 target이 구독해도 upstream 확인은 Match 단위로 통합한다.
+- 경기 시작과 경기 종료 알림의 server-managed intent는 subscription마다 각각 한 번이다.
+- scheduler 재시도와 서버 재시작에도 완료한 전환을 의도적으로 다시 보내지 않도록 subscription별 delivery state를 영속화하고 idempotent하게 처리한다. 이는 FCM transport나 기기 표시의 절대적 exactly-once 보장이 아니다.
 - 모든 구독이 해제되거나 경기가 종료되고 필요한 알림이 발송되면 해당 Match 추적을 중단한다.
 - 시간 변경, 연기, 취소, parsing/network failure는 서로 구분되는 내부 상태로 다룬다.
 - 알림 구독·delivery state는 이전 scraping 결과를 API failure fallback으로 제공하는 cache가 아니다.
 
-구체적인 scheduler library, database, push provider, 설치 식별자, endpoint와 payload는 Match feature 구현 계획에서 선택한다. secret과 push credential은 source code에 넣지 않는다.
+선택한 Firebase SDK registration 흐름이 현재 적용 가능한 registration value를 앱에 제공하면 앱은 그 값을 서버에 동기화한다. 새 값의 동기화는 새 독립 target의 등록이며, 이전 값을 발견·병합·비활성화하거나 기존 구독을 이관하지 않는다. 정확한 callback/API와 legacy registration token 또는 FID 기반 mode는 구현 시점의 Firebase SDK에 맞춰 선택한다.
+
+FCM send 결과가 target을 영구적으로 사용할 수 없다고 증명하면 서버는 그 registration value만 제거한다. HTTP v1 `UNREGISTERED`는 해당 값의 삭제 근거이며, `INVALID_ARGUMENT`는 outbound message payload가 별도로 유효하다고 확인된 경우에만 invalid-target 근거로 사용한다. 그 밖의 미분류 결과는 invalid-target의 증거로 사용하지 않는다. 이 정리는 물리 기기 단위 해제, 다른 value의 구독 변경, 또는 일반 stale-target batch가 아니다.
+
+구체적인 scheduler library, database, endpoint와 payload, provider adapter, delivery intent 식별자와 상태 전이, FCM 호출 전후 marker 기록·원자성, retry/backoff·횟수·provider 오류 분류, concurrency와 transaction 경계는 Match feature 구현 계획에서 선택한다. FCM registration value와 Firebase Admin credential은 public response나 log에 넣지 않는다.
 
 ## Public API Error Contract
 
@@ -184,7 +189,7 @@ data class ApiErrorResponse(
 
 - Ktor request logging
 - network/parsing failure의 `ApiErrorCode`, canonical upstream URL, cause를 서버 로그에 기록
-- secret, token, client credential, raw HTML을 로그에 기록하지 않음
+- secret, FCM registration value, client credential, raw HTML을 로그에 기록하지 않음
 
 Discord notification은 선택적인 운영 확장이다. 실제 도입할 때 webhook secret을 environment variable로 주입하고, failure notifier는 best effort로 동작시킨다. Discord 전송 실패는 원래 API failure response를 바꾸거나 새로운 failure를 만들지 않는다. 반복 failure의 notification 제어가 필요해지는 시점에만 throttling을 추가한다.
 
@@ -196,12 +201,20 @@ Discord notification은 선택적인 운영 확장이다. 실제 도입할 때 w
 
 server config와 secret은 source code에 넣지 않는다. `ServerConfig` 또는 동등한 config boundary를 실제 도입할 때 사용하고, Discord webhook 같은 secret은 environment variable로만 전달한다.
 
+FCM을 구현할 때는 다음 public-safe 경계를 지킨다.
+
+- Firebase Admin credential과 FCM send 권한은 앱이 아니라 trusted server boundary에만 둔다.
+- credential은 외부 설정으로 주입하고 source code, repository, public response, log에 넣지 않는다.
+- 실제 Firebase project identifier, service-account JSON, registration value를 예시나 placeholder 대신 커밋하지 않는다.
+- ADC, service-account loader, 환경 변수 이름과 파일 경로는 배포 환경이 정해지는 구현 단계에서 선택한다.
+- 등록 방식과 invalid-target 처리는 Firebase의 [registration 관리](https://firebase.google.com/docs/cloud-messaging/manage-tokens?hl=en), [error code](https://firebase.google.com/docs/cloud-messaging/error-codes), [trusted server 환경](https://firebase.google.com/docs/cloud-messaging/server-environment), [Admin SDK 설정](https://firebase.google.com/docs/admin/setup) 문서를 구현 시점에 다시 확인한다.
+
 ## Testing Expectations
 
 - parser test: HTML fixture를 기반으로 selector와 source-structure 가정을 검증
 - mapper test: `SourceModel`에서 response DTO로 변환되는 규칙을 검증
 - service test: request-time scraping, concurrent fetch coalescing을 구현한 경우 그 정책과 stale fallback 부재를 검증
-- notification test: 10분 polling 대상 선정, Match 단위 중복 제거, 시작/종료 1회 발송, retry idempotency, 구독 해제와 terminal cleanup을 검증
+- notification test: registration value별 target 격리, 같은 target/Match의 set/remove 수렴, 10분 polling 대상 선정, Match 단위 중복 제거, subscription별 시작/종료 intent, retry idempotency, provider-invalid value 정리와 terminal cleanup을 검증
 - error handling test: 각 failure가 올바른 HTTP status, `ApiErrorCode`, 안전한 `message` envelope로 변환되는지 검증
 - route test: 기능 기획에서 정한 request validation과 success/error response contract를 Ktor `testApplication {}`으로 검증. [Ktor server testing](https://ktor.io/docs/server-testing.html)
 

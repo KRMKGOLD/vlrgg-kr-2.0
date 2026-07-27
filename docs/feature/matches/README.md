@@ -49,7 +49,7 @@
 
 - Match 알림 설정과 Match 즐겨찾기 생성을 하나의 사용자 동작으로 처리
 - 로컬 Match 즐겨찾기 저장과 MyPage 노출
-- 익명 설치/푸시 대상을 이용한 서버 알림 구독
+- `FCM registration value`가 나타내는 익명 push target을 이용한 서버 알림 구독
 - 서버가 활성 구독의 고유 Match ID를 고정 10분 주기로 상태 확인
 - Match 시작 알림 1회와 종료 알림 1회
 - 최초 앱 실행의 알림 권한 요청, MyPage 전역 알림 ON/OFF, 비활성 상태의 안내 dialog와 system settings fallback
@@ -145,7 +145,7 @@ Match Detail Basic에 필수인 팀과 상태를 해석하지 못하면 parsing 
 - platform system permission 상태
 - 서버 구독 생성/해제 작업 상태
 
-푸시 토큰, 익명 installation 식별자, scheduler 내부 delivery marker는 UI 모델로 노출하지 않는다.
+FCM registration value, scheduler 내부 delivery marker와 다른 서버 전용 상태는 UI 모델로 노출하지 않는다.
 
 ## 화면 상태
 
@@ -199,30 +199,43 @@ Match 알림 설정과 즐겨찾기 생성은 하나의 원자적 사용자 동�
 6. 앱 안에서 다시 요청할 수 없는 상태면 이유와 함께 system settings 이동 action을 제공한다.
 7. 사용자가 취소하면 Match favorite/subscription을 생성하지 않고 상세 화면에 남는다.
 
-server subscription 생성에 실패하면 local favorite를 남기지 않고 전체 설정 실패를 표시한다. 성공한 것으로 보이는 중간 상태를 유지하지 않으며 사용자는 같은 동작을 재시도할 수 있다.
+하나의 논리적 Match subscription은 앱이 제시한 한 `FCM registration value`의 push target과 한 Match의 쌍이다. 같은 쌍의 설정을 반복하면 중복 subscription을 만들지 않고 alarm ON으로 수렴한다. 응답을 받지 못해 성공 여부가 불확실해도 같은 설정 요청을 안전하게 재시도할 수 있다.
+
+server subscription 생성이 확정적으로 실패하면 local favorite를 남기지 않고 전체 설정 실패를 표시한다. 성공한 것으로 보이는 중간 상태를 유지하지 않으며 사용자는 같은 동작을 재시도할 수 있다.
 
 앱 최초 실행에서도 platform이 요청을 허용하는 상태라면 알림 권한을 요청한다. 권한 거부 자체가 News/Matches 등 비알림 기능 사용을 막아서는 안 된다.
 
 ### Match 알림 해제
 
-- Match favorite 해제는 local favorite 제거와 해당 Match의 server subscription 취소를 함께 요청한다.
+- Match favorite 해제는 local favorite 제거와 현재 앱이 제시할 수 있는 registration value에 대응하는 해당 Match subscription 취소를 함께 요청한다.
 - MyPage와 Match Detail 어디에서 해제해도 같은 결과가 되어야 한다.
 - Team/Player favorite에는 이 흐름을 적용하지 않는다.
 - server unsubscribe가 실패하면 local favorite 제거도 확정하지 않고 기존 favorite/subscribed 상태와 재시도 동작을 유지한다.
+- 같은 target/Match의 해제를 반복하면 alarm OFF로 수렴한다. 한 registration value의 해제 요청은 다른 value의 subscription을 변경하지 않는다.
+- 같은 target/Match의 설정과 해제가 교차하면 최종 상태는 앱이 발행한 최신 사용자 의도에 수렴해야 한다. 늦게 도착한 이전 요청이나 그 재시도가 이후 의도를 되돌려서는 안 된다. 이를 증명할 version/generation 또는 request ordering과 endpoint field는 Match 알림 구현 계획에서 정한다.
 
 ### 전역 알림 OFF
 
 - MyPage의 전역 OFF는 기존 Match favorite를 Team/Player favorite로 변환하거나 삭제하지 않는다.
-- OFF 상태에서는 사용자에게 알림을 전달하지 않는다.
+- 전역 OFF는 현재 앱이 제시할 수 있는 registration value의 push target에 연결된 Match 알림만 비활성화한다.
+- 현재 target에 연결된 여러 Match subscription 중 일부만 OFF로 확인되거나 응답이 불확실하면 앱은 전역 OFF를 완료 상태로 표시하지 않는다. 이미 OFF로 확인된 subscription은 그대로 유지하고 미확정 subscription만 pending으로 표시해 재시도·재동기화하며, 이 과정에서도 모든 favorite는 보존한다.
+- 전역 OFF가 pending인 동안 사용자가 개별 Match 알림을 다시 ON으로 선택하면 그 선택이 최신 전역·Match 의도가 된다. 앱은 남은 전역 OFF 재시도를 중단하고 전역 ON 활성화 흐름 뒤 해당 Match를 설정하며, 지연된 이전 bulk OFF 요청이나 응답이 이 ON을 되돌려서는 안 된다.
+- 앱과 서버는 현재 값만으로 알 수 없는 이전 registration value를 같은 물리 기기의 target으로 추론하거나 해제하지 않는다. 이전 target의 구독은 독립적으로 완료·명시적 해제·provider invalid 처리될 때까지 유효할 수 있고, 이전 target과 현재 target의 일시적 중복 전달은 MVP에서 허용한다.
 - OFF 상태에서 새 Match 알림을 요청하면 activation-required dialog를 표시한다.
+
+여러 subscription을 비활성화하는 endpoint 형태와 서버 transaction 경계는 Match 알림 구현 계획에서 정하되, 부분 성공을 전체 성공으로 보고해서는 안 된다.
 
 ## 10분 Match 추적 및 알림 contract
 
 ### 구독
 
-- 서버는 계정 없이 전송할 수 있도록 Match ID와 최소한의 익명 installation/push-target 정보를 저장한다.
-- 같은 Match를 여러 기기가 구독해도 upstream 상태 확인은 고유 Match ID 기준으로 중복 제거한다.
-- Match favorite를 제거하면 해당 설치의 구독을 취소한다. 다른 설치의 같은 Match 구독에는 영향을 주지 않는다.
+- `FCM registration value`는 계정 없는 한 익명 push target의 전송 주소이며 사용자 인증이나 물리 기기 소유 증명이 아니다.
+- 서로 다른 registration value는 같은 물리 기기에서 생성되었더라도 독립 target이다. 서버는 FID나 다른 기기 식별자로 값을 병합·대체·이관하지 않는다.
+- 이전 registration value로 이미 만든 subscription은 해당 Match 알림 의무가 끝나거나 그 값을 사용해 명시적으로 해제하거나 provider/runtime 처리로 전송 불가능해질 때까지 독립적으로 유효하다.
+- 서버는 `(FCM registration value, Match)` 쌍을 하나의 논리적 subscription으로 다룬다. 이는 제품 invariant이며 특정 table key나 persistence schema를 미리 정하지 않는다.
+- 같은 Match를 여러 target이 구독해도 upstream 상태 확인은 고유 Match ID 기준으로 중복 제거한다.
+
+registration value의 SDK 획득·서버 동기화, provider가 증명한 invalid-target 삭제, Firebase credential 경계는 [서버 아키텍처 문서](../../architecture/server-arch.md#match-notification-planned-exception)가 소유한다.
 
 ### 추적
 
@@ -249,7 +262,7 @@ server subscription 생성에 실패하면 local favorite를 남기지 않고 �
 - 목록/상세 요청에서 `Scraper → Parser → SourceModel → Mapper → Response` 경계를 유지한다.
 - Upcoming/Live, Results, Match Detail HTML을 app-facing response로 가공한다.
 - DOM selector, raw HTML, Jsoup type을 public response에 노출하지 않는다.
-- 알림 기능에 한해 anonymous subscription persistence, 10분 scheduler, 상태 비교, idempotent start/end delivery를 소유한다.
+- 알림 기능에 한해 registration-value target별 subscription persistence, 10분 scheduler, 상태 비교, idempotent start/end delivery를 소유한다.
 - network/parsing failure를 안전한 공통 error envelope로 반환하고 실패를 terminal Match 상태로 오인하지 않는다.
 
 ### 앱
@@ -334,13 +347,17 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 
 - [ ] 활성 권한/전역 ON 상태에서 Match 알림을 설정하면 local Match favorite와 server subscription이 모두 생성된다.
 - [ ] Match favorite는 MyPage에 표시되고 MyPage와 Match Detail 모두에서 같은 상세 화면으로 이동한다.
-- [ ] Match favorite 해제는 해당 설치의 server subscription도 취소한다.
+- [ ] 같은 registration value와 Match의 알림 설정을 반복하면 중복 없이 alarm ON으로 수렴하고, 응답이 불확실한 요청을 안전하게 재시도할 수 있다.
+- [ ] Match favorite 해제는 현재 registration value의 대응 subscription도 취소하며 반복 해제는 alarm OFF로 수렴한다.
+- [ ] 같은 target/Match의 설정과 해제가 교차하거나 이전 요청이 지연되어도 최종 상태는 최신 사용자 의도에 수렴한다.
 - [ ] Team/Player favorite는 Match 알림 subscription을 만들지 않는다.
 - [ ] 최초 앱 실행에서 platform이 허용하면 알림 권한을 요청하며, 거부해도 비알림 기능을 사용할 수 있다.
 - [ ] 전역 OFF 또는 권한 비활성 상태에서 Match 알림을 누르면 activation-required dialog가 표시된다.
 - [ ] dialog 활성화 흐름은 permission 성공 뒤에만 전역 설정을 ON으로 바꾸고 구독을 생성한다.
 - [ ] 앱 내 재요청이 불가능하면 명확한 안내와 system settings 이동 action을 제공한다.
-- [ ] 전역 알림 OFF는 기존 Match favorite를 삭제하지 않지만 사용자 알림 전달을 중단한다.
+- [ ] 전역 알림 OFF는 기존 Match favorite를 삭제하지 않고 현재 registration value의 알림만 비활성화하며, 알 수 없는 이전 target까지 해제했다고 표현하지 않는다.
+- [ ] 전역 알림 OFF가 부분 성공하거나 응답이 불확실하면 완료로 표시하지 않고, 이미 OFF인 subscription을 되돌리지 않으면서 미확정 subscription만 재시도·재동기화한다.
+- [ ] 전역 OFF pending 중 개별 Match를 ON으로 선택하면 남은 OFF 재시도를 중단하고 해당 ON 의도를 우선하며, 지연된 bulk OFF가 이를 되돌리지 않는다.
 - [ ] server subscription 생성에 실패하면 local Match favorite가 남지 않고 전체 설정 실패와 재시도가 표시된다.
 - [ ] server unsubscribe가 실패하면 기존 Match favorite/subscribed 상태가 유지되고 해제 실패와 재시도가 표시된다.
 - [ ] MyPage와 Match Detail은 같은 성공·실패 결과를 표시한다.
@@ -348,6 +365,7 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 ### 서버 추적과 전달
 
 - [ ] scheduler가 활성 구독을 기기별이 아닌 고유 Match ID별로 10분마다 확인한다.
+- [ ] 서로 다른 registration value는 독립 target이며 이전·현재 target의 같은 Match 중복 전달 가능성을 허용한다.
 - [ ] 동일 Match 상태를 반복 관찰하거나 job을 재시도해도 subscription별 시작 알림 intent가 1회를 넘지 않는다.
 - [ ] 동일 조건에서 종료 알림 intent가 1회를 넘지 않는다.
 - [ ] network/parsing failure와 upstream missing을 경기 시작·종료로 오인하지 않는다.
