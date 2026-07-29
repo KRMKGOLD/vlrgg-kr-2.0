@@ -72,8 +72,10 @@ class FirebaseNotificationProviderTest {
 
     @Test fun `actual Firebase failure adapter rejects duplicate and malformed retry header shapes`() = runBlocking {
         val shapes = listOf(
+            mapOf("Retry-After" to "1"),
             linkedMapOf("Retry-After" to listOf("1"), "retry-after" to listOf("2")),
             mapOf("Retry-After" to emptyList<String>()),
+            mapOf("Retry-After" to listOf("1", "2")),
             mapOf("Retry-After" to listOf(1)),
             mapOf("Retry-After" to setOf("1")),
         )

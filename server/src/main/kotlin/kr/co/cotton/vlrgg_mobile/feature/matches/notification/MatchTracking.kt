@@ -1,12 +1,11 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
@@ -90,8 +89,8 @@ internal class FixedDelayMatchPolling(
     private val tracker: MatchTracker,
     private val delayMillis: Long,
 ) {
-    fun start(scope: CoroutineScope): Job = scope.launch {
-        while (isActive) {
+    suspend fun run() {
+        while (currentCoroutineContext().isActive) {
             tracker.runCycle()
             delay(delayMillis)
         }

@@ -109,16 +109,18 @@ internal fun Application.module(
         val scope = CoroutineScope(Dispatchers.Default)
         try {
             if (startNotificationTracking) {
-                resources.trackTracking(FixedDelayMatchPolling(
+                val polling = FixedDelayMatchPolling(
                     MatchTracker(notificationStore, observationProvider ?: MatchesServiceObservationProvider(resolvedMatchesService)),
                     requireNotNull(notificationConfiguration).pollDelayMillis,
-                ).start(scope))
+                )
+                resources.startTracking(scope) { polling.run() }
             }
             if (startNotificationDelivery) requireNotNull(notificationProvider) { "delivery requires a provider" }.let { provider ->
-                resources.trackDelivery(FixedDelayDeliveryPolling(
+                val polling = FixedDelayDeliveryPolling(
                     NotificationDeliveryService(notificationStore, provider, requireNotNull(notificationConfiguration)),
                     notificationConfiguration.pollDelayMillis,
-                ).start(scope))
+                )
+                resources.startDelivery(scope) { polling.run() }
             }
         } catch (error: Throwable) {
             resources.stopBlocking()

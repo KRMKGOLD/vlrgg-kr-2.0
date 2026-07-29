@@ -84,17 +84,12 @@ private fun firebaseProviderFailure(error: Throwable): FirebaseProviderFailure? 
 
 /**
  * Firebase Admin's Google HttpHeaders stores field values as Object, normally List<String>.
- * Only one case-insensitive field name and exactly one String list element are canonical; the
- * scalar branch is retained solely for the provider-neutral offline test seam.
+ * Only one case-insensitive field name and exactly one String list element are canonical.
  */
 private fun normalizeRetryAfterHeader(headers: Map<String, Any?>): Map<String, Any?> {
     val candidates = headers.entries.filter { it.key.equals("Retry-After", ignoreCase = true) }
     if (candidates.size != 1) return emptyMap()
-    val scalar = when (val value = candidates.single().value) {
-        is String -> value
-        is List<*> -> value.singleOrNull() as? String
-        else -> null
-    } ?: return emptyMap()
+    val scalar = (candidates.single().value as? List<*>)?.singleOrNull() as? String ?: return emptyMap()
     return mapOf("Retry-After" to scalar)
 }
 

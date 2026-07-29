@@ -4,8 +4,10 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -110,9 +112,9 @@ internal fun <T> runWithNotificationRuntime(
 }
 
 internal class FixedDelayDeliveryPolling(private val service: NotificationDeliveryService, private val delayMillis: Long) {
-    fun start(scope: CoroutineScope): Job = scope.launch {
-        while (isActive) {
-            while (isActive && service.runOnce()) { }
+    suspend fun run() {
+        while (currentCoroutineContext().isActive) {
+            while (currentCoroutineContext().isActive && service.runOnce()) { }
             delay(delayMillis)
         }
     }
@@ -125,37 +127,34 @@ internal class OwnedNotificationResources(
     private val closeStore: (NotificationStore) -> Unit = NotificationStore::close,
 ) {
     private val lock = Any()
-    private var tracking: Job? = null
-    private var delivery: Job? = null
-    private val lateJobs = mutableListOf<Pair<Job, Boolean>>()
+    private val trackingJobs = mutableListOf<Job>()
+    private val deliveryJobs = mutableListOf<Job>()
     private var completion: CompletableDeferred<Result<Unit>>? = null
     private var closing = false
 
-    fun trackTracking(job: Job) = track(job, true)
-    fun trackDelivery(job: Job) = track(job, false)
+    /**
+     * The gate owns lazy creation, registration, and start as one atomic operation.  Once stop
+     * enters the gate, it creates no new coroutine, so a post-close caller cannot run against a
+     * released Firebase app or store.
+     */
+    fun startTracking(scope: CoroutineScope, block: suspend CoroutineScope.() -> Unit): Job? = startWorker(scope, true, block)
+    fun startDelivery(scope: CoroutineScope, block: suspend CoroutineScope.() -> Unit): Job? = startWorker(scope, false, block)
 
-    private fun track(job: Job, isTracking: Boolean) {
-        val cancelAndJoin = synchronized(lock) {
-            when {
-                completion == null -> {
-                    if (isTracking) tracking = job else delivery = job
-                    false
-                }
-                !closing -> {
-                    lateJobs += job to isTracking
-                    false
-                }
-                else -> true
-            }
-        }
-        // A registration that arrives after the cleanup barrier is rejected, rather than silently
-        // becoming an unowned worker.  It never races an owned Firebase/store close.
-        if (cancelAndJoin) runBlocking { job.cancelAndJoin() }
+    private fun startWorker(scope: CoroutineScope, isTracking: Boolean, block: suspend CoroutineScope.() -> Unit): Job? = synchronized(lock) {
+        if (closing) return@synchronized null
+        val job = scope.launch(start = CoroutineStart.LAZY, block = block)
+        if (isTracking) trackingJobs += job else deliveryJobs += job
+        job.start()
+        job
     }
 
     suspend fun stopAndJoin() {
         val (shared, owner) = synchronized(lock) {
-            completion?.let { it to false } ?: CompletableDeferred<Result<Unit>>().also { completion = it } to true
+            completion?.let { it to false } ?: CompletableDeferred<Result<Unit>>().also {
+                // This is the pre-close barrier: startWorker can no longer create or start a job.
+                closing = true
+                completion = it
+            } to true
         }
         if (owner) {
             val outcome = runCatching { cleanup() }
@@ -169,39 +168,14 @@ internal class OwnedNotificationResources(
         suspend fun capture(block: suspend () -> Unit) {
             try { block() } catch (error: Throwable) { if (firstFailure == null) firstFailure = error }
         }
-        while (true) {
-            val jobs = synchronized(lock) {
-                val batch = buildList {
-                    delivery?.let { add(it to false) }
-                    tracking?.let { add(it to true) }
-                    addAll(lateJobs)
-                }
-                delivery = null
-                tracking = null
-                lateJobs.clear()
-                batch
-            }
-            jobs.filter { !it.second }.forEach { (job, _) -> capture { job.cancelAndJoin() } }
-            jobs.filter { it.second }.forEach { (job, _) -> capture { job.cancelAndJoin() } }
-            val hasLateJob = synchronized(lock) {
-                if (lateJobs.isEmpty()) {
-                    // This is the registration barrier. track() cannot offer an owned job after
-                    // closing becomes true, and any offer before it was included by the loop.
-                    closing = true
-                    false
-                } else true
-            }
-            if (!hasLateJob) break
-        }
+        val (delivery, tracking) = synchronized(lock) { deliveryJobs.toList() to trackingJobs.toList() }
+        delivery.forEach { job -> capture { job.cancelAndJoin() } }
+        tracking.forEach { job -> capture { job.cancelAndJoin() } }
         fun closeCapture(block: () -> Unit) {
             try { block() } catch (error: Throwable) { if (firstFailure == null) firstFailure = error }
         }
-        synchronized(lock) {
-            // Hold the registration gate through the irreversible resources. A concurrent track()
-            // either joined the preceding batch or is rejected only after this owner is complete.
-            closeCapture { firebaseApp?.close() }
-            closeCapture { closeStore(store) }
-        }
+        closeCapture { firebaseApp?.close() }
+        closeCapture { closeStore(store) }
         firstFailure?.let { throw it }
     }
 

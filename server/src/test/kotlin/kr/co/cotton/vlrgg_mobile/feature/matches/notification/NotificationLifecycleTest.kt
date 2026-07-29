@@ -5,6 +5,7 @@ import kotlin.io.path.absolutePathString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlinx.coroutines.CompletableDeferred
@@ -13,7 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
@@ -63,8 +63,8 @@ class NotificationLifecycleTest {
             val trackingEntered = CompletableDeferred<Unit>()
             val deliveryEntered = CompletableDeferred<Unit>()
             val scope = CoroutineScope(Dispatchers.Default)
-            resources.trackTracking(scope.worker("tracking", trackingEntered, events))
-            resources.trackDelivery(scope.worker("delivery", deliveryEntered, events))
+            resources.startTracking(scope) { worker("tracking", trackingEntered, events) }
+            resources.startDelivery(scope) { worker("delivery", deliveryEntered, events) }
             trackingEntered.await(); deliveryEntered.await()
             resources.stopAndJoin()
             resources.stopAndJoin()
@@ -84,31 +84,32 @@ class NotificationLifecycleTest {
         }
     }
 
-    @Test fun `late worker registration before the closing barrier is joined before resources close`() = runBlocking {
+    @Test fun `close barrier rejects a racing worker before its body can execute`() = runBlocking {
         val events = mutableListOf<String>()
         NotificationStore.open(config()).use { store ->
             val resources = OwnedNotificationResources(RecordingFirebase(events), store) { events += "store" }
             val deliveryEntered = CompletableDeferred<Unit>()
             val deliveryCancelling = CompletableDeferred<Unit>()
             val allowDeliveryFinish = CompletableDeferred<Unit>()
-            val lateEntered = CompletableDeferred<Unit>()
+            val postBarrierEntered = CompletableDeferred<Unit>()
             val scope = CoroutineScope(Dispatchers.Default)
-            resources.trackDelivery(scope.launch {
+            resources.startDelivery(scope) {
                 deliveryEntered.complete(Unit)
                 try { awaitCancellation() } finally {
                     events += "delivery"
                     deliveryCancelling.complete(Unit)
                     withContext(NonCancellable) { allowDeliveryFinish.await() }
                 }
-            })
+            }
             deliveryEntered.await()
             val stop = async(Dispatchers.Default) { resources.stopAndJoin() }
             deliveryCancelling.await()
-            resources.trackTracking(scope.worker("late", lateEntered, events))
-            lateEntered.await()
+            val rejected = resources.startTracking(scope) { postBarrierEntered.complete(Unit) }
+            assertNull(rejected)
             allowDeliveryFinish.complete(Unit)
             stop.await()
-            assertEquals(listOf("delivery", "late", "firebase", "store"), events)
+            assertEquals(listOf("delivery", "firebase", "store"), events)
+            assertFalse(postBarrierEntered.isCompleted)
         }
     }
 
@@ -138,7 +139,7 @@ class NotificationLifecycleTest {
         assertEquals(0, calls)
     }
 
-    private fun CoroutineScope.worker(name: String, entered: CompletableDeferred<Unit>, events: MutableList<String>) = launch {
+    private suspend fun worker(name: String, entered: CompletableDeferred<Unit>, events: MutableList<String>) {
         entered.complete(Unit)
         try { awaitCancellation() } finally { events += name }
     }
