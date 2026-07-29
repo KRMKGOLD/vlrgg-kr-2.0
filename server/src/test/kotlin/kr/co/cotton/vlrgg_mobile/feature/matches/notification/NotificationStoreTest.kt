@@ -36,6 +36,31 @@ class NotificationStoreTest {
         }
     }
 
+    @Test fun `configured 16 KiB registration value persists in the V1 schema`() {
+        val path = freshPath()
+        val value = "a".repeat(16 * 1024)
+        openStore(path, registrationValueMaxBytes = 16 * 1024).use { store ->
+            val target = requireNotNull(store.findOrRegister(value, "register", 1).target)
+            assertEquals(value, rawValue(target, path))
+        }
+    }
+
+    @Test fun `at-cap revision rejections precede capacity and genuine growth still fails`() {
+        openStore(limit = 1).use { store ->
+            val target = requireNotNull(store.findOrRegister("registration-a", "register", 1).target)
+            assertEquals(RevisionResult.APPLIED, store.mutateSubscription(target, 42, true, 2, "subscribe:42"))
+
+            assertEquals(RevisionResult.STALE, store.mutateSubscription(target, 43, true, 1, "subscribe:43"))
+            assertEquals(RevisionResult.REPLAYED, store.mutateSubscription(target, 43, true, 2, "subscribe:42"))
+            assertEquals(RevisionResult.CONFLICT, store.mutateSubscription(target, 43, true, 2, "subscribe:43"))
+            assertFailsWith<SubscriptionLimitExceededException> { store.mutateSubscription(target, 43, true, 3, "subscribe:43") }
+            assertEquals(2, requireNotNull(store.targetProjection(target)).acceptedRevision)
+            assertEquals(RevisionResult.APPLIED, store.findOrRegister("registration-a", "terminal", Long.MAX_VALUE).revision)
+            assertEquals(RevisionResult.REPLAYED, store.mutateSubscription(target, 43, true, Long.MAX_VALUE, "terminal"))
+            assertEquals(RevisionResult.CONFLICT, store.mutateSubscription(target, 43, true, Long.MAX_VALUE, "later-operation"))
+        }
+    }
+
     @Test fun `subscription cap counts growth only and global off is target isolated`() {
         val path = freshPath()
         openStore(path, limit = 1).use { store ->
@@ -89,15 +114,16 @@ class NotificationStoreTest {
         assertEquals(ConfigurationCategory.TARGET_MODE_MISMATCH, modeFailure.category)
     }
 
-    private fun openStore(path: String = freshPath(), mode: FirebaseTargetMode = FirebaseTargetMode.FID, key: String = ZERO_KEY, limit: Int = 100, digest: TargetDigest? = null): NotificationStore {
-        return digest?.let { NotificationStore.openForTesting(configuration(path, mode, key, limit), it) } ?: NotificationStore.open(configuration(path, mode, key, limit))
+    private fun openStore(path: String = freshPath(), mode: FirebaseTargetMode = FirebaseTargetMode.FID, key: String = ZERO_KEY, limit: Int = 100, registrationValueMaxBytes: Int = 4096, digest: TargetDigest? = null): NotificationStore {
+        return digest?.let { NotificationStore.openForTesting(configuration(path, mode, key, limit, registrationValueMaxBytes), it) } ?: NotificationStore.open(configuration(path, mode, key, limit, registrationValueMaxBytes))
     }
 
-    private fun configuration(path: String, mode: FirebaseTargetMode, key: String, limit: Int) = NotificationConfiguration.fromEnvironment(
+    private fun configuration(path: String, mode: FirebaseTargetMode, key: String, limit: Int, registrationValueMaxBytes: Int) = NotificationConfiguration.fromEnvironment(
         mapOf(
             "VLRGG_NOTIFICATIONS_ENABLED" to "true", "VLRGG_NOTIFICATIONS_STORAGE_PATH" to path,
             "VLRGG_NOTIFICATIONS_FIREBASE_PROJECT_ID" to "vlrgg-stage1", "VLRGG_NOTIFICATION_LOOKUP_DIGEST_KEY" to key,
             "VLRGG_NOTIFICATIONS_FIREBASE_TARGET_MODE" to mode.name, "VLRGG_NOTIFICATIONS_ACTIVE_SUBSCRIPTIONS" to limit.toString(),
+            "VLRGG_NOTIFICATIONS_REGISTRATION_VALUE_BYTES" to registrationValueMaxBytes.toString(),
         ), ServerListenerConfiguration("127.0.0.1", 8080),
     )
 

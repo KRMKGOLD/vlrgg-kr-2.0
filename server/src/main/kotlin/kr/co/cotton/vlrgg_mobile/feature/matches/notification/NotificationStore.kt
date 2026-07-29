@@ -70,6 +70,8 @@ class NotificationStore private constructor(
         requireValidRevision(revision)
         val row = targetRow(connection, target) ?: return@transaction RevisionResult.CONFLICT
         if (!row.sendable) return@transaction RevisionResult.CONFLICT
+        val revisionOutcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
+        if (revisionOutcome != RevisionResult.APPLIED) return@transaction revisionOutcome
         val priorActive = subscriptionActive(connection, target, matchId)
         if (active && priorActive != true && activeSubscriptionCount(connection, target) >= configuration.activeSubscriptionsMax) throw SubscriptionLimitExceededException()
         val result = applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
@@ -141,17 +143,23 @@ class NotificationStore private constructor(
 
     private fun applyRevision(connection: java.sql.Connection, target: PushTarget, current: Long, currentOperationHash: ByteArray, requested: Long, operation: String, now: Instant): RevisionResult {
         requireValidRevision(requested)
-        val hash = operationHash(operation)
-        when {
-            requested < current -> return RevisionResult.STALE
-            requested == current -> return if (constantTimeEquals(currentOperationHash, hash)) RevisionResult.REPLAYED else RevisionResult.CONFLICT
-            current == Long.MAX_VALUE -> return RevisionResult.REVISION_EXHAUSTED
-        }
+        val outcome = revisionOutcome(current, currentOperationHash, requested, operation)
+        if (outcome != RevisionResult.APPLIED) return outcome
         connection.prepareStatement("UPDATE notification_targets SET accepted_revision=?, operation_hash=?, updated_at=? WHERE id=? AND accepted_revision=?").use { statement ->
-            statement.setLong(1, requested); statement.setBytes(2, hash); statement.setObject(3, now); statement.setObject(4, target.id); statement.setLong(5, current)
+            statement.setLong(1, requested); statement.setBytes(2, operationHash(operation)); statement.setObject(3, now); statement.setObject(4, target.id); statement.setLong(5, current)
             if (statement.executeUpdate() != 1) return RevisionResult.CONFLICT
         }
         return RevisionResult.APPLIED
+    }
+
+    private fun revisionOutcome(current: Long, currentOperationHash: ByteArray, requested: Long, operation: String): RevisionResult {
+        val hash = operationHash(operation)
+        return when {
+            requested < current -> RevisionResult.STALE
+            requested == current -> if (constantTimeEquals(currentOperationHash, hash)) RevisionResult.REPLAYED else RevisionResult.CONFLICT
+            current == Long.MAX_VALUE -> RevisionResult.REVISION_EXHAUSTED
+            else -> RevisionResult.APPLIED
+        }
     }
 
     private fun <T> transaction(block: (java.sql.Connection) -> T): T = dataSource.connection.use { connection ->

@@ -13,7 +13,8 @@ CREATE TABLE notification_targets (
     target_mode VARCHAR(32) NOT NULL,
     lookup_digest BINARY(32) NOT NULL,
     lookup_key_id VARCHAR(64) NOT NULL,
-    registration_value VARCHAR(4096),
+    -- The configured 16 KiB UTF-8 limit bounds code points to at most 16,384 characters.
+    registration_value VARCHAR(16384),
     sendable BOOLEAN NOT NULL,
     invalidated_at TIMESTAMP WITH TIME ZONE,
     accepted_revision BIGINT NOT NULL,
