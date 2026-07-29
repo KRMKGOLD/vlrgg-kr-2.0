@@ -24,6 +24,14 @@ enum class NotificationEventType { START, END }
 enum class DeliveryState { PENDING, RETRY_WAIT, CLAIMED_NOT_STARTED, CALL_STARTED, ACCEPTED, INVALID_TARGET, TERMINAL_FAILURE, UNKNOWN }
 data class DeliveryClaim(val intentId: UUID, val target: PushTarget, val event: NotificationEventType, val token: UUID, val attemptCount: Int, val retryDelayMillis: Long?, val retryDecisionAt: Instant?, val retryDueAt: Instant?)
 internal data class DeliveryCall(val claim: DeliveryClaim, val target: SendableDeliveryTarget)
+internal data class DeliveryDetails(
+    val state: DeliveryState,
+    val attemptCount: Int,
+    val terminalReason: String?,
+    val retryDelayMillis: Long?,
+    val retryDecisionAt: Instant?,
+    val retryDueAt: Instant?,
+)
 data class SubscriptionProjection(val matchId: Long, val active: Boolean)
 data class NotificationStateProjection(val acceptedRevision: Long, val subscriptions: List<SubscriptionProjection>)
 internal typealias TargetDigest = (ByteArray, FirebaseTargetMode, String) -> ByteArray
@@ -231,6 +239,21 @@ class NotificationStore private constructor(
         connection.prepareStatement("SELECT state, application_attempt_count FROM notification_delivery_intents WHERE match_id=? AND event_type=? LIMIT 1").use { statement ->
             statement.setLong(1, matchId); statement.setString(2, event.name); statement.executeQuery().use { rows ->
                 if (rows.next()) DeliveryState.valueOf(rows.getString(1)) to rows.getInt(2) else null
+            }
+        }
+    }
+
+    internal fun deliveryDetails(matchId: Long, event: NotificationEventType): DeliveryDetails? = transaction { connection ->
+        connection.prepareStatement("SELECT state, application_attempt_count, terminal_reason, retry_delay_millis, retry_decision_at, due_at FROM notification_delivery_intents WHERE match_id=? AND event_type=? LIMIT 1").use { statement ->
+            statement.setLong(1, matchId); statement.setString(2, event.name); statement.executeQuery().use { rows ->
+                if (!rows.next()) null else DeliveryDetails(
+                    state = DeliveryState.valueOf(rows.getString(1)),
+                    attemptCount = rows.getInt(2),
+                    terminalReason = rows.getString(3),
+                    retryDelayMillis = rows.getLong(4).takeUnless { rows.wasNull() },
+                    retryDecisionAt = rows.getObject(5, Instant::class.java),
+                    retryDueAt = rows.getObject(6, Instant::class.java),
+                )
             }
         }
     }

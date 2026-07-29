@@ -142,9 +142,31 @@ private sealed interface RetryAfter { data class Value(val millis: Long) : Retry
 private fun retryAfter(headers: Map<String, Any?>, now: Instant): RetryAfter {
     val values = headers.entries.filter { it.key.equals("Retry-After", ignoreCase = true) }.map { it.value }
     if (values.size != 1 || values.single() !is String) return RetryAfter.INVALID
-    val value = (values.single() as String).trim()
-    if (Regex("^[0-9]+$").matches(value)) return try { RetryAfter.Value(Math.multiplyExact(value.toLong(), 1000L)) } catch (_: ArithmeticException) { RetryAfter.OVERFLOW }
-    return try { java.time.Duration.between(now, ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()).toMillis().takeIf { it > 0 }?.let(RetryAfter::Value) ?: RetryAfter.INVALID } catch (_: ArithmeticException) { RetryAfter.OVERFLOW } catch (_: Exception) { RetryAfter.INVALID }
+    val value = (values.single() as String).trimAsciiHttpWhitespace()
+    if (value.all { it in '0'..'9' } && value.isNotEmpty()) return try {
+        RetryAfter.Value(Math.multiplyExact(value.toLong(), 1_000L))
+    } catch (_: NumberFormatException) {
+        RetryAfter.OVERFLOW
+    } catch (_: ArithmeticException) {
+        RetryAfter.OVERFLOW
+    }
+    return try {
+        val retryAt = ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()
+        java.time.Duration.between(now, retryAt).toMillis().takeIf { it > 0 }?.let(RetryAfter::Value) ?: RetryAfter.INVALID
+    } catch (_: ArithmeticException) {
+        RetryAfter.OVERFLOW
+    } catch (_: java.time.DateTimeException) {
+        RetryAfter.INVALID
+    }
+}
+
+/** HTTP field-value OWS is ASCII SP / HTAB only; Unicode whitespace is not silently accepted. */
+private fun String.trimAsciiHttpWhitespace(): String {
+    var first = 0
+    var last = length
+    while (first < last && (this[first] == ' ' || this[first] == '\t')) first++
+    while (last > first && (this[last - 1] == ' ' || this[last - 1] == '\t')) last--
+    return substring(first, last)
 }
 
 private fun deterministicJitter(claim: DeliveryClaim, maximum: Long): Long {
