@@ -3,6 +3,8 @@ package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 import java.nio.file.Files
 import java.sql.DriverManager
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.absolutePathString
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -117,6 +119,26 @@ class NotificationStoreTest {
         assertEquals(ConfigurationCategory.DIGEST_KEY_MISMATCH, keyFailure.category)
         val modeFailure = assertFailsWith<NotificationConfigurationException> { openStore(path, mode = FirebaseTargetMode.LEGACY_TOKEN) }
         assertEquals(ConfigurationCategory.TARGET_MODE_MISMATCH, modeFailure.category)
+    }
+
+    @Test fun `concurrent first subscription converges without a uniqueness exception`() {
+        val path = freshPath()
+        openStore(path).use { first ->
+            openStore(path).use { second ->
+                val ready = CountDownLatch(2)
+                val start = CountDownLatch(1)
+                val results = java.util.Collections.synchronizedList(mutableListOf<RevisionResult?>())
+                val threads = listOf(first, second).map { store -> Thread {
+                    ready.countDown()
+                    start.await()
+                    results += store.reconcileSubscription("same-address", 42, true, 1).revision
+                }.also(Thread::start) }
+                assertTrue(ready.await(1, TimeUnit.SECONDS))
+                start.countDown()
+                threads.forEach { it.join(5_000) }
+                assertEquals(setOf(RevisionResult.APPLIED, RevisionResult.REPLAYED), results.toSet())
+            }
+        }
     }
 
     private fun openStore(path: String = freshPath(), mode: FirebaseTargetMode = FirebaseTargetMode.FID, key: String = ZERO_KEY, limit: Int = 100, registrationValueMaxBytes: Int = 4096, digest: TargetDigest? = null): NotificationStore {

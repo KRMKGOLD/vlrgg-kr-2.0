@@ -1,12 +1,15 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
 import kr.co.cotton.vlrgg_mobile.feature.matches.MatchStatus
@@ -49,7 +52,7 @@ internal class MatchTracker(
 ) {
     suspend fun runCycle() {
         store.activeMatchIds().forEach { matchId ->
-            val result = try { provider.observe(matchId) } catch (_: Exception) { MatchObservation.NetworkFailure }
+            val result = try { provider.observe(matchId) } catch (error: CancellationException) { throw error } catch (_: Exception) { MatchObservation.NetworkFailure }
             when (result) {
                 is MatchObservation.Success -> store.recordObservation(matchId, ObservationResult.SUCCESS, result.status, Instant.now(clock))
                 MatchObservation.NetworkFailure -> store.recordObservation(matchId, ObservationResult.NETWORK_FAILURE, now = Instant.now(clock))
@@ -57,6 +60,28 @@ internal class MatchTracker(
                 MatchObservation.Missing -> store.recordObservation(matchId, ObservationResult.MISSING, now = Instant.now(clock))
             }
         }
+    }
+}
+
+/** Owns a single tracker job: close happens only after cancellation has completed. */
+internal class OwnedTrackingJob(
+    private val job: Job,
+    private val closeStore: () -> Unit,
+) {
+    private val closed = AtomicBoolean(false)
+
+    fun stopWithoutBlockingLifecycleThread() {
+        job.invokeOnCompletion { closeOnce() }
+        job.cancel()
+    }
+
+    suspend fun stopAndJoin() {
+        job.cancelAndJoin()
+        closeOnce()
+    }
+
+    private fun closeOnce() {
+        if (closed.compareAndSet(false, true)) closeStore()
     }
 }
 

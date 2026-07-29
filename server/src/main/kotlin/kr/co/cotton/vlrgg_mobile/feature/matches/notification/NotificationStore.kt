@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Instant
+import java.sql.SQLIntegrityConstraintViolationException
+import java.sql.SQLTransactionRollbackException
 import java.util.UUID
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -42,14 +44,13 @@ class NotificationStore private constructor(
     private val mode get() = configuration.targetMode
     private val lookupKey get() = requireNotNull(configuration.lookupDigestKey)
     private val keyId get() = sha256Hex(lookupKey)
-    private var lastObservationAt = Instant.MIN
 
     fun findOrRegister(registrationValue: String, operation: String, revision: Long, now: Instant = Instant.now()): TargetLookupResult {
         requireValidRevision(revision)
         requireValidRegistrationValue(registrationValue)
         val digest = targetDigest(lookupKey, mode, registrationValue)
         require(digest.size == 32) { "target digest must be 32 bytes" }
-        return transaction { connection ->
+        return retryingTransaction { connection ->
             connection.prepareStatement("SELECT id, registration_value, sendable, accepted_revision, operation_hash FROM notification_targets WHERE provider=? AND target_mode=? AND lookup_digest=?").use { statement ->
                 statement.setString(1, PROVIDER); statement.setString(2, mode.name); statement.setBytes(3, digest)
                 statement.executeQuery().use { rows ->
@@ -62,7 +63,7 @@ class NotificationStore private constructor(
                     } else {
                         val target = PushTarget(rows.getObject(1, UUID::class.java))
                         val raw = rows.getString(2)
-                        if (!rows.getBoolean(3) || raw == null) return@transaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+                        if (!rows.getBoolean(3) || raw == null) return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
                         if (!constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
                         val result = applyRevision(connection, target, rows.getLong(4), rows.getBytes(5), revision, operation, now)
                         TargetLookupResult(target, TargetResolution.EXISTING, result)
@@ -72,17 +73,17 @@ class NotificationStore private constructor(
         }
     }
 
-    fun mutateSubscription(target: PushTarget, matchId: Long, active: Boolean, revision: Long, operation: String, now: Instant = Instant.now()): RevisionResult = transaction { connection ->
+    fun mutateSubscription(target: PushTarget, matchId: Long, active: Boolean, revision: Long, operation: String, now: Instant = Instant.now()): RevisionResult = retryingTransaction { connection ->
         requireValidRevision(revision)
         requireValidMatchId(matchId)
-        val row = targetRow(connection, target) ?: return@transaction RevisionResult.CONFLICT
-        if (!row.sendable) return@transaction RevisionResult.CONFLICT
+        val row = targetRow(connection, target) ?: return@retryingTransaction RevisionResult.CONFLICT
+        if (!row.sendable) return@retryingTransaction RevisionResult.CONFLICT
         val revisionOutcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
-        if (revisionOutcome != RevisionResult.APPLIED) return@transaction revisionOutcome
+        if (revisionOutcome != RevisionResult.APPLIED) return@retryingTransaction revisionOutcome
         val priorActive = subscriptionActive(connection, target, matchId)
         if (active && priorActive != true && activeSubscriptionCount(connection, target) >= configuration.activeSubscriptionsMax) throw SubscriptionLimitExceededException()
         val result = applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
-        if (result != RevisionResult.APPLIED) return@transaction result
+        if (result != RevisionResult.APPLIED) return@retryingTransaction result
         if (priorActive == null) insertSubscription(connection, target, matchId, active, now) else updateSubscription(connection, target, matchId, active, now)
         result
     }
@@ -94,7 +95,7 @@ class NotificationStore private constructor(
         requireValidRevision(revision)
         val operation = "subscription:$matchId:${if (active) "on" else "off"}"
         val digest = targetDigest(lookupKey, mode, registrationValue).also { require(it.size == 32) { "target digest must be 32 bytes" } }
-        return transaction { connection ->
+        return retryingTransaction { connection ->
             val existing = targetByDigest(connection, digest)
             if (existing == null) {
                 val target = insertTarget(connection, digest, registrationValue, revision, operation, now)
@@ -102,10 +103,10 @@ class NotificationStore private constructor(
                 TargetLookupResult(target, TargetResolution.CREATED, RevisionResult.APPLIED)
             } else {
                 val (target, raw, row) = existing
-                if (!row.sendable || raw == null) return@transaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+                if (!row.sendable || raw == null) return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
                 if (!constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
                 val outcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
-                if (outcome != RevisionResult.APPLIED) return@transaction TargetLookupResult(target, TargetResolution.EXISTING, outcome)
+                if (outcome != RevisionResult.APPLIED) return@retryingTransaction TargetLookupResult(target, TargetResolution.EXISTING, outcome)
                 val priorActive = subscriptionActive(connection, target, matchId)
                 if (active && priorActive != true && activeSubscriptionCount(connection, target) >= configuration.activeSubscriptionsMax) throw SubscriptionLimitExceededException()
                 applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
@@ -120,14 +121,14 @@ class NotificationStore private constructor(
         requireValidRevision(revision)
         val operation = "global:off"
         val digest = targetDigest(lookupKey, mode, registrationValue).also { require(it.size == 32) { "target digest must be 32 bytes" } }
-        return transaction { connection ->
+        return retryingTransaction { connection ->
             val existing = targetByDigest(connection, digest)
-                ?: return@transaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+                ?: return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
             val (target, raw, row) = existing
-            if (!row.sendable || raw == null) return@transaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+            if (!row.sendable || raw == null) return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
             if (!constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
             val outcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
-            if (outcome != RevisionResult.APPLIED) return@transaction TargetLookupResult(target, TargetResolution.EXISTING, outcome)
+            if (outcome != RevisionResult.APPLIED) return@retryingTransaction TargetLookupResult(target, TargetResolution.EXISTING, outcome)
             applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
             connection.prepareStatement("UPDATE notification_subscriptions SET active=FALSE, updated_at=? WHERE target_id=? AND active=TRUE").use { statement ->
                 statement.setObject(1, now); statement.setObject(2, target.id); statement.executeUpdate()
@@ -148,7 +149,17 @@ class NotificationStore private constructor(
     }
 
     fun activeMatchIds(): List<Long> = transaction { connection ->
-        connection.prepareStatement("SELECT DISTINCT match_id FROM notification_subscriptions WHERE active=TRUE ORDER BY match_id").use { statement ->
+        connection.prepareStatement("""
+            SELECT DISTINCT s.match_id
+            FROM notification_subscriptions s
+            WHERE s.active=TRUE AND NOT EXISTS (
+                SELECT 1 FROM notification_observations o
+                WHERE o.match_id=s.match_id AND o.source_result='SUCCESS'
+                  AND o.observed_at=(SELECT MAX(latest.observed_at) FROM notification_observations latest WHERE latest.match_id=s.match_id AND latest.source_result='SUCCESS')
+                  AND o.status IN ('COMPLETED', 'CANCELLED')
+            )
+            ORDER BY s.match_id
+        """.trimIndent()).use { statement ->
             statement.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getLong(1)) } }
         }
     }
@@ -160,16 +171,17 @@ class NotificationStore private constructor(
     }
 
     /** Writes every source result, but transitions compare only the prior successful observation. */
-    fun recordObservation(matchId: Long, result: ObservationResult, status: ObservationStatus? = null, now: Instant = Instant.now()): Int = transaction { connection ->
+    fun recordObservation(matchId: Long, result: ObservationResult, status: ObservationStatus? = null, now: Instant = Instant.now()): Int = retryingTransaction { connection ->
         requireValidMatchId(matchId)
         require((result == ObservationResult.SUCCESS) == (status != null)) { "successful observations require a status" }
         val previous = if (result == ObservationResult.SUCCESS) lastSuccessfulStatus(connection, matchId) else null
-        val observedAt = nextObservationTime(now)
+        // This comes from committed H2 state, not process memory, so reopen and another store preserve ordering.
+        val observedAt = nextObservationTime(connection, matchId, now)
         connection.prepareStatement("INSERT INTO notification_observations (id, match_id, status, observed_at, source_result) VALUES (?, ?, ?, ?, ?)").use { statement ->
             statement.setObject(1, UUID.randomUUID()); statement.setLong(2, matchId); statement.setString(3, status?.name ?: "NONE"); statement.setObject(4, observedAt); statement.setString(5, result.name); statement.executeUpdate()
         }
-        if (result != ObservationResult.SUCCESS) return@transaction 0
-        val event = transition(previous, requireNotNull(status)) ?: return@transaction 0
+        if (result != ObservationResult.SUCCESS) return@retryingTransaction 0
+        val event = transition(previous, requireNotNull(status)) ?: return@retryingTransaction 0
         activeTargetsForMatch(connection, matchId).sumOf { target -> insertIntentIfAbsent(connection, target, matchId, event, now) }
     }
 
@@ -249,8 +261,14 @@ class NotificationStore private constructor(
         statement.setObject(1, UUID.randomUUID()); statement.setObject(2, target.id); statement.setLong(3, matchId); statement.setString(4, event.name); statement.setObject(5, now); statement.setObject(6, now); statement.setObject(7, target.id); statement.setLong(8, matchId); statement.setString(9, event.name); statement.executeUpdate()
     }
 
-    // H2's timestamp precision is microseconds, so preserve the V1 unique key with a full millisecond tie-breaker.
-    @Synchronized private fun nextObservationTime(requested: Instant): Instant = if (requested > lastObservationAt) requested.also { lastObservationAt = it } else lastObservationAt.plusMillis(1).also { lastObservationAt = it }
+    // H2's timestamp precision is microseconds.  Retrying on the V1 unique key also covers concurrent cycles.
+    private fun nextObservationTime(connection: java.sql.Connection, matchId: Long, requested: Instant): Instant = connection.prepareStatement("SELECT MAX(observed_at) FROM notification_observations WHERE match_id=?").use { statement ->
+        statement.setLong(1, matchId); statement.executeQuery().use { rows ->
+            rows.next()
+            val prior = rows.getObject(1, Instant::class.java)
+            if (prior == null || requested > prior) requested else prior.plusMillis(1)
+        }
+    }
 
     internal fun readSendableTargetForDelivery(target: PushTarget): SendableDeliveryTarget? = transaction { connection ->
         connection.prepareStatement("SELECT registration_value, sendable, target_mode FROM notification_targets WHERE id=?").use { statement ->
@@ -286,7 +304,7 @@ class NotificationStore private constructor(
         if (outcome != RevisionResult.APPLIED) return outcome
         connection.prepareStatement("UPDATE notification_targets SET accepted_revision=?, operation_hash=?, updated_at=? WHERE id=? AND accepted_revision=?").use { statement ->
             statement.setLong(1, requested); statement.setBytes(2, operationHash(operation)); statement.setObject(3, now); statement.setObject(4, target.id); statement.setLong(5, current)
-            if (statement.executeUpdate() != 1) return RevisionResult.CONFLICT
+            if (statement.executeUpdate() != 1) throw RevisionCasRaceException()
         }
         return RevisionResult.APPLIED
     }
@@ -306,6 +324,15 @@ class NotificationStore private constructor(
         try { block(connection).also { connection.commit() } } catch (error: Throwable) { connection.rollback(); throw error }
     }
 
+    private fun <T> retryingTransaction(block: (java.sql.Connection) -> T): T {
+        repeat(MAX_MUTATION_RETRIES - 1) {
+            try { return transaction(block) } catch (_: SQLIntegrityConstraintViolationException) { }
+            catch (_: SQLTransactionRollbackException) { }
+            catch (_: RevisionCasRaceException) { }
+        }
+        return transaction(block)
+    }
+
     override fun close() = dataSource.close()
 
     private data class TargetRow(val revision: Long, val operationHash: ByteArray, val sendable: Boolean)
@@ -313,6 +340,7 @@ class NotificationStore private constructor(
 
     companion object {
         private const val PROVIDER = "FIREBASE"
+        private const val MAX_MUTATION_RETRIES = 4
 
         fun open(configuration: NotificationConfiguration, random: SecureRandom = SecureRandom()): NotificationStore = openInternal(configuration, random, ::lookupDigest)
 
@@ -368,6 +396,7 @@ class NotificationStore private constructor(
 
 class TargetDigestCollisionException : IllegalStateException("target lookup collision")
 class SubscriptionLimitExceededException : IllegalStateException("subscription limit exceeded")
+private class RevisionCasRaceException : RuntimeException()
 
 private fun requireValidRevision(value: Long) { require(value > 0) { "revision must be a positive signed Long" } }
 private fun requireValidMatchId(value: Long) { require(value > 0) { "match id must be positive" } }

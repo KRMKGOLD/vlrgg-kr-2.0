@@ -3,7 +3,11 @@ package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.http.content.OutgoingContent
 import io.ktor.server.testing.*
+import io.ktor.utils.io.writeFully
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kr.co.cotton.vlrgg_mobile.module
 import java.nio.file.Files
 import kotlin.io.path.absolutePathString
@@ -38,7 +42,16 @@ class NotificationRoutesTest {
         assertEquals(HttpStatusCode.OK, second.status)
         assertTrue(second.bodyAsText().contains("99"))
         assertFalse(second.bodyAsText().contains("address-b"))
-        assertTrue(client.get("/openapi.json").bodyAsText().contains("/api/v1/match-notifications/targets"))
+        val missing = client.post("/api/v1/match-notifications/state") { contentType(ContentType.Application.Json); setBody("{\"registrationValue\":\"absent\"}") }
+        assertEquals(HttpStatusCode.OK, missing.status)
+        assertEquals("{\"acceptedRevision\":\"0\",\"subscriptions\":[]}", missing.bodyAsText())
+        val openApi = client.get("/openapi.json").bodyAsText()
+        assertTrue(openApi.contains("/api/v1/match-notifications/targets"))
+        val subscriptionOperation = Json.parseToJsonElement(openApi).jsonObject["paths"]!!.jsonObject["/api/v1/match-notifications/subscriptions/{matchId}"]!!.jsonObject["put"]!!.jsonObject
+        assertTrue(subscriptionOperation.containsKey("requestBody"))
+        assertTrue(subscriptionOperation["parameters"]!!.toString().contains("9223372036854775807"))
+        assertFalse(openApi.contains("FID"))
+        assertFalse(openApi.contains("LEGACY_TOKEN"))
     }
 
     @Test fun `literal IPv4 and IPv6 are the only enabled API listeners`() {
@@ -52,6 +65,34 @@ class NotificationRoutesTest {
         }
     }
 
+    @Test fun `chunked body is bounded before decoding and does not leak its content`() = testApplication {
+        val path = Files.createTempDirectory("vlrgg-route").resolve("store").absolutePathString()
+        val config = configuration(path)
+        application { module(notificationConfiguration = config, notificationStore = NotificationStore.open(config)) }
+        val secretLikePayload = "z".repeat(config.requestBodyBytes + 1)
+        val response = client.put("/api/v1/match-notifications/targets") {
+            setBody(object : OutgoingContent.WriteChannelContent() {
+                override val contentType = ContentType.Application.Json
+                override suspend fun writeTo(channel: io.ktor.utils.io.ByteWriteChannel) { channel.writeFully(secretLikePayload.encodeToByteArray()) }
+            })
+        }
+        assertEquals(HttpStatusCode.PayloadTooLarge, response.status)
+        assertFalse(response.bodyAsText().contains(secretLikePayload.take(32)))
+    }
+
+    @Test fun `UTF-8 byte boundary accepts the exact limit and rejects one byte over`() = testApplication {
+        val path = Files.createTempDirectory("vlrgg-route").resolve("store").absolutePathString()
+        val config = configuration(path)
+        application { module(notificationConfiguration = config, notificationStore = NotificationStore.open(config)) }
+        val prefix = "{\"registrationValue\":\"a\",\"revision\":\"1\",\"padding\":\""
+        val suffix = "\"}"
+        val paddingBytes = config.requestBodyBytes - prefix.encodeToByteArray().size - suffix.encodeToByteArray().size
+        val exact = prefix + "가".repeat(paddingBytes / 3) + "x".repeat(paddingBytes % 3) + suffix
+        check(exact.encodeToByteArray().size == config.requestBodyBytes)
+        assertEquals(HttpStatusCode.BadRequest, client.put("/api/v1/match-notifications/targets") { setBody(ChunkedJsonContent(exact)) }.status)
+        assertEquals(HttpStatusCode.PayloadTooLarge, client.put("/api/v1/match-notifications/targets") { setBody(ChunkedJsonContent(exact + "x")) }.status)
+    }
+
     private fun configuration(path: String) = NotificationConfiguration.fromEnvironment(enabledEnvironment() + mapOf(
         "VLRGG_NOTIFICATIONS_STORAGE_PATH" to path,
         "VLRGG_NOTIFICATIONS_API_ENABLED" to "true",
@@ -61,4 +102,9 @@ class NotificationRoutesTest {
         "VLRGG_NOTIFICATIONS_ENABLED" to "true", "VLRGG_NOTIFICATIONS_STORAGE_PATH" to "/tmp/vlrgg-notification-route",
         "VLRGG_NOTIFICATIONS_FIREBASE_PROJECT_ID" to "vlrgg-stage1", "VLRGG_NOTIFICATION_LOOKUP_DIGEST_KEY" to "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     )
+
+    private class ChunkedJsonContent(private val value: String) : OutgoingContent.WriteChannelContent() {
+        override val contentType = ContentType.Application.Json
+        override suspend fun writeTo(channel: io.ktor.utils.io.ByteWriteChannel) { channel.writeFully(value.encodeToByteArray()) }
+    }
 }

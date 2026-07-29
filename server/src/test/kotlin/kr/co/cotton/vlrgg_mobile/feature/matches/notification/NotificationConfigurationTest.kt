@@ -24,6 +24,14 @@ class NotificationConfigurationTest {
         assertEquals(ConfigurationField.LISTENER_HOST, exception.field)
     }
 
+    @Test fun `api without feature fails before any notification resource can exist`() {
+        val failure = assertFailsWith<NotificationConfigurationException> {
+            NotificationConfiguration.fromEnvironment(mapOf("VLRGG_NOTIFICATIONS_API_ENABLED" to "true"), ServerListenerConfiguration("127.0.0.1", 8080))
+        }
+        assertEquals(ConfigurationCategory.INVALID_CROSS_FIELD, failure.category)
+        assertEquals(ConfigurationField.API_ENABLED, failure.field)
+    }
+
     @Test fun `enabled configuration rejects missing lookup key before resource work`() {
         val exception = assertFailsWith<NotificationConfigurationException> {
             NotificationConfiguration.fromEnvironment(enabledEnvironment() - "VLRGG_NOTIFICATION_LOOKUP_DIGEST_KEY", ServerListenerConfiguration("127.0.0.1", 8080))

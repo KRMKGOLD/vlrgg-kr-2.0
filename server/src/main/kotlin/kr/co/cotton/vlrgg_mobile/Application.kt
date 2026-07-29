@@ -28,6 +28,7 @@ import kr.co.cotton.vlrgg_mobile.feature.matches.notification.FixedDelayMatchPol
 import kr.co.cotton.vlrgg_mobile.feature.matches.notification.MatchTracker
 import kr.co.cotton.vlrgg_mobile.feature.matches.notification.MatchObservationProvider
 import kr.co.cotton.vlrgg_mobile.feature.matches.notification.MatchesServiceObservationProvider
+import kr.co.cotton.vlrgg_mobile.feature.matches.notification.OwnedTrackingJob
 import kr.co.cotton.vlrgg_mobile.feature.matches.DefaultMatchesService
 import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesService
 import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesMapper
@@ -36,7 +37,6 @@ import kr.co.cotton.vlrgg_mobile.feature.matches.VlrMatchesScraper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 
 private const val API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE = "VLRGG_ENABLE_API_DOCUMENTATION"
 
@@ -94,12 +94,13 @@ internal fun Application.module(
         configureNotificationRoutes(notificationStore, notificationConfiguration.requestBodyBytes)
     }
     if (notificationStore != null) {
-        val trackingScope = if (startNotificationTracking) CoroutineScope(SupervisorJob() + Dispatchers.Default).also { scope ->
-            FixedDelayMatchPolling(
+        val trackingOwner = if (startNotificationTracking) CoroutineScope(SupervisorJob() + Dispatchers.Default).let { scope ->
+            val job = FixedDelayMatchPolling(
                 MatchTracker(notificationStore, observationProvider ?: MatchesServiceObservationProvider(resolvedMatchesService)),
                 requireNotNull(notificationConfiguration).pollDelayMillis,
             ).start(scope)
+            OwnedTrackingJob(job, notificationStore::close)
         } else null
-        environment.monitor.subscribe(ApplicationStopped) { trackingScope?.cancel(); notificationStore.close() }
+        environment.monitor.subscribe(ApplicationStopped) { trackingOwner?.stopWithoutBlockingLifecycleThread() ?: notificationStore.close() }
     }
 }
