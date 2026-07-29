@@ -29,6 +29,7 @@ class NotificationStoreTest {
             assertEquals(2, requireNotNull(store.targetProjection(target)).acceptedRevision)
             assertEquals(RevisionResult.APPLIED, store.findOrRegister("registration-a", "terminal", Long.MAX_VALUE).revision)
             assertEquals(RevisionResult.REPLAYED, store.findOrRegister("registration-a", "terminal", Long.MAX_VALUE).revision)
+            assertEquals(RevisionResult.STALE, store.findOrRegister("registration-a", "terminal", Long.MAX_VALUE - 1).revision)
             assertEquals(RevisionResult.REVISION_EXHAUSTED, store.findOrRegister("registration-a", "other-terminal", Long.MAX_VALUE).revision)
             assertEquals(Long.MAX_VALUE, requireNotNull(store.targetProjection(target)).acceptedRevision)
             assertFailsWith<IllegalArgumentException> { store.findOrRegister("registration-a", "invalid", 0) }
@@ -58,6 +59,7 @@ class NotificationStoreTest {
             assertEquals(2, requireNotNull(store.targetProjection(target)).acceptedRevision)
             assertEquals(RevisionResult.APPLIED, store.findOrRegister("registration-a", "terminal", Long.MAX_VALUE).revision)
             assertEquals(RevisionResult.REPLAYED, store.mutateSubscription(target, 43, true, Long.MAX_VALUE, "terminal"))
+            assertEquals(RevisionResult.STALE, store.mutateSubscription(target, 43, true, Long.MAX_VALUE - 1, "terminal"))
             assertEquals(RevisionResult.REVISION_EXHAUSTED, store.mutateSubscription(target, 43, true, Long.MAX_VALUE, "later-operation"))
             assertEquals(Long.MAX_VALUE, requireNotNull(store.targetProjection(target)).acceptedRevision)
             assertEquals(0, subscriptionRows(target, path, 43))
