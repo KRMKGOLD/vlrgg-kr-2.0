@@ -4,7 +4,7 @@
 
 이 문서는 Upcoming/Live, Results, Match Detail, Match 즐겨찾기와 시작·종료 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
-## 구현 상태 (2026-07-22)
+## 구현 상태 (2026-07-29)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
 - **Backend Match 알림/구독: 미구현.** 구독 생성·해제 API, 영속 저장, 10분 polling, 시작/종료 delivery, idempotency는 아직 없다. 구현 전 서버 전용 Stage 1 계약은 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md)와 [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md)을 따른다.
