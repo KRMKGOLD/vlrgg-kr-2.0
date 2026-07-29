@@ -20,12 +20,18 @@ import kr.co.cotton.vlrgg_mobile.plugins.configureErrorHandling
 import kr.co.cotton.vlrgg_mobile.plugins.configureMonitoring
 import kr.co.cotton.vlrgg_mobile.plugins.configureSerialization
 import kr.co.cotton.vlrgg_mobile.routing.configureRouting
+import kr.co.cotton.vlrgg_mobile.feature.matches.notification.ServerListenerConfiguration
+import kr.co.cotton.vlrgg_mobile.feature.matches.notification.NotificationConfiguration
 
 private const val API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE = "VLRGG_ENABLE_API_DOCUMENTATION"
 
 fun main() {
-    val enableApiDocumentation = System.getenv(API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE) == "true"
-    embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = {
+    val environment = System.getenv()
+    val listenerConfiguration = ServerListenerConfiguration.fromEnvironment(environment)
+    // Pure preflight shares this exact listener value; disabled mode allocates no notification resources.
+    NotificationConfiguration.fromEnvironment(environment, listenerConfiguration)
+    val enableApiDocumentation = environment[API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE] == "true"
+    embeddedServer(Netty, port = listenerConfiguration.port, host = listenerConfiguration.host, module = {
         module(enableApiDocumentation = enableApiDocumentation)
     })
         .start(wait = true)
