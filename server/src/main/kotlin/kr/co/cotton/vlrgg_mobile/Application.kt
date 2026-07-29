@@ -28,7 +28,11 @@ import kr.co.cotton.vlrgg_mobile.feature.matches.notification.FixedDelayMatchPol
 import kr.co.cotton.vlrgg_mobile.feature.matches.notification.MatchTracker
 import kr.co.cotton.vlrgg_mobile.feature.matches.notification.MatchObservationProvider
 import kr.co.cotton.vlrgg_mobile.feature.matches.notification.MatchesServiceObservationProvider
-import kr.co.cotton.vlrgg_mobile.feature.matches.notification.OwnedTrackingJob
+import kr.co.cotton.vlrgg_mobile.feature.matches.notification.OwnedFirebaseApp
+import kr.co.cotton.vlrgg_mobile.feature.matches.notification.NotificationProvider
+import kr.co.cotton.vlrgg_mobile.feature.matches.notification.FirebaseNotificationProvider
+import kr.co.cotton.vlrgg_mobile.feature.matches.notification.NotificationDeliveryService
+import kr.co.cotton.vlrgg_mobile.feature.matches.notification.FixedDelayDeliveryPolling
 import kr.co.cotton.vlrgg_mobile.feature.matches.DefaultMatchesService
 import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesService
 import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesMapper
@@ -37,6 +41,7 @@ import kr.co.cotton.vlrgg_mobile.feature.matches.VlrMatchesScraper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 private const val API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE = "VLRGG_ENABLE_API_DOCUMENTATION"
 
@@ -46,15 +51,22 @@ fun main() {
     // Pure preflight shares this exact listener value; disabled mode allocates no notification resources.
     val notificationConfiguration = NotificationConfiguration.fromEnvironment(environment, listenerConfiguration)
     val enableApiDocumentation = environment[API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE] == "true"
-    embeddedServer(Netty, port = listenerConfiguration.port, host = listenerConfiguration.host, module = {
+    val store = if (notificationConfiguration.enabled) NotificationStore.open(notificationConfiguration) else null
+    val firebase = try { if (notificationConfiguration.enabled) OwnedFirebaseApp.create(notificationConfiguration) else null }
+    catch (error: Throwable) { store?.close(); throw error }
+    try { embeddedServer(Netty, port = listenerConfiguration.port, host = listenerConfiguration.host, module = {
         module(
             enableApiDocumentation = enableApiDocumentation,
             notificationConfiguration = notificationConfiguration,
-            notificationStore = if (notificationConfiguration.enabled) NotificationStore.open(notificationConfiguration) else null,
+            notificationStore = store,
             startNotificationTracking = notificationConfiguration.enabled,
+            notificationProvider = firebase?.let { FirebaseNotificationProvider(it.app) },
+            startNotificationDelivery = notificationConfiguration.enabled,
+            notificationResourceCloser = { firebase?.close() },
         )
     })
         .start(wait = true)
+    } catch (error: Throwable) { firebase?.close(); store?.close(); throw error }
 }
 
 internal fun Application.module(
@@ -70,6 +82,9 @@ internal fun Application.module(
     matchesService: MatchesService? = null,
     observationProvider: MatchObservationProvider? = null,
     startNotificationTracking: Boolean = false,
+    notificationProvider: NotificationProvider? = null,
+    startNotificationDelivery: Boolean = false,
+    notificationResourceCloser: () -> Unit = {},
 ) {
     configureSerialization()
     configureMonitoring()
@@ -94,13 +109,18 @@ internal fun Application.module(
         configureNotificationRoutes(notificationStore, notificationConfiguration.requestBodyBytes, notificationConfiguration.registrationValueMaxBytes)
     }
     if (notificationStore != null) {
-        val trackingOwner = if (startNotificationTracking) CoroutineScope(SupervisorJob() + Dispatchers.Default).let { scope ->
-            val job = FixedDelayMatchPolling(
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val trackingJob = if (startNotificationTracking) {
+            FixedDelayMatchPolling(
                 MatchTracker(notificationStore, observationProvider ?: MatchesServiceObservationProvider(resolvedMatchesService)),
                 requireNotNull(notificationConfiguration).pollDelayMillis,
             ).start(scope)
-            OwnedTrackingJob(job, notificationStore::close)
         } else null
-        environment.monitor.subscribe(ApplicationStopped) { trackingOwner?.stopWithoutBlockingLifecycleThread() ?: notificationStore.close() }
+        if (startNotificationDelivery) requireNotNull(notificationProvider) { "delivery requires a provider" }.let { provider ->
+            FixedDelayDeliveryPolling(NotificationDeliveryService(notificationStore, provider, requireNotNull(notificationConfiguration)), notificationConfiguration.pollDelayMillis).start(scope)
+        }
+        val rootJob = requireNotNull(scope.coroutineContext[kotlinx.coroutines.Job])
+        rootJob.invokeOnCompletion { notificationResourceCloser(); notificationStore.close() }
+        environment.monitor.subscribe(ApplicationStopped) { scope.cancel() }
     }
 }

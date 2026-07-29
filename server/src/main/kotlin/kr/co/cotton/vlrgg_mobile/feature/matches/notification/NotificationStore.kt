@@ -21,6 +21,9 @@ enum class RevisionResult { APPLIED, STALE, REPLAYED, CONFLICT, REVISION_EXHAUST
 enum class ObservationStatus { UPCOMING, LIVE, COMPLETED, POSTPONED, CANCELLED }
 enum class ObservationResult { SUCCESS, NETWORK_FAILURE, PARSING_FAILURE, MISSING }
 enum class NotificationEventType { START, END }
+enum class DeliveryState { PENDING, RETRY_WAIT, CLAIMED_NOT_STARTED, CALL_STARTED, ACCEPTED, INVALID_TARGET, TERMINAL_FAILURE, UNKNOWN }
+data class DeliveryClaim(val intentId: UUID, val target: PushTarget, val event: NotificationEventType, val token: UUID, val attemptCount: Int, val retryDelayMillis: Long?)
+internal data class DeliveryCall(val claim: DeliveryClaim, val target: SendableDeliveryTarget)
 data class SubscriptionProjection(val matchId: Long, val active: Boolean)
 data class NotificationStateProjection(val acceptedRevision: Long, val subscriptions: List<SubscriptionProjection>)
 internal typealias TargetDigest = (ByteArray, FirebaseTargetMode, String) -> ByteArray
@@ -160,9 +163,75 @@ class NotificationStore private constructor(
         }
     }
 
+    /** Recovers only pre-call claims.  A committed call marker is deliberately ambiguous and quarantined. */
+    internal fun claimDueDelivery(now: Instant): DeliveryClaim? = retryingTransaction { connection ->
+        connection.prepareStatement("UPDATE notification_delivery_intents SET state='UNKNOWN', terminal_reason='CALL_STARTED_LEASE_EXPIRED', updated_at=? WHERE state='CALL_STARTED' AND lease_until<?").use {
+            it.setObject(1, now); it.setObject(2, now); it.executeUpdate()
+        }
+        connection.prepareStatement("UPDATE notification_delivery_intents SET state='PENDING', claim_token=NULL, claimed_at=NULL, lease_until=NULL, updated_at=? WHERE state='CLAIMED_NOT_STARTED' AND lease_until<?").use {
+            it.setObject(1, now); it.setObject(2, now); it.executeUpdate()
+        }
+        connection.prepareStatement("SELECT id, target_id, event_type, application_attempt_count, retry_delay_millis FROM notification_delivery_intents WHERE state='PENDING' OR (state='RETRY_WAIT' AND due_at<=?) ORDER BY COALESCE(due_at, created_at), id LIMIT 1 FOR UPDATE").use { select ->
+            select.setObject(1, now); select.executeQuery().use { rows ->
+                if (!rows.next()) return@retryingTransaction null
+                val id = rows.getObject(1, UUID::class.java)
+                val target = PushTarget(rows.getObject(2, UUID::class.java))
+                val event = NotificationEventType.valueOf(rows.getString(3))
+                val token = UUID.randomUUID()
+                connection.prepareStatement("UPDATE notification_delivery_intents SET state='CLAIMED_NOT_STARTED', claim_token=?, claimed_at=?, lease_until=?, updated_at=? WHERE id=? AND state IN ('PENDING','RETRY_WAIT')").use { update ->
+                    update.setObject(1, token); update.setObject(2, now); update.setObject(3, now.plusMillis(configuration.claimLeaseMillis)); update.setObject(4, now); update.setObject(5, id)
+                    check(update.executeUpdate() == 1)
+                }
+                DeliveryClaim(id, target, event, token, rows.getInt(4), rows.getLong(5).takeUnless { rows.wasNull() })
+            }
+        }
+    }
+
+    internal fun releaseDeliveryClaim(claim: DeliveryClaim, now: Instant): Boolean = transaction { connection ->
+        connection.prepareStatement("UPDATE notification_delivery_intents SET state=CASE WHEN retry_delay_millis IS NULL THEN 'PENDING' ELSE 'RETRY_WAIT' END, claim_token=NULL, claimed_at=NULL, lease_until=NULL, updated_at=? WHERE id=? AND state='CLAIMED_NOT_STARTED' AND claim_token=?").use {
+            it.setObject(1, now); it.setObject(2, claim.intentId); it.setObject(3, claim.token); it.executeUpdate() == 1
+        }
+    }
+
+    /** This committed marker is the sole boundary before an adapter invocation. */
+    internal fun markDeliveryCallStarted(claim: DeliveryClaim, now: Instant): DeliveryCall? = transaction { connection ->
+        val target = readSendableTargetForDelivery(connection, claim.target) ?: run {
+            connection.prepareStatement("UPDATE notification_delivery_intents SET state='INVALID_TARGET', terminal_reason='TARGET_UNSENDABLE', updated_at=? WHERE id=? AND state='CLAIMED_NOT_STARTED' AND claim_token=?").use {
+                it.setObject(1, now); it.setObject(2, claim.intentId); it.setObject(3, claim.token); it.executeUpdate()
+            }
+            return@transaction null
+        }
+        connection.prepareStatement("UPDATE notification_delivery_intents SET state='CALL_STARTED', application_attempt_count=application_attempt_count+1, call_started_at=?, updated_at=? WHERE id=? AND state='CLAIMED_NOT_STARTED' AND claim_token=?").use { update ->
+            update.setObject(1, now); update.setObject(2, now); update.setObject(3, claim.intentId); update.setObject(4, claim.token)
+            if (update.executeUpdate() != 1) return@transaction null
+        }
+        DeliveryCall(claim.copy(attemptCount = claim.attemptCount + 1), target)
+    }
+
+    internal fun finalizeAccepted(call: DeliveryCall, now: Instant): Boolean = finalizeCall(call.claim, now, "ACCEPTED", null, null)
+    internal fun finalizeUnknown(call: DeliveryCall, reason: String, now: Instant): Boolean = finalizeCall(call.claim, now, "UNKNOWN", reason, null)
+    internal fun finalizeTerminal(call: DeliveryCall, reason: String, now: Instant): Boolean = finalizeCall(call.claim, now, "TERMINAL_FAILURE", reason, null)
+    internal fun finalizeRetry(call: DeliveryCall, decisionAt: Instant, delayMillis: Long, dueAt: Instant): Boolean = finalizeCall(call.claim, decisionAt, "RETRY_WAIT", null, dueAt, delayMillis)
+
+    internal fun invalidateDeliveryTarget(call: DeliveryCall, now: Instant): Boolean = transaction { connection ->
+        val claimed = connection.prepareStatement("UPDATE notification_delivery_intents SET state='INVALID_TARGET', terminal_reason='PROVIDER_INVALID_TARGET', updated_at=? WHERE id=? AND state='CALL_STARTED' AND claim_token=?").use {
+            it.setObject(1, now); it.setObject(2, call.claim.intentId); it.setObject(3, call.claim.token); it.executeUpdate() == 1
+        }
+        if (claimed) invalidateTargetInTransaction(connection, call.claim.target, now)
+        claimed
+    }
+
     internal fun deliveryIntentCount(matchId: Long, event: NotificationEventType): Int = transaction { connection ->
         connection.prepareStatement("SELECT COUNT(*) FROM notification_delivery_intents WHERE match_id=? AND event_type=?").use { statement ->
             statement.setLong(1, matchId); statement.setString(2, event.name); statement.executeQuery().use { rows -> rows.next(); rows.getInt(1) }
+        }
+    }
+
+    internal fun deliveryState(matchId: Long, event: NotificationEventType): Pair<DeliveryState, Int>? = transaction { connection ->
+        connection.prepareStatement("SELECT state, application_attempt_count FROM notification_delivery_intents WHERE match_id=? AND event_type=? LIMIT 1").use { statement ->
+            statement.setLong(1, matchId); statement.setString(2, event.name); statement.executeQuery().use { rows ->
+                if (rows.next()) DeliveryState.valueOf(rows.getString(1)) to rows.getInt(2) else null
+            }
         }
     }
 
@@ -198,6 +267,10 @@ class NotificationStore private constructor(
 
     /** Provider-proven invalidity: one transaction performs only logical erasure and target-local cleanup. */
     fun invalidateTarget(target: PushTarget, now: Instant = Instant.now()) = transaction { connection ->
+        invalidateTargetInTransaction(connection, target, now)
+    }
+
+    private fun invalidateTargetInTransaction(connection: java.sql.Connection, target: PushTarget, now: Instant) {
         connection.prepareStatement("UPDATE notification_targets SET sendable=FALSE, registration_value=NULL, invalidated_at=?, updated_at=? WHERE id=?").use { statement ->
             statement.setObject(1, now); statement.setObject(2, now); statement.setObject(3, target.id); statement.executeUpdate()
         }
@@ -283,10 +356,21 @@ class NotificationStore private constructor(
     }
 
     internal fun readSendableTargetForDelivery(target: PushTarget): SendableDeliveryTarget? = transaction { connection ->
-        connection.prepareStatement("SELECT registration_value, sendable, target_mode FROM notification_targets WHERE id=?").use { statement ->
+        readSendableTargetForDelivery(connection, target)
+    }
+
+    private fun readSendableTargetForDelivery(connection: java.sql.Connection, target: PushTarget): SendableDeliveryTarget? {
+        return connection.prepareStatement("SELECT registration_value, sendable, target_mode FROM notification_targets WHERE id=?").use { statement ->
             statement.setObject(1, target.id); statement.executeQuery().use { rows ->
                 if (!rows.next() || !rows.getBoolean(2)) null else rows.getString(1)?.let { SendableDeliveryTarget(target, it, FirebaseTargetMode.valueOf(rows.getString(3))) }
             }
+        }
+    }
+
+    private fun finalizeCall(claim: DeliveryClaim, now: Instant, state: String, reason: String?, dueAt: Instant?, delayMillis: Long? = null): Boolean = transaction { connection ->
+        connection.prepareStatement("UPDATE notification_delivery_intents SET state=?, terminal_reason=?, retry_decision_at=?, retry_delay_millis=?, due_at=?, updated_at=? WHERE id=? AND state='CALL_STARTED' AND claim_token=?").use { update ->
+            update.setString(1, state); update.setString(2, reason); update.setObject(3, if (state == "RETRY_WAIT") now else null); update.setObject(4, delayMillis); update.setObject(5, dueAt); update.setObject(6, now); update.setObject(7, claim.intentId); update.setObject(8, claim.token)
+            update.executeUpdate() == 1
         }
     }
 
