@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.security.MessageDigest
 
@@ -73,9 +74,18 @@ data class NotificationConfiguration(
             val apiEnabled = strictBoolean(environment["VLRGG_NOTIFICATIONS_API_ENABLED"] ?: "false", ConfigurationField.API_ENABLED)
             val exposure = enumValue(environment["VLRGG_NOTIFICATIONS_EXPOSURE"] ?: "LOCAL", NotificationExposure::valueOf, ConfigurationField.EXPOSURE, ConfigurationCategory.INVALID_SYNTAX)
             val ownership = enumValue(environment["VLRGG_NOTIFICATIONS_OWNERSHIP"] ?: "SINGLE_PROCESS", NotificationOwnership::valueOf, ConfigurationField.OWNERSHIP, ConfigurationCategory.UNSUPPORTED_OWNERSHIP)
+            val mode = enumValue(environment["VLRGG_NOTIFICATIONS_FIREBASE_TARGET_MODE"] ?: "FID", FirebaseTargetMode::valueOf, ConfigurationField.TARGET_MODE, ConfigurationCategory.UNSUPPORTED_TARGET_MODE)
+            val storage = if (enabled) environment["VLRGG_NOTIFICATIONS_STORAGE_PATH"] ?: throw NotificationConfigurationException(ConfigurationCategory.MISSING_REQUIRED, ConfigurationField.STORAGE_PATH) else null
+            val project = if (enabled) environment["VLRGG_NOTIFICATIONS_FIREBASE_PROJECT_ID"] ?: throw NotificationConfigurationException(ConfigurationCategory.MISSING_REQUIRED, ConfigurationField.FIREBASE_PROJECT_ID) else null
+            if (project != null && !Regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$").matches(project)) throw NotificationConfigurationException(ConfigurationCategory.INVALID_SYNTAX, ConfigurationField.FIREBASE_PROJECT_ID)
+            val instance = environment["VLRGG_NOTIFICATIONS_APP_INSTANCE_ID"] ?: "main"
+            if (enabled && !Regex("^[a-z](?:[a-z0-9-]{0,30}[a-z0-9])?$").matches(instance)) throw NotificationConfigurationException(ConfigurationCategory.INVALID_SYNTAX, ConfigurationField.APP_INSTANCE_ID)
+            if (enabled && environment.containsKey("VLRGG_NOTIFICATIONS_CREDENTIAL_JSON")) throw NotificationConfigurationException(ConfigurationCategory.INLINE_CREDENTIAL_UNSUPPORTED, ConfigurationField.CREDENTIAL_SOURCE)
+            val key = if (enabled) decodeLookupKey(environment["VLRGG_NOTIFICATION_LOOKUP_DIGEST_KEY"] ?: throw NotificationConfigurationException(ConfigurationCategory.MISSING_REQUIRED, ConfigurationField.LOOKUP_DIGEST_KEY)) else null
             val requestBody = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_REQUEST_BODY_BYTES"] ?: "8192", ConfigurationField.REQUEST_BODY_BYTES, 1024, 65536)
             val registrationLimit = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_REGISTRATION_VALUE_BYTES"] ?: "4096", ConfigurationField.REGISTRATION_VALUE_BYTES, 256, 16384)
             val subscriptionLimit = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_ACTIVE_SUBSCRIPTIONS"] ?: "100", ConfigurationField.ACTIVE_SUBSCRIPTIONS, 1, 1000)
+            val pool = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_JDBC_POOL_SIZE"] ?: "4", ConfigurationField.JDBC_POOL_SIZE, 1, 8)
             val pollDelay = strictUnsignedLong(environment["VLRGG_NOTIFICATIONS_POLL_DELAY_MILLIS"] ?: "600000", ConfigurationField.POLL_DELAY_MILLIS, 60000, 86400000)
             val timeout = strictUnsignedLong(environment["VLRGG_NOTIFICATIONS_DELIVERY_TIMEOUT_MILLIS"] ?: "30000", ConfigurationField.DELIVERY_TIMEOUT_MILLIS, 1000, 60000)
             val lease = strictUnsignedLong(environment["VLRGG_NOTIFICATIONS_CLAIM_LEASE_MILLIS"] ?: "120000", ConfigurationField.CLAIM_LEASE_MILLIS, 10000, 600000)
@@ -87,22 +97,12 @@ data class NotificationConfiguration(
             if (lease <= timeout) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.CLAIM_LEASE_MILLIS)
             if (jitter > maxRetry) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.RETRY_JITTER_MILLIS)
             if (apiEnabled && listener.host !in setOf("127.0.0.1", "::1")) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_LISTENER, ConfigurationField.LISTENER_HOST)
-            if (!enabled) return NotificationConfiguration(false, apiEnabled, exposure, ownership, null, 4, requestBody, registrationLimit, subscriptionLimit, pollDelay, timeout, lease, attempts, initialRetry, maxRetry, jitter, providerCeiling, null, "main", FirebaseTargetMode.FID, null, null)
+            if (!enabled) return NotificationConfiguration(false, apiEnabled, exposure, ownership, null, pool, requestBody, registrationLimit, subscriptionLimit, pollDelay, timeout, lease, attempts, initialRetry, maxRetry, jitter, providerCeiling, null, instance, mode, null, null)
 
             if (exposure != NotificationExposure.LOCAL) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.EXPOSURE)
             if (ownership != NotificationOwnership.SINGLE_PROCESS) throw NotificationConfigurationException(ConfigurationCategory.UNSUPPORTED_OWNERSHIP, ConfigurationField.OWNERSHIP)
-            val storage = environment["VLRGG_NOTIFICATIONS_STORAGE_PATH"] ?: throw NotificationConfigurationException(ConfigurationCategory.MISSING_REQUIRED, ConfigurationField.STORAGE_PATH)
-            val path = Path.of(storage)
-            if (!path.isAbsolute || storage.startsWith("jdbc:") || storage.contains("mem:", true) || storage.contains("AUTO_SERVER=TRUE", true)) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.STORAGE_PATH)
-            val pool = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_JDBC_POOL_SIZE"] ?: "4", ConfigurationField.JDBC_POOL_SIZE, 1, 8)
-            val project = environment["VLRGG_NOTIFICATIONS_FIREBASE_PROJECT_ID"] ?: throw NotificationConfigurationException(ConfigurationCategory.MISSING_REQUIRED, ConfigurationField.FIREBASE_PROJECT_ID)
-            if (!Regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$").matches(project)) throw NotificationConfigurationException(ConfigurationCategory.INVALID_SYNTAX, ConfigurationField.FIREBASE_PROJECT_ID)
-            val instance = environment["VLRGG_NOTIFICATIONS_APP_INSTANCE_ID"] ?: "main"
-            if (!Regex("^[a-z](?:[a-z0-9-]{0,30}[a-z0-9])?$").matches(instance)) throw NotificationConfigurationException(ConfigurationCategory.INVALID_SYNTAX, ConfigurationField.APP_INSTANCE_ID)
-            if (environment.containsKey("VLRGG_NOTIFICATIONS_CREDENTIAL_JSON")) throw NotificationConfigurationException(ConfigurationCategory.INLINE_CREDENTIAL_UNSUPPORTED, ConfigurationField.CREDENTIAL_SOURCE)
-            val mode = enumValue(environment["VLRGG_NOTIFICATIONS_FIREBASE_TARGET_MODE"] ?: "FID", FirebaseTargetMode::valueOf, ConfigurationField.TARGET_MODE, ConfigurationCategory.UNSUPPORTED_TARGET_MODE)
-            val key = decodeLookupKey(environment["VLRGG_NOTIFICATION_LOOKUP_DIGEST_KEY"] ?: throw NotificationConfigurationException(ConfigurationCategory.MISSING_REQUIRED, ConfigurationField.LOOKUP_DIGEST_KEY))
-            return NotificationConfiguration(true, apiEnabled, exposure, ownership, path, pool, requestBody, registrationLimit, subscriptionLimit, pollDelay, timeout, lease, attempts, initialRetry, maxRetry, jitter, providerCeiling, project, instance, mode, key, firebaseAppName(project, instance))
+            val path = safeStoragePath(requireNotNull(storage))
+            return NotificationConfiguration(true, apiEnabled, exposure, ownership, path, pool, requestBody, registrationLimit, subscriptionLimit, pollDelay, timeout, lease, attempts, initialRetry, maxRetry, jitter, providerCeiling, requireNotNull(project), instance, mode, requireNotNull(key), firebaseAppName(requireNotNull(project), instance))
         }
 
         private fun decodeLookupKey(value: String): ByteArray = try {
@@ -115,6 +115,20 @@ data class NotificationConfiguration(
         private fun firebaseAppName(project: String, instance: String): String {
             val digest = MessageDigest.getInstance("SHA-256").digest("firebase-app-name-v1\u0000$project\u0000$instance".toByteArray())
             return "vlrgg-mn-s1-" + digest.take(12).joinToString("") { "%02x".format(it) }
+        }
+
+        private fun safeStoragePath(value: String): Path {
+            if (
+                value.startsWith("jdbc:", ignoreCase = true) ||
+                value.startsWith("//") || value.startsWith("\\\\") ||
+                value.contains(';') || value.contains('?') || value.contains('#') ||
+                value.any { it.code < 32 || it.code == 127 }
+            ) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.STORAGE_PATH)
+            val path = try { Path.of(value).normalize() } catch (_: InvalidPathException) {
+                throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.STORAGE_PATH)
+            }
+            if (!path.isAbsolute) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.STORAGE_PATH)
+            return path
         }
     }
 }

@@ -3,7 +3,6 @@ package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
-import org.jetbrains.exposed.v1.jdbc.Database
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -15,43 +14,52 @@ import javax.crypto.spec.SecretKeySpec
 @JvmInline value class PushTarget(val id: UUID)
 
 enum class TargetResolution { CREATED, EXISTING, TARGET_REFRESH_REQUIRED }
-data class TargetLookupResult(val target: PushTarget?, val resolution: TargetResolution)
+data class TargetLookupResult(val target: PushTarget?, val resolution: TargetResolution, val revision: RevisionResult?)
 enum class RevisionResult { APPLIED, STALE, REPLAYED, CONFLICT, REVISION_EXHAUSTED }
+internal typealias TargetDigest = (ByteArray, FirebaseTargetMode, String) -> ByteArray
+
+/** Public persistence projection deliberately excludes a raw registration value. */
+data class TargetProjection(
+    val id: PushTarget,
+    val sendable: Boolean,
+    val targetMode: FirebaseTargetMode,
+    val acceptedRevision: Long,
+)
+
+/** Internal-only boundary for the future delivery worker. */
+internal data class SendableDeliveryTarget(val target: PushTarget, val registrationValue: String, val mode: FirebaseTargetMode)
 
 class NotificationStore private constructor(
     private val dataSource: HikariDataSource,
     private val configuration: NotificationConfiguration,
+    private val targetDigest: TargetDigest,
 ) : AutoCloseable {
     private val mode get() = configuration.targetMode
     private val lookupKey get() = requireNotNull(configuration.lookupDigestKey)
     private val keyId get() = sha256Hex(lookupKey)
 
-    /** Exposed owns database registration; repository SQL remains explicit to isolate H2-only claim syntax. */
-    private val exposedDatabase = Database.connect(dataSource)
-
     fun findOrRegister(registrationValue: String, operation: String, revision: Long, now: Instant = Instant.now()): TargetLookupResult {
+        requireValidRevision(revision)
         require(registrationValue.toByteArray(StandardCharsets.UTF_8).size <= configuration.registrationValueMaxBytes)
-        require(revision > 0)
-        val digest = lookupDigest(lookupKey, mode, registrationValue)
+        val digest = targetDigest(lookupKey, mode, registrationValue)
+        require(digest.size == 32) { "target digest must be 32 bytes" }
         return transaction { connection ->
             connection.prepareStatement("SELECT id, registration_value, sendable, accepted_revision, operation_hash FROM notification_targets WHERE provider=? AND target_mode=? AND lookup_digest=?").use { statement ->
-                statement.setString(1, PROVIDER)
-                statement.setString(2, mode.name)
-                statement.setBytes(3, digest)
+                statement.setString(1, PROVIDER); statement.setString(2, mode.name); statement.setBytes(3, digest)
                 statement.executeQuery().use { rows ->
                     if (!rows.next()) {
                         val id = UUID.randomUUID()
-                        connection.prepareStatement("INSERT INTO notification_targets (id, provider, target_mode, lookup_digest, lookup_key_id, registration_value, sendable, invalidated_at, accepted_revision, operation_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)").use { insert ->
-                            insert.setObject(1, id); insert.setString(2, PROVIDER); insert.setString(3, mode.name); insert.setBytes(4, digest); insert.setString(5, keyId); insert.setString(6, registrationValue); insert.setBoolean(7, true); insert.setLong(8, revision); insert.setBytes(9, operationHash(operation)); insert.setObject(10, now); insert.setObject(11, now); insert.executeUpdate()
+                        connection.prepareStatement("INSERT INTO notification_targets (id, provider, target_mode, lookup_digest, lookup_key_id, registration_value, sendable, invalidated_at, accepted_revision, operation_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, TRUE, NULL, ?, ?, ?, ?)").use { insert ->
+                            insert.setObject(1, id); insert.setString(2, PROVIDER); insert.setString(3, mode.name); insert.setBytes(4, digest); insert.setString(5, keyId); insert.setString(6, registrationValue); insert.setLong(7, revision); insert.setBytes(8, operationHash(operation)); insert.setObject(9, now); insert.setObject(10, now); insert.executeUpdate()
                         }
-                        TargetLookupResult(PushTarget(id), TargetResolution.CREATED)
+                        TargetLookupResult(PushTarget(id), TargetResolution.CREATED, RevisionResult.APPLIED)
                     } else {
-                        val id = rows.getObject(1, UUID::class.java)
+                        val target = PushTarget(rows.getObject(1, UUID::class.java))
                         val raw = rows.getString(2)
-                        if (!rows.getBoolean(3) || raw == null) return@transaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED)
+                        if (!rows.getBoolean(3) || raw == null) return@transaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
                         if (!constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
-                        applyRevision(connection, id, rows.getLong(4), rows.getBytes(5), revision, operation, now)
-                        TargetLookupResult(PushTarget(id), TargetResolution.EXISTING)
+                        val result = applyRevision(connection, target, rows.getLong(4), rows.getBytes(5), revision, operation, now)
+                        TargetLookupResult(target, TargetResolution.EXISTING, result)
                     }
                 }
             }
@@ -59,39 +67,80 @@ class NotificationStore private constructor(
     }
 
     fun mutateSubscription(target: PushTarget, matchId: Long, active: Boolean, revision: Long, operation: String, now: Instant = Instant.now()): RevisionResult = transaction { connection ->
-        val row = connection.prepareStatement("SELECT accepted_revision, operation_hash, sendable FROM notification_targets WHERE id=?").use { statement ->
-            statement.setObject(1, target.id); statement.executeQuery().use { rows -> if (rows.next()) Triple(rows.getLong(1), rows.getBytes(2), rows.getBoolean(3)) else null }
-        } ?: return@transaction RevisionResult.CONFLICT
-        if (!row.third) return@transaction RevisionResult.CONFLICT
-        val result = applyRevision(connection, target.id, row.first, row.second, revision, operation, now)
+        requireValidRevision(revision)
+        val row = targetRow(connection, target) ?: return@transaction RevisionResult.CONFLICT
+        if (!row.sendable) return@transaction RevisionResult.CONFLICT
+        val priorActive = subscriptionActive(connection, target, matchId)
+        if (active && priorActive != true && activeSubscriptionCount(connection, target) >= configuration.activeSubscriptionsMax) throw SubscriptionLimitExceededException()
+        val result = applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
         if (result != RevisionResult.APPLIED) return@transaction result
-        if (active) {
-            connection.prepareStatement("SELECT COUNT(*) FROM notification_subscriptions WHERE target_id=? AND active=TRUE").use { statement ->
-                statement.setObject(1, target.id); statement.executeQuery().use { count -> count.next(); if (count.getInt(1) >= configuration.activeSubscriptionsMax) throw SubscriptionLimitExceededException() }
-            }
-        }
-        val updated = connection.prepareStatement("UPDATE notification_subscriptions SET active=?, updated_at=? WHERE target_id=? AND match_id=?").use { statement ->
-            statement.setBoolean(1, active); statement.setObject(2, now); statement.setObject(3, target.id); statement.setLong(4, matchId); statement.executeUpdate()
-        }
-        if (updated == 0) connection.prepareStatement("INSERT INTO notification_subscriptions (id, target_id, match_id, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").use { statement ->
-            statement.setObject(1, UUID.randomUUID()); statement.setObject(2, target.id); statement.setLong(3, matchId); statement.setBoolean(4, active); statement.setObject(5, now); statement.setObject(6, now); statement.executeUpdate()
+        if (priorActive == null) insertSubscription(connection, target, matchId, active, now) else updateSubscription(connection, target, matchId, active, now)
+        result
+    }
+
+    /** Global OFF is one target-level mutation and never changes another target. */
+    fun disableAllSubscriptions(target: PushTarget, revision: Long, operation: String, now: Instant = Instant.now()): RevisionResult = transaction { connection ->
+        requireValidRevision(revision)
+        val row = targetRow(connection, target) ?: return@transaction RevisionResult.CONFLICT
+        if (!row.sendable) return@transaction RevisionResult.CONFLICT
+        val result = applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
+        if (result != RevisionResult.APPLIED) return@transaction result
+        connection.prepareStatement("UPDATE notification_subscriptions SET active=FALSE, updated_at=? WHERE target_id=? AND active=TRUE").use { statement ->
+            statement.setObject(1, now); statement.setObject(2, target.id); statement.executeUpdate()
         }
         result
     }
 
+    /** Provider-proven invalidity: one transaction performs only logical erasure and target-local cleanup. */
     fun invalidateTarget(target: PushTarget, now: Instant = Instant.now()) = transaction { connection ->
-        connection.prepareStatement("UPDATE notification_targets SET sendable=FALSE, registration_value=NULL, invalidated_at=?, updated_at=? WHERE id=?").use { it.setObject(1, now); it.setObject(2, now); it.setObject(3, target.id); it.executeUpdate() }
-        connection.prepareStatement("UPDATE notification_subscriptions SET active=FALSE, updated_at=? WHERE target_id=?").use { it.setObject(1, now); it.setObject(2, target.id); it.executeUpdate() }
-        connection.prepareStatement("UPDATE notification_delivery_intents SET state='TERMINAL_FAILURE', terminal_reason='INVALID_TARGET', updated_at=? WHERE target_id=? AND state IN ('PENDING','RETRY_WAIT','CLAIMED_NOT_STARTED')").use { it.setObject(1, now); it.setObject(2, target.id); it.executeUpdate() }
-        connection.prepareStatement("INSERT INTO notification_audit_events (id, target_id, category, created_at) VALUES (?, ?, 'target_invalidated', ?)").use { it.setObject(1, UUID.randomUUID()); it.setObject(2, target.id); it.setObject(3, now); it.executeUpdate() }
+        connection.prepareStatement("UPDATE notification_targets SET sendable=FALSE, registration_value=NULL, invalidated_at=?, updated_at=? WHERE id=?").use { statement ->
+            statement.setObject(1, now); statement.setObject(2, now); statement.setObject(3, target.id); statement.executeUpdate()
+        }
+        connection.prepareStatement("UPDATE notification_subscriptions SET active=FALSE, updated_at=? WHERE target_id=?").use { statement ->
+            statement.setObject(1, now); statement.setObject(2, target.id); statement.executeUpdate()
+        }
+        connection.prepareStatement("UPDATE notification_delivery_intents SET state='TERMINAL_FAILURE', terminal_reason='INVALID_TARGET', updated_at=? WHERE target_id=? AND state IN ('PENDING','RETRY_WAIT','CLAIMED_NOT_STARTED')").use { statement ->
+            statement.setObject(1, now); statement.setObject(2, target.id); statement.executeUpdate()
+        }
+        connection.prepareStatement("INSERT INTO notification_audit_events (id, target_id, category, created_at) VALUES (?, ?, 'target_invalidated', ?)").use { statement ->
+            statement.setObject(1, UUID.randomUUID()); statement.setObject(2, target.id); statement.setObject(3, now); statement.executeUpdate()
+        }
     }
 
-    fun rawValueForTest(target: PushTarget): String? = transaction { connection ->
-        connection.prepareStatement("SELECT registration_value FROM notification_targets WHERE id=?").use { statement -> statement.setObject(1, target.id); statement.executeQuery().use { rows -> if (rows.next()) rows.getString(1) else null } }
+    fun targetProjection(target: PushTarget): TargetProjection? = transaction { connection ->
+        targetRow(connection, target)?.let { TargetProjection(target, it.sendable, mode, it.revision) }
     }
 
-    private fun applyRevision(connection: java.sql.Connection, id: UUID, current: Long, currentOperationHash: ByteArray, requested: Long, operation: String, now: Instant): RevisionResult {
-        if (requested <= 0) return RevisionResult.CONFLICT
+    internal fun readSendableTargetForDelivery(target: PushTarget): SendableDeliveryTarget? = transaction { connection ->
+        connection.prepareStatement("SELECT registration_value, sendable, target_mode FROM notification_targets WHERE id=?").use { statement ->
+            statement.setObject(1, target.id); statement.executeQuery().use { rows ->
+                if (!rows.next() || !rows.getBoolean(2)) null else rows.getString(1)?.let { SendableDeliveryTarget(target, it, FirebaseTargetMode.valueOf(rows.getString(3))) }
+            }
+        }
+    }
+
+    private fun targetRow(connection: java.sql.Connection, target: PushTarget): TargetRow? = connection.prepareStatement("SELECT accepted_revision, operation_hash, sendable FROM notification_targets WHERE id=?").use { statement ->
+        statement.setObject(1, target.id); statement.executeQuery().use { rows -> if (rows.next()) TargetRow(rows.getLong(1), rows.getBytes(2), rows.getBoolean(3)) else null }
+    }
+
+    private fun subscriptionActive(connection: java.sql.Connection, target: PushTarget, matchId: Long): Boolean? = connection.prepareStatement("SELECT active FROM notification_subscriptions WHERE target_id=? AND match_id=?").use { statement ->
+        statement.setObject(1, target.id); statement.setLong(2, matchId); statement.executeQuery().use { rows -> if (rows.next()) rows.getBoolean(1) else null }
+    }
+
+    private fun activeSubscriptionCount(connection: java.sql.Connection, target: PushTarget): Int = connection.prepareStatement("SELECT COUNT(*) FROM notification_subscriptions WHERE target_id=? AND active=TRUE").use { statement ->
+        statement.setObject(1, target.id); statement.executeQuery().use { rows -> rows.next(); rows.getInt(1) }
+    }
+
+    private fun insertSubscription(connection: java.sql.Connection, target: PushTarget, matchId: Long, active: Boolean, now: Instant) = connection.prepareStatement("INSERT INTO notification_subscriptions (id, target_id, match_id, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").use { statement ->
+        statement.setObject(1, UUID.randomUUID()); statement.setObject(2, target.id); statement.setLong(3, matchId); statement.setBoolean(4, active); statement.setObject(5, now); statement.setObject(6, now); statement.executeUpdate()
+    }
+
+    private fun updateSubscription(connection: java.sql.Connection, target: PushTarget, matchId: Long, active: Boolean, now: Instant) = connection.prepareStatement("UPDATE notification_subscriptions SET active=?, updated_at=? WHERE target_id=? AND match_id=?").use { statement ->
+        statement.setBoolean(1, active); statement.setObject(2, now); statement.setObject(3, target.id); statement.setLong(4, matchId); statement.executeUpdate()
+    }
+
+    private fun applyRevision(connection: java.sql.Connection, target: PushTarget, current: Long, currentOperationHash: ByteArray, requested: Long, operation: String, now: Instant): RevisionResult {
+        requireValidRevision(requested)
         val hash = operationHash(operation)
         when {
             requested < current -> return RevisionResult.STALE
@@ -99,7 +148,7 @@ class NotificationStore private constructor(
             current == Long.MAX_VALUE -> return RevisionResult.REVISION_EXHAUSTED
         }
         connection.prepareStatement("UPDATE notification_targets SET accepted_revision=?, operation_hash=?, updated_at=? WHERE id=? AND accepted_revision=?").use { statement ->
-            statement.setLong(1, requested); statement.setBytes(2, hash); statement.setObject(3, now); statement.setObject(4, id); statement.setLong(5, current)
+            statement.setLong(1, requested); statement.setBytes(2, hash); statement.setObject(3, now); statement.setObject(4, target.id); statement.setLong(5, current)
             if (statement.executeUpdate() != 1) return RevisionResult.CONFLICT
         }
         return RevisionResult.APPLIED
@@ -112,13 +161,19 @@ class NotificationStore private constructor(
 
     override fun close() = dataSource.close()
 
+    private data class TargetRow(val revision: Long, val operationHash: ByteArray, val sendable: Boolean)
+
     companion object {
         private const val PROVIDER = "FIREBASE"
 
-        fun open(configuration: NotificationConfiguration, random: SecureRandom = SecureRandom()): NotificationStore {
+        fun open(configuration: NotificationConfiguration, random: SecureRandom = SecureRandom()): NotificationStore = openInternal(configuration, random, ::lookupDigest)
+
+        internal fun openForTesting(configuration: NotificationConfiguration, targetDigest: TargetDigest): NotificationStore = openInternal(configuration, SecureRandom(), targetDigest)
+
+        private fun openInternal(configuration: NotificationConfiguration, random: SecureRandom, targetDigest: TargetDigest): NotificationStore {
             check(configuration.enabled) { "disabled notification configuration must not create a store" }
             val config = HikariConfig().apply {
-                jdbcUrl = "jdbc:h2:file:${requireNotNull(configuration.databasePath).toAbsolutePath()};AUTO_SERVER=FALSE;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000;WRITE_DELAY=0"
+                jdbcUrl = h2JdbcUrl(requireNotNull(configuration.databasePath))
                 driverClassName = "org.h2.Driver"
                 maximumPoolSize = configuration.jdbcPoolSize
                 minimumIdle = 0
@@ -127,15 +182,22 @@ class NotificationStore private constructor(
             val dataSource = HikariDataSource(config)
             try {
                 Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate()
-                val store = NotificationStore(dataSource, configuration)
-                store.verifyMetadata(random)
-                return store
+                return NotificationStore(dataSource, configuration, targetDigest).also { it.verifyMetadata(random) }
             } catch (error: Throwable) { dataSource.close(); throw error }
         }
 
         fun lookupDigest(key: ByteArray, mode: FirebaseTargetMode, registrationValue: String): ByteArray {
             val mac = Mac.getInstance("HmacSHA256"); mac.init(SecretKeySpec(key, "HmacSHA256"))
             return mac.doFinal(listOf("vlrgg-match-notification-target-v1", PROVIDER, mode.name, registrationValue).joinToString("\u0000").toByteArray(StandardCharsets.UTF_8))
+        }
+
+        private fun h2JdbcUrl(path: java.nio.file.Path): String {
+            val normalized = path.toAbsolutePath().normalize()
+            val value = normalized.toString()
+            if (!normalized.isAbsolute || value.startsWith("//") || value.startsWith("\\\\") || value.any { it.code < 32 || it.code == 127 } || value.any { it in ";?#" }) {
+                throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.STORAGE_PATH)
+            }
+            return "jdbc:h2:file:$value;AUTO_SERVER=FALSE;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000;WRITE_DELAY=0"
         }
     }
 
@@ -149,7 +211,7 @@ class NotificationStore private constructor(
                     }
                 } else {
                     if (rows.getString(1) != mode.name) throw NotificationConfigurationException(ConfigurationCategory.TARGET_MODE_MISMATCH, ConfigurationField.TARGET_MODE)
-                    if (!constantTimeEquals(rows.getString(2).toByteArray(), keyId.toByteArray()) || !constantTimeEquals(rows.getBytes(4), hmac(lookupKey, rows.getBytes(3)))) throw NotificationConfigurationException(ConfigurationCategory.DIGEST_KEY_MISMATCH, ConfigurationField.LOOKUP_DIGEST_KEY)
+                    if (!constantTimeEquals(rows.getString(2).toByteArray(StandardCharsets.UTF_8), keyId.toByteArray(StandardCharsets.UTF_8)) || !constantTimeEquals(rows.getBytes(4), hmac(lookupKey, rows.getBytes(3)))) throw NotificationConfigurationException(ConfigurationCategory.DIGEST_KEY_MISMATCH, ConfigurationField.LOOKUP_DIGEST_KEY)
                 }
             }
         }
@@ -159,6 +221,7 @@ class NotificationStore private constructor(
 class TargetDigestCollisionException : IllegalStateException("target lookup collision")
 class SubscriptionLimitExceededException : IllegalStateException("subscription limit exceeded")
 
+private fun requireValidRevision(value: Long) { require(value > 0) { "revision must be a positive signed Long" } }
 private fun operationHash(operation: String): ByteArray = MessageDigest.getInstance("SHA-256").digest(operation.toByteArray(StandardCharsets.UTF_8))
 private fun hmac(key: ByteArray, value: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").run { init(SecretKeySpec(key, "HmacSHA256")); doFinal(value) }
 private fun sha256Hex(value: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(value).joinToString("") { "%02x".format(it) }

@@ -13,8 +13,6 @@ application {
 dependencies {
     api(projects.core)
     implementation(libs.jspecify)
-    implementation(libs.exposed.core)
-    implementation(libs.exposed.jdbc)
     implementation(libs.firebase.admin)
     implementation(libs.flyway.core)
     implementation(libs.h2)

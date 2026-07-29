@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -40,6 +41,39 @@ class NotificationConfigurationTest {
             NotificationConfiguration.fromEnvironment(enabledEnvironment() + ("VLRGG_NOTIFICATIONS_CLAIM_LEASE_MILLIS" to "30000"), ServerListenerConfiguration("127.0.0.1", 8080))
         }
         assertEquals(ConfigurationCategory.INVALID_CROSS_FIELD, lease.category)
+    }
+
+    @Test fun `storage path rejects H2 setting URL query remote and control injection`() {
+        listOf(
+            "/tmp/store;AUTO_SERVER=TRUE", "/tmp/store?AUTO_SERVER=TRUE", "/tmp/store#fragment",
+            "jdbc:h2:mem:notification", "//server/share/notification", "/tmp/store\u0000suffix",
+        ).forEach { path ->
+            val exception = assertFailsWith<NotificationConfigurationException> {
+                NotificationConfiguration.fromEnvironment(enabledEnvironment() + ("VLRGG_NOTIFICATIONS_STORAGE_PATH" to path), ServerListenerConfiguration("127.0.0.1", 8080))
+            }
+            assertEquals(ConfigurationCategory.UNSAFE_STORAGE, exception.category)
+            assertEquals(ConfigurationField.STORAGE_PATH, exception.field)
+        }
+    }
+
+    @Test fun `enum validation deterministically precedes range validation`() {
+        val exception = assertFailsWith<NotificationConfigurationException> {
+            NotificationConfiguration.fromEnvironment(
+                enabledEnvironment() + mapOf("VLRGG_NOTIFICATIONS_FIREBASE_TARGET_MODE" to "fid", "VLRGG_NOTIFICATIONS_REQUEST_BODY_BYTES" to "0"),
+                ServerListenerConfiguration("127.0.0.1", 8080),
+            )
+        }
+        assertEquals(ConfigurationCategory.UNSUPPORTED_TARGET_MODE, exception.category)
+        assertEquals(ConfigurationField.TARGET_MODE, exception.field)
+    }
+
+    @Test fun `disabled configuration creates no storage resource`() {
+        val path = Files.createTempDirectory("vlrgg-disabled").resolve("would-not-open")
+        val configuration = NotificationConfiguration.fromEnvironment(mapOf("VLRGG_NOTIFICATIONS_STORAGE_PATH" to path.toString()), ServerListenerConfiguration("127.0.0.1", 8080))
+
+        assertFalse(configuration.enabled)
+        assertNull(configuration.databasePath)
+        assertFalse(Files.exists(path.resolveSibling("would-not-open.mv.db")))
     }
 
     private fun enabledEnvironment() = mapOf(
