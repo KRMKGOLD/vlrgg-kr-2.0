@@ -33,15 +33,22 @@ internal interface NotificationProvider {
     suspend fun send(target: SendableDeliveryTarget, event: NotificationEventType): ProviderDeliveryResult
 }
 
-/** Real adapter; unit tests inject NotificationProvider and never instantiate/call this transport. */
-internal class FirebaseNotificationProvider(private val app: FirebaseApp) : NotificationProvider {
+/**
+ * The production constructor resolves FirebaseMessaging only here; tests inject the async future
+ * boundary directly, without FirebaseApp, ADC, or any network transport.
+ */
+internal class FirebaseNotificationProvider(
+    private val sendAsync: (Message) -> ApiFuture<String>,
+) : NotificationProvider {
+    constructor(app: FirebaseApp) : this({ message -> FirebaseMessaging.getInstance(app).sendAsync(message) })
+
     override suspend fun send(target: SendableDeliveryTarget, event: NotificationEventType): ProviderDeliveryResult = try {
         val builder = Message.builder().putData("event", event.name)
         when (target.mode) {
             FirebaseTargetMode.FID -> builder.setFid(target.registrationValue)
             FirebaseTargetMode.LEGACY_TOKEN -> builder.setToken(target.registrationValue)
         }
-        FirebaseMessaging.getInstance(app).sendAsync(builder.build()).awaitWithoutCancellingTransport()
+        sendAsync(builder.build()).awaitWithoutCancellingTransport()
         ProviderDeliveryResult.Accepted
     } catch (error: FirebaseMessagingException) {
         val code = error.messagingErrorCode?.name
@@ -133,7 +140,13 @@ internal class NotificationDeliveryService(
         val jitter = deterministicJitter(call.claim, configuration.retryJitterMillis)
         val applicationDelay = (base + jitter).coerceAtMost(configuration.maxRetryMillis)
         val delay = maxOf(applicationDelay, providerMinimum)
-        val due = try { now.plusMillis(delay) } catch (_: ArithmeticException) { store.finalizeTerminal(call, "RETRY_SCHEDULE_OVERFLOW", now); return }
+        val due = try {
+            now.plusMillis(delay)
+        } catch (_: ArithmeticException) {
+            store.finalizeTerminal(call, "RETRY_SCHEDULE_OVERFLOW", now); return
+        } catch (_: java.time.DateTimeException) {
+            store.finalizeTerminal(call, "RETRY_SCHEDULE_OVERFLOW", now); return
+        }
         if (store.finalizeRetry(call, now, delay, due)) retryGuard.anchor(call.claim.intentId, now, due, delay)
     }
 }

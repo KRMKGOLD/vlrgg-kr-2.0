@@ -166,6 +166,22 @@ class NotificationDeliveryTest {
         }
     }
 
+    @Test fun `Instant boundary retry schedule persists overflow from DateTimeException`() = runBlocking {
+        val configuration = config(overrides = mapOf(
+            "VLRGG_NOTIFICATIONS_DELIVERY_TIMEOUT_MILLIS" to "1000",
+            "VLRGG_NOTIFICATIONS_CLAIM_LEASE_MILLIS" to "10000",
+            "VLRGG_NOTIFICATIONS_RETRY_JITTER_MILLIS" to "0",
+        ))
+        NotificationStore.open(configuration).use { store ->
+            intent(store)
+            val nearMaximum = Instant.MAX.minusSeconds(15)
+            NotificationDeliveryService(store, object : NotificationProvider {
+                override suspend fun send(target: SendableDeliveryTarget, event: NotificationEventType) = ProviderDeliveryResult.Retryable(503)
+            }, configuration, Clock.fixed(nearMaximum, ZoneOffset.UTC)).runOnce()
+            assertEquals("RETRY_SCHEDULE_OVERFLOW", store.deliveryDetails(42, NotificationEventType.START)?.terminalReason)
+        }
+    }
+
     @Test fun `only ASCII OWS trims retry after and unicode whitespace falls back safely`() = runBlocking {
         store().use { store ->
             intent(store)

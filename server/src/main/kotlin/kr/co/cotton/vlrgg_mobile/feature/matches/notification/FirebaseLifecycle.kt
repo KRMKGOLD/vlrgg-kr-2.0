@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Named-app ownership is explicit: an existing app is never borrowed, renamed, or deleted. */
@@ -93,6 +94,21 @@ internal fun acquireNotificationRuntime(
     }
 }
 
+/** The listener runner shares this one failure path with normal application startup. */
+internal fun <T> runWithNotificationRuntime(
+    configuration: NotificationConfiguration,
+    factories: NotificationRuntimeFactories = NotificationRuntimeFactories(),
+    runner: (AcquiredNotificationRuntime?) -> T,
+): T {
+    val runtime = acquireNotificationRuntime(configuration, factories)
+    return try {
+        runner(runtime)
+    } catch (error: Throwable) {
+        runtime?.resources?.stopBlocking()
+        throw error
+    }
+}
+
 internal class FixedDelayDeliveryPolling(private val service: NotificationDeliveryService, private val delayMillis: Long) {
     fun start(scope: CoroutineScope): Job = scope.launch {
         while (isActive) {
@@ -108,35 +124,84 @@ internal class OwnedNotificationResources(
     private val store: NotificationStore,
     private val closeStore: (NotificationStore) -> Unit = NotificationStore::close,
 ) {
-    private val stopped = AtomicBoolean(false)
     private val lock = Any()
     private var tracking: Job? = null
     private var delivery: Job? = null
+    private val lateJobs = mutableListOf<Pair<Job, Boolean>>()
+    private var completion: CompletableDeferred<Result<Unit>>? = null
+    private var closing = false
 
     fun trackTracking(job: Job) = track(job, true)
     fun trackDelivery(job: Job) = track(job, false)
 
     private fun track(job: Job, isTracking: Boolean) {
-        val cancel = synchronized(lock) {
-            if (stopped.get()) true else {
-                if (isTracking) tracking = job else delivery = job
-                false
+        val cancelAndJoin = synchronized(lock) {
+            when {
+                completion == null -> {
+                    if (isTracking) tracking = job else delivery = job
+                    false
+                }
+                !closing -> {
+                    lateJobs += job to isTracking
+                    false
+                }
+                else -> true
             }
         }
-        if (cancel) job.cancel()
+        // A registration that arrives after the cleanup barrier is rejected, rather than silently
+        // becoming an unowned worker.  It never races an owned Firebase/store close.
+        if (cancelAndJoin) runBlocking { job.cancelAndJoin() }
     }
 
     suspend fun stopAndJoin() {
-        if (!stopped.compareAndSet(false, true)) return
-        val jobs = synchronized(lock) { delivery to tracking }
+        val (shared, owner) = synchronized(lock) {
+            completion?.let { it to false } ?: CompletableDeferred<Result<Unit>>().also { completion = it } to true
+        }
+        if (owner) {
+            val outcome = runCatching { cleanup() }
+            shared.complete(outcome)
+        }
+        shared.await().getOrThrow()
+    }
+
+    private suspend fun cleanup() {
         var firstFailure: Throwable? = null
-        fun capture(block: () -> Unit) {
+        suspend fun capture(block: suspend () -> Unit) {
             try { block() } catch (error: Throwable) { if (firstFailure == null) firstFailure = error }
         }
-        try { jobs.first?.cancelAndJoin() } catch (error: Throwable) { firstFailure = error }
-        try { jobs.second?.cancelAndJoin() } catch (error: Throwable) { if (firstFailure == null) firstFailure = error }
-        capture { firebaseApp?.close() }
-        capture { closeStore(store) }
+        while (true) {
+            val jobs = synchronized(lock) {
+                val batch = buildList {
+                    delivery?.let { add(it to false) }
+                    tracking?.let { add(it to true) }
+                    addAll(lateJobs)
+                }
+                delivery = null
+                tracking = null
+                lateJobs.clear()
+                batch
+            }
+            jobs.filter { !it.second }.forEach { (job, _) -> capture { job.cancelAndJoin() } }
+            jobs.filter { it.second }.forEach { (job, _) -> capture { job.cancelAndJoin() } }
+            val hasLateJob = synchronized(lock) {
+                if (lateJobs.isEmpty()) {
+                    // This is the registration barrier. track() cannot offer an owned job after
+                    // closing becomes true, and any offer before it was included by the loop.
+                    closing = true
+                    false
+                } else true
+            }
+            if (!hasLateJob) break
+        }
+        fun closeCapture(block: () -> Unit) {
+            try { block() } catch (error: Throwable) { if (firstFailure == null) firstFailure = error }
+        }
+        synchronized(lock) {
+            // Hold the registration gate through the irreversible resources. A concurrent track()
+            // either joined the preceding batch or is rejected only after this owner is complete.
+            closeCapture { firebaseApp?.close() }
+            closeCapture { closeStore(store) }
+        }
         firstFailure?.let { throw it }
     }
 

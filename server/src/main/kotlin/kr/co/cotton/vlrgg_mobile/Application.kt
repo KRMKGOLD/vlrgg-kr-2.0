@@ -32,7 +32,7 @@ import kr.co.cotton.vlrgg_mobile.feature.matches.notification.OwnedNotificationR
 import kr.co.cotton.vlrgg_mobile.feature.matches.notification.NotificationProvider
 import kr.co.cotton.vlrgg_mobile.feature.matches.notification.NotificationDeliveryService
 import kr.co.cotton.vlrgg_mobile.feature.matches.notification.FixedDelayDeliveryPolling
-import kr.co.cotton.vlrgg_mobile.feature.matches.notification.acquireNotificationRuntime
+import kr.co.cotton.vlrgg_mobile.feature.matches.notification.runWithNotificationRuntime
 import kr.co.cotton.vlrgg_mobile.feature.matches.DefaultMatchesService
 import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesService
 import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesMapper
@@ -49,20 +49,19 @@ fun main() {
     // Pure preflight shares this exact listener value; disabled mode allocates no notification resources.
     val notificationConfiguration = NotificationConfiguration.fromEnvironment(environment, listenerConfiguration)
     val enableApiDocumentation = environment[API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE] == "true"
-    val notificationRuntime = acquireNotificationRuntime(notificationConfiguration)
-    try { embeddedServer(Netty, port = listenerConfiguration.port, host = listenerConfiguration.host, module = {
-        module(
-            enableApiDocumentation = enableApiDocumentation,
-            notificationConfiguration = notificationConfiguration,
-            notificationStore = notificationRuntime?.store,
-            startNotificationTracking = notificationConfiguration.enabled,
-            notificationProvider = notificationRuntime?.provider,
-            startNotificationDelivery = notificationConfiguration.enabled,
-            notificationResources = notificationRuntime?.resources,
-        )
-    })
-        .start(wait = true)
-    } catch (error: Throwable) { notificationRuntime?.resources?.stopBlocking(); throw error }
+    runWithNotificationRuntime(notificationConfiguration) { notificationRuntime ->
+        embeddedServer(Netty, port = listenerConfiguration.port, host = listenerConfiguration.host, module = {
+            module(
+                enableApiDocumentation = enableApiDocumentation,
+                notificationConfiguration = notificationConfiguration,
+                notificationStore = notificationRuntime?.store,
+                startNotificationTracking = notificationConfiguration.enabled,
+                notificationProvider = notificationRuntime?.provider,
+                startNotificationDelivery = notificationConfiguration.enabled,
+                notificationResources = notificationRuntime?.resources,
+            )
+        }).start(wait = true)
+    }
 }
 
 internal fun Application.module(
