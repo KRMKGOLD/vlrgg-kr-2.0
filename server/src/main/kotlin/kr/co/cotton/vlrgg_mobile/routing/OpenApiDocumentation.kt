@@ -65,6 +65,26 @@ internal inline fun <reified T : Any> Route.describePublicGet(
     }
 }
 
+/** Local-only notification mutations deliberately document provider-neutral response DTOs only. */
+@OptIn(ExperimentalKtorApi::class)
+internal inline fun <reified T : Any> Route.describeLocalNotificationOperation(
+    operationId: String,
+    summary: String,
+) = describe {
+    this.operationId = operationId
+    this.summary = summary
+    this.description = "Disabled by default. Available only when the notification API is enabled on the actual literal loopback listener."
+    tag("Match notifications (local)")
+    responses {
+        HttpStatusCode.OK { description = "Desired target state was processed."; content { schema = jsonSchema<T>() } }
+        HttpStatusCode.BadRequest { description = "Request input is invalid."; content { schema = jsonSchema<ApiErrorResponse>() } }
+        HttpStatusCode.PayloadTooLarge { description = "Request body exceeds the configured bound."; content { schema = jsonSchema<ApiErrorResponse>() } }
+        HttpStatusCode.Conflict { description = "The revision or target state conflicts with the durable state."; content { schema = jsonSchema<ApiErrorResponse>() } }
+        HttpStatusCode.NotFound { description = "Requested local target state was not found."; content { schema = jsonSchema<ApiErrorResponse>() } }
+        HttpStatusCode.InternalServerError { description = "An unexpected server error occurred."; content { schema = jsonSchema<ApiErrorResponse>() } }
+    }
+}
+
 @OptIn(ExperimentalKtorApi::class)
 internal fun Responses.Builder.commonFailureResponses() {
     HttpStatusCode.BadRequest {

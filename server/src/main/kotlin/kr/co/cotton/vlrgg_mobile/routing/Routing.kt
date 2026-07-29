@@ -8,6 +8,7 @@ import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 import kr.co.cotton.vlrgg_mobile.feature.events.EventsService
 import kr.co.cotton.vlrgg_mobile.feature.events.configureEventsRoutes
 import kr.co.cotton.vlrgg_mobile.feature.matches.configureMatchesFeature
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesService
 import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
 import kr.co.cotton.vlrgg_mobile.feature.news.configureNewsRoutes
 import kr.co.cotton.vlrgg_mobile.feature.player.PlayerDetailService
@@ -27,6 +28,7 @@ internal fun Application.configureRouting(
     seriesService: SeriesService,
     teamDetailService: TeamDetailService,
     playerDetailService: PlayerDetailService,
+    matchesService: MatchesService? = null,
     enableApiDocumentation: Boolean,
 ) {
     if (enableApiDocumentation) {
@@ -43,7 +45,7 @@ internal fun Application.configureRouting(
         configureTeamDetailRoutes(teamDetailService)
         configurePlayerDetailRoutes(playerDetailService)
     }
-    configureMatchesFeature(upstreamHtmlTransport)
+    configureMatchesFeature(upstreamHtmlTransport, matchesService)
 }
 
 @Serializable

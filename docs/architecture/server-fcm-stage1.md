@@ -1,12 +1,14 @@
 # Server FCM Match Notification — Stage 1 technical contract
 
-- Status: Accepted implementation contract; implementation has not started
+- Status: Accepted implementation contract; Wave A storage and Wave B local desired-state/tracking are implemented. Wave C delivery/provider lifecycle remains pending.
 - Scope: `server` only, local/private and fully offline-verifiable
 - Related: [ADR-0001](adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [Matches product contract](../feature/matches/README.md), [server architecture](server-arch.md)
 
 ## Scope and boundary
 
 Stage 1 adds a Match-notification vertical slice under the existing Matches feature: durable target subscription intent, target-scoped revision ordering, unique START/END intents, fixed-delay tracking, durable delivery state, a provider-neutral seam, and a Firebase Admin implementation. It is server-only. The current server remains the baseline until a later implementation changes it: it has direct Netty construction, manual composition, scraping APIs, and common safe errors, but no notification sources, database/migrations, Firebase Admin dependency, or scheduler.
+
+Wave B changes that baseline only for the local/private desired-state and tracking portion: the default-disabled loopback API persists provider-neutral target subscriptions and tracker observations create durable START/END intents. It does not create Firebase apps, resolve ADC, call a provider, claim or deliver intents, or expand authority beyond the approved local listener boundary.
 
 Stage 1 excludes all `app/` code and tests, live credentials/project/network/dry-run, device-display proof, public deployment, production data, authentication or target ownership, and multi-instance scheduling. Feature and notification API enablement are independent and default to `false`. API-enabled Stage 1 is deliberately loopback-only; this can make it unreachable from another device, which is acceptable because App integration is excluded. A registration value is an anonymous push address, never an account, physical-device identity, authentication credential, authorization proof, or ownership proof.
 

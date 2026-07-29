@@ -10,7 +10,7 @@ Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selecto
 
 ## Current State and Direction
 
-현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API와 런타임 OpenAPI/Swagger 개발 문서를 구현했다. 일반 콘텐츠 조회를 위한 cache와 별도 DI framework, Match 알림의 구독 API·영속 저장·scheduler·delivery는 도입하지 않았다. 따라서 Stage 1 문서의 package shape, config, dependency, endpoint, lifecycle은 미래 구현 계약이며 현재 구현 사실이 아니다.
+현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API와 런타임 OpenAPI/Swagger 개발 문서를 구현했다. Match 알림은 Wave B까지 default-disabled loopback 구독 API, H2 desired state, observation tracker와 START/END intent 생성만 구현했다. Firebase/ADC/provider 호출, delivery claim/retry, public authority와 배포는 아직 도입하지 않았다.
 
 서버 기능은 단일 `:server` Gradle module 안에서 feature-based modular structure로 개발한다.
 
@@ -118,7 +118,7 @@ Jsoup `Document`와 `Element`, CSS selector, raw HTML, parsing 보정은 parser 
 
 ## Match Notification: Planned Exception
 
-Match 알림은 일반 request-time scraping 정책의 좁은 예외로 기획되어 있지만 아직 구현되지 않았다. 전송 provider는 FCM으로 정한다. 현재 서버에는 구독 endpoint, FCM 연동, 영속 저장, polling scheduler 또는 delivery state가 없다. 구현 시 사용자가 특정 Match의 알림을 설정하면 앱은 Match 즐겨찾기를 로컬에 저장하고, 서버에는 앱이 제시한 `FCM registration value`와 Match의 알림 구독을 등록한다.
+Match 알림은 일반 request-time scraping 정책의 좁은 예외다. Wave B는 local/private API에서 target-scoped 구독 상태를 영속화하고 fixed-delay observation으로 START/END delivery intent를 만든다. Firebase delivery와 claim/retry state machine은 Wave C까지 구현하지 않았으며, 사용자가 특정 Match의 알림을 설정하는 App 흐름도 범위 밖이다.
 
 `FCM registration value`는 한 익명 push target의 전송 주소일 뿐 사용자 인증이나 물리 기기 소유 증명이 아니다. 서로 다른 registration value는 같은 기기에서 생성되었더라도 독립 target이며, 서버는 FID나 다른 기기 식별자로 값을 병합·대체·이관하지 않는다. 구독과 current-target OFF의 상세 제품 의미는 [Matches 기능 문서](../feature/matches/README.md)가 소유한다.
 

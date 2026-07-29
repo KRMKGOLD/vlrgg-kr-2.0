@@ -16,6 +16,11 @@ import javax.crypto.spec.SecretKeySpec
 enum class TargetResolution { CREATED, EXISTING, TARGET_REFRESH_REQUIRED }
 data class TargetLookupResult(val target: PushTarget?, val resolution: TargetResolution, val revision: RevisionResult?)
 enum class RevisionResult { APPLIED, STALE, REPLAYED, CONFLICT, REVISION_EXHAUSTED }
+enum class ObservationStatus { UPCOMING, LIVE, COMPLETED, POSTPONED, CANCELLED }
+enum class ObservationResult { SUCCESS, NETWORK_FAILURE, PARSING_FAILURE, MISSING }
+enum class NotificationEventType { START, END }
+data class SubscriptionProjection(val matchId: Long, val active: Boolean)
+data class NotificationStateProjection(val acceptedRevision: Long, val subscriptions: List<SubscriptionProjection>)
 internal typealias TargetDigest = (ByteArray, FirebaseTargetMode, String) -> ByteArray
 
 /** Public persistence projection deliberately excludes a raw registration value. */
@@ -37,10 +42,11 @@ class NotificationStore private constructor(
     private val mode get() = configuration.targetMode
     private val lookupKey get() = requireNotNull(configuration.lookupDigestKey)
     private val keyId get() = sha256Hex(lookupKey)
+    private var lastObservationAt = Instant.MIN
 
     fun findOrRegister(registrationValue: String, operation: String, revision: Long, now: Instant = Instant.now()): TargetLookupResult {
         requireValidRevision(revision)
-        require(registrationValue.toByteArray(StandardCharsets.UTF_8).size <= configuration.registrationValueMaxBytes)
+        requireValidRegistrationValue(registrationValue)
         val digest = targetDigest(lookupKey, mode, registrationValue)
         require(digest.size == 32) { "target digest must be 32 bytes" }
         return transaction { connection ->
@@ -68,6 +74,7 @@ class NotificationStore private constructor(
 
     fun mutateSubscription(target: PushTarget, matchId: Long, active: Boolean, revision: Long, operation: String, now: Instant = Instant.now()): RevisionResult = transaction { connection ->
         requireValidRevision(revision)
+        requireValidMatchId(matchId)
         val row = targetRow(connection, target) ?: return@transaction RevisionResult.CONFLICT
         if (!row.sendable) return@transaction RevisionResult.CONFLICT
         val revisionOutcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
@@ -78,6 +85,92 @@ class NotificationStore private constructor(
         if (result != RevisionResult.APPLIED) return@transaction result
         if (priorActive == null) insertSubscription(connection, target, matchId, active, now) else updateSubscription(connection, target, matchId, active, now)
         result
+    }
+
+    /** Applies address resolution, target revision and the desired match state in one transaction. */
+    fun reconcileSubscription(registrationValue: String, matchId: Long, active: Boolean, revision: Long, now: Instant = Instant.now()): TargetLookupResult {
+        requireValidRegistrationValue(registrationValue)
+        requireValidMatchId(matchId)
+        requireValidRevision(revision)
+        val operation = "subscription:$matchId:${if (active) "on" else "off"}"
+        val digest = targetDigest(lookupKey, mode, registrationValue).also { require(it.size == 32) { "target digest must be 32 bytes" } }
+        return transaction { connection ->
+            val existing = targetByDigest(connection, digest)
+            if (existing == null) {
+                val target = insertTarget(connection, digest, registrationValue, revision, operation, now)
+                insertSubscription(connection, target, matchId, active, now)
+                TargetLookupResult(target, TargetResolution.CREATED, RevisionResult.APPLIED)
+            } else {
+                val (target, raw, row) = existing
+                if (!row.sendable || raw == null) return@transaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+                if (!constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
+                val outcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
+                if (outcome != RevisionResult.APPLIED) return@transaction TargetLookupResult(target, TargetResolution.EXISTING, outcome)
+                val priorActive = subscriptionActive(connection, target, matchId)
+                if (active && priorActive != true && activeSubscriptionCount(connection, target) >= configuration.activeSubscriptionsMax) throw SubscriptionLimitExceededException()
+                applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
+                if (priorActive == null) insertSubscription(connection, target, matchId, active, now) else updateSubscription(connection, target, matchId, active, now)
+                TargetLookupResult(target, TargetResolution.EXISTING, RevisionResult.APPLIED)
+            }
+        }
+    }
+
+    fun reconcileGlobalOff(registrationValue: String, revision: Long, now: Instant = Instant.now()): TargetLookupResult {
+        requireValidRegistrationValue(registrationValue)
+        requireValidRevision(revision)
+        val operation = "global:off"
+        val digest = targetDigest(lookupKey, mode, registrationValue).also { require(it.size == 32) { "target digest must be 32 bytes" } }
+        return transaction { connection ->
+            val existing = targetByDigest(connection, digest)
+                ?: return@transaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+            val (target, raw, row) = existing
+            if (!row.sendable || raw == null) return@transaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+            if (!constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
+            val outcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
+            if (outcome != RevisionResult.APPLIED) return@transaction TargetLookupResult(target, TargetResolution.EXISTING, outcome)
+            applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
+            connection.prepareStatement("UPDATE notification_subscriptions SET active=FALSE, updated_at=? WHERE target_id=? AND active=TRUE").use { statement ->
+                statement.setObject(1, now); statement.setObject(2, target.id); statement.executeUpdate()
+            }
+            TargetLookupResult(target, TargetResolution.EXISTING, RevisionResult.APPLIED)
+        }
+    }
+
+    fun stateForRegistration(registrationValue: String): NotificationStateProjection? {
+        requireValidRegistrationValue(registrationValue)
+        val digest = targetDigest(lookupKey, mode, registrationValue).also { require(it.size == 32) { "target digest must be 32 bytes" } }
+        return transaction { connection ->
+            val existing = targetByDigest(connection, digest) ?: return@transaction null
+            val (target, raw, row) = existing
+            if (!row.sendable || raw == null || !constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) return@transaction null
+            NotificationStateProjection(row.revision, subscriptions(connection, target))
+        }
+    }
+
+    fun activeMatchIds(): List<Long> = transaction { connection ->
+        connection.prepareStatement("SELECT DISTINCT match_id FROM notification_subscriptions WHERE active=TRUE ORDER BY match_id").use { statement ->
+            statement.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getLong(1)) } }
+        }
+    }
+
+    internal fun deliveryIntentCount(matchId: Long, event: NotificationEventType): Int = transaction { connection ->
+        connection.prepareStatement("SELECT COUNT(*) FROM notification_delivery_intents WHERE match_id=? AND event_type=?").use { statement ->
+            statement.setLong(1, matchId); statement.setString(2, event.name); statement.executeQuery().use { rows -> rows.next(); rows.getInt(1) }
+        }
+    }
+
+    /** Writes every source result, but transitions compare only the prior successful observation. */
+    fun recordObservation(matchId: Long, result: ObservationResult, status: ObservationStatus? = null, now: Instant = Instant.now()): Int = transaction { connection ->
+        requireValidMatchId(matchId)
+        require((result == ObservationResult.SUCCESS) == (status != null)) { "successful observations require a status" }
+        val previous = if (result == ObservationResult.SUCCESS) lastSuccessfulStatus(connection, matchId) else null
+        val observedAt = nextObservationTime(now)
+        connection.prepareStatement("INSERT INTO notification_observations (id, match_id, status, observed_at, source_result) VALUES (?, ?, ?, ?, ?)").use { statement ->
+            statement.setObject(1, UUID.randomUUID()); statement.setLong(2, matchId); statement.setString(3, status?.name ?: "NONE"); statement.setObject(4, observedAt); statement.setString(5, result.name); statement.executeUpdate()
+        }
+        if (result != ObservationResult.SUCCESS) return@transaction 0
+        val event = transition(previous, requireNotNull(status)) ?: return@transaction 0
+        activeTargetsForMatch(connection, matchId).sumOf { target -> insertIntentIfAbsent(connection, target, matchId, event, now) }
     }
 
     /** Global OFF is one target-level mutation and never changes another target. */
@@ -112,6 +205,52 @@ class NotificationStore private constructor(
     fun targetProjection(target: PushTarget): TargetProjection? = transaction { connection ->
         targetRow(connection, target)?.let { TargetProjection(target, it.sendable, mode, it.revision) }
     }
+
+    private fun targetByDigest(connection: java.sql.Connection, digest: ByteArray): ExistingTarget? = connection.prepareStatement("SELECT id, registration_value, sendable, accepted_revision, operation_hash FROM notification_targets WHERE provider=? AND target_mode=? AND lookup_digest=?").use { statement ->
+        statement.setString(1, PROVIDER); statement.setString(2, mode.name); statement.setBytes(3, digest); statement.executeQuery().use { rows ->
+            if (rows.next()) ExistingTarget(PushTarget(rows.getObject(1, UUID::class.java)), rows.getString(2), TargetRow(rows.getLong(4), rows.getBytes(5), rows.getBoolean(3))) else null
+        }
+    }
+
+    private fun insertTarget(connection: java.sql.Connection, digest: ByteArray, registrationValue: String, revision: Long, operation: String, now: Instant): PushTarget {
+        val target = PushTarget(UUID.randomUUID())
+        connection.prepareStatement("INSERT INTO notification_targets (id, provider, target_mode, lookup_digest, lookup_key_id, registration_value, sendable, invalidated_at, accepted_revision, operation_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, TRUE, NULL, ?, ?, ?, ?)").use { insert ->
+            insert.setObject(1, target.id); insert.setString(2, PROVIDER); insert.setString(3, mode.name); insert.setBytes(4, digest); insert.setString(5, keyId); insert.setString(6, registrationValue); insert.setLong(7, revision); insert.setBytes(8, operationHash(operation)); insert.setObject(9, now); insert.setObject(10, now); insert.executeUpdate()
+        }
+        return target
+    }
+
+    private fun subscriptions(connection: java.sql.Connection, target: PushTarget): List<SubscriptionProjection> = connection.prepareStatement("SELECT match_id, active FROM notification_subscriptions WHERE target_id=? ORDER BY match_id").use { statement ->
+        statement.setObject(1, target.id); statement.executeQuery().use { rows -> buildList { while (rows.next()) add(SubscriptionProjection(rows.getLong(1), rows.getBoolean(2))) } }
+    }
+
+    private fun lastSuccessfulStatus(connection: java.sql.Connection, matchId: Long): ObservationStatus? = connection.prepareStatement("SELECT status FROM notification_observations WHERE match_id=? AND source_result='SUCCESS' ORDER BY observed_at DESC, id DESC LIMIT 1").use { statement ->
+        statement.setLong(1, matchId); statement.executeQuery().use { rows -> if (rows.next()) ObservationStatus.valueOf(rows.getString(1)) else null }
+    }
+
+    private fun transition(previous: ObservationStatus?, current: ObservationStatus): NotificationEventType? = when {
+        previous == null -> null
+        previous in setOf(ObservationStatus.UPCOMING, ObservationStatus.POSTPONED) && current == ObservationStatus.LIVE -> NotificationEventType.START
+        previous == ObservationStatus.LIVE && current == ObservationStatus.COMPLETED -> NotificationEventType.END
+        previous in setOf(ObservationStatus.UPCOMING, ObservationStatus.POSTPONED) && current == ObservationStatus.COMPLETED -> NotificationEventType.END
+        else -> null
+    }
+
+    private fun requireValidRegistrationValue(value: String) {
+        require(value.isNotBlank() && value.none { it.isISOControl() }) { "registration value is invalid" }
+        require(value.toByteArray(StandardCharsets.UTF_8).size <= configuration.registrationValueMaxBytes) { "registration value is too large" }
+    }
+
+    private fun activeTargetsForMatch(connection: java.sql.Connection, matchId: Long): List<PushTarget> = connection.prepareStatement("SELECT target_id FROM notification_subscriptions WHERE match_id=? AND active=TRUE").use { statement ->
+        statement.setLong(1, matchId); statement.executeQuery().use { rows -> buildList { while (rows.next()) add(PushTarget(rows.getObject(1, UUID::class.java))) } }
+    }
+
+    private fun insertIntentIfAbsent(connection: java.sql.Connection, target: PushTarget, matchId: Long, event: NotificationEventType, now: Instant): Int = connection.prepareStatement("INSERT INTO notification_delivery_intents (id, target_id, match_id, event_type, state, application_attempt_count, created_at, updated_at) SELECT ?, ?, ?, ?, 'PENDING', 0, ?, ? WHERE NOT EXISTS (SELECT 1 FROM notification_delivery_intents WHERE target_id=? AND match_id=? AND event_type=?)").use { statement ->
+        statement.setObject(1, UUID.randomUUID()); statement.setObject(2, target.id); statement.setLong(3, matchId); statement.setString(4, event.name); statement.setObject(5, now); statement.setObject(6, now); statement.setObject(7, target.id); statement.setLong(8, matchId); statement.setString(9, event.name); statement.executeUpdate()
+    }
+
+    // H2's timestamp precision is microseconds, so preserve the V1 unique key with a full millisecond tie-breaker.
+    @Synchronized private fun nextObservationTime(requested: Instant): Instant = if (requested > lastObservationAt) requested.also { lastObservationAt = it } else lastObservationAt.plusMillis(1).also { lastObservationAt = it }
 
     internal fun readSendableTargetForDelivery(target: PushTarget): SendableDeliveryTarget? = transaction { connection ->
         connection.prepareStatement("SELECT registration_value, sendable, target_mode FROM notification_targets WHERE id=?").use { statement ->
@@ -170,6 +309,7 @@ class NotificationStore private constructor(
     override fun close() = dataSource.close()
 
     private data class TargetRow(val revision: Long, val operationHash: ByteArray, val sendable: Boolean)
+    private data class ExistingTarget(val target: PushTarget, val registrationValue: String?, val row: TargetRow)
 
     companion object {
         private const val PROVIDER = "FIREBASE"
@@ -230,6 +370,7 @@ class TargetDigestCollisionException : IllegalStateException("target lookup coll
 class SubscriptionLimitExceededException : IllegalStateException("subscription limit exceeded")
 
 private fun requireValidRevision(value: Long) { require(value > 0) { "revision must be a positive signed Long" } }
+private fun requireValidMatchId(value: Long) { require(value > 0) { "match id must be positive" } }
 private fun operationHash(operation: String): ByteArray = MessageDigest.getInstance("SHA-256").digest(operation.toByteArray(StandardCharsets.UTF_8))
 private fun hmac(key: ByteArray, value: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").run { init(SecretKeySpec(key, "HmacSHA256")); doFinal(value) }
 private fun sha256Hex(value: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(value).joinToString("") { "%02x".format(it) }

@@ -97,6 +97,7 @@ data class NotificationConfiguration(
             if (lease <= timeout) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.CLAIM_LEASE_MILLIS)
             if (jitter > maxRetry) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.RETRY_JITTER_MILLIS)
             if (apiEnabled && listener.host !in setOf("127.0.0.1", "::1")) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_LISTENER, ConfigurationField.LISTENER_HOST)
+            if (apiEnabled && !enabled) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.API_ENABLED)
             if (!enabled) return NotificationConfiguration(false, apiEnabled, exposure, ownership, null, pool, requestBody, registrationLimit, subscriptionLimit, pollDelay, timeout, lease, attempts, initialRetry, maxRetry, jitter, providerCeiling, null, instance, mode, null, null)
 
             if (exposure != NotificationExposure.LOCAL) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.EXPOSURE)
