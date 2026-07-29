@@ -22,7 +22,7 @@ enum class ObservationStatus { UPCOMING, LIVE, COMPLETED, POSTPONED, CANCELLED }
 enum class ObservationResult { SUCCESS, NETWORK_FAILURE, PARSING_FAILURE, MISSING }
 enum class NotificationEventType { START, END }
 enum class DeliveryState { PENDING, RETRY_WAIT, CLAIMED_NOT_STARTED, CALL_STARTED, ACCEPTED, INVALID_TARGET, TERMINAL_FAILURE, UNKNOWN }
-data class DeliveryClaim(val intentId: UUID, val target: PushTarget, val event: NotificationEventType, val token: UUID, val attemptCount: Int, val retryDelayMillis: Long?)
+data class DeliveryClaim(val intentId: UUID, val target: PushTarget, val event: NotificationEventType, val token: UUID, val attemptCount: Int, val retryDelayMillis: Long?, val retryDecisionAt: Instant?, val retryDueAt: Instant?)
 internal data class DeliveryCall(val claim: DeliveryClaim, val target: SendableDeliveryTarget)
 data class SubscriptionProjection(val matchId: Long, val active: Boolean)
 data class NotificationStateProjection(val acceptedRevision: Long, val subscriptions: List<SubscriptionProjection>)
@@ -171,7 +171,7 @@ class NotificationStore private constructor(
         connection.prepareStatement("UPDATE notification_delivery_intents SET state='PENDING', claim_token=NULL, claimed_at=NULL, lease_until=NULL, updated_at=? WHERE state='CLAIMED_NOT_STARTED' AND lease_until<?").use {
             it.setObject(1, now); it.setObject(2, now); it.executeUpdate()
         }
-        connection.prepareStatement("SELECT id, target_id, event_type, application_attempt_count, retry_delay_millis FROM notification_delivery_intents WHERE state='PENDING' OR (state='RETRY_WAIT' AND due_at<=?) ORDER BY COALESCE(due_at, created_at), id LIMIT 1 FOR UPDATE").use { select ->
+        connection.prepareStatement("SELECT id, target_id, event_type, application_attempt_count, retry_delay_millis, retry_decision_at, due_at FROM notification_delivery_intents WHERE state='PENDING' OR (state='RETRY_WAIT' AND due_at<=?) ORDER BY COALESCE(due_at, created_at), id LIMIT 1 FOR UPDATE").use { select ->
             select.setObject(1, now); select.executeQuery().use { rows ->
                 if (!rows.next()) return@retryingTransaction null
                 val id = rows.getObject(1, UUID::class.java)
@@ -182,7 +182,7 @@ class NotificationStore private constructor(
                     update.setObject(1, token); update.setObject(2, now); update.setObject(3, now.plusMillis(configuration.claimLeaseMillis)); update.setObject(4, now); update.setObject(5, id)
                     check(update.executeUpdate() == 1)
                 }
-                DeliveryClaim(id, target, event, token, rows.getInt(4), rows.getLong(5).takeUnless { rows.wasNull() })
+                DeliveryClaim(id, target, event, token, rows.getInt(4), rows.getLong(5).takeUnless { rows.wasNull() }, rows.getObject(6, Instant::class.java), rows.getObject(7, Instant::class.java))
             }
         }
     }

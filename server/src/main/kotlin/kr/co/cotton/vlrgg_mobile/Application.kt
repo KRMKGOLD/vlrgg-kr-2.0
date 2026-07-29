@@ -51,6 +51,7 @@ fun main() {
     // Pure preflight shares this exact listener value; disabled mode allocates no notification resources.
     val notificationConfiguration = NotificationConfiguration.fromEnvironment(environment, listenerConfiguration)
     val enableApiDocumentation = environment[API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE] == "true"
+    if (notificationConfiguration.enabled) OwnedFirebaseApp.precheck(notificationConfiguration)
     val store = if (notificationConfiguration.enabled) NotificationStore.open(notificationConfiguration) else null
     val firebase = try { if (notificationConfiguration.enabled) OwnedFirebaseApp.create(notificationConfiguration) else null }
     catch (error: Throwable) { store?.close(); throw error }

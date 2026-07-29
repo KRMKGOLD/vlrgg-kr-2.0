@@ -43,6 +43,27 @@ class NotificationDeliveryTest {
         }
     }
 
+    @Test fun `503 case insensitive retry after preserves the provider minimum`() = runBlocking {
+        store().use { store ->
+            intent(store)
+            NotificationDeliveryService(store, object : NotificationProvider {
+                override suspend fun send(target: SendableDeliveryTarget, event: NotificationEventType) = ProviderDeliveryResult.Retryable(503, mapOf("RETRY-after" to "120"))
+            }, config(), Clock.fixed(NOW, ZoneOffset.UTC)).runOnce()
+            assertEquals(DeliveryState.RETRY_WAIT to 1, store.deliveryState(42, NotificationEventType.START))
+        }
+    }
+
+    @Test fun `generic invalid argument equivalent is terminal without target erasure`() = runBlocking {
+        store().use { store ->
+            val target = intent(store)
+            NotificationDeliveryService(store, object : NotificationProvider {
+                override suspend fun send(target: SendableDeliveryTarget, event: NotificationEventType) = ProviderDeliveryResult.NonRetryable("FIREBASE_INVALID_ARGUMENT")
+            }, config(), Clock.fixed(NOW, ZoneOffset.UTC)).runOnce()
+            assertEquals(DeliveryState.TERMINAL_FAILURE to 1, store.deliveryState(42, NotificationEventType.START))
+            assertEquals(true, store.targetProjection(target)?.sendable)
+        }
+    }
+
     private fun intent(store: NotificationStore): PushTarget {
         val target = requireNotNull(store.reconcileSubscription("target", 42, true, 1).target)
         store.recordObservation(42, ObservationResult.SUCCESS, ObservationStatus.UPCOMING, NOW)

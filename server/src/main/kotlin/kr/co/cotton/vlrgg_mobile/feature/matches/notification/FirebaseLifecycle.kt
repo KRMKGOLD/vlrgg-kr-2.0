@@ -17,12 +17,17 @@ internal class OwnedFirebaseApp private constructor(val app: FirebaseApp) : Auto
     override fun close() { if (closed.compareAndSet(false, true)) app.delete() }
 
     companion object {
+        fun precheck(configuration: NotificationConfiguration) {
+            val name = requireNotNull(configuration.firebaseAppName)
+            if (FirebaseApp.getApps().any { it.name == name }) {
+                throw NotificationConfigurationException(ConfigurationCategory.FIREBASE_APP_NAME_COLLISION, ConfigurationField.APP_INSTANCE_ID)
+            }
+        }
+
         fun create(configuration: NotificationConfiguration): OwnedFirebaseApp {
             val name = requireNotNull(configuration.firebaseAppName)
             synchronized(FirebaseApp::class.java) {
-                if (FirebaseApp.getApps().any { it.name == name }) {
-                    throw NotificationConfigurationException(ConfigurationCategory.FIREBASE_APP_NAME_COLLISION, ConfigurationField.APP_INSTANCE_ID)
-                }
+                precheck(configuration)
                 val options = FirebaseOptions.builder()
                     .setProjectId(requireNotNull(configuration.firebaseProjectId))
                     .setCredentials(GoogleCredentials.getApplicationDefault())

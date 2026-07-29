@@ -4,6 +4,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingException
 import com.google.firebase.messaging.Message
+import com.google.api.core.ApiFuture
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -15,6 +16,9 @@ import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /** Provider values are internal and deliberately never cross route/OpenAPI boundaries. */
 internal sealed interface ProviderDeliveryResult {
@@ -37,12 +41,12 @@ internal class FirebaseNotificationProvider(private val app: FirebaseApp) : Noti
             FirebaseTargetMode.FID -> builder.setFid(target.registrationValue)
             FirebaseTargetMode.LEGACY_TOKEN -> builder.setToken(target.registrationValue)
         }
-        FirebaseMessaging.getInstance(app).send(builder.build())
+        FirebaseMessaging.getInstance(app).sendAsync(builder.build()).awaitWithoutCancellingTransport()
         ProviderDeliveryResult.Accepted
     } catch (error: FirebaseMessagingException) {
         val code = error.messagingErrorCode?.name
         when {
-            code in setOf("UNREGISTERED", "INVALID_ARGUMENT") -> ProviderDeliveryResult.InvalidTarget
+            code == "UNREGISTERED" -> ProviderDeliveryResult.InvalidTarget
             error.httpResponse?.statusCode in setOf(429, 503) -> ProviderDeliveryResult.Retryable(error.httpResponse.statusCode, error.httpResponse.headers)
             code in setOf("INTERNAL", "UNAVAILABLE") -> ProviderDeliveryResult.Retryable(error.httpResponse?.statusCode ?: 503, error.httpResponse?.headers ?: emptyMap())
             else -> ProviderDeliveryResult.NonRetryable("FIREBASE_${code ?: "ERROR"}")
@@ -54,11 +58,24 @@ internal class FirebaseNotificationProvider(private val app: FirebaseApp) : Noti
     }
 }
 
+/** Do not cancel the SDK future: a timeout is ambiguous and its late completion is CAS-suppressed. */
+private suspend fun <T> ApiFuture<T>.awaitWithoutCancellingTransport(): T = suspendCancellableCoroutine { continuation ->
+    addListener(Runnable {
+        try { continuation.resume(get()) }
+        catch (error: java.util.concurrent.ExecutionException) { continuation.resumeWithException(error.cause ?: error) }
+        catch (error: Throwable) { continuation.resumeWithException(error) }
+    }, java.util.concurrent.Executor { it.run() })
+}
+
 /** One process owns this guard. A process restart intentionally adds at most one full stored delay. */
 internal class RetryMonotonicGuard(private val nanoTime: () -> Long = System::nanoTime) {
-    private val deadlines = java.util.concurrent.ConcurrentHashMap<UUID, Long>()
-    fun eligible(intent: UUID, delayMillis: Long): Boolean {
-        val deadline = deadlines.computeIfAbsent(intent) { nanoTime() + delayMillis * 1_000_000L }
+    private data class Schedule(val intent: UUID, val decisionAt: Instant, val dueAt: Instant)
+    private val deadlines = java.util.concurrent.ConcurrentHashMap<Schedule, Long>()
+    fun anchor(intent: UUID, decisionAt: Instant, dueAt: Instant, delayMillis: Long) {
+        deadlines.computeIfAbsent(Schedule(intent, decisionAt, dueAt)) { nanoTime() + delayMillis * 1_000_000L }
+    }
+    fun eligible(intent: UUID, decisionAt: Instant, dueAt: Instant, delayMillis: Long): Boolean {
+        val deadline = deadlines.computeIfAbsent(Schedule(intent, decisionAt, dueAt)) { nanoTime() + delayMillis * 1_000_000L }
         return nanoTime() >= deadline
     }
 }
@@ -68,12 +85,13 @@ internal class NotificationDeliveryService(
     private val provider: NotificationProvider,
     private val configuration: NotificationConfiguration,
     private val clock: Clock = Clock.systemUTC(),
+    private val retryGuard: RetryMonotonicGuard = RetryMonotonicGuard(),
 ) {
     suspend fun runOnce(): Boolean {
         val now = Instant.now(clock)
         val claim = store.claimDueDelivery(now) ?: return false
         claim.retryDelayMillis?.let { delay ->
-            if (!retryGuard.eligible(claim.intentId, delay)) {
+            if (!retryGuard.eligible(claim.intentId, requireNotNull(claim.retryDecisionAt), requireNotNull(claim.retryDueAt), delay)) {
                 store.releaseDeliveryClaim(claim, now)
                 return false
             }
@@ -92,8 +110,6 @@ internal class NotificationDeliveryService(
         return true
     }
 
-    private val retryGuard = RetryMonotonicGuard()
-
     private fun finalize(call: DeliveryCall, result: ProviderDeliveryResult, now: Instant) = when (result) {
         ProviderDeliveryResult.Accepted -> store.finalizeAccepted(call, now)
         ProviderDeliveryResult.InvalidTarget -> store.invalidateDeliveryTarget(call, now)
@@ -106,8 +122,9 @@ internal class NotificationDeliveryService(
         if (call.claim.attemptCount >= configuration.maxApplicationAttempts) {
             store.finalizeTerminal(call, "RETRY_EXHAUSTED", now); return
         }
-        val providerMinimum = retryAfter(response.headers, now)
-            ?: if (response.status == 429) 60_000L else 0L
+        val parsed = retryAfter(response.headers, now)
+        if (parsed == RetryAfter.OVERFLOW) { store.finalizeTerminal(call, "RETRY_SCHEDULE_OVERFLOW", now); return }
+        val providerMinimum = (parsed as? RetryAfter.Value)?.millis ?: if (response.status == 429) 60_000L else 0L
         if (providerMinimum > configuration.providerRetryCeilingMillis) {
             store.finalizeTerminal(call, "PROVIDER_RETRY_AFTER_UNSAFE", now); return
         }
@@ -117,16 +134,17 @@ internal class NotificationDeliveryService(
         val applicationDelay = (base + jitter).coerceAtMost(configuration.maxRetryMillis)
         val delay = maxOf(applicationDelay, providerMinimum)
         val due = try { now.plusMillis(delay) } catch (_: ArithmeticException) { store.finalizeTerminal(call, "RETRY_SCHEDULE_OVERFLOW", now); return }
-        store.finalizeRetry(call, now, delay, due)
+        if (store.finalizeRetry(call, now, delay, due)) retryGuard.anchor(call.claim.intentId, now, due, delay)
     }
 }
 
-private fun retryAfter(headers: Map<String, Any?>, now: Instant): Long? {
+private sealed interface RetryAfter { data class Value(val millis: Long) : RetryAfter; data object INVALID : RetryAfter; data object OVERFLOW : RetryAfter }
+private fun retryAfter(headers: Map<String, Any?>, now: Instant): RetryAfter {
     val values = headers.entries.filter { it.key.equals("Retry-After", ignoreCase = true) }.map { it.value }
-    if (values.size != 1 || values.single() !is String) return null
+    if (values.size != 1 || values.single() !is String) return RetryAfter.INVALID
     val value = (values.single() as String).trim()
-    value.toLongOrNull()?.let { return if (it >= 0) Math.multiplyExact(it, 1000L) else null }
-    return try { java.time.Duration.between(now, ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()).toMillis().takeIf { it > 0 } } catch (_: Exception) { null }
+    if (Regex("^[0-9]+$").matches(value)) return try { RetryAfter.Value(Math.multiplyExact(value.toLong(), 1000L)) } catch (_: ArithmeticException) { RetryAfter.OVERFLOW }
+    return try { java.time.Duration.between(now, ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()).toMillis().takeIf { it > 0 }?.let(RetryAfter::Value) ?: RetryAfter.INVALID } catch (_: ArithmeticException) { RetryAfter.OVERFLOW } catch (_: Exception) { RetryAfter.INVALID }
 }
 
 private fun deterministicJitter(claim: DeliveryClaim, maximum: Long): Long {
