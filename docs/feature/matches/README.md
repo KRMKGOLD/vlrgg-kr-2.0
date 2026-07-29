@@ -7,7 +7,7 @@
 ## 구현 상태 (2026-07-22)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
-- **Backend Match 알림/구독: 미구현.** 구독 생성·해제 API, 영속 저장, 10분 polling, 시작/종료 delivery, idempotency는 아직 없다.
+- **Backend Match 알림/구독: 미구현.** 구독 생성·해제 API, 영속 저장, 10분 polling, 시작/종료 delivery, idempotency는 아직 없다. 구현 전 서버 전용 Stage 1 계약은 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md)와 [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md)을 따른다.
 - **App: 미구현.** 목록·상세 UI, 내비게이션, 로컬 Match 즐겨찾기, 권한 및 전역 알림 흐름은 아직 구현되어 있지 않다.
 
 ## 목적과 사용자 가치
@@ -235,7 +235,7 @@ server subscription 생성이 확정적으로 실패하면 local favorite를 남
 - 서버는 `(FCM registration value, Match)` 쌍을 하나의 논리적 subscription으로 다룬다. 이는 제품 invariant이며 특정 table key나 persistence schema를 미리 정하지 않는다.
 - 같은 Match를 여러 target이 구독해도 upstream 상태 확인은 고유 Match ID 기준으로 중복 제거한다.
 
-registration value의 SDK 획득·서버 동기화, provider가 증명한 invalid-target 삭제, Firebase credential 경계는 [서버 아키텍처 문서](../../architecture/server-arch.md#match-notification-planned-exception)가 소유한다.
+registration value의 SDK 획득·서버 동기화, provider가 증명한 invalid-target 삭제, Firebase credential 경계는 [Stage 1 서버 계약](../../architecture/server-fcm-stage1.md)이 소유한다.
 
 ### 추적
 
