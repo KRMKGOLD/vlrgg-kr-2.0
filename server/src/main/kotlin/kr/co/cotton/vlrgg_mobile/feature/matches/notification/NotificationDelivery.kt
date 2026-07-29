@@ -33,12 +33,20 @@ internal interface NotificationProvider {
     suspend fun send(target: SendableDeliveryTarget, event: NotificationEventType): ProviderDeliveryResult
 }
 
+/** Internal Firebase-only error projection; it never reaches routes, storage, or observability. */
+internal data class FirebaseProviderFailure(
+    val messagingCode: String?,
+    val status: Int?,
+    val headers: Map<String, Any?>,
+)
+
 /**
  * The production constructor resolves FirebaseMessaging only here; tests inject the async future
  * boundary directly, without FirebaseApp, ADC, or any network transport.
  */
 internal class FirebaseNotificationProvider(
     private val sendAsync: (Message) -> ApiFuture<String>,
+    private val firebaseFailure: (Throwable) -> FirebaseProviderFailure? = ::firebaseProviderFailure,
 ) : NotificationProvider {
     constructor(app: FirebaseApp) : this({ message -> FirebaseMessaging.getInstance(app).sendAsync(message) })
 
@@ -50,19 +58,44 @@ internal class FirebaseNotificationProvider(
         }
         sendAsync(builder.build()).awaitWithoutCancellingTransport()
         ProviderDeliveryResult.Accepted
-    } catch (error: FirebaseMessagingException) {
-        val code = error.messagingErrorCode?.name
+    } catch (error: Exception) {
+        val failure = firebaseFailure(error)
+        val code = failure?.messagingCode
         when {
             code == "UNREGISTERED" -> ProviderDeliveryResult.InvalidTarget
-            error.httpResponse?.statusCode in setOf(429, 503) -> ProviderDeliveryResult.Retryable(error.httpResponse.statusCode, error.httpResponse.headers)
-            code in setOf("INTERNAL", "UNAVAILABLE") -> ProviderDeliveryResult.Retryable(error.httpResponse?.statusCode ?: 503, error.httpResponse?.headers ?: emptyMap())
-            else -> ProviderDeliveryResult.NonRetryable("FIREBASE_${code ?: "ERROR"}")
+            failure?.status in setOf(429, 503) -> ProviderDeliveryResult.Retryable(requireNotNull(failure?.status), normalizeRetryAfterHeader(requireNotNull(failure).headers))
+            code in setOf("INTERNAL", "UNAVAILABLE") -> ProviderDeliveryResult.Retryable(failure?.status ?: 503, normalizeRetryAfterHeader(failure?.headers ?: emptyMap()))
+            error is java.io.IOException -> ProviderDeliveryResult.Unknown("IO_AMBIGUOUS")
+            failure != null -> ProviderDeliveryResult.NonRetryable("FIREBASE_${code ?: "ERROR"}")
+            else -> ProviderDeliveryResult.Unknown()
         }
-    } catch (_: java.io.IOException) {
-        ProviderDeliveryResult.Unknown("IO_AMBIGUOUS")
-    } catch (_: Exception) {
-        ProviderDeliveryResult.Unknown()
     }
+}
+
+private fun firebaseProviderFailure(error: Throwable): FirebaseProviderFailure? {
+    if (error !is FirebaseMessagingException) return null
+    val response = error.httpResponse
+    return FirebaseProviderFailure(
+        messagingCode = error.messagingErrorCode?.name,
+        status = response?.statusCode,
+        headers = response?.headers ?: emptyMap(),
+    )
+}
+
+/**
+ * Firebase Admin's Google HttpHeaders stores field values as Object, normally List<String>.
+ * Only one case-insensitive field name and exactly one String list element are canonical; the
+ * scalar branch is retained solely for the provider-neutral offline test seam.
+ */
+private fun normalizeRetryAfterHeader(headers: Map<String, Any?>): Map<String, Any?> {
+    val candidates = headers.entries.filter { it.key.equals("Retry-After", ignoreCase = true) }
+    if (candidates.size != 1) return emptyMap()
+    val scalar = when (val value = candidates.single().value) {
+        is String -> value
+        is List<*> -> value.singleOrNull() as? String
+        else -> null
+    } ?: return emptyMap()
+    return mapOf("Retry-After" to scalar)
 }
 
 /** Do not cancel the SDK future: a timeout is ambiguous and its late completion is CAS-suppressed. */

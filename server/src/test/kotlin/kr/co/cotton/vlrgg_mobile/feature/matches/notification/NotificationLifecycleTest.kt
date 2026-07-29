@@ -10,10 +10,12 @@ import kotlin.test.assertSame
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 class NotificationLifecycleTest {
     @Test fun `firebase collision fails before store factory invocation`() {
@@ -96,7 +98,7 @@ class NotificationLifecycleTest {
                 try { awaitCancellation() } finally {
                     events += "delivery"
                     deliveryCancelling.complete(Unit)
-                    allowDeliveryFinish.await()
+                    withContext(NonCancellable) { allowDeliveryFinish.await() }
                 }
             })
             deliveryEntered.await()
