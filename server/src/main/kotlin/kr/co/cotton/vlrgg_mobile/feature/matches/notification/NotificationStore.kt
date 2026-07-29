@@ -154,10 +154,12 @@ class NotificationStore private constructor(
 
     private fun revisionOutcome(current: Long, currentOperationHash: ByteArray, requested: Long, operation: String): RevisionResult {
         val hash = operationHash(operation)
+        if (current == Long.MAX_VALUE) {
+            return if (constantTimeEquals(currentOperationHash, hash)) RevisionResult.REPLAYED else RevisionResult.REVISION_EXHAUSTED
+        }
         return when {
             requested < current -> RevisionResult.STALE
             requested == current -> if (constantTimeEquals(currentOperationHash, hash)) RevisionResult.REPLAYED else RevisionResult.CONFLICT
-            current == Long.MAX_VALUE -> RevisionResult.REVISION_EXHAUSTED
             else -> RevisionResult.APPLIED
         }
     }

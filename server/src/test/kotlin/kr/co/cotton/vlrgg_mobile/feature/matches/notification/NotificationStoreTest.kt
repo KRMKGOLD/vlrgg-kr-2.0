@@ -29,7 +29,7 @@ class NotificationStoreTest {
             assertEquals(2, requireNotNull(store.targetProjection(target)).acceptedRevision)
             assertEquals(RevisionResult.APPLIED, store.findOrRegister("registration-a", "terminal", Long.MAX_VALUE).revision)
             assertEquals(RevisionResult.REPLAYED, store.findOrRegister("registration-a", "terminal", Long.MAX_VALUE).revision)
-            assertEquals(RevisionResult.CONFLICT, store.findOrRegister("registration-a", "other-terminal", Long.MAX_VALUE).revision)
+            assertEquals(RevisionResult.REVISION_EXHAUSTED, store.findOrRegister("registration-a", "other-terminal", Long.MAX_VALUE).revision)
             assertEquals(Long.MAX_VALUE, requireNotNull(store.targetProjection(target)).acceptedRevision)
             assertFailsWith<IllegalArgumentException> { store.findOrRegister("registration-a", "invalid", 0) }
             assertFailsWith<IllegalArgumentException> { store.findOrRegister("registration-a", "invalid", -1) }
@@ -46,7 +46,8 @@ class NotificationStoreTest {
     }
 
     @Test fun `at-cap revision rejections precede capacity and genuine growth still fails`() {
-        openStore(limit = 1).use { store ->
+        val path = freshPath()
+        openStore(path, limit = 1).use { store ->
             val target = requireNotNull(store.findOrRegister("registration-a", "register", 1).target)
             assertEquals(RevisionResult.APPLIED, store.mutateSubscription(target, 42, true, 2, "subscribe:42"))
 
@@ -57,7 +58,9 @@ class NotificationStoreTest {
             assertEquals(2, requireNotNull(store.targetProjection(target)).acceptedRevision)
             assertEquals(RevisionResult.APPLIED, store.findOrRegister("registration-a", "terminal", Long.MAX_VALUE).revision)
             assertEquals(RevisionResult.REPLAYED, store.mutateSubscription(target, 43, true, Long.MAX_VALUE, "terminal"))
-            assertEquals(RevisionResult.CONFLICT, store.mutateSubscription(target, 43, true, Long.MAX_VALUE, "later-operation"))
+            assertEquals(RevisionResult.REVISION_EXHAUSTED, store.mutateSubscription(target, 43, true, Long.MAX_VALUE, "later-operation"))
+            assertEquals(Long.MAX_VALUE, requireNotNull(store.targetProjection(target)).acceptedRevision)
+            assertEquals(0, subscriptionRows(target, path, 43))
         }
     }
 
