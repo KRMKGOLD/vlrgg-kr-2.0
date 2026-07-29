@@ -152,12 +152,8 @@ class NotificationStore private constructor(
         connection.prepareStatement("""
             SELECT DISTINCT s.match_id
             FROM notification_subscriptions s
-            WHERE s.active=TRUE AND NOT EXISTS (
-                SELECT 1 FROM notification_observations o
-                WHERE o.match_id=s.match_id AND o.source_result='SUCCESS'
-                  AND o.observed_at=(SELECT MAX(latest.observed_at) FROM notification_observations latest WHERE latest.match_id=s.match_id AND latest.source_result='SUCCESS')
-                  AND o.status IN ('COMPLETED', 'CANCELLED')
-            )
+            LEFT JOIN notification_match_tracking tracking ON tracking.match_id=s.match_id
+            WHERE s.active=TRUE AND COALESCE(tracking.terminal, FALSE)=FALSE
             ORDER BY s.match_id
         """.trimIndent()).use { statement ->
             statement.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getLong(1)) } }
@@ -174,13 +170,15 @@ class NotificationStore private constructor(
     fun recordObservation(matchId: Long, result: ObservationResult, status: ObservationStatus? = null, now: Instant = Instant.now()): Int = retryingTransaction { connection ->
         requireValidMatchId(matchId)
         require((result == ObservationResult.SUCCESS) == (status != null)) { "successful observations require a status" }
+        val terminalAlreadyObserved = trackingTerminalForUpdate(connection, matchId, now)
         val previous = if (result == ObservationResult.SUCCESS) lastSuccessfulStatus(connection, matchId) else null
         // This comes from committed H2 state, not process memory, so reopen and another store preserve ordering.
         val observedAt = nextObservationTime(connection, matchId, now)
         connection.prepareStatement("INSERT INTO notification_observations (id, match_id, status, observed_at, source_result) VALUES (?, ?, ?, ?, ?)").use { statement ->
             statement.setObject(1, UUID.randomUUID()); statement.setLong(2, matchId); statement.setString(3, status?.name ?: "NONE"); statement.setObject(4, observedAt); statement.setString(5, result.name); statement.executeUpdate()
         }
-        if (result != ObservationResult.SUCCESS) return@retryingTransaction 0
+        if (result != ObservationResult.SUCCESS || terminalAlreadyObserved) return@retryingTransaction 0
+        if (status in TERMINAL_OBSERVATION_STATUSES) markTrackingTerminal(connection, matchId, now)
         val event = transition(previous, requireNotNull(status)) ?: return@retryingTransaction 0
         activeTargetsForMatch(connection, matchId).sumOf { target -> insertIntentIfAbsent(connection, target, matchId, event, now) }
     }
@@ -246,6 +244,20 @@ class NotificationStore private constructor(
         previous == ObservationStatus.LIVE && current == ObservationStatus.COMPLETED -> NotificationEventType.END
         previous in setOf(ObservationStatus.UPCOMING, ObservationStatus.POSTPONED) && current == ObservationStatus.COMPLETED -> NotificationEventType.END
         else -> null
+    }
+
+    /** A row lock turns terminal observation into a durable one-way latch across concurrent stores. */
+    private fun trackingTerminalForUpdate(connection: java.sql.Connection, matchId: Long, now: Instant): Boolean {
+        connection.prepareStatement("INSERT INTO notification_match_tracking (match_id, terminal, updated_at) SELECT ?, FALSE, ? WHERE NOT EXISTS (SELECT 1 FROM notification_match_tracking WHERE match_id=?)").use { statement ->
+            statement.setLong(1, matchId); statement.setObject(2, now); statement.setLong(3, matchId); statement.executeUpdate()
+        }
+        return connection.prepareStatement("SELECT terminal FROM notification_match_tracking WHERE match_id=? FOR UPDATE").use { statement ->
+            statement.setLong(1, matchId); statement.executeQuery().use { rows -> check(rows.next()); rows.getBoolean(1) }
+        }
+    }
+
+    private fun markTrackingTerminal(connection: java.sql.Connection, matchId: Long, now: Instant) = connection.prepareStatement("UPDATE notification_match_tracking SET terminal=TRUE, updated_at=? WHERE match_id=?").use { statement ->
+        statement.setObject(1, now); statement.setLong(2, matchId); statement.executeUpdate()
     }
 
     private fun requireValidRegistrationValue(value: String) {
@@ -341,6 +353,7 @@ class NotificationStore private constructor(
     companion object {
         private const val PROVIDER = "FIREBASE"
         private const val MAX_MUTATION_RETRIES = 4
+        private val TERMINAL_OBSERVATION_STATUSES = setOf(ObservationStatus.COMPLETED, ObservationStatus.CANCELLED)
 
         fun open(configuration: NotificationConfiguration, random: SecureRandom = SecureRandom()): NotificationStore = openInternal(configuration, random, ::lookupDigest)
 

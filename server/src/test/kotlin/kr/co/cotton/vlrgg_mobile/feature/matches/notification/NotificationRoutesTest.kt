@@ -45,6 +45,12 @@ class NotificationRoutesTest {
         val missing = client.post("/api/v1/match-notifications/state") { contentType(ContentType.Application.Json); setBody("{\"registrationValue\":\"absent\"}") }
         assertEquals(HttpStatusCode.OK, missing.status)
         assertEquals("{\"acceptedRevision\":\"0\",\"subscriptions\":[]}", missing.bodyAsText())
+        val oversizedState = client.post("/api/v1/match-notifications/state") {
+            contentType(ContentType.Application.Json)
+            setBody("{\"registrationValue\":\"${"a".repeat(config.registrationValueMaxBytes + 1)}\"}")
+        }
+        assertEquals(HttpStatusCode.BadRequest, oversizedState.status)
+        assertFalse(oversizedState.bodyAsText().contains("a".repeat(32)))
         val openApi = client.get("/openapi.json").bodyAsText()
         assertTrue(openApi.contains("/api/v1/match-notifications/targets"))
         val subscriptionOperation = Json.parseToJsonElement(openApi).jsonObject["paths"]!!.jsonObject["/api/v1/match-notifications/subscriptions/{matchId}"]!!.jsonObject["put"]!!.jsonObject

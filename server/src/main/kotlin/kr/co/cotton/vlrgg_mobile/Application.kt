@@ -91,7 +91,7 @@ internal fun Application.module(
     )
     if (notificationConfiguration?.apiEnabled == true) {
         requireNotNull(notificationStore) { "enabled notification API requires the validated local store" }
-        configureNotificationRoutes(notificationStore, notificationConfiguration.requestBodyBytes)
+        configureNotificationRoutes(notificationStore, notificationConfiguration.requestBodyBytes, notificationConfiguration.registrationValueMaxBytes)
     }
     if (notificationStore != null) {
         val trackingOwner = if (startNotificationTracking) CoroutineScope(SupervisorJob() + Dispatchers.Default).let { scope ->

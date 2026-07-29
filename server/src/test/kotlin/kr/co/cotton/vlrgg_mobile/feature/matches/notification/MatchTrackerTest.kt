@@ -8,6 +8,8 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.absolutePathString
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -84,6 +86,34 @@ class MatchTrackerTest {
         store(path).use { store ->
             store.recordObservation(42, ObservationResult.SUCCESS, ObservationStatus.LIVE, instant)
             assertEquals(1, store.deliveryIntentCount(42, NotificationEventType.START))
+        }
+    }
+
+    @Test fun `two stores cannot resurrect polling after a concurrent terminal observation`() {
+        val path = Files.createTempDirectory("vlrgg-tracker").resolve("store").absolutePathString()
+        val instant = Instant.parse("2026-07-29T00:00:00Z")
+        store(path).use { initial ->
+            initial.reconcileSubscription("target", 42, true, 1)
+            initial.recordObservation(42, ObservationResult.SUCCESS, ObservationStatus.UPCOMING, instant)
+        }
+        store(path).use { completedStore ->
+            store(path).use { liveStore ->
+                val ready = CountDownLatch(2)
+                val start = CountDownLatch(1)
+                val failures = java.util.Collections.synchronizedList(mutableListOf<Throwable>())
+                val completed = Thread {
+                    try { ready.countDown(); start.await(); completedStore.recordObservation(42, ObservationResult.SUCCESS, ObservationStatus.COMPLETED, instant) } catch (error: Throwable) { failures += error }
+                }
+                val live = Thread {
+                    try { ready.countDown(); start.await(); liveStore.recordObservation(42, ObservationResult.SUCCESS, ObservationStatus.LIVE, instant) } catch (error: Throwable) { failures += error }
+                }
+                completed.start(); live.start()
+                kotlin.test.assertTrue(ready.await(1, TimeUnit.SECONDS))
+                start.countDown(); completed.join(5_000); live.join(5_000)
+                assertEquals(emptyList(), failures)
+                assertEquals(emptyList(), completedStore.activeMatchIds())
+                assertEquals(1, completedStore.deliveryIntentCount(42, NotificationEventType.END))
+            }
         }
     }
 
