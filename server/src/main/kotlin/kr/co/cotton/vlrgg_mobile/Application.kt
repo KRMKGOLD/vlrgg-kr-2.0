@@ -99,33 +99,48 @@ internal fun Application.module(
         matchesService = resolvedMatchesService,
         enableApiDocumentation = enableApiDocumentation,
     )
-    if (notificationConfiguration?.apiEnabled == true) {
-        requireNotNull(notificationStore) { "enabled notification API requires the validated local store" }
-        configureNotificationRoutes(notificationStore, notificationConfiguration.requestBodyBytes, notificationConfiguration.registrationValueMaxBytes)
+    configureNotificationRuntime(
+        notificationConfiguration, notificationStore, resolvedMatchesService, observationProvider,
+        startNotificationTracking, notificationProvider, startNotificationDelivery, notificationResources,
+    )
+}
+
+private fun Application.configureNotificationRuntime(
+    configuration: NotificationConfiguration?,
+    store: NotificationStore?,
+    matchesService: MatchesService,
+    observationProvider: MatchObservationProvider?,
+    startTracking: Boolean,
+    notificationProvider: NotificationProvider?,
+    startDelivery: Boolean,
+    notificationResources: OwnedNotificationResources?,
+) {
+    if (configuration?.apiEnabled == true) {
+        requireNotNull(store) { "enabled notification API requires the validated local store" }
+        configureNotificationRoutes(store, configuration.requestBodyBytes, configuration.registrationValueMaxBytes)
     }
-    if (notificationStore != null) {
-        val resources = notificationResources ?: OwnedNotificationResources(null, notificationStore)
-        // Each started worker Job is registered with resources; no unowned parent Job remains.
-        val scope = CoroutineScope(Dispatchers.Default)
-        try {
-            if (startNotificationTracking) {
-                val polling = FixedDelayMatchPolling(
-                    MatchTracker(notificationStore, observationProvider ?: MatchesServiceObservationProvider(resolvedMatchesService)),
-                    requireNotNull(notificationConfiguration).pollDelayMillis,
-                )
-                resources.startTracking(scope) { polling.run() }
-            }
-            if (startNotificationDelivery) requireNotNull(notificationProvider) { "delivery requires a provider" }.let { provider ->
-                val polling = FixedDelayDeliveryPolling(
-                    NotificationDeliveryService(notificationStore, provider, requireNotNull(notificationConfiguration)),
-                    notificationConfiguration.pollDelayMillis,
-                )
-                resources.startDelivery(scope) { polling.run() }
-            }
-        } catch (error: Throwable) {
-            resources.stopBlocking()
-            throw error
+    if (store == null) return
+    val resources = notificationResources ?: OwnedNotificationResources(null, store)
+    // Each started worker Job is registered with resources; no unowned parent Job remains.
+    val scope = CoroutineScope(Dispatchers.Default)
+    try {
+        if (startTracking) {
+            val polling = FixedDelayMatchPolling(
+                MatchTracker(store, observationProvider ?: MatchesServiceObservationProvider(matchesService)),
+                requireNotNull(configuration).pollDelayMillis,
+            )
+            resources.startTracking(scope) { polling.run() }
         }
-        environment.monitor.subscribe(ApplicationStopped) { resources.stopBlocking() }
+        if (startDelivery) requireNotNull(notificationProvider) { "delivery requires a provider" }.let { provider ->
+            val polling = FixedDelayDeliveryPolling(
+                NotificationDeliveryService(store, provider, requireNotNull(configuration)),
+                configuration.pollDelayMillis,
+            )
+            resources.startDelivery(scope) { polling.run() }
+        }
+    } catch (error: Throwable) {
+        resources.stopBlocking()
+        throw error
     }
+    environment.monitor.subscribe(ApplicationStopped) { resources.stopBlocking() }
 }

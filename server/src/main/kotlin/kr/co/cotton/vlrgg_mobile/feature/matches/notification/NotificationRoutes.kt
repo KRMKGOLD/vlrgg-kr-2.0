@@ -35,37 +35,54 @@ internal fun Application.configureNotificationRoutes(store: NotificationStore, r
     routing {
         route(MATCH_NOTIFICATION_API_PATH) {
             put("targets") {
-                val request = call.notificationBody<TargetRequest>(requestBodyBytes) ?: return@put
-                val revision = request.revision.positiveLongOrNull() ?: return@put call.invalidRequest()
-                if (!request.registrationValue.isValidRegistrationValue(registrationValueMaxBytes)) return@put call.invalidRequest()
-                val result = try { store.findOrRegister(request.registrationValue, "target", revision) } catch (_: IllegalArgumentException) { return@put call.invalidRequest() }
-                call.respondTargetResult(store, result)
+                call.handleTarget(store, requestBodyBytes, registrationValueMaxBytes)
             }.describeLocalNotificationOperation<TargetRequest, TargetResponse>("syncNotificationTarget", "Synchronize a local notification target")
             post("state") {
-                val request = call.notificationBody<TargetStateRequest>(requestBodyBytes) ?: return@post
-                if (!request.registrationValue.isValidRegistrationValue(registrationValueMaxBytes)) return@post call.invalidRequest()
-                val state = store.stateForRegistration(request.registrationValue)
-                // API-104: absence and a logically erased target expose the same revision-zero empty projection.
-                val safeState = state ?: NotificationStateProjection(0, emptyList())
-                call.respond(TargetStateResponse(safeState.acceptedRevision.toString(), safeState.subscriptions.map { SubscriptionStateResponse(it.matchId.toString(), it.active) }))
+                call.handleState(store, requestBodyBytes, registrationValueMaxBytes)
             }.describeLocalNotificationOperation<TargetStateRequest, TargetStateResponse>("getNotificationState", "Read local notification state")
             put("subscriptions/{matchId}") {
-                val matchId = call.parameters["matchId"]?.positiveLongOrNull() ?: return@put call.invalidRequest()
-                val request = call.notificationBody<SubscriptionRequest>(requestBodyBytes) ?: return@put
-                val revision = request.revision.positiveLongOrNull() ?: return@put call.invalidRequest()
-                if (!request.registrationValue.isValidRegistrationValue(registrationValueMaxBytes)) return@put call.invalidRequest()
-                val result = try { store.reconcileSubscription(request.registrationValue, matchId, request.active, revision) } catch (_: SubscriptionLimitExceededException) { return@put call.subscriptionLimit() } catch (_: IllegalArgumentException) { return@put call.invalidRequest() }
-                call.respondTargetResult(store, result)
+                call.handleSubscription(store, requestBodyBytes, registrationValueMaxBytes)
             }.describeLocalNotificationOperation<SubscriptionRequest, TargetResponse>("setNotificationSubscription", "Set one local Match notification subscription") { notificationMatchIdPath() }
             put("global-state") {
-                val request = call.notificationBody<GlobalStateRequest>(requestBodyBytes) ?: return@put
-                val revision = request.revision.positiveLongOrNull() ?: return@put call.invalidRequest()
-                if (request.active || !request.registrationValue.isValidRegistrationValue(registrationValueMaxBytes)) return@put call.invalidRequest()
-                val result = try { store.reconcileGlobalOff(request.registrationValue, revision) } catch (_: IllegalArgumentException) { return@put call.invalidRequest() }
-                call.respondTargetResult(store, result)
+                call.handleGlobalOff(store, requestBodyBytes, registrationValueMaxBytes)
             }.describeLocalNotificationOperation<GlobalStateRequest, TargetResponse>("disableAllNotificationSubscriptions", "Disable all subscriptions for one local target")
         }
     }
+}
+
+private suspend fun ApplicationCall.handleTarget(store: NotificationStore, requestBodyBytes: Int, registrationValueMaxBytes: Int) {
+    val request = notificationBody<TargetRequest>(requestBodyBytes) ?: return
+    val revision = request.revision.positiveLongOrNull() ?: return invalidRequest()
+    if (!request.registrationValue.isValidRegistrationValue(registrationValueMaxBytes)) return invalidRequest()
+    val result = try { store.findOrRegister(request.registrationValue, "target", revision) } catch (_: IllegalArgumentException) { return invalidRequest() }
+    respondTargetResult(store, result)
+}
+
+private suspend fun ApplicationCall.handleState(store: NotificationStore, requestBodyBytes: Int, registrationValueMaxBytes: Int) {
+    val request = notificationBody<TargetStateRequest>(requestBodyBytes) ?: return
+    if (!request.registrationValue.isValidRegistrationValue(registrationValueMaxBytes)) return invalidRequest()
+    // API-104: absence and a logically erased target expose the same revision-zero empty projection.
+    val state = store.stateForRegistration(request.registrationValue) ?: NotificationStateProjection(0, emptyList())
+    respond(TargetStateResponse(state.acceptedRevision.toString(), state.subscriptions.map { SubscriptionStateResponse(it.matchId.toString(), it.active) }))
+}
+
+private suspend fun ApplicationCall.handleSubscription(store: NotificationStore, requestBodyBytes: Int, registrationValueMaxBytes: Int) {
+    val matchId = parameters["matchId"]?.positiveLongOrNull() ?: return invalidRequest()
+    val request = notificationBody<SubscriptionRequest>(requestBodyBytes) ?: return
+    val revision = request.revision.positiveLongOrNull() ?: return invalidRequest()
+    if (!request.registrationValue.isValidRegistrationValue(registrationValueMaxBytes)) return invalidRequest()
+    val result = try { store.reconcileSubscription(request.registrationValue, matchId, request.active, revision) }
+    catch (_: SubscriptionLimitExceededException) { return subscriptionLimit() }
+    catch (_: IllegalArgumentException) { return invalidRequest() }
+    respondTargetResult(store, result)
+}
+
+private suspend fun ApplicationCall.handleGlobalOff(store: NotificationStore, requestBodyBytes: Int, registrationValueMaxBytes: Int) {
+    val request = notificationBody<GlobalStateRequest>(requestBodyBytes) ?: return
+    val revision = request.revision.positiveLongOrNull() ?: return invalidRequest()
+    if (request.active || !request.registrationValue.isValidRegistrationValue(registrationValueMaxBytes)) return invalidRequest()
+    val result = try { store.reconcileGlobalOff(request.registrationValue, revision) } catch (_: IllegalArgumentException) { return invalidRequest() }
+    respondTargetResult(store, result)
 }
 
 private suspend inline fun <reified T> ApplicationCall.notificationBody(maximumBytes: Int): T? {

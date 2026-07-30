@@ -217,6 +217,37 @@ class NotificationDeliveryTest {
         }
     }
 
+    @Test fun `retry guard removes only the due schedule and retains a re-anchored schedule`() {
+        var nanos = 0L
+        val guard = RetryMonotonicGuard { nanos }
+        val intent = java.util.UUID.randomUUID()
+        val firstDecision = NOW
+        val firstDue = NOW.plusMillis(10)
+        guard.anchor(intent, firstDecision, firstDue, 10)
+        assertFalse(guard.eligible(intent, firstDecision, firstDue, 10))
+        val reanchoredDecision = NOW.plusSeconds(1)
+        val reanchoredDue = reanchoredDecision.plusMillis(20)
+        guard.anchor(intent, reanchoredDecision, reanchoredDue, 20)
+        nanos = 10_000_000L
+        assertTrue(guard.eligible(intent, firstDecision, firstDue, 10))
+        assertFalse(guard.eligible(intent, reanchoredDecision, reanchoredDue, 20))
+    }
+
+    @Test fun `delivery failure log contains only intent event and category`() = runBlocking {
+        store().use { store ->
+            intent(store)
+            val logs = mutableListOf<Triple<java.util.UUID, NotificationEventType, String>>()
+            NotificationDeliveryService(
+                store,
+                object : NotificationProvider { override suspend fun send(target: SendableDeliveryTarget, event: NotificationEventType): ProviderDeliveryResult = throw IllegalStateException("provider details") },
+                config(),
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                failureLogger = { id, event, category -> logs += Triple(id, event, category) },
+            ).runOnce()
+            assertEquals(listOf(NotificationEventType.START to "PROVIDER_AMBIGUOUS"), logs.map { it.second to it.third })
+        }
+    }
+
     private fun intent(store: NotificationStore): PushTarget {
         val target = requireNotNull(store.reconcileSubscription("target", 42, true, 1).target)
         store.recordObservation(42, ObservationResult.SUCCESS, ObservationStatus.UPCOMING, NOW)

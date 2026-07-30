@@ -86,7 +86,7 @@ class NotificationConfigurationTest {
 
     private fun enabledEnvironment() = mapOf(
         "VLRGG_NOTIFICATIONS_ENABLED" to "true",
-        "VLRGG_NOTIFICATIONS_STORAGE_PATH" to "/tmp/vlrgg-stage1-test",
+        "VLRGG_NOTIFICATIONS_STORAGE_PATH" to Files.createTempDirectory("vlrgg-stage1-test").resolve("store").toString(),
         "VLRGG_NOTIFICATIONS_FIREBASE_PROJECT_ID" to "vlrgg-stage1",
         "VLRGG_NOTIFICATION_LOOKUP_DIGEST_KEY" to "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     )

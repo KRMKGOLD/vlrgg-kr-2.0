@@ -30,6 +30,15 @@ class NotificationLifecycleTest {
         assertEquals(0, storesOpened)
     }
 
+    @Test fun `firebase collision preserves the initialization cause and configuration identity`() {
+        val cause = IllegalStateException("Firebase name collision")
+        val error = firebaseAppNameCollision(cause)
+
+        assertEquals(ConfigurationCategory.FIREBASE_APP_NAME_COLLISION, error.category)
+        assertEquals(ConfigurationField.APP_INSTANCE_ID, error.field)
+        assertSame(cause, error.cause)
+    }
+
     @Test fun `provider startup failure rolls back firebase then store in reverse acquisition order`() {
         val events = mutableListOf<String>()
         val error = assertFailsWith<IllegalStateException> {

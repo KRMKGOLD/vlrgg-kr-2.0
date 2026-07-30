@@ -6,6 +6,10 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
@@ -48,15 +52,21 @@ internal class MatchTracker(
     private val store: NotificationStore,
     private val provider: MatchObservationProvider,
     private val clock: Clock = Clock.systemUTC(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val logUnexpectedObservation: (Long) -> Unit = { matchId -> logger.warn("notification_tracking_failure matchId={} category=UNEXPECTED_OBSERVATION_FAILURE", matchId) },
 ) {
     suspend fun runCycle() {
-        store.activeMatchIds().forEach { matchId ->
-            val result = try { provider.observe(matchId) } catch (error: CancellationException) { throw error } catch (_: Exception) { MatchObservation.NetworkFailure }
+        withContext(ioDispatcher) { store.activeMatchIds() }.forEach { matchId ->
+            val result = try { provider.observe(matchId) } catch (error: CancellationException) { throw error } catch (_: Exception) {
+                logUnexpectedObservation(matchId)
+                null
+            }
+            if (result == null) return@forEach
             when (result) {
-                is MatchObservation.Success -> store.recordObservation(matchId, ObservationResult.SUCCESS, result.status, Instant.now(clock))
-                MatchObservation.NetworkFailure -> store.recordObservation(matchId, ObservationResult.NETWORK_FAILURE, now = Instant.now(clock))
-                MatchObservation.ParsingFailure -> store.recordObservation(matchId, ObservationResult.PARSING_FAILURE, now = Instant.now(clock))
-                MatchObservation.Missing -> store.recordObservation(matchId, ObservationResult.MISSING, now = Instant.now(clock))
+                is MatchObservation.Success -> withContext(ioDispatcher) { store.recordObservation(matchId, ObservationResult.SUCCESS, result.status, Instant.now(clock)) }
+                MatchObservation.NetworkFailure -> withContext(ioDispatcher) { store.recordObservation(matchId, ObservationResult.NETWORK_FAILURE, now = Instant.now(clock)) }
+                MatchObservation.ParsingFailure -> withContext(ioDispatcher) { store.recordObservation(matchId, ObservationResult.PARSING_FAILURE, now = Instant.now(clock)) }
+                MatchObservation.Missing -> withContext(ioDispatcher) { store.recordObservation(matchId, ObservationResult.MISSING, now = Instant.now(clock)) }
             }
         }
     }
@@ -86,13 +96,18 @@ internal class OwnedTrackingJob(
 
 /** Fixed delay (not fixed rate): the next cycle starts only after the previous cycle completes. */
 internal class FixedDelayMatchPolling(
-    private val tracker: MatchTracker,
+    private val runCycle: suspend () -> Unit,
     private val delayMillis: Long,
+    private val logCycleFailure: () -> Unit = { logger.warn("notification_tracking_failure category=CYCLE_FAILURE") },
 ) {
+    constructor(tracker: MatchTracker, delayMillis: Long) : this(tracker::runCycle, delayMillis)
+
     suspend fun run() {
         while (currentCoroutineContext().isActive) {
-            tracker.runCycle()
+            try { runCycle() } catch (error: CancellationException) { throw error } catch (_: Exception) { logCycleFailure() }
             delay(delayMillis)
         }
     }
 }
+
+private val logger = LoggerFactory.getLogger("MatchTracking")

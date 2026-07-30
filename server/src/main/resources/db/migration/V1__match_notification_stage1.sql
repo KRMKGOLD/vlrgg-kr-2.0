@@ -43,6 +43,8 @@ CREATE TABLE notification_observations (
     UNIQUE(match_id, observed_at)
 );
 
+CREATE INDEX notification_subscriptions_match_active_idx ON notification_subscriptions(match_id, active);
+
 CREATE TABLE notification_delivery_intents (
     id UUID PRIMARY KEY,
     target_id UUID NOT NULL REFERENCES notification_targets(id),
@@ -70,5 +72,4 @@ CREATE TABLE notification_audit_events (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE INDEX notification_targets_digest_idx ON notification_targets(provider, target_mode, lookup_digest);
 CREATE INDEX notification_intents_due_idx ON notification_delivery_intents(state, due_at);

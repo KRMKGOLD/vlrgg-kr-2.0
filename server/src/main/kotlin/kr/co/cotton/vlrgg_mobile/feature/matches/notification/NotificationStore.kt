@@ -59,27 +59,11 @@ class NotificationStore private constructor(
     fun findOrRegister(registrationValue: String, operation: String, revision: Long, now: Instant = Instant.now()): TargetLookupResult {
         requireValidRevision(revision)
         requireValidRegistrationValue(registrationValue)
-        val digest = targetDigest(lookupKey, mode, registrationValue)
-        require(digest.size == 32) { "target digest must be 32 bytes" }
         return retryingTransaction { connection ->
-            connection.prepareStatement("SELECT id, registration_value, sendable, accepted_revision, operation_hash FROM notification_targets WHERE provider=? AND target_mode=? AND lookup_digest=?").use { statement ->
-                statement.setString(1, PROVIDER); statement.setString(2, mode.name); statement.setBytes(3, digest)
-                statement.executeQuery().use { rows ->
-                    if (!rows.next()) {
-                        val id = UUID.randomUUID()
-                        connection.prepareStatement("INSERT INTO notification_targets (id, provider, target_mode, lookup_digest, lookup_key_id, registration_value, sendable, invalidated_at, accepted_revision, operation_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, TRUE, NULL, ?, ?, ?, ?)").use { insert ->
-                            insert.setObject(1, id); insert.setString(2, PROVIDER); insert.setString(3, mode.name); insert.setBytes(4, digest); insert.setString(5, keyId); insert.setString(6, registrationValue); insert.setLong(7, revision); insert.setBytes(8, operationHash(operation)); insert.setObject(9, now); insert.setObject(10, now); insert.executeUpdate()
-                        }
-                        TargetLookupResult(PushTarget(id), TargetResolution.CREATED, RevisionResult.APPLIED)
-                    } else {
-                        val target = PushTarget(rows.getObject(1, UUID::class.java))
-                        val raw = rows.getString(2)
-                        if (!rows.getBoolean(3) || raw == null) return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
-                        if (!constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
-                        val result = applyRevision(connection, target, rows.getLong(4), rows.getBytes(5), revision, operation, now)
-                        TargetLookupResult(target, TargetResolution.EXISTING, result)
-                    }
-                }
+            when (val resolved = resolveTarget(connection, registrationValue)) {
+                is TargetAddressResolution.Absent -> TargetLookupResult(insertTarget(connection, resolved.digest, registrationValue, revision, operation, now), TargetResolution.CREATED, RevisionResult.APPLIED)
+                TargetAddressResolution.RefreshRequired -> TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+                is TargetAddressResolution.Existing -> TargetLookupResult(resolved.target, TargetResolution.EXISTING, applyRevision(connection, resolved.target, resolved.row.revision, resolved.row.operationHash, revision, operation, now))
             }
         }
     }
@@ -105,24 +89,25 @@ class NotificationStore private constructor(
         requireValidMatchId(matchId)
         requireValidRevision(revision)
         val operation = "subscription:$matchId:${if (active) "on" else "off"}"
-        val digest = targetDigest(lookupKey, mode, registrationValue).also { require(it.size == 32) { "target digest must be 32 bytes" } }
         return retryingTransaction { connection ->
-            val existing = targetByDigest(connection, digest)
-            if (existing == null) {
-                val target = insertTarget(connection, digest, registrationValue, revision, operation, now)
+            when (val resolved = resolveTarget(connection, registrationValue)) {
+                is TargetAddressResolution.Absent -> {
+                val target = insertTarget(connection, resolved.digest, registrationValue, revision, operation, now)
                 insertSubscription(connection, target, matchId, active, now)
                 TargetLookupResult(target, TargetResolution.CREATED, RevisionResult.APPLIED)
-            } else {
-                val (target, raw, row) = existing
-                if (!row.sendable || raw == null) return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
-                if (!constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
+                }
+                TargetAddressResolution.RefreshRequired -> TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+                is TargetAddressResolution.Existing -> {
+                val (target, row) = resolved
                 val outcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
-                if (outcome != RevisionResult.APPLIED) return@retryingTransaction TargetLookupResult(target, TargetResolution.EXISTING, outcome)
+                if (outcome != RevisionResult.APPLIED) TargetLookupResult(target, TargetResolution.EXISTING, outcome) else {
                 val priorActive = subscriptionActive(connection, target, matchId)
                 if (active && priorActive != true && activeSubscriptionCount(connection, target) >= configuration.activeSubscriptionsMax) throw SubscriptionLimitExceededException()
                 applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
                 if (priorActive == null) insertSubscription(connection, target, matchId, active, now) else updateSubscription(connection, target, matchId, active, now)
                 TargetLookupResult(target, TargetResolution.EXISTING, RevisionResult.APPLIED)
+                }
+                }
             }
         }
     }
@@ -131,13 +116,10 @@ class NotificationStore private constructor(
         requireValidRegistrationValue(registrationValue)
         requireValidRevision(revision)
         val operation = "global:off"
-        val digest = targetDigest(lookupKey, mode, registrationValue).also { require(it.size == 32) { "target digest must be 32 bytes" } }
         return retryingTransaction { connection ->
-            val existing = targetByDigest(connection, digest)
-                ?: return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
-            val (target, raw, row) = existing
-            if (!row.sendable || raw == null) return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
-            if (!constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
+            val resolved = resolveTarget(connection, registrationValue)
+            if (resolved !is TargetAddressResolution.Existing) return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
+            val (target, row) = resolved
             val outcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
             if (outcome != RevisionResult.APPLIED) return@retryingTransaction TargetLookupResult(target, TargetResolution.EXISTING, outcome)
             applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
@@ -150,11 +132,9 @@ class NotificationStore private constructor(
 
     fun stateForRegistration(registrationValue: String): NotificationStateProjection? {
         requireValidRegistrationValue(registrationValue)
-        val digest = targetDigest(lookupKey, mode, registrationValue).also { require(it.size == 32) { "target digest must be 32 bytes" } }
         return transaction { connection ->
-            val existing = targetByDigest(connection, digest) ?: return@transaction null
-            val (target, raw, row) = existing
-            if (!row.sendable || raw == null || !constantTimeEquals(raw.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) return@transaction null
+            val resolved = resolveTarget(connection, registrationValue) as? TargetAddressResolution.Existing ?: return@transaction null
+            val (target, row) = resolved
             NotificationStateProjection(row.revision, subscriptions(connection, target))
         }
     }
@@ -258,6 +238,12 @@ class NotificationStore private constructor(
         }
     }
 
+    internal fun observationResultCount(matchId: Long, result: ObservationResult): Int = transaction { connection ->
+        connection.prepareStatement("SELECT COUNT(*) FROM notification_observations WHERE match_id=? AND source_result=?").use { statement ->
+            statement.setLong(1, matchId); statement.setString(2, result.name); statement.executeQuery().use { rows -> rows.next(); rows.getInt(1) }
+        }
+    }
+
     /** Writes every source result, but transitions compare only the prior successful observation. */
     fun recordObservation(matchId: Long, result: ObservationResult, status: ObservationStatus? = null, now: Instant = Instant.now()): Int = retryingTransaction { connection ->
         requireValidMatchId(matchId)
@@ -316,6 +302,18 @@ class NotificationStore private constructor(
         statement.setString(1, PROVIDER); statement.setString(2, mode.name); statement.setBytes(3, digest); statement.executeQuery().use { rows ->
             if (rows.next()) ExistingTarget(PushTarget(rows.getObject(1, UUID::class.java)), rows.getString(2), TargetRow(rows.getLong(4), rows.getBytes(5), rows.getBoolean(3))) else null
         }
+    }
+
+    private fun resolveTarget(connection: java.sql.Connection, registrationValue: String): TargetAddressResolution {
+        val digest = digestFor(registrationValue)
+        val existing = targetByDigest(connection, digest) ?: return TargetAddressResolution.Absent(digest)
+        if (!existing.row.sendable || existing.registrationValue == null) return TargetAddressResolution.RefreshRequired
+        if (!constantTimeEquals(existing.registrationValue.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
+        return TargetAddressResolution.Existing(existing.target, existing.row)
+    }
+
+    private fun digestFor(registrationValue: String): ByteArray = targetDigest(lookupKey, mode, registrationValue).also {
+        require(it.size == 32) { "target digest must be 32 bytes" }
     }
 
     private fun insertTarget(connection: java.sql.Connection, digest: ByteArray, registrationValue: String, revision: Long, operation: String, now: Instant): PushTarget {
@@ -456,6 +454,11 @@ class NotificationStore private constructor(
 
     private data class TargetRow(val revision: Long, val operationHash: ByteArray, val sendable: Boolean)
     private data class ExistingTarget(val target: PushTarget, val registrationValue: String?, val row: TargetRow)
+    private sealed interface TargetAddressResolution {
+        data class Absent(val digest: ByteArray) : TargetAddressResolution
+        data object RefreshRequired : TargetAddressResolution
+        data class Existing(val target: PushTarget, val row: TargetRow) : TargetAddressResolution
+    }
 
     companion object {
         private const val PROVIDER = "FIREBASE"

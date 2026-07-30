@@ -17,6 +17,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.suspendCancellableCoroutine
+import org.slf4j.LoggerFactory
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -110,8 +111,9 @@ internal class RetryMonotonicGuard(private val nanoTime: () -> Long = System::na
         deadlines.computeIfAbsent(Schedule(intent, decisionAt, dueAt)) { nanoTime() + delayMillis * 1_000_000L }
     }
     fun eligible(intent: UUID, decisionAt: Instant, dueAt: Instant, delayMillis: Long): Boolean {
-        val deadline = deadlines.computeIfAbsent(Schedule(intent, decisionAt, dueAt)) { nanoTime() + delayMillis * 1_000_000L }
-        return nanoTime() >= deadline
+        val schedule = Schedule(intent, decisionAt, dueAt)
+        val deadline = deadlines.computeIfAbsent(schedule) { nanoTime() + delayMillis * 1_000_000L }
+        return nanoTime() >= deadline && deadlines.remove(schedule, deadline)
     }
 }
 
@@ -121,6 +123,7 @@ internal class NotificationDeliveryService(
     private val configuration: NotificationConfiguration,
     private val clock: Clock = Clock.systemUTC(),
     private val retryGuard: RetryMonotonicGuard = RetryMonotonicGuard(),
+    private val failureLogger: (UUID, NotificationEventType, String) -> Unit = { intentId, event, category -> logger.warn("notification_delivery_failure intentId={} event={} category={}", intentId, event, category) },
 ) {
     suspend fun runOnce(): Boolean {
         val now = Instant.now(clock)
@@ -135,10 +138,11 @@ internal class NotificationDeliveryService(
         val result = try {
             withTimeout(configuration.deliveryTimeoutMillis) { provider.send(call.target, call.claim.event) }
         } catch (_: TimeoutCancellationException) {
-            store.finalizeUnknown(call, "PROVIDER_TIMEOUT", Instant.now(clock)); return true
+            finalizeUnknown(call, "PROVIDER_TIMEOUT", Instant.now(clock)); return true
         } catch (error: CancellationException) {
-            store.finalizeUnknown(call, "CALL_CANCELLED", Instant.now(clock)); throw error
+            finalizeUnknown(call, "CALL_CANCELLED", Instant.now(clock)); throw error
         } catch (_: Exception) {
+            logFailure(call, "PROVIDER_AMBIGUOUS")
             ProviderDeliveryResult.Unknown("PROVIDER_AMBIGUOUS")
         }
         finalize(call, result, Instant.now(clock))
@@ -155,6 +159,7 @@ internal class NotificationDeliveryService(
 
     private fun scheduleRetry(call: DeliveryCall, response: ProviderDeliveryResult.Retryable, now: Instant) {
         if (call.claim.attemptCount >= configuration.maxApplicationAttempts) {
+            logFailure(call, "RETRY_EXHAUSTED")
             store.finalizeTerminal(call, "RETRY_EXHAUSTED", now); return
         }
         val parsed = retryAfter(response.headers, now)
@@ -177,7 +182,18 @@ internal class NotificationDeliveryService(
         }
         if (store.finalizeRetry(call, now, delay, due)) retryGuard.anchor(call.claim.intentId, now, due, delay)
     }
+
+    private fun finalizeUnknown(call: DeliveryCall, category: String, now: Instant) {
+        logFailure(call, category)
+        store.finalizeUnknown(call, category, now)
+    }
+
+    private fun logFailure(call: DeliveryCall, category: String) {
+        failureLogger(call.claim.intentId, call.claim.event, category)
+    }
 }
+
+private val logger = LoggerFactory.getLogger("NotificationDelivery")
 
 private sealed interface RetryAfter { data class Value(val millis: Long) : RetryAfter; data object INVALID : RetryAfter; data object OVERFLOW : RetryAfter }
 private fun retryAfter(headers: Map<String, Any?>, now: Instant): RetryAfter {

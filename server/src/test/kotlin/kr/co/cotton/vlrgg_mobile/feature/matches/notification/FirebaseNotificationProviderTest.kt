@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 import com.google.api.core.ApiFutures
 import com.google.api.core.SettableApiFuture
 import com.google.firebase.messaging.Message
+import java.io.IOException
 import java.nio.file.Files
 import java.time.Clock
 import java.time.Instant
@@ -32,7 +33,7 @@ class FirebaseNotificationProviderTest {
         val entered = CompletableDeferred<Unit>()
         val provider = FirebaseNotificationProvider(sendAsync = { _: Message -> entered.complete(Unit); future })
         val timeout = try {
-            withTimeout(50) { provider.send(target, NotificationEventType.START) }
+            withTimeout(1_000) { provider.send(target, NotificationEventType.START) }
             null
         } catch (error: TimeoutCancellationException) {
             error
@@ -85,6 +86,33 @@ class FirebaseNotificationProviderTest {
                 failingProvider(503, headers).send(target, NotificationEventType.START),
             )
         }
+    }
+
+    @Test fun `actual Firebase adapter maps invalid IO Firebase and unmapped failures`() = runBlocking {
+        val unregistered = FakeFirebaseTransportFailure()
+        assertEquals(
+            ProviderDeliveryResult.InvalidTarget,
+            FirebaseNotificationProvider(
+                sendAsync = { ApiFutures.immediateFailedFuture(unregistered) },
+                firebaseFailure = { if (it === unregistered) FirebaseProviderFailure("UNREGISTERED", 404, emptyMap()) else null },
+            ).send(target, NotificationEventType.START),
+        )
+        assertEquals(
+            ProviderDeliveryResult.Unknown("IO_AMBIGUOUS"),
+            FirebaseNotificationProvider(sendAsync = { ApiFutures.immediateFailedFuture(IOException("offline")) }).send(target, NotificationEventType.START),
+        )
+        val firebaseFailure = FakeFirebaseTransportFailure()
+        assertEquals(
+            ProviderDeliveryResult.NonRetryable("FIREBASE_INVALID_ARGUMENT"),
+            FirebaseNotificationProvider(
+                sendAsync = { ApiFutures.immediateFailedFuture(firebaseFailure) },
+                firebaseFailure = { if (it === firebaseFailure) FirebaseProviderFailure("INVALID_ARGUMENT", 400, emptyMap()) else null },
+            ).send(target, NotificationEventType.START),
+        )
+        assertEquals(
+            ProviderDeliveryResult.Unknown(),
+            FirebaseNotificationProvider(sendAsync = { ApiFutures.immediateFailedFuture(IllegalStateException("unmapped")) }).send(target, NotificationEventType.START),
+        )
     }
 
     private fun failingProvider(status: Int, headers: Map<String, Any?>): FirebaseNotificationProvider = FirebaseNotificationProvider(

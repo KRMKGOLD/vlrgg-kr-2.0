@@ -136,6 +136,7 @@ class NotificationStoreTest {
                 assertTrue(ready.await(1, TimeUnit.SECONDS))
                 start.countDown()
                 threads.forEach { it.join(5_000) }
+                threads.forEach { assertFalse(it.isAlive, "concurrent subscription thread did not terminate") }
                 assertEquals(setOf(RevisionResult.APPLIED, RevisionResult.REPLAYED), results.toSet())
             }
         }

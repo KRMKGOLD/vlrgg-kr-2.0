@@ -38,12 +38,15 @@ internal class OwnedFirebaseApp private constructor(val app: FirebaseApp) : Auto
                     .build()
                 return try { OwnedFirebaseApp(FirebaseApp.initializeApp(options, name)) }
                 catch (error: IllegalStateException) {
-                    throw NotificationConfigurationException(ConfigurationCategory.FIREBASE_APP_NAME_COLLISION, ConfigurationField.APP_INSTANCE_ID)
+                    throw firebaseAppNameCollision(error)
                 }
             }
         }
     }
 }
+
+internal fun firebaseAppNameCollision(cause: IllegalStateException? = null) =
+    NotificationConfigurationException(ConfigurationCategory.FIREBASE_APP_NAME_COLLISION, ConfigurationField.APP_INSTANCE_ID, cause)
 
 /** A resource created during notification startup. Test doubles never need Firebase globals. */
 internal interface OwnedFirebaseResource : AutoCloseable

@@ -8,6 +8,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.absolutePathString
@@ -139,6 +140,45 @@ class MatchTrackerTest {
             assertFailsWith<kotlinx.coroutines.CancellationException> { tracker.runCycle() }
             Unit
         }
+    }
+
+    @Test fun `unexpected provider failure is logged and does not become a network observation`() = runBlocking {
+        val path = Files.createTempDirectory("vlrgg-tracker").resolve("store").absolutePathString()
+        store(path).use { store ->
+            store.reconcileSubscription("target", 7, true, 1)
+            val logged = mutableListOf<Long>()
+            val tracker = MatchTracker(store, object : MatchObservationProvider {
+                override suspend fun observe(matchId: Long): MatchObservation = throw IllegalStateException("unexpected")
+            }, logUnexpectedObservation = logged::add)
+
+            tracker.runCycle()
+
+            assertEquals(listOf(7L), logged)
+            assertEquals(0, store.observationResultCount(7, ObservationResult.NETWORK_FAILURE))
+        }
+    }
+
+    @Test fun `polling continues after a failed cycle and propagates cancellation`() = runBlocking {
+        var cycles = 0
+        val continued = CompletableDeferred<Unit>()
+        val polling = FixedDelayMatchPolling(
+            runCycle = {
+                cycles++
+                if (cycles == 1) throw IllegalStateException("store failure")
+                continued.complete(Unit)
+                kotlinx.coroutines.awaitCancellation()
+            },
+            delayMillis = 1,
+        )
+        val job = launch { polling.run() }
+        continued.await()
+        job.cancel()
+        job.join()
+        assertEquals(2, cycles)
+        assertFailsWith<kotlinx.coroutines.CancellationException> {
+            FixedDelayMatchPolling(runCycle = { throw kotlinx.coroutines.CancellationException("stop") }, delayMillis = 1).run()
+        }
+        Unit
     }
 
     private fun store(path: String) = NotificationStore.open(NotificationConfiguration.fromEnvironment(mapOf(

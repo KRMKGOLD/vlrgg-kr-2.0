@@ -8,6 +8,8 @@ import java.util.UUID
 import kotlin.io.path.absolutePathString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import org.flywaydb.core.Flyway
 
 class NotificationStoreMigrationTest {
@@ -41,6 +43,24 @@ class NotificationStoreMigrationTest {
         }
     }
 
+    @Test fun `fresh schema indexes match lookup subscriptions by match and does not duplicate target digest uniqueness`() {
+        val path = Files.createTempDirectory("vlrgg-index-migration").resolve("store").absolutePathString()
+        store(path).use { }
+
+        DriverManager.getConnection(jdbcUrl(path)).use { connection ->
+            val indexes = connection.prepareStatement("SELECT index_name FROM information_schema.indexes WHERE table_name=?").use { statement ->
+                statement.setString(1, "NOTIFICATION_SUBSCRIPTIONS")
+                statement.executeQuery().use { rows -> buildSet { while (rows.next()) add(rows.getString(1)) } }
+            }
+            assertTrue(indexes.contains("NOTIFICATION_SUBSCRIPTIONS_MATCH_ACTIVE_IDX"))
+            val targetIndexes = connection.prepareStatement("SELECT index_name FROM information_schema.indexes WHERE table_name=?").use { statement ->
+                statement.setString(1, "NOTIFICATION_TARGETS")
+                statement.executeQuery().use { rows -> buildSet { while (rows.next()) add(rows.getString(1)) } }
+            }
+            assertFalse(targetIndexes.contains("NOTIFICATION_TARGETS_DIGEST_IDX"))
+        }
+    }
+
     private fun migrateV1(path: String) {
         Flyway.configure().dataSource(jdbcUrl(path), null, null).locations("classpath:db/migration").target("1").load().migrate()
     }
@@ -48,7 +68,7 @@ class NotificationStoreMigrationTest {
     private fun insertV1ActiveSubscriptionAndTerminalObservation(path: String, matchId: Long, observedAt: Instant) {
         DriverManager.getConnection(jdbcUrl(path)).use { connection ->
             val targetId = UUID.randomUUID()
-            connection.prepareStatement("INSERT INTO notification_targets (id, provider, target_mode, lookup_digest, lookup_key_id, registration_value, sendable, invalidated_at, accepted_revision, operation_hash, created_at, updated_at) VALUES (?, 'FIREBASE', 'TOKEN', ?, 'test', 'target', TRUE, NULL, 1, ?, ?, ?)").use { statement ->
+            connection.prepareStatement("INSERT INTO notification_targets (id, provider, target_mode, lookup_digest, lookup_key_id, registration_value, sendable, invalidated_at, accepted_revision, operation_hash, created_at, updated_at) VALUES (?, 'FIREBASE', 'FID', ?, 'test', 'target', TRUE, NULL, 1, ?, ?, ?)").use { statement ->
                 statement.setObject(1, targetId)
                 statement.setBytes(2, ByteArray(32))
                 statement.setBytes(3, ByteArray(32))

@@ -38,7 +38,8 @@ enum class ConfigurationField {
 class NotificationConfigurationException(
     val category: ConfigurationCategory,
     val field: ConfigurationField,
-) : IllegalArgumentException("notification configuration rejected: $category/$field")
+    cause: Throwable? = null,
+) : IllegalArgumentException("notification configuration rejected: $category/$field", cause)
 
 enum class NotificationExposure { LOCAL, PUBLIC, PRODUCTION }
 enum class NotificationOwnership { SINGLE_PROCESS, MULTI_INSTANCE }
@@ -70,6 +71,16 @@ data class NotificationConfiguration(
 ) {
     companion object {
         fun fromEnvironment(environment: Map<String, String>, listener: ServerListenerConfiguration): NotificationConfiguration {
+            val feature = parseFeature(environment)
+            val limits = parseLimits(environment)
+            validateCrossFields(feature, limits, listener)
+            if (!feature.enabled) return disabledConfiguration(feature, limits)
+            validateEnabledFeature(feature)
+            val path = safeStoragePath(requireNotNull(feature.storage))
+            return NotificationConfiguration(true, feature.apiEnabled, feature.exposure, feature.ownership, path, limits.pool, limits.requestBody, limits.registration, limits.subscriptions, limits.pollDelay, limits.timeout, limits.lease, limits.attempts, limits.initialRetry, limits.maxRetry, limits.jitter, limits.providerCeiling, requireNotNull(feature.project), feature.instance, feature.mode, requireNotNull(feature.lookupKey), firebaseAppName(requireNotNull(feature.project), feature.instance))
+        }
+
+        private fun parseFeature(environment: Map<String, String>): ParsedFeature {
             val enabled = strictBoolean(environment["VLRGG_NOTIFICATIONS_ENABLED"] ?: "false", ConfigurationField.FEATURE_ENABLED)
             val apiEnabled = strictBoolean(environment["VLRGG_NOTIFICATIONS_API_ENABLED"] ?: "false", ConfigurationField.API_ENABLED)
             val exposure = enumValue(environment["VLRGG_NOTIFICATIONS_EXPOSURE"] ?: "LOCAL", NotificationExposure::valueOf, ConfigurationField.EXPOSURE, ConfigurationCategory.INVALID_SYNTAX)
@@ -82,9 +93,13 @@ data class NotificationConfiguration(
             if (enabled && !Regex("^[a-z](?:[a-z0-9-]{0,30}[a-z0-9])?$").matches(instance)) throw NotificationConfigurationException(ConfigurationCategory.INVALID_SYNTAX, ConfigurationField.APP_INSTANCE_ID)
             if (enabled && environment.containsKey("VLRGG_NOTIFICATIONS_CREDENTIAL_JSON")) throw NotificationConfigurationException(ConfigurationCategory.INLINE_CREDENTIAL_UNSUPPORTED, ConfigurationField.CREDENTIAL_SOURCE)
             val key = if (enabled) decodeLookupKey(environment["VLRGG_NOTIFICATION_LOOKUP_DIGEST_KEY"] ?: throw NotificationConfigurationException(ConfigurationCategory.MISSING_REQUIRED, ConfigurationField.LOOKUP_DIGEST_KEY)) else null
+            return ParsedFeature(enabled, apiEnabled, exposure, ownership, storage, project, instance, mode, key)
+        }
+
+        private fun parseLimits(environment: Map<String, String>): ParsedLimits {
             val requestBody = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_REQUEST_BODY_BYTES"] ?: "8192", ConfigurationField.REQUEST_BODY_BYTES, 1024, 65536)
-            val registrationLimit = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_REGISTRATION_VALUE_BYTES"] ?: "4096", ConfigurationField.REGISTRATION_VALUE_BYTES, 256, 16384)
-            val subscriptionLimit = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_ACTIVE_SUBSCRIPTIONS"] ?: "100", ConfigurationField.ACTIVE_SUBSCRIPTIONS, 1, 1000)
+            val registration = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_REGISTRATION_VALUE_BYTES"] ?: "4096", ConfigurationField.REGISTRATION_VALUE_BYTES, 256, 16384)
+            val subscriptions = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_ACTIVE_SUBSCRIPTIONS"] ?: "100", ConfigurationField.ACTIVE_SUBSCRIPTIONS, 1, 1000)
             val pool = strictUnsignedInt(environment["VLRGG_NOTIFICATIONS_JDBC_POOL_SIZE"] ?: "4", ConfigurationField.JDBC_POOL_SIZE, 1, 8)
             val pollDelay = strictUnsignedLong(environment["VLRGG_NOTIFICATIONS_POLL_DELAY_MILLIS"] ?: "600000", ConfigurationField.POLL_DELAY_MILLIS, 60000, 86400000)
             val timeout = strictUnsignedLong(environment["VLRGG_NOTIFICATIONS_DELIVERY_TIMEOUT_MILLIS"] ?: "30000", ConfigurationField.DELIVERY_TIMEOUT_MILLIS, 1000, 60000)
@@ -94,17 +109,25 @@ data class NotificationConfiguration(
             val maxRetry = strictUnsignedLong(environment["VLRGG_NOTIFICATIONS_MAX_RETRY_MILLIS"] ?: "3600000", ConfigurationField.MAX_RETRY_MILLIS, initialRetry, 86400000)
             val jitter = strictUnsignedLong(environment["VLRGG_NOTIFICATIONS_RETRY_JITTER_MILLIS"] ?: "5000", ConfigurationField.RETRY_JITTER_MILLIS, 0, 60000)
             val providerCeiling = strictUnsignedLong(environment["VLRGG_NOTIFICATIONS_PROVIDER_RETRY_CEILING_MILLIS"] ?: "86400000", ConfigurationField.PROVIDER_RETRY_CEILING_MILLIS, 60000, 604800000)
-            if (lease <= timeout) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.CLAIM_LEASE_MILLIS)
-            if (jitter > maxRetry) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.RETRY_JITTER_MILLIS)
-            if (apiEnabled && listener.host !in setOf("127.0.0.1", "::1")) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_LISTENER, ConfigurationField.LISTENER_HOST)
-            if (apiEnabled && !enabled) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.API_ENABLED)
-            if (!enabled) return NotificationConfiguration(false, apiEnabled, exposure, ownership, null, pool, requestBody, registrationLimit, subscriptionLimit, pollDelay, timeout, lease, attempts, initialRetry, maxRetry, jitter, providerCeiling, null, instance, mode, null, null)
-
-            if (exposure != NotificationExposure.LOCAL) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.EXPOSURE)
-            if (ownership != NotificationOwnership.SINGLE_PROCESS) throw NotificationConfigurationException(ConfigurationCategory.UNSUPPORTED_OWNERSHIP, ConfigurationField.OWNERSHIP)
-            val path = safeStoragePath(requireNotNull(storage))
-            return NotificationConfiguration(true, apiEnabled, exposure, ownership, path, pool, requestBody, registrationLimit, subscriptionLimit, pollDelay, timeout, lease, attempts, initialRetry, maxRetry, jitter, providerCeiling, requireNotNull(project), instance, mode, requireNotNull(key), firebaseAppName(requireNotNull(project), instance))
+            return ParsedLimits(pool, requestBody, registration, subscriptions, pollDelay, timeout, lease, attempts, initialRetry, maxRetry, jitter, providerCeiling)
         }
+
+        private fun validateCrossFields(feature: ParsedFeature, limits: ParsedLimits, listener: ServerListenerConfiguration) {
+            if (limits.lease <= limits.timeout) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.CLAIM_LEASE_MILLIS)
+            if (limits.jitter > limits.maxRetry) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.RETRY_JITTER_MILLIS)
+            if (feature.apiEnabled && listener.host !in setOf("127.0.0.1", "::1")) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_LISTENER, ConfigurationField.LISTENER_HOST)
+            if (feature.apiEnabled && !feature.enabled) throw NotificationConfigurationException(ConfigurationCategory.INVALID_CROSS_FIELD, ConfigurationField.API_ENABLED)
+        }
+
+        private fun validateEnabledFeature(feature: ParsedFeature) {
+            if (feature.exposure != NotificationExposure.LOCAL) throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.EXPOSURE)
+            if (feature.ownership != NotificationOwnership.SINGLE_PROCESS) throw NotificationConfigurationException(ConfigurationCategory.UNSUPPORTED_OWNERSHIP, ConfigurationField.OWNERSHIP)
+        }
+
+        private fun disabledConfiguration(feature: ParsedFeature, limits: ParsedLimits) = NotificationConfiguration(false, feature.apiEnabled, feature.exposure, feature.ownership, null, limits.pool, limits.requestBody, limits.registration, limits.subscriptions, limits.pollDelay, limits.timeout, limits.lease, limits.attempts, limits.initialRetry, limits.maxRetry, limits.jitter, limits.providerCeiling, null, feature.instance, feature.mode, null, null)
+
+        private data class ParsedFeature(val enabled: Boolean, val apiEnabled: Boolean, val exposure: NotificationExposure, val ownership: NotificationOwnership, val storage: String?, val project: String?, val instance: String, val mode: FirebaseTargetMode, val lookupKey: ByteArray?)
+        private data class ParsedLimits(val pool: Int, val requestBody: Int, val registration: Int, val subscriptions: Int, val pollDelay: Long, val timeout: Long, val lease: Long, val attempts: Int, val initialRetry: Long, val maxRetry: Long, val jitter: Long, val providerCeiling: Long)
 
         private fun decodeLookupKey(value: String): ByteArray = try {
             if (!Regex("^[A-Za-z0-9_-]{43}$").matches(value)) throw IllegalArgumentException()
