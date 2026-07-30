@@ -12,7 +12,12 @@ class VlrThemeContractTest {
         assertEquals(VlrLightColors.onActionPrimary, VlrLightMaterialColorScheme.onPrimary)
         assertEquals(VlrLightColors.surface, VlrLightMaterialColorScheme.surface)
         assertEquals(VlrLightColors.textPrimary, VlrLightMaterialColorScheme.onSurface)
-        assertEquals(VlrLightColors.focusOutline, VlrLightColors.accentLive)
+        assertEquals(VlrLightColors.accentLive, VlrLightMaterialColorScheme.secondary)
+    }
+
+    @Test
+    fun focusOutlineUsesLiveAccentToken() {
+        assertEquals(VlrLightColors.accentLive, VlrLightColors.focusOutline)
     }
 
     @Test
@@ -23,5 +28,7 @@ class VlrThemeContractTest {
         assertEquals(20.sp, VlrTypography.body.lineHeight)
         assertEquals(10.sp, VlrTypography.navLabel.fontSize)
         assertEquals(12.sp, VlrTypography.navLabel.lineHeight)
+        assertEquals(VlrTypography.body, VlrMaterialTypography.bodyLarge)
+        assertEquals(VlrTypography.labelSmall, VlrMaterialTypography.labelSmall)
     }
 }

@@ -72,9 +72,9 @@ val VlrMaterialTypography = Typography(
     displayLarge = VlrTypography.display,
     headlineLarge = VlrTypography.pageTitle,
     titleMedium = VlrTypography.sectionTitle,
-    bodyLarge = VlrTypography.bodyStrong,
+    bodyLarge = VlrTypography.body,
     bodyMedium = VlrTypography.body,
     labelLarge = VlrTypography.label,
     labelMedium = VlrTypography.labelSmall,
-    labelSmall = VlrTypography.navLabel,
+    labelSmall = VlrTypography.labelSmall,
 )

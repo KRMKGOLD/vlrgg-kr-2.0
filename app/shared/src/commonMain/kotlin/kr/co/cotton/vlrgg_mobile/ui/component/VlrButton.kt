@@ -234,15 +234,12 @@ private fun FocusOutline(
     val colors = LocalVlrColors.current
     Box(
         modifier = Modifier
-            .then(
-                if (isFocused) {
-                    Modifier
-                        .border(VlrDimensions.FocusOutlineWidth, colors.focusOutline, shape)
-                        .padding(VlrDimensions.FocusOutlineWidth)
-                } else {
-                    Modifier
-                },
-            ),
+            .border(
+                VlrDimensions.FocusOutlineWidth,
+                if (isFocused) colors.focusOutline else Color.Transparent,
+                shape,
+            )
+            .padding(VlrDimensions.FocusOutlineWidth),
     ) {
         content()
     }

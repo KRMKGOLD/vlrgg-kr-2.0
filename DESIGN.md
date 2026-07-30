@@ -7,7 +7,7 @@
 **Last refreshed:** 2026-07-30
 **Applies to:** Compose Multiplatform UI in `app/shared/src/commonMain`; Android and iOS mobile first.
 
-This is the canonical visual, interaction, and accessibility contract for the app. Feature documents own their data and flows; [the app architecture](docs/app-arch/app-arch.md) owns placement and runtime boundaries. No Kotlin theme or component exists yet: this document is the implementation handoff, not evidence that a component has already shipped.
+This is the canonical visual, interaction, and accessibility contract for the app. Feature documents own their data and flows; [the app architecture](docs/app-arch/app-arch.md) owns placement and runtime boundaries. Step 1 ships the Light theme (`Theme.kt`, `Colors.kt`, `Typography.kt`, `Dimensions.kt`) and shared `VlrButton`, `VlrIconButton`, `VlrSearchField`, and `StatusChip` contracts in `commonMain`; this document remains the handoff for feature adoption and visual validation.
 
 ## Evidence and confidence
 
@@ -207,8 +207,8 @@ The 4dp grid and 16dp horizontal inset are **[Observed]** in the project design 
 
 ## 7. Implementation handoff and non-goals
 
-1. Build `ui/theme` tokens (`Theme.kt`, `Colors.kt`, `Typography.kt`, `Dimensions.kt`) in `commonMain` when the first real UI feature requires them; preserve the semantic names above.
-2. Implement the four Step 1 contracts only when real feature reuse warrants shared extraction; otherwise keep the exact contract feature-local as required by [the UI layer guide](docs/app-arch/ui-layer.md).
-3. Add focused state/screenshot coverage for default, focus, disabled, error, and loading states as each component is implemented. Verify the exact final foreground/background contrast, Korean font fallback, font-scale growth, and TalkBack/VoiceOver labels.
+1. [x] Implement `ui/theme` tokens (`Theme.kt`, `Colors.kt`, `Typography.kt`, `Dimensions.kt`) in `commonMain` with the semantic names above.
+2. [x] Implement the Step 1 typography, button, search-field, and status-chip contracts in `commonMain`; feature code adopts them only when the shared behavior matches its requirements, per [the UI layer guide](docs/app-arch/ui-layer.md).
+3. [ ] On physical Android and iOS devices, capture focused state/screenshot coverage for default, focus, disabled, error, and loading states and verify Korean font fallback, font-scale growth, and TalkBack/VoiceOver labels.
 
 Non-goals for Step 1: a dark theme, a bundled font, generic component-library expansion, a custom animation system, Android/iOS-divergent behavior, or implementation of navigation/features not already planned. Any new color, new interactive chip/filter behavior, or destructive-action treatment requires an update to this file and a visual/accessibility review.
