@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -27,10 +28,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error as semanticsError
@@ -45,9 +50,59 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.LocalVlrColors
 import kr.co.cotton.vlrgg_mobile.ui.theme.LocalVlrTypography
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 
-enum class VlrSearchFieldVariant(val visualHeight: Dp) {
-    Standard(56.dp),
-    Compact(40.dp),
+enum class VlrSearchFieldVariant(
+    val visualHeight: Dp,
+    internal val isPill: Boolean,
+) {
+    Standard(visualHeight = 56.dp, isPill = true),
+    Compact(visualHeight = 40.dp, isPill = false),
+}
+
+internal data class VlrSearchFieldState(
+    val value: String,
+    val enabled: Boolean,
+    val isLoading: Boolean,
+    val errorMessage: String?,
+) {
+    val hasClearAction: Boolean = enabled && value.isNotEmpty() && !isLoading
+    val stateDescription: String? = if (isLoading) "로딩 중" else null
+    val imeAction: ImeAction = ImeAction.Search
+    val minimumTouchTarget: Dp = VlrDimensions.MinimumTouchTarget
+}
+
+internal data class VlrSearchFieldOutline(
+    val color: androidx.compose.ui.graphics.Color,
+    val width: Dp,
+    val isOutsideVisualBounds: Boolean,
+)
+
+internal fun searchFieldOutline(
+    isFocused: Boolean,
+    errorMessage: String?,
+    colors: kr.co.cotton.vlrgg_mobile.ui.theme.VlrColors,
+): VlrSearchFieldOutline {
+    val hasError = !errorMessage.isNullOrBlank()
+    return VlrSearchFieldOutline(
+        color = when {
+            hasError -> colors.actionPrimary
+            isFocused -> colors.focusOutline
+            else -> colors.outline
+        },
+        width = if (hasError || isFocused) {
+            VlrDimensions.FocusOutlineWidth
+        } else {
+            VlrDimensions.OutlineWidth
+        },
+        isOutsideVisualBounds = hasError || isFocused,
+    )
+}
+
+internal fun submitSearch(value: String, onSearch: (String) -> Unit) {
+    onSearch(value)
+}
+
+internal fun clearSearch(onValueChange: (String) -> Unit) {
+    onValueChange("")
 }
 
 /**
@@ -64,12 +119,14 @@ fun VlrSearchField(
     errorMessage: String? = null,
     placeholder: String = "팀, 선수, 대회 검색…",
     label: String = placeholder,
+    onSearch: (String) -> Unit = {},
 ) {
     val colors = LocalVlrColors.current
     val typography = LocalVlrTypography.current
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused = interactionSource.collectIsFocusedAsState().value
-    val hasError = !errorMessage.isNullOrBlank()
+    val state = VlrSearchFieldState(value, enabled, isLoading, errorMessage)
+    val hasError = !state.errorMessage.isNullOrBlank()
     val shape = when (variant) {
         VlrSearchFieldVariant.Standard -> androidx.compose.foundation.shape.CircleShape
         VlrSearchFieldVariant.Compact -> androidx.compose.foundation.shape.RoundedCornerShape(
@@ -80,15 +137,11 @@ fun VlrSearchField(
         VlrSearchFieldVariant.Standard -> colors.surfaceSubtle
         VlrSearchFieldVariant.Compact -> colors.surface
     }
-    val borderColor = when {
-        hasError -> colors.actionPrimary
-        isFocused -> colors.focusOutline
-        else -> colors.outline
-    }
-    val borderWidth = if (hasError || isFocused) {
-        VlrDimensions.FocusOutlineWidth
+    val outline = searchFieldOutline(isFocused, errorMessage, colors)
+    val fieldOutline = if (outline.isOutsideVisualBounds) {
+        Modifier.outsideOutline(outline.width, outline.color, variant)
     } else {
-        VlrDimensions.OutlineWidth
+        Modifier.border(outline.width, outline.color, shape)
     }
 
     androidx.compose.foundation.layout.Column(modifier = modifier) {
@@ -104,13 +157,14 @@ fun VlrSearchField(
                 .semantics {
                     contentDescription = label
                     if (hasError) semanticsError(errorMessage.orEmpty())
-                    if (isLoading) stateDescription = "로딩 중"
+                    state.stateDescription?.let { stateDescription = it }
                 },
-            enabled = enabled,
+            enabled = state.enabled,
             singleLine = true,
             textStyle = typography.body.copy(color = colors.textPrimary),
             cursorBrush = SolidColor(colors.actionPrimary),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardOptions = KeyboardOptions(imeAction = state.imeAction),
+            keyboardActions = KeyboardActions(onSearch = { submitSearch(state.value, onSearch) }),
             interactionSource = interactionSource,
             decorationBox = { innerTextField ->
                 Box(
@@ -121,9 +175,9 @@ fun VlrSearchField(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(variant.visualHeight)
+                            .then(fieldOutline)
                             .clip(shape)
                             .background(container)
-                            .border(borderWidth, borderColor, shape)
                             .then(if (enabled) Modifier else Modifier.alpha(0.5f)),
                     )
                     Row(
@@ -150,14 +204,14 @@ fun VlrSearchField(
                             innerTextField()
                         }
                         when {
-                            isLoading -> CircularProgressIndicator(
+                            state.isLoading -> CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 color = colors.actionPrimary,
                                 strokeWidth = 2.dp,
                             )
 
-                            enabled && value.isNotEmpty() -> ClearSearchButton(
-                                onClear = { onValueChange("") },
+                            state.hasClearAction -> ClearSearchButton(
+                                onClear = { clearSearch(onValueChange) },
                                 contentDescription = "검색어 지우기",
                             )
                         }
@@ -176,6 +230,29 @@ fun VlrSearchField(
                 style = typography.labelSmall,
             )
         }
+    }
+}
+
+private fun Modifier.outsideOutline(
+    width: Dp,
+    color: androidx.compose.ui.graphics.Color,
+    variant: VlrSearchFieldVariant,
+): Modifier = drawBehind {
+    val strokeWidth = width.toPx()
+    val halfStroke = strokeWidth / 2f
+    translate(left = -halfStroke, top = -halfStroke) {
+        val outlineHeight = size.height + strokeWidth
+        val radius = if (variant.isPill) {
+            outlineHeight / 2f
+        } else {
+            VlrDimensions.DefaultCornerRadius.toPx() + halfStroke
+        }
+        drawRoundRect(
+            color = color,
+            size = Size(size.width + strokeWidth, outlineHeight),
+            cornerRadius = CornerRadius(radius),
+            style = Stroke(width = strokeWidth),
+        )
     }
 }
 

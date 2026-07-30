@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -54,6 +55,27 @@ enum class VlrButtonSize(
     Compact(visualHeight = 32.dp, horizontalPadding = 12.dp),
 }
 
+internal enum class VlrButtonContentPresentation(val alpha: Float) {
+    Visible(alpha = 1f),
+    InvisibleButMeasured(alpha = 0f),
+}
+
+internal data class VlrButtonState(
+    val enabled: Boolean,
+    val isLoading: Boolean,
+) {
+    val isInteractive: Boolean = enabled && !isLoading
+    val contentPresentation: VlrButtonContentPresentation = if (isLoading) {
+        VlrButtonContentPresentation.InvisibleButMeasured
+    } else {
+        VlrButtonContentPresentation.Visible
+    }
+    val showsProgress: Boolean = isLoading
+    val role: Role = Role.Button
+    val stateDescription: String? = if (isLoading) "로딩 중" else null
+    val minimumTouchTarget: Dp = VlrDimensions.MinimumTouchTarget
+}
+
 /** A labelled action button. Loading replaces its visible content and prevents repeat activation. */
 @Composable
 fun VlrButton(
@@ -73,7 +95,7 @@ fun VlrButton(
     val isFocused = interactionSource.collectIsFocusedAsState().value
     val visual = buttonVisuals(variant, isPressed, colors)
     val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
-    val canClick = enabled && !isLoading
+    val state = VlrButtonState(enabled = enabled, isLoading = isLoading)
 
     Box(
         modifier = modifier
@@ -82,11 +104,13 @@ fun VlrButton(
                 minHeight = VlrDimensions.MinimumTouchTarget,
             )
             .semantics {
-                if (isLoading) stateDescription = "로딩 중"
+                contentDescription = text
+                state.stateDescription?.let { stateDescription = it }
+                if (!state.isInteractive) disabled()
             }
             .clickable(
-                enabled = canClick,
-                role = Role.Button,
+                enabled = state.isInteractive,
+                role = state.role,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
@@ -97,7 +121,7 @@ fun VlrButton(
             isFocused = isFocused,
             shape = shape,
         ) {
-            Row(
+            Box(
                 modifier = Modifier
                     .height(size.visualHeight)
                     .clip(shape)
@@ -112,22 +136,26 @@ fun VlrButton(
                     .then(if (enabled) Modifier else Modifier.alpha(0.5f))
                     .padding(PaddingValues(horizontal = size.horizontalPadding))
                     .wrapContentWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
+                contentAlignment = Alignment.Center,
             ) {
                 CompositionLocalProvider(LocalContentColor provides visual.content) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = visual.content,
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
+                    Row(
+                        modifier = Modifier.alpha(state.contentPresentation.alpha),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         leadingIcon?.let {
                             Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { it() }
                             androidx.compose.foundation.layout.Spacer(Modifier.size(VlrDimensions.Space2))
                         }
                         Text(text = text, style = typography.label)
+                    }
+                    if (state.showsProgress) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = visual.content,
+                            strokeWidth = 2.dp,
+                        )
                     }
                 }
             }
@@ -150,7 +178,7 @@ fun VlrIconButton(
     val isPressed = interactionSource.collectIsPressedAsState().value
     val isFocused = interactionSource.collectIsFocusedAsState().value
     val container = if (isPressed) colors.surfaceSubtle else Color.Transparent
-    val canClick = enabled && !isLoading
+    val state = VlrButtonState(enabled = enabled, isLoading = isLoading)
 
     Box(
         modifier = modifier
@@ -160,11 +188,12 @@ fun VlrIconButton(
             )
             .semantics {
                 this.contentDescription = contentDescription
-                if (isLoading) stateDescription = "로딩 중"
+                state.stateDescription?.let { stateDescription = it }
+                if (!state.isInteractive) disabled()
             }
             .clickable(
-                enabled = canClick,
-                role = Role.Button,
+                enabled = state.isInteractive,
+                role = state.role,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
