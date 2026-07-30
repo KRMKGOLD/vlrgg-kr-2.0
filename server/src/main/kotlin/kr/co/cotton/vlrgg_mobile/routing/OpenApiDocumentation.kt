@@ -65,6 +65,36 @@ internal inline fun <reified T : Any> Route.describePublicGet(
     }
 }
 
+/** Local-only notification mutations deliberately document provider-neutral response DTOs only. */
+@OptIn(ExperimentalKtorApi::class)
+internal inline fun <reified R : Any, reified T : Any> Route.describeLocalNotificationOperation(
+    operationId: String,
+    summary: String,
+    noinline parameters: Parameters.Builder.() -> Unit = {},
+) = describe {
+    this.operationId = operationId
+    this.summary = summary
+    this.description = "Disabled by default. Available only when the notification API is enabled on the actual literal loopback listener."
+    tag("Match notifications (local)")
+    parameters(parameters)
+    requestBody {
+        required = true
+        description = "Provider-neutral local request. registrationValue is never returned or logged."
+        content { schema = jsonSchema<R>() }
+        extension("x-server-body-bytes", "1024..65536 (configured default 8192)")
+        extension("x-server-registration-value-utf8-bytes", "1..configured 256..16384; blank and control characters rejected")
+        extension("x-server-revision", "positive signed Long in canonical decimal; no sign, whitespace, leading zero or overflow")
+        extension("x-server-active-subscriptions", "1..1000 per target (configured default 100)")
+    }
+    responses {
+        HttpStatusCode.OK { description = "Desired target state was processed."; content { schema = jsonSchema<T>() } }
+        HttpStatusCode.BadRequest { description = "Request input is invalid."; content { schema = jsonSchema<ApiErrorResponse>() } }
+        HttpStatusCode.PayloadTooLarge { description = "Request body exceeds the configured bound."; content { schema = jsonSchema<ApiErrorResponse>() } }
+        HttpStatusCode.Conflict { description = "The revision or target state conflicts with the durable state."; content { schema = jsonSchema<ApiErrorResponse>() } }
+        HttpStatusCode.InternalServerError { description = "An unexpected server error occurred."; content { schema = jsonSchema<ApiErrorResponse>() } }
+    }
+}
+
 @OptIn(ExperimentalKtorApi::class)
 internal fun Responses.Builder.commonFailureResponses() {
     HttpStatusCode.BadRequest {
@@ -91,6 +121,16 @@ internal fun Parameters.Builder.positiveDecimalIdPath(name: String) {
             maxLength = 10,
             pattern = POSITIVE_DECIMAL_ID_OPENAPI_PATTERN,
         )
+    }
+}
+
+internal fun Parameters.Builder.notificationMatchIdPath() {
+    path("matchId") {
+        description = "Positive signed Long Match ID in canonical decimal form."
+        required = true
+        schema = JsonSchema(type = JsonType.STRING, minLength = 1, maxLength = 19, pattern = "^[1-9][0-9]{0,18}$")
+        extension("x-server-maximum", "9223372036854775807")
+        extension("x-server-canonical-decimal", true)
     }
 }
 

@@ -4,9 +4,9 @@ import io.ktor.server.application.*
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 
 /** Explicit feature composition keeps routes free from transport/client construction. */
-internal fun Application.configureMatchesFeature(transport: UpstreamHtmlTransport) {
+internal fun Application.configureMatchesFeature(transport: UpstreamHtmlTransport, service: MatchesService? = null) {
     configureMatchesRoutes(
-        DefaultMatchesService(
+        service ?: DefaultMatchesService(
             scraper = VlrMatchesScraper(transport),
             parser = VlrMatchesParser(),
             mapper = MatchesMapper(),
