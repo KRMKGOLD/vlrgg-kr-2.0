@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import org.jetbrains.compose.resources.painterResource
+import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.compose_multiplatform
@@ -22,11 +23,11 @@ import vlrggmobile.app.shared.generated.resources.compose_multiplatform
 @Composable
 @Preview
 fun App() {
-    MaterialTheme {
+    VlrTheme {
         var showContent by remember { mutableStateOf(false) }
         Column(
             modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
+                .background(MaterialTheme.colorScheme.surface)
                 .safeContentPadding()
                 .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
