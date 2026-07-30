@@ -1,14 +1,14 @@
 # Server FCM Match Notification — Stage 1 technical contract
 
-- Status: Accepted implementation contract; Wave A storage, Wave B local desired-state/tracking, and Wave C offline delivery/provider lifecycle are implemented.
+- Status: Accepted implementation contract; Wave A/B/C core code and offline tests exist, but normative Stage 1 acceptance remains open.
 - Scope: `server` only, local/private and fully offline-verifiable
 - Related: [ADR-0001](adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [Matches product contract](../feature/matches/README.md), [server architecture](server-arch.md)
 
 ## Scope and boundary
 
-Stage 1 adds a Match-notification vertical slice under the existing Matches feature: durable target subscription intent, target-scoped revision ordering, unique START/END intents, fixed-delay tracking, durable delivery state, a provider-neutral seam, and a Firebase Admin implementation. It is server-only. The current server remains the baseline until a later implementation changes it: it has direct Netty construction, manual composition, scraping APIs, and common safe errors, but no notification sources, database/migrations, Firebase Admin dependency, or scheduler.
+Stage 1 adds a Match-notification vertical slice under the existing Matches feature: durable target subscription intent, target-scoped revision ordering, unique START/END intents, fixed-delay tracking, durable delivery state, a provider-neutral seam, and a Firebase Admin implementation. It is server-only. Wave A storage, Wave B local/private desired state and tracking, and the core Wave C delivery/provider lifecycle paths exist on top of the existing direct Netty construction, manual composition, scraping APIs, and common safe errors. This is functional implementation progress, not completion of every normative acceptance requirement in this contract.
 
-Wave B changes that baseline only for the local/private desired-state and tracking portion: the default-disabled loopback API persists provider-neutral target subscriptions and tracker observations create durable START/END intents. Wave C consumes those intents through a named, owned Firebase Admin app and an offline-testable provider seam; it does not expand authority beyond the approved local listener boundary.
+The default-disabled loopback API persists provider-neutral target subscriptions, tracker observations create durable START/END intents, and Wave C consumes those intents through a named, owned Firebase Admin app and an offline-testable provider seam. This implementation does not expand authority beyond the approved local listener boundary.
 
 Stage 1 excludes all `app/` code and tests, live credentials/project/network/dry-run, device-display proof, public deployment, production data, authentication or target ownership, and multi-instance scheduling. Feature and notification API enablement are independent and default to `false`. API-enabled Stage 1 is deliberately loopback-only; this can make it unreachable from another device, which is acceptable because App integration is excluded. A registration value is an anonymous push address, never an account, physical-device identity, authentication credential, authorization proof, or ownership proof.
 
@@ -74,11 +74,18 @@ Rollback and normal shutdown are LIFO: cancel/join delivery then tracking jobs, 
 
 Logs, metric labels, trace attributes, error messages, fixtures, URLs, and responses must exclude registration values (and substrings), lookup digests/key/metadata, intent IDs, request bodies, credentials/ADC source/path, Firebase project/app details, raw SDK exception or response body, provider message ID, and raw upstream material. Allowed observability is bounded categories/counters only: cycle/result/event type, lifecycle/startup stage, configuration category/field, retry terminal, retry guard, and late-result class. Required signals include cycle, Match result, intent transition, provider result/late result, unknown count, lifecycle, configuration failure, retry terminal/guard, and startup failure.
 
-## Acceptance evidence and implementation sequence
+The current implementation does not yet satisfy this full redaction and observability contract. `NotificationDeliveryService`'s default failure logger includes the raw `intentId` in its WARN message, and the bounded startup-stage ledger and lifecycle/provider-result/unknown-count/retry-guard signals are incomplete. These are Stage 1 acceptance blockers, not exceptions that weaken the contract.
 
-All Stage 1 automated tests use injected Match, database, provider/SDK transport, credential, FirebaseApp, job, wall-clock, monotonic-clock, and jitter seams; offline E2E asserts zero network calls and zero real ADC resolutions. The implementation must prove: provider-neutral DTOs; separate default-disabled feature/API gates; exact shared listener preflight; strict input/revision/target isolation; observation truth table and unique intents; pre-marker reclaim/post-marker UNKNOWN/late-CAS behavior; exact retry, provider floors, jitter, and restart guard limitation; HMAC/key/tombstone logical erasure boundary; deterministic configuration and startup ledger; lifecycle LIFO; and H2 public/multi fail-fast. Tests inspect logical tables/projections/serialization, not physical H2 media, and include separate-JVM marker recovery plus route/OpenAPI, provider-adapter, lifecycle, and three offline E2E flows.
+## Implemented evidence and verification
 
-Implement after revalidating Firebase Admin, Exposed, Flyway, H2, and Java 21 primary documentation in this order: (1) configuration, listener seam, schema/repository and revision/tombstone tests; (2) local/private routes and OpenAPI; (3) tracking and unique intent creation; (4) delivery markers, adapter, retry and process tests; (5) lifecycle rollback and offline E2E; (6) full server regression, redaction/diff checks, and document reconciliation. Run targeted suites first, then `./gradlew :server:compileKotlin`, `./gradlew :server:test --rerun-tasks`, and `git diff --check`.
+Current automated tests use injected Match observation/provider boundaries, the Firebase async SDK boundary, notification runtime factories, fixed wall clocks, and a controllable monotonic source. Runtime factory replacement prevents real ADC/FirebaseApp/network work in the relevant offline lifecycle tests; it is not a direct injected-credential test. The current suites cover:
+
+- configuration, default-disabled feature/API gates, loopback listener restriction, local routes, OpenAPI, revision ordering, target isolation, H2/Flyway schema and migration;
+- observation truth table, unique START/END intents, unique-Match polling and one-way terminal latch;
+- pre-marker reclaim, post-marker `UNKNOWN`, late-result CAS suppression, retry/provider floors and restart guard with explicit clock/configuration inputs;
+- Firebase adapter result mapping through an injected async boundary, invalid-target logical erasure, lifecycle rollback and LIFO shutdown.
+
+There is no direct non-zero deterministic-jitter test, and the injected failure-logger test does not prove that the default runtime logger satisfies intent-ID redaction. The suites inspect logical tables, projections and serialization rather than physical H2 media. They prove functional subsets of the offline Stage 1 boundary, not final normative acceptance. They also do not prove live ADC/project configuration, selected target-mode compatibility with an App-supplied value, Firebase network acceptance, or device display. Verification uses the targeted notification suites, `./gradlew :server:compileKotlin`, `./gradlew :server:test --rerun-tasks`, and `git diff --check`.
 
 ## Stage 2 and Stage 3 exit gates
 

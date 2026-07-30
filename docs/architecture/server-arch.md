@@ -6,11 +6,11 @@
 
 Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selector, Jsoup `Document`·`Element`, 원본 HTML, scraping 보정은 서버 경계 안에 머문다. 앱은 app-facing API contract만 사용한다.
 
-첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 일반 콘텐츠 조회에는 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. 1차 MVP에 기획된 Match 알림은 구현할 때만 사용자 구독 상태를 위한 좁은 영속 저장과 scheduler 예외가 필요하지만, 현재 서버에는 이 기능이 없다. 승인된 서버 전용 Stage 1의 persistence, Firebase adapter, retry, lifecycle, security, 검증과 Stage 2/3 gate는 [Stage 1 technical contract](server-fcm-stage1.md)가 소유한다. 이 문서는 개별 feature 구현이나 API 명세가 아니라 Ktor 서버의 아키텍처와 개발 방향을 정한다.
+첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 일반 콘텐츠 조회에는 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. Match 알림 Stage 1만 사용자 구독·delivery 상태를 위한 좁은 영속 저장과 scheduler를 feature-specific 예외로 구현했다. 서버 전용 Stage 1의 persistence, Firebase adapter, retry, lifecycle, security, 검증과 Stage 2/3 gate는 [Stage 1 technical contract](server-fcm-stage1.md)가 소유한다. 이 문서는 개별 feature 구현이나 API 명세가 아니라 Ktor 서버의 아키텍처와 개발 방향을 정한다.
 
 ## Current State and Direction
 
-현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API와 런타임 OpenAPI/Swagger 개발 문서를 구현했다. Match 알림은 Wave B까지 default-disabled loopback 구독 API, H2 desired state, observation tracker와 START/END intent 생성만 구현했다. Firebase/ADC/provider 호출, delivery claim/retry, public authority와 배포는 아직 도입하지 않았다.
+현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API와 런타임 OpenAPI/Swagger 개발 문서를 구현했다. Match 알림 Wave A/B/C에는 default-disabled loopback 구독 API, H2/Flyway desired state, observation tracker, START/END intent, named Firebase Admin adapter, delivery claim/retry와 owned lifecycle의 핵심 경로가 구현되어 있다. 기본 delivery failure log의 intent-ID redaction과 bounded observability가 남아 Stage 1 normative acceptance는 미완료다. 이 범위는 offline 검증용 local/private 서버이며, live credential/project smoke, App-supplied target proof, public authority와 배포도 아직 도입하지 않았다.
 
 서버 기능은 단일 `:server` Gradle module 안에서 feature-based modular structure로 개발한다.
 
@@ -94,7 +94,7 @@ Route handler는 request를 service 호출로 바꾸고 response를 반환하는
 VLR.GG HTML은 외부의 불안정한 source contract다. DOM 구조와 텍스트 형식이 바뀔 수 있다고 가정한다. Scraping은 서버의 주된 기능이며, Jsoup은 scraping subsystem에서 DOM을 해석하는 필수 parser다.
 
 - 앱 요청 시점에 VLR.GG를 조회한다. 최신성이 우선이므로 주기 갱신이나 cache-first 응답을 기본 구조로 두지 않는다.
-- 일반 콘텐츠 응답에는 database, durable cache, stale-on-error fallback을 첫 단계에 도입하지 않는다. 향후 Match 알림을 구현할 때의 구독 저장소는 콘텐츠 cache가 아니라 알림 delivery state를 보존하는 feature-specific 예외다.
+- 일반 콘텐츠 응답에는 database, durable cache, stale-on-error fallback을 첫 단계에 도입하지 않는다. Match 알림 Stage 1의 구독 저장소는 콘텐츠 cache가 아니라 알림 delivery state를 보존하는 feature-specific 예외다.
 - 같은 canonical upstream resource를 동시에 요청했을 때만 하나의 진행 중 fetch를 공유할 수 있다. 이는 중복 upstream 요청을 줄이기 위한 동시성 보호이며, 이전 성공 데이터를 반환하는 cache가 아니다.
 - upstream network failure 또는 parsing failure가 발생하면 이전 데이터를 반환하지 않고 실패 응답을 반환한다.
 - 공통 HTML transport는 Ktor CIO client를 사용한다. transport는 명시적인 `User-Agent`, connect 5초·request/socket 10초의 bounded timeout과 최대 1 MiB response body 기본값을 가지며, manual composition에서 설정을 바꿀 수 있다.
@@ -116,9 +116,9 @@ Scraper, Parser, Mapper의 경계는 다음과 같다.
 
 Jsoup `Document`와 `Element`, CSS selector, raw HTML, parsing 보정은 parser 내부에서만 사용한다. `SourceModel`, raw HTML, Jsoup type을 route response로 반환하거나 scraping 경계 밖으로 노출하지 않는다. 중요한 페이지는 최소 HTML fixture를 사용해 parser 가정을 테스트한다.
 
-## Match Notification: Planned Exception
+## Match Notification: Stage 1 구현과 후속 gate
 
-Match 알림은 일반 request-time scraping 정책의 좁은 예외다. Wave B는 local/private API에서 target-scoped 구독 상태를 영속화하고 fixed-delay observation으로 START/END delivery intent를 만든다. Firebase delivery와 claim/retry state machine은 Wave C까지 구현하지 않았으며, 사용자가 특정 Match의 알림을 설정하는 App 흐름도 범위 밖이다.
+Match 알림은 일반 request-time scraping 정책의 좁은 예외다. Wave A/B/C의 local/private API target-scoped 구독 상태, fixed-delay observation과 START/END delivery intent, offline Firebase provider adapter, claim/retry state machine과 lifecycle 핵심 경로가 존재한다. 이는 아래 redaction/observability acceptance gap을 포함한 Stage 1 전체 완료를 뜻하지 않는다. 사용자가 특정 Match의 알림을 설정하는 App 흐름, live credential/project smoke, 실제 기기 전달 증명과 public authority도 현재 구현 범위 밖이다.
 
 `FCM registration value`는 한 익명 push target의 전송 주소일 뿐 사용자 인증이나 물리 기기 소유 증명이 아니다. 서로 다른 registration value는 같은 기기에서 생성되었더라도 독립 target이며, 서버는 FID나 다른 기기 식별자로 값을 병합·대체·이관하지 않는다. 구독과 current-target OFF의 상세 제품 의미는 [Matches 기능 문서](../feature/matches/README.md)가 소유한다.
 
@@ -131,11 +131,11 @@ Match 알림은 일반 request-time scraping 정책의 좁은 예외다. Wave B�
 - 시간 변경, 연기, 취소, parsing/network failure는 서로 구분되는 내부 상태로 다룬다.
 - 알림 구독·delivery state는 이전 scraping 결과를 API failure fallback으로 제공하는 cache가 아니다.
 
-선택한 Firebase SDK registration 흐름이 현재 적용 가능한 registration value를 앱에 제공하면 앱은 그 값을 서버에 동기화한다. 새 값의 동기화는 새 독립 target의 등록이며, 이전 값을 발견·병합·비활성화하거나 기존 구독을 이관하지 않는다. 정확한 callback/API와 legacy registration token 또는 FID 기반 mode는 구현 시점의 Firebase SDK에 맞춰 선택한다.
+Stage 2와 App 연동에서 선택한 Firebase SDK registration 흐름이 적용 가능한 registration value를 앱에 제공하면 앱은 그 값을 서버에 동기화한다. 새 값의 동기화는 새 독립 target의 등록이며, 이전 값을 발견·병합·비활성화하거나 기존 구독을 이관하지 않는다. Stage 1 서버는 내부 target mode로 `FID` 기본값과 `LEGACY_TOKEN` 선택지를 구현했지만, 실제 App-supplied value와 선택 mode의 호환성은 Stage 2 live smoke 전까지 증명되지 않는다.
 
-FCM send 결과가 target을 영구적으로 사용할 수 없다고 증명하면 서버는 그 registration value만 제거한다. HTTP v1 `UNREGISTERED`는 해당 값의 삭제 근거이며, `INVALID_ARGUMENT`는 outbound message payload가 별도로 유효하다고 확인된 경우에만 invalid-target 근거로 사용한다. 그 밖의 미분류 결과는 invalid-target의 증거로 사용하지 않는다. 이 정리는 물리 기기 단위 해제, 다른 value의 구독 변경, 또는 일반 stale-target batch가 아니다.
+FCM send 결과가 target을 영구적으로 사용할 수 없다고 증명하면 서버는 그 registration value만 제거한다. Stage 1은 `UNREGISTERED`만 해당 값의 삭제 근거로 사용하며, 일반 `INVALID_ARGUMENT`는 target을 지우지 않는 terminal failure로 처리한다. 그 밖의 미분류 결과도 invalid-target의 증거로 사용하지 않는다. 이 정리는 물리 기기 단위 해제, 다른 value의 구독 변경, 또는 일반 stale-target batch가 아니다.
 
-구체적인 scheduler library, database, endpoint와 payload, provider adapter, delivery intent 식별자와 상태 전이, FCM 호출 전후 marker 기록·원자성, retry/backoff·횟수·provider 오류 분류, concurrency와 transaction 경계는 Match feature 구현 계획에서 선택한다. FCM registration value와 Firebase Admin credential은 public response나 log에 넣지 않는다.
+구체적인 database, endpoint와 payload, provider adapter, delivery intent 상태 전이, FCM 호출 전후 marker 기록·원자성, retry/backoff·횟수·provider 오류 분류, concurrency와 transaction 경계는 [Stage 1 technical contract](server-fcm-stage1.md)와 현재 구현이 소유한다. FCM registration value와 Firebase Admin credential은 public response나 log에 넣지 않는다.
 
 ## Public API Error Contract
 
@@ -185,11 +185,13 @@ data class ApiErrorResponse(
 - `Monitoring.kt`: request logging과 failure logging
 - CORS, authentication 등은 실제 client requirement가 생길 때만 추가
 
-첫 단계의 관측은 별도 log platform 없이 콘솔 로그를 사용한다. 현재 `logback.xml`의 console appender를 기반으로 다음을 구현 시 적용한다.
+첫 단계의 관측은 별도 log platform 없이 콘솔 로그를 사용한다. 현재 `logback.xml`의 console appender 위에 Ktor `CallLogging`과 공통 `StatusPages` failure logging을 적용했다.
 
-- Ktor request logging
-- network/parsing failure의 `ApiErrorCode`, canonical upstream URL, cause를 서버 로그에 기록
-- secret, FCM registration value, client credential, raw HTML을 로그에 기록하지 않음
+- `CallLogging`은 request를 INFO 수준으로 기록한다.
+- 공통 failure logging은 `ApiErrorCode`, method, request path, 제한된 canonical upstream URL과 cause class만 기록한다.
+- secret, FCM registration value, client credential, raw HTML은 로그에 기록하지 않는다.
+
+Match 알림의 normative redaction/observability acceptance는 아직 열려 있다. `NotificationDeliveryService`의 기본 WARN logger가 raw `intentId`를 포함해 Stage 1 contract의 identifier redaction을 위반하며, startup-stage ledger, lifecycle/provider-result/unknown-count/retry-guard bounded signal도 완결되지 않았다. 이 gap을 해소하기 전에는 Stage 1을 acceptance 완료로 표시하지 않는다.
 
 Discord notification은 선택적인 운영 확장이다. 실제 도입할 때 webhook secret을 environment variable로 주입하고, failure notifier는 best effort로 동작시킨다. Discord 전송 실패는 원래 API failure response를 바꾸거나 새로운 failure를 만들지 않는다. 반복 failure의 notification 제어가 필요해지는 시점에만 throttling을 추가한다.
 
@@ -201,13 +203,13 @@ Discord notification은 선택적인 운영 확장이다. 실제 도입할 때 w
 
 server config와 secret은 source code에 넣지 않는다. `ServerConfig` 또는 동등한 config boundary를 실제 도입할 때 사용하고, Discord webhook 같은 secret은 environment variable로만 전달한다.
 
-FCM을 구현할 때는 다음 public-safe 경계를 지킨다.
+구현된 Stage 1과 후속 Stage 2/3은 다음 public-safe 경계를 지킨다.
 
 - Firebase Admin credential과 FCM send 권한은 앱이 아니라 trusted server boundary에만 둔다.
 - credential은 외부 설정으로 주입하고 source code, repository, public response, log에 넣지 않는다.
 - 실제 Firebase project identifier, service-account JSON, registration value를 예시나 placeholder 대신 커밋하지 않는다.
-- ADC, service-account loader, 환경 변수 이름과 파일 경로는 배포 환경이 정해지는 구현 단계에서 선택한다.
-- 등록 방식과 invalid-target 처리는 Firebase의 [registration 관리](https://firebase.google.com/docs/cloud-messaging/manage-tokens?hl=en), [error code](https://firebase.google.com/docs/cloud-messaging/error-codes), [trusted server 환경](https://firebase.google.com/docs/cloud-messaging/server-environment), [Admin SDK 설정](https://firebase.google.com/docs/admin/setup) 문서를 구현 시점에 다시 확인한다.
+- Stage 1은 ADC와 named FirebaseApp 경계를 구현했지만 실제 credential source/path와 project 값은 repository artifact에 남기지 않는다.
+- 등록 방식과 invalid-target 처리는 Firebase의 [registration 관리](https://firebase.google.com/docs/cloud-messaging/manage-tokens?hl=en), [error code](https://firebase.google.com/docs/cloud-messaging/error-codes), [trusted server 환경](https://firebase.google.com/docs/cloud-messaging/server-environment), [Admin SDK 설정](https://firebase.google.com/docs/admin/setup) 문서를 Stage 2 live smoke와 dependency 갱신 시 다시 확인한다.
 
 ## Testing Expectations
 

@@ -4,10 +4,10 @@
 
 이 문서는 Upcoming/Live, Results, Match Detail, Match 즐겨찾기와 시작·종료 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
-## 구현 상태 (2026-07-29)
+## 구현 상태 (2026-07-30)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
-- **Backend Match 알림/구독: Wave B 서버 전용 기반 구현.** default-disabled loopback 구독 API, 영속 desired state, 10분 fixed-delay observation과 중복 없는 START/END intent 생성까지 구현했다. Firebase delivery, retry/claim, App 연동과 public authority는 아직 없으며, 전체 Stage 1 계약은 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md)와 [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md)을 따른다.
+- **Backend Match 알림/구독: Wave A/B/C 핵심 구현 존재, Stage 1 acceptance 미완료.** default-disabled loopback 구독 API, H2/Flyway 영속 desired state, 10분 fixed-delay observation, 중복 없는 START/END intent, offline Firebase provider adapter, delivery claim/retry와 lifecycle의 핵심 경로를 구현했다. 기본 delivery failure log의 intent-ID redaction과 contract가 요구하는 bounded observability가 남아 전체 Stage 1 완료로 판정하지 않는다. Stage 2 live credential/project smoke와 App-supplied target proof, Stage 3 public authority·PostgreSQL·multi-instance·운영 배포도 아직 완료하지 않았으며, 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md)와 [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md)을 따른다.
 - **App: 미구현.** 목록·상세 UI, 내비게이션, 로컬 Match 즐겨찾기, 권한 및 전역 알림 흐름은 아직 구현되어 있지 않다.
 
 ## 목적과 사용자 가치
@@ -212,7 +212,7 @@ server subscription 생성이 확정적으로 실패하면 local favorite를 남
 - Team/Player favorite에는 이 흐름을 적용하지 않는다.
 - server unsubscribe가 실패하면 local favorite 제거도 확정하지 않고 기존 favorite/subscribed 상태와 재시도 동작을 유지한다.
 - 같은 target/Match의 해제를 반복하면 alarm OFF로 수렴한다. 한 registration value의 해제 요청은 다른 value의 subscription을 변경하지 않는다.
-- 같은 target/Match의 설정과 해제가 교차하면 최종 상태는 앱이 발행한 최신 사용자 의도에 수렴해야 한다. 늦게 도착한 이전 요청이나 그 재시도가 이후 의도를 되돌려서는 안 된다. 이를 증명할 version/generation 또는 request ordering과 endpoint field는 Match 알림 구현 계획에서 정한다.
+- 서버는 같은 target의 모든 mutation에 target-scoped positive `Long` revision을 사용하고 stale·replay·conflict를 구분해 늦은 이전 요청이 최신 승인 상태를 되돌리지 않게 구현했다. 앱은 아직 이 revision을 발행·영속·재시도하지 않으므로, 설정과 해제가 교차할 때 최신 사용자 의도를 유지하는 App 동작은 미구현이다.
 
 ### 전역 알림 OFF
 
@@ -223,7 +223,7 @@ server subscription 생성이 확정적으로 실패하면 local favorite를 남
 - 앱과 서버는 현재 값만으로 알 수 없는 이전 registration value를 같은 물리 기기의 target으로 추론하거나 해제하지 않는다. 이전 target의 구독은 독립적으로 완료·명시적 해제·provider invalid 처리될 때까지 유효할 수 있고, 이전 target과 현재 target의 일시적 중복 전달은 MVP에서 허용한다.
 - OFF 상태에서 새 Match 알림을 요청하면 activation-required dialog를 표시한다.
 
-여러 subscription을 비활성화하는 endpoint 형태와 서버 transaction 경계는 Match 알림 구현 계획에서 정하되, 부분 성공을 전체 성공으로 보고해서는 안 된다.
+서버는 `PUT /api/v1/match-notifications/global-state`에서 한 target의 subscription을 하나의 transaction으로 비활성화하고 target-scoped revision을 적용한다. 앱이 전역 OFF pending을 관리하고 불확실한 응답을 재동기화하며 이후 개별 ON 의도를 우선하는 흐름은 아직 미구현이다. 부분 성공이나 불확실한 응답을 App의 전체 성공으로 표시해서는 안 된다.
 
 ## 10분 Match 추적 및 알림 contract
 
@@ -298,7 +298,7 @@ GET /api/v1/matches/{matchId}
 - Detail의 `scheduledAt`은 upstream `data-utc-ts`를 안전하게 ISO-8601 UTC로 바꿀 수 있을 때만 포함한다. `timeLabel`은 source에서 읽은 사람이 읽을 수 있는 날짜/시간 label이며 UI가 locale/timezone 표시를 결정한다.
 - Detail의 `pastMatches`는 각 team history block 안에서 canonical numeric match link를 가진 `.match-histories-item`만 source 순서대로 전달한다. link가 없거나 상대 팀명이 빠진 item은 match identity를 합성하지 않고 제외하며, detail header의 team 순서와 item의 상대 팀/score만 사용한다.
 - `headToHead`는 `.match-h2h-matches`의 row가 canonical numeric match link를 직접 제공할 때만 source 순서대로 전달한다. canonical row reference가 없는 H2H row는 안정 식별자가 없다는 좁은 source limit 때문에 제외하며, event·team·score로 ID를 만들지 않는다; 유효한 row가 없으면 list는 빈 배열이다.
-- 10분 상태 추적, anonymous subscription persistence, delivery marker, scheduler, push provider와 구독 endpoint는 이 조회 slice에 포함하지 않는다. 미래 구현은 기존 문서의 `upcoming/live/completed/postponed/cancelled/unavailable` 내부 상태와 subscription별 start/end 1회 delivery intent를 계약 경계로 사용하되, 조회 response freshness 정책을 바꾸지 않는다.
+- 10분 상태 추적, anonymous subscription persistence, delivery marker, scheduler, push provider와 구독 endpoint는 별도의 Match notification Stage 1 slice로 구현되어 있으며 이 콘텐츠 조회 API 계약에는 포함되지 않는다. 알림 저장소와 scheduler는 일반 콘텐츠 조회의 request-time freshness, cache 부재, stale fallback 부재를 바꾸지 않는다.
 
 실패는 서버 공통 error envelope를 그대로 사용한다. transport failure는 `502 UPSTREAM_NETWORK_FAILURE`, 필수 DOM structure failure는 `502 SOURCE_PARSING_FAILURE`이며, 안전한 message 외의 내부 원인은 public response에 포함하지 않는다.
 
@@ -332,6 +332,8 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 
 ## 검증 가능한 수용 기준
 
+체크된 서버 항목은 `main`의 offline 자동화 테스트와 migration으로 증명된 기능적 범위다. 체크 합계가 Stage 1 normative acceptance 완료를 뜻하지 않으며, 현재 intent-ID redaction과 bounded observability gap이 남아 있다. App 연동, live Firebase credential/project, 실제 기기 표시는 체크하지 않는다.
+
 ### 목록과 상세
 
 - [ ] Matches 탭에서 Upcoming/Live와 Results를 명확히 전환할 수 있다.
@@ -347,9 +349,9 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 
 - [ ] 활성 권한/전역 ON 상태에서 Match 알림을 설정하면 local Match favorite와 server subscription이 모두 생성된다.
 - [ ] Match favorite는 MyPage에 표시되고 MyPage와 Match Detail 모두에서 같은 상세 화면으로 이동한다.
-- [ ] 같은 registration value와 Match의 알림 설정을 반복하면 중복 없이 alarm ON으로 수렴하고, 응답이 불확실한 요청을 안전하게 재시도할 수 있다.
+- [x] 같은 registration value와 Match의 서버 알림 설정을 반복하면 중복 없이 alarm ON으로 수렴하고, 같은 revision의 동일 요청을 안전하게 재생할 수 있다.
 - [ ] Match favorite 해제는 현재 registration value의 대응 subscription도 취소하며 반복 해제는 alarm OFF로 수렴한다.
-- [ ] 같은 target/Match의 설정과 해제가 교차하거나 이전 요청이 지연되어도 최종 상태는 최신 사용자 의도에 수렴한다.
+- [x] 같은 target/Match의 서버 설정과 해제는 target-scoped revision ordering으로 최신 승인 의도에 수렴하며 stale·replay·conflict를 구분한다.
 - [ ] Team/Player favorite는 Match 알림 subscription을 만들지 않는다.
 - [ ] 최초 앱 실행에서 platform이 허용하면 알림 권한을 요청하며, 거부해도 비알림 기능을 사용할 수 있다.
 - [ ] 전역 OFF 또는 권한 비활성 상태에서 Match 알림을 누르면 activation-required dialog가 표시된다.
@@ -364,11 +366,16 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 
 ### 서버 추적과 전달
 
-- [ ] scheduler가 활성 구독을 기기별이 아닌 고유 Match ID별로 10분마다 확인한다.
-- [ ] 서로 다른 registration value는 독립 target이며 이전·현재 target의 같은 Match 중복 전달 가능성을 허용한다.
-- [ ] 동일 Match 상태를 반복 관찰하거나 job을 재시도해도 subscription별 시작 알림 intent가 1회를 넘지 않는다.
-- [ ] 동일 조건에서 종료 알림 intent가 1회를 넘지 않는다.
-- [ ] network/parsing failure와 upstream missing을 경기 시작·종료로 오인하지 않는다.
+- [x] scheduler가 활성 구독을 target별이 아닌 고유 Match ID별로 기본 10분 fixed delay마다 확인한다.
+- [x] 서로 다른 registration value는 독립 target이며 이전·현재 target의 같은 Match 중복 전달 가능성을 허용한다.
+- [x] 동일 Match 상태를 반복 관찰하거나 job을 재시도해도 subscription별 시작 알림 intent가 1회를 넘지 않는다.
+- [x] 동일 조건에서 종료 알림 intent가 1회를 넘지 않는다.
+- [x] network/parsing failure와 upstream missing을 경기 시작·종료로 오인하지 않는다.
 - [ ] postponed, cancelled, time-changed, missing 상태가 internal contract에서 terminal completed와 구분된다.
-- [ ] terminal 상태와 알림 의무가 끝난 Match는 polling에서 제거된다.
-- [ ] push provider의 절대적 exactly-once 보장이 아니라 서버 idempotency에 의한 exactly-once intent임을 구현 테스트가 반영한다.
+- [x] terminal 상태와 알림 의무가 끝난 Match는 polling에서 제거된다.
+- [x] push provider의 절대적 exactly-once 보장이 아니라 서버 idempotency에 의한 exactly-once intent임을 구현 테스트가 반영한다.
+- [x] delivery intent는 committed call marker 뒤에만 offline provider adapter를 호출하며, 동시 worker가 같은 intent를 중복 claim하지 않는다.
+- [x] retryable provider 결과는 application attempt, backoff, provider minimum과 due time을 영속화하고, timeout·취소·ambiguous I/O는 자동 재전송하지 않는 `UNKNOWN`으로 격리한다.
+- [x] provider가 `UNREGISTERED`를 증명하면 해당 target만 비활성화하고 raw registration value를 논리적으로 제거한다.
+- [x] 정상 종료와 startup failure는 delivery·tracking job, named FirebaseApp, H2 pool을 소유권 역순으로 정리한다.
+- [ ] App이 제공한 registration value와 live Firebase credential/project로 provider acceptance 및 실제 기기 표시를 증명한다.
