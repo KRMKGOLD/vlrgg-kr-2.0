@@ -118,7 +118,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - 형식: `{type}: {subject}`
 - type은 `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `revert` 중 하나를 사용한다.
 - 한 커밋에는 가능한 단일 작업만 포함한다.
-- 변경 사항이 복잡하거나 커밋 제목만으로 작업 내용을 충분히 설명하기 어려운 경우, 커밋 본문에 주요 변경 사항을 요약해 작성한다. 
+- 변경 사항이 복잡하거나 커밋 제목만으로 작업 내용을 충분히 설명하기 어려운 경우, 커밋 본문에 주요 변경 사항을 요약해 작성한다.
 - 한 기능 단위나 ralplan/goal slice가 완료되면 PR을 생성한다.
 - stacked PR은 실제로 미병합인 선행 PR만 base로 삼고, 선행 PR이 merge되면 후속 PR의 base를 `main` 또는 가장 가까운 미병합 선행 PR로 갱신한다. merge된 branch를 관성적으로 base로 유지하지 않는다.
 - 후순위 PR을 선행 PR보다 먼저 merge하면 선행 변경이 후순위 diff/history에 포함되어 이전 PR의 범위와 병합 결과를 오염시킬 수 있으므로, merge 전 base·head·diff와 순서를 확인한다.
