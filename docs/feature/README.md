@@ -3,7 +3,7 @@
 ## 문서 상태
 
 - Status: Active
-- Last reviewed: 2026-07-30
+- Last reviewed: 2026-07-31
 - Product scope: VLR.GG Mobile Tracker 1차 MVP
 - Design source: [`../../DESIGN.md`](../../DESIGN.md)
 - App architecture: [`../app-arch/app-arch.md`](../app-arch/app-arch.md)
@@ -35,9 +35,9 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | 5 | Match Detail Basic, Series Detail | [`matches/README.md`](matches/README.md), [`series/README.md`](series/README.md) |
 | Cross-feature | MyPage, Team·Player·Match 즐겨찾기, Match 알림, About | [`my-page/README.md`](my-page/README.md), [`about/README.md`](about/README.md) |
 
-## 구현 상태 (2026-07-30)
+## 구현 상태 (2026-07-31)
 
-아래 상태는 원격 `main`의 `ed02f9c4d7ea9a4222b59af822859bf56ab76116` 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. 서버 공통 기반에는 공개 콘텐츠 route의 런타임 OpenAPI/Swagger 문서가 구현되어 있다.
+아래 상태는 원격 `main`의 `6d442cd` 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. 서버 공통 기반에는 공개 콘텐츠 route의 런타임 OpenAPI/Swagger 문서가 구현되어 있다.
 
 앱 공통 기반은 feature 구현과 분리해서 판단한다. `DESIGN.md` Step 1의 Light theme, Typography, `VlrButton`, `VlrIconButton`, `VlrSearchField`, `StatusChip`은 `app/shared`에 구현되어 있다. 실제 feature 화면, Navigation 3, Metro DI, remote DTO/Domain/Data 계층, 로컬 즐겨찾기, Match 알림 App 연동은 미구현이며, physical Android/iOS의 시각·접근성 검증도 완료되지 않았다.
 
@@ -50,7 +50,8 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | Feature 미구현 |
 | Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | Feature 미구현 |
 | Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | Feature 미구현 |
-| MyPage, 즐겨찾기, Match 알림, About | Match 알림 Wave A/B/C 핵심 구현 존재 — local/private 구독·추적·offline Firebase provider/delivery. intent-ID redaction과 bounded observability가 남아 Stage 1 normative acceptance는 미완료이며, Stage 2 live smoke와 Stage 3 public/production도 미완료 | Feature 미구현 — 로컬 저장·권한·FCM registration 연동 없음 |
+| MyPage, Team·Player·Match 즐겨찾기, About | Backend 기능 없음 | Feature 미구현 |
+| Match 알림 | Stage 1 H2/loop/Firebase 기반 코드 존재. Firestore Emulator·익명 Target 권한·START-only·request-bound scheduler로 교체하는 Stage 1.1은 설계 완료/구현 전 | Feature 미구현 — App·실제 Firebase 연동은 Stage 2 |
 
 ## MVP 제외 범위
 
@@ -163,16 +164,17 @@ MyPage ─────────────────→ Favorite Team / Pl
 ## Match 알림 공통 계약
 
 - 사용자가 Match Detail에서 특정 경기에 알림을 직접 설정한다.
-- Match 알림의 전송 provider는 FCM이다. 앱이 제시하는 `FCM registration value`는 사용자 인증이 아니라 한 익명 push target의 전송 주소다.
-- 서로 다른 registration value는 독립 target이며, 앱과 서버는 물리 기기나 FID를 기준으로 이전 값과 현재 값을 병합·대체·이관하지 않는다. 이전 target의 독립 구독과 일시적 중복 전달은 MVP에서 허용한다.
-- 같은 target/Match의 설정과 해제는 각각 alarm ON/OFF로 수렴하므로 응답이 불확실한 요청을 안전하게 반복할 수 있다. 설정과 해제가 교차하면 지연된 이전 요청이나 재시도가 이후의 최신 사용자 의도를 되돌려서는 안 된다.
-- MyPage의 전역 OFF는 즐겨찾기를 보존하고 현재 registration value의 target만 비활성화한다. 현재 target의 일부 Match 알림만 비활성화되거나 응답이 불확실하면 OFF 완료로 표시하지 않고 미확정 항목의 재시도·재동기화를 제공한다. 알 수 없는 이전 target까지 물리 기기 단위로 해제하지 않는다.
-- 서버는 활성 구독의 고유 Match ID를 10분마다 확인한다.
-- 서버는 subscription별 경기 시작·종료 intent를 각각 한 번으로 관리하고 scheduler 재시도나 서버 재시작에도 완료한 intent를 의도적으로 반복하지 않는다. 이는 FCM transport나 기기 표시의 exactly-once 보장이 아니다.
+- Match 알림의 전송 provider는 FCM이다. opaque FCM registration token은 한 익명 Target의 전달 주소이지 사용자 인증, Target 권한, FID나 물리 기기 ID가 아니다.
+- 앱 설치 단위의 Target은 서버가 발급한 Target ID/Secret으로 구분한다. 앱 삭제·재설치로 자격을 잃어 새 Target이 생기는 것은 허용하며 이전 Target을 자동 복원·병합하지 않는다.
+- 같은 Target의 token refresh는 전달 주소만 교체하고 Match 설정을 보존한다. 서로 다른 Target의 독립 구독과 일시적 중복 전달은 MVP에서 허용한다.
+- 같은 Target/Match의 설정과 해제는 각각 alarm ON/OFF로 수렴하며 target-scoped revision으로 늦은 요청이 최신 의도를 되돌리지 않게 한다.
+- MyPage의 전역 OFF는 즐겨찾기를 보존하고 current Target의 Match 구독만 하나의 bounded transaction으로 비활성화한다. 전체 ON은 없고 각 Match를 명시적으로 다시 선택한다.
+- 서버는 외부 Scheduler가 전달한 10분 schedule slot마다 활성 구독의 고유 Match ID를 확인한다.
+- 서버는 subscription별 경기 START intent를 한 번으로 관리한다. END 알림은 MVP에서 제외한다. 이는 FCM transport나 기기 표시의 exactly-once 보장이 아니다.
 - 완료된 경기의 추적과 구독 작업을 종료한다.
 - 경기 취소·연기·시간 변경·upstream 누락은 내부 상태로 구분한다.
 
-target/subscription의 상세 의미는 [Matches 추적 계약](matches/README.md#10분-match-추적-및-알림-contract), current-target OFF는 [Matches 전역 알림 계약](matches/README.md#전역-알림-off), registration 동기화·provider-invalid target 정리·credential 경계는 [서버 아키텍처 문서](../architecture/server-arch.md#match-notification-stage-1-구현과-후속-gate)가 소유한다.
+Target/subscription의 상세 의미는 [Matches 추적 계약](matches/README.md#10분-match-추적-및-알림-contract), current-target OFF는 [Matches 전역 알림 계약](matches/README.md#전역-알림-off), token 동기화·authority·provider-invalid Target 정리와 Stage 1.1/2 경계는 [서버 아키텍처 문서](../architecture/server-arch.md#match-notification-stage-11-offline-gate)가 소유한다.
 
 알림 권한과 앱 설정은 다음 흐름을 따른다.
 
