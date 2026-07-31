@@ -14,8 +14,8 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "terminal", "order": "ASCENDING" },
-        { "fieldPath": "enabledTargetCount", "order": "ASCENDING" },
-        { "fieldPath": "nextCheckAt", "order": "ASCENDING" }
+        { "fieldPath": "nextCheckAt", "order": "ASCENDING" },
+        { "fieldPath": "enabledTargetCount", "order": "ASCENDING" }
       ]
     },
     {

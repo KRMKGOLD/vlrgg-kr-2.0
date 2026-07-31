@@ -6,7 +6,8 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
-import java.io.ByteArrayOutputStream
+import io.ktor.utils.io.core.*
+import kotlinx.io.readByteArray
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
@@ -33,30 +34,30 @@ internal fun Application.configureNotificationTargetRoutes(
         post {
             if (!call.verifyApp(verifier, allowedAppIds)) return@post
             val request = call.readBody<RegisterTargetRequest>(maximumBodyBytes) ?: return@post
-            try { store.register(request.registrationToken).also { call.respond(HttpStatusCode.Created, RegisterTargetResponse(it.targetId, it.targetSecret, it.revision.toString())) } }
+            try { store.registerOnIo(request.registrationToken).also { call.respond(HttpStatusCode.Created, RegisterTargetResponse(it.targetId, it.targetSecret, it.revision.toString())) } }
             catch (_: IllegalArgumentException) { call.invalid() }
         }
         get("/{targetId}") { call.authorizeAndGet(store, verifier, allowedAppIds)?.let { call.respond(TargetStateResponse(it.targetId, it.revision.toString(), it.sendable, it.subscriptions.map { s -> TargetSubscriptionResponse(s.matchId.toString(), s.enabled) })) } }
         put("/{targetId}/registration-token") {
             val auth = call.authorizeAndGet(store, verifier, allowedAppIds) ?: return@put; val request = call.readBody<RefreshRegistrationTokenRequest>(maximumBodyBytes) ?: return@put
-            call.respondMutation(call.mutate { store.refreshRegistrationToken(auth.targetId, call.targetSecret()!!, request.registrationToken, request.expectedRevision.canonicalRevision()) }, "registration_token_refreshed")
+            call.respondMutation(call.mutate { store.refreshRegistrationTokenOnIo(auth.targetId, call.targetSecret()!!, request.registrationToken, request.expectedRevision.canonicalRevision()) }, "registration_token_refreshed")
         }
         put("/{targetId}/match-subscriptions/{matchId}") {
             val auth = call.authorizeAndGet(store, verifier, allowedAppIds) ?: return@put
             val rawMatch = call.parameters["matchId"]
             val match = rawMatch?.takeIf { Regex("^[1-9][0-9]*$").matches(it) }?.toLongOrNull() ?: return@put call.invalid()
             val request = call.readBody<SetMatchSubscriptionRequest>(maximumBodyBytes) ?: return@put
-            val revision = call.mutate { store.setSubscription(auth.targetId, call.targetSecret()!!, match, request.enabled, request.expectedRevision.canonicalRevision()) }
+            val revision = call.mutate { store.setSubscriptionOnIo(auth.targetId, call.targetSecret()!!, match, request.enabled, request.expectedRevision.canonicalRevision()) }
             if (revision != null) call.respond(MatchSubscriptionResponse(match.toString(), request.enabled, revision.toString()))
         }
         put("/{targetId}/match-subscriptions") {
             val auth = call.authorizeAndGet(store, verifier, allowedAppIds) ?: return@put; val request = call.readBody<SetAllMatchSubscriptionsRequest>(maximumBodyBytes) ?: return@put
             if (request.enabled) return@put call.invalid()
-            call.respondMutation(call.mutate { store.disableAll(auth.targetId, call.targetSecret()!!, request.expectedRevision.canonicalRevision()) }, "all_subscriptions_disabled")
+            call.respondMutation(call.mutate { store.disableAllOnIo(auth.targetId, call.targetSecret()!!, request.expectedRevision.canonicalRevision()) }, "all_subscriptions_disabled")
         }
         post("/{targetId}/revoke") {
             val auth = call.authorizeAndGet(store, verifier, allowedAppIds) ?: return@post; val request = call.readBody<RevokeTargetRequest>(maximumBodyBytes) ?: return@post
-            call.respondMutation(call.mutate { store.revoke(auth.targetId, call.targetSecret()!!, request.expectedRevision.canonicalRevision()) }, "revoked")
+            call.respondMutation(call.mutate { store.revokeOnIo(auth.targetId, call.targetSecret()!!, request.expectedRevision.canonicalRevision()) }, "revoked")
         }
     }
 }
@@ -72,7 +73,7 @@ private suspend fun ApplicationCall.authorizeAndGet(store: FirestoreNotification
         invalid()
         return null
     }
-    return try { store.readAuthorized(targetId, targetSecret() ?: return targetFailed()) ?: targetFailed() } catch (_: IllegalArgumentException) { targetFailed() }
+    return try { store.readAuthorizedOnIo(targetId, targetSecret() ?: return targetFailed()) ?: targetFailed() } catch (_: IllegalArgumentException) { targetFailed() }
 }
 private fun ApplicationCall.targetSecret(): String? {
     val target = parameters["targetId"] ?: return null
@@ -82,27 +83,19 @@ private fun ApplicationCall.targetSecret(): String? {
 private suspend fun ApplicationCall.appFailed(): Boolean { respond(HttpStatusCode.Unauthorized, ApiErrorResponse(ApiErrorCode.APP_ATTESTATION_FAILED, "App attestation failed.")); return false }
 private suspend fun ApplicationCall.targetFailed(): Nothing? { respond(HttpStatusCode.Unauthorized, ApiErrorResponse(ApiErrorCode.TARGET_AUTHENTICATION_FAILED, "Target authentication failed.")); return null }
 private suspend fun ApplicationCall.invalid() { respond(HttpStatusCode.BadRequest, ApiErrorResponse(ApiErrorCode.INVALID_REQUEST, "Request input is invalid.")) }
-private fun String.canonicalRevision(): Long = takeIf { Regex("^[1-9][0-9]*$").matches(it) }?.toLongOrNull() ?: throw IllegalArgumentException()
-private suspend inline fun ApplicationCall.mutate(block: () -> Long): Long? = try { block() } catch (_: SecurityException) { targetFailed(); null } catch (_: RevisionConflictException) { respond(HttpStatusCode.Conflict, ApiErrorResponse(ApiErrorCode.REVISION_CONFLICT, "Revision conflicts with the current target state.")); null } catch (_: RevisionExhaustedException) { respond(HttpStatusCode.Conflict, ApiErrorResponse(ApiErrorCode.REVISION_EXHAUSTED, "Target revision is exhausted.")); null } catch (_: SubscriptionLimitExceededException) { respond(HttpStatusCode.Conflict, ApiErrorResponse(ApiErrorCode.SUBSCRIPTION_LIMIT, "Active subscription limit has been reached.")); null } catch (_: ActiveMatchCapacityExceededException) { respond(HttpStatusCode.Conflict, ApiErrorResponse(ApiErrorCode.ACTIVE_MATCH_CAPACITY_EXCEEDED, "Active Match capacity has been reached.")); null } catch (_: IllegalArgumentException) { invalid(); null }
+private fun String.canonicalRevision(): Long = takeIf { Regex("^[1-9][0-9]*$").matches(it) }?.toLongOrNull()
+    ?: throw IllegalArgumentException("expectedRevision must be a positive canonical decimal integer")
+private suspend inline fun ApplicationCall.mutate(block: suspend () -> Long): Long? = try { block() } catch (_: SecurityException) { targetFailed(); null } catch (_: RevisionConflictException) { respond(HttpStatusCode.Conflict, ApiErrorResponse(ApiErrorCode.REVISION_CONFLICT, "Revision conflicts with the current target state.")); null } catch (_: RevisionExhaustedException) { respond(HttpStatusCode.Conflict, ApiErrorResponse(ApiErrorCode.REVISION_EXHAUSTED, "Target revision is exhausted.")); null } catch (_: SubscriptionLimitExceededException) { respond(HttpStatusCode.Conflict, ApiErrorResponse(ApiErrorCode.SUBSCRIPTION_LIMIT, "Active subscription limit has been reached.")); null } catch (_: ActiveMatchCapacityExceededException) { respond(HttpStatusCode.Conflict, ApiErrorResponse(ApiErrorCode.ACTIVE_MATCH_CAPACITY_EXCEEDED, "Active Match capacity has been reached.")); null } catch (_: IllegalArgumentException) { invalid(); null }
 private suspend fun ApplicationCall.respondMutation(revision: Long?, status: String) { if (revision != null) respond(TargetMutationResponse(revision.toString(), status)) }
 private suspend inline fun <reified T> ApplicationCall.readBody(max: Int): T? {
     if ((request.contentLength() ?: 0) > max) { respond(HttpStatusCode.PayloadTooLarge, ApiErrorResponse(ApiErrorCode.REQUEST_TOO_LARGE, "Request body is too large.")); return null }
     val channel = receiveChannel()
-    val bytes = ByteArrayOutputStream()
-    val buffer = ByteArray(minOf(max, 1024))
-    var total = 0
-    while (true) {
-        val read = channel.readAvailable(buffer)
-        if (read == -1) break
-        if (read == 0) continue
-        if (read > max - total) {
-            channel.cancel()
-            respond(HttpStatusCode.PayloadTooLarge, ApiErrorResponse(ApiErrorCode.REQUEST_TOO_LARGE, "Request body is too large."))
-            return null
-        }
-        bytes.write(buffer, 0, read)
-        total += read
+    val bytes = channel.readRemaining(max.toLong() + 1).readByteArray()
+    if (bytes.size > max) {
+        channel.cancel()
+        respond(HttpStatusCode.PayloadTooLarge, ApiErrorResponse(ApiErrorCode.REQUEST_TOO_LARGE, "Request body is too large."))
+        return null
     }
-    val body = bytes.toString(Charsets.UTF_8.name())
+    val body = bytes.decodeToString()
     return try { Json.decodeFromString<T>(body) } catch (_: Exception) { invalid(); null }
 }

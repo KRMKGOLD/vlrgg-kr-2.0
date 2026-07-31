@@ -1,12 +1,14 @@
 # ADR-0002: Stage 1.1 offline Firestore and anonymous Target boundary
 
-- Status: Accepted; Stage 1.1 offline implementation GREEN
+- Status: Accepted
 - Date: 2026-07-31
 - Decision scope: Match notification Stage 1.1 server and offline verification
 - Supersedes: [ADR-0001](0001-match-notification-stage1-storage-and-provider-boundary.md) for persistence, target authority, event scope, provider lifecycle and scheduling
 - Related: [Stage 1.1 contract](../server-fcm-stage1.md), [Matches](../../feature/matches/README.md), [CI/CD](../../ci-cd.md)
 
 ## Context
+
+2026-07-31 implementation evidence is GREEN for the offline Firestore Emulator, server tests, build, install distribution, packaged health smoke.
 
 Stage 1 proved that durable subscription and delivery state can prevent the server from intentionally sending the same logical notification repeatedly. Its file-backed H2 store, registration-value identity, process-owned loops and active Firebase Admin lifecycle do not fit the newly selected runtime direction:
 

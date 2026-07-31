@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
@@ -16,6 +20,7 @@ jobs:
         uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Java 21
         uses: actions/setup-java@v5.6.0
@@ -30,7 +35,7 @@ jobs:
           node-version: '22'
 
       - name: Cache Firebase Emulator downloads
-        uses: actions/cache@v5
+        uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/firebase
           key: firebase-emulator-${{ runner.os }}-15.25.1
@@ -44,7 +49,7 @@ jobs:
 
       - name: Start, wait for, test, and always clean up Firestore Emulator
         env:
-          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8081
           VLRGG_FIRESTORE_TEST_PROJECT_ID: demo-vlrgg-stage11
         run: >
           npx --yes firebase-tools@15.25.1 emulators:exec
@@ -66,7 +71,7 @@ jobs:
           trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
           ready=false
           for attempt in {1..30}; do
-            if curl --connect-timeout 1 --max-time 1 --fail --silent http://127.0.0.1:18080/health > health.json; then
+            if curl --connect-timeout 1 --max-time 1 --fail --silent http://127.0.0.1:18080/health | jq -e '.status == "ok"' > /dev/null; then
               ready=true
               break
             fi
@@ -76,8 +81,7 @@ jobs:
             cat server-health.log
             exit 1
           fi
-          test "$(cat health.json)" = '{"status":"ok"}'
-          test "$(curl --connect-timeout 1 --max-time 1 --silent --output notification-route.json --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/notification-targets)" = '404'
+          test "$(curl --connect-timeout 1 --max-time 1 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/notification-targets)" = '404'
 
       - name: Check event patch formatting
         env:

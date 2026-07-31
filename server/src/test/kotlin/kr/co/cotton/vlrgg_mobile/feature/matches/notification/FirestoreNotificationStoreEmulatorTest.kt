@@ -10,6 +10,7 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -336,7 +337,9 @@ class FirestoreNotificationStoreEmulatorTest {
         firestore.collection("notificationTargets").document(unsendable.targetId)
             .update("sendable", false, "registrationToken", null).get()
 
-        while (store.resumeStartFanout(777, 100)) { }
+        while (store.resumeStartFanout(777, 100)) {
+            // Intentionally drain every remaining persistent fan-out page.
+        }
         val intents = firestore.collection("deliveryIntents").whereEqualTo("matchId", 777L).get().get().documents
         assertEquals(listOf(beforeStart.targetId), intents.map { it.getString("targetId") })
     }
@@ -361,6 +364,23 @@ class FirestoreNotificationStoreEmulatorTest {
         val intent = firestore.collection("deliveryIntents").whereEqualTo("matchId", 888L).get().get().documents.single()
         assertEquals(DeliveryState.UNKNOWN.name, intent.getString("state"))
         assertEquals("PROVIDER_TIMEOUT", intent.getString("terminalReason"))
+    }
+
+    @Test fun `provider cancellation finalizes the call marker as unknown before rethrowing`() = runBlocking {
+        val target = store.register("registration-token-cancelled")
+        assertEquals(2, store.setSubscription(target.targetId, target.targetSecret, 889, true, 1))
+        store.recordObservation(889, ObservationStatus.UPCOMING)
+        store.recordObservation(889, ObservationStatus.LIVE)
+        assertTrue(store.resumeStartFanout(889, 100))
+
+        val delivery = NotificationDeliveryService(store, object : NotificationProvider {
+            override suspend fun send(command: NotificationCommand): ProviderResult = throw CancellationException("provider cancelled")
+        })
+
+        assertFailsWith<CancellationException> { delivery.runOnce() }
+        val intent = firestore.collection("deliveryIntents").whereEqualTo("matchId", 889L).get().get().documents.single()
+        assertEquals(DeliveryState.UNKNOWN.name, intent.getString("state"))
+        assertEquals("CALL_CANCELLED", intent.getString("terminalReason"))
     }
 
     @Test fun `request bound scheduler isolates observations, orders delivery, and lease no-ops competitors`() = runBlocking {

@@ -7,8 +7,10 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
 
 /** Pure retry policy: provider adapters never expose raw HTTP/SDK failures to this boundary. */
 object DeliveryRetryPolicy {
@@ -53,24 +55,26 @@ class NotificationDeliveryService(
     init { require(providerTimeoutMillis > 0) }
 
     suspend fun runOnce(): Boolean {
-        val claim = store.claimDueDelivery() ?: return false
-        val call = store.markDeliveryCallStarted(claim) ?: return true
+        val claim = store.claimDueDeliveryOnIo() ?: return false
+        val call = store.markDeliveryCallStartedOnIo(claim) ?: return true
         val result = try { withTimeout(providerTimeoutMillis) { invokeProvider(provider, call.command) } } catch (_: TimeoutCancellationException) {
-            store.finalizeDelivery(call, DeliveryState.UNKNOWN, "PROVIDER_TIMEOUT")
+            store.finalizeDeliveryOnIo(call, DeliveryState.UNKNOWN, "PROVIDER_TIMEOUT")
             return true
         } catch (cancelled: CancellationException) {
-            store.finalizeDelivery(call, DeliveryState.UNKNOWN, "CALL_CANCELLED")
+            withContext(NonCancellable) {
+                store.finalizeDeliveryOnIo(call, DeliveryState.UNKNOWN, "CALL_CANCELLED")
+            }
             throw cancelled
         }
         when (result) {
-            is ProviderResult.Accepted -> store.finalizeDelivery(call, DeliveryState.ACCEPTED)
-            ProviderResult.InvalidTarget -> store.finalizeDelivery(call, DeliveryState.INVALID_TARGET, "PROVIDER_INVALID_TARGET")
-            is ProviderResult.NonRetryable -> store.finalizeDelivery(call, DeliveryState.TERMINAL_FAILURE, result.safeCode)
-            ProviderResult.Unknown -> store.finalizeDelivery(call, DeliveryState.UNKNOWN, "PROVIDER_UNKNOWN")
+            is ProviderResult.Accepted -> store.finalizeDeliveryOnIo(call, DeliveryState.ACCEPTED)
+            ProviderResult.InvalidTarget -> store.finalizeDeliveryOnIo(call, DeliveryState.INVALID_TARGET, "PROVIDER_INVALID_TARGET")
+            is ProviderResult.NonRetryable -> store.finalizeDeliveryOnIo(call, DeliveryState.TERMINAL_FAILURE, result.safeCode)
+            ProviderResult.Unknown -> store.finalizeDeliveryOnIo(call, DeliveryState.UNKNOWN, "PROVIDER_UNKNOWN")
             is ProviderResult.Retryable -> {
                 when (val schedule = DeliveryRetryPolicy.schedule(call.claim.intentId, call.claim.attempt, result)) {
-                    DeliveryRetryPolicy.Schedule.RetryExhausted -> store.finalizeDelivery(call, DeliveryState.TERMINAL_FAILURE, "RETRY_EXHAUSTED")
-                    DeliveryRetryPolicy.Schedule.UnsafeProviderHint -> store.finalizeDelivery(call, DeliveryState.TERMINAL_FAILURE, "PROVIDER_RETRY_AFTER_UNSAFE")
+                    DeliveryRetryPolicy.Schedule.RetryExhausted -> store.finalizeDeliveryOnIo(call, DeliveryState.TERMINAL_FAILURE, "RETRY_EXHAUSTED")
+                    DeliveryRetryPolicy.Schedule.UnsafeProviderHint -> store.finalizeDeliveryOnIo(call, DeliveryState.TERMINAL_FAILURE, "PROVIDER_RETRY_AFTER_UNSAFE")
                     is DeliveryRetryPolicy.Schedule.Delayed -> {
                         val due = try {
                             now().plus(schedule.delay)
@@ -79,8 +83,8 @@ class NotificationDeliveryService(
                         } catch (_: DateTimeException) {
                             null
                         }
-                        if (due == null) store.finalizeDelivery(call, DeliveryState.TERMINAL_FAILURE, "RETRY_SCHEDULE_OVERFLOW")
-                        else store.finalizeDelivery(call, DeliveryState.RETRY_WAIT, dueAt = due)
+                        if (due == null) store.finalizeDeliveryOnIo(call, DeliveryState.TERMINAL_FAILURE, "RETRY_SCHEDULE_OVERFLOW")
+                        else store.finalizeDeliveryOnIo(call, DeliveryState.RETRY_WAIT, dueAt = due)
                     }
                 }
             }

@@ -7,11 +7,10 @@
 
 ## Document role
 
-이 문서는 Match 알림 Stage 1.1의 구현 계약과 종료 조건을 정의한다. 현재 `main`에 존재하는 Stage 1 구현 사실과 Stage 1.1 목표를 구분한다.
+이 문서는 완료된 Match 알림 Stage 1.1 구현 계약과 종료 조건을 정의한다. 과거 Stage 1 구현 사실과 현재 Stage 1.1 구현을 구분한다.
 
-- 현재 Stage 1: H2/Flyway, registration-value 기반 loopback API, process-owned fixed-delay tracking/delivery loop, START/END intent, Firebase Admin adapter가 구현되어 있다.
-- Stage 1.1 목표: Firestore SDK + Emulator, 익명 Target 권한, START-only intent, request-bound scheduler use case, test-only fake App Check/FCM으로 교체한다.
-- 이 문서가 갱신된 것만으로 Stage 1.1 구현이 완료된 것은 아니다. 코드와 credential-free 테스트가 모두 GREEN이 된 뒤에만 구현 완료로 표시한다.
+- 과거 Stage 1: H2/Flyway, registration-value 기반 loopback API, process-owned fixed-delay tracking/delivery loop, START/END intent, Firebase Admin adapter를 사용했다.
+- 현재 Stage 1.1: Firestore SDK + Emulator, 익명 Target 권한, START-only intent, request-bound scheduler use case, test-only fake App Check/FCM으로 교체됐다.
 
 Stage 1.1의 종료 문구는 다음과 같다.
 

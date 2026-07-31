@@ -6,7 +6,7 @@
 
 ## Goal and stage boundary
 
-작은 사이드 프로젝트에 맞춰 PR에서는 credential-free 검증만 수행하고, `main` 병합 후 서버 영향 변경만 Cloud Run으로 배포하는 구조를 목표로 한다. `.github/workflows/ci.yml`은 Stage 1.1 offline gate를 구현하며 deploy workflow는 없다.
+작은 사이드 프로젝트에 맞춰 PR에서는 credential-free 검증만 수행하고, `main` 병합 후 서버 영향 변경만 Cloud Run으로 배포하는 구조를 목표로 한다. `.github/workflows/ci.yml`은 완료된 Stage 1.1 offline gate를 구현하며 deploy workflow는 없다.
 
 Stage 1.1은 실제 Firebase App/GCP project/Cloud Run을 연결하지 않는다. Stage 1.1 구현 PR은 Firestore Emulator와 fake provider를 포함한 offline GREEN까지만 소유한다. 실제 App Check, FCM, production Firestore, Cloud Run과 배포 health/rollback은 Stage 2에서 수행한다.
 
@@ -22,14 +22,14 @@ server           Ktor 3 Netty application
 
 `server`는 `core`에 직접 의존한다. 현재 server plugin은 Kotlin JVM, Kotlin Serialization, Ktor plugin이고 `application.mainClass`는 `kr.co.cotton.vlrgg_mobile.ApplicationKt`다. 확인된 server task는 `:server:test`, `:server:build`, `:server:installDist`, `:server:run`이다.
 
-현재 Cloud Run 배포 전 수정이 필요한 항목은 다음과 같다.
+현재 Stage 1.1 구현과 Stage 2 Cloud Run 배포 전 남은 항목은 다음과 같다.
 
-- listener는 `0.0.0.0`을 기본으로 사용하지만 port는 Cloud Run `PORT`가 아니라 `VLRGG_SERVER_PORT`만 읽는다.
-- Stage 1 알림 runtime은 local H2 file, process-owned loop와 enabled 시 ADC/Firebase lifecycle에 의존한다.
+- listener는 `0.0.0.0`과 Cloud Run `PORT`를 지원하며 legacy `VLRGG_SERVER_PORT` fallback 및 packaged `/health` smoke가 검증됐다.
+- Stage 1.1 알림 runtime은 Firestore 기반 request-bound 계약으로 교체됐고, 일반 runtime의 production provider·알림 route는 Stage 2까지 disabled/fail-closed다.
 - repository root source build의 `:server:installDist` entrypoint를 buildpack에 알려 주는 설정이 없다.
-- `.github/workflows/`와 source-deploy용 ignore/config 파일이 없다.
+- `.github/workflows/ci.yml`은 존재하지만 deploy workflow와 source-deploy용 ignore/config 파일은 아직 없다.
 
-Stage 1.1 구현은 첫 두 항목을 offline-safe runtime으로 교체하고 `PORT`/packaged health를 검증한다. buildpack 및 실제 Cloud Run 동작은 Stage 2에서 검증한다.
+남은 buildpack entrypoint, deploy workflow 및 실제 Cloud Run 동작은 Stage 2에서 검증한다.
 
 확인된 app task는 다음과 같다.
 
