@@ -82,6 +82,7 @@ App Check와 Target Secret은 서로 다른 증명이다.
 - `X-Firebase-AppCheck`: 요청이 허용된 Firebase App에서 왔다는 attestation evidence다.
 - `Authorization: Target <targetId>.<secret>`: 특정 익명 Target의 상태를 읽거나 변경할 권한이다.
 - registration token, FID, Target ID만으로는 권한을 증명하지 않는다.
+- Target ID는 서버가 생성한 UUID v4이며 lowercase hyphenated `UUID.toString()` 표현만 canonical form으로 허용한다. path와 auth header의 다른 대소문자·축약 표현은 같은 Target으로 정규화하지 않고 `INVALID_REQUEST`로 거부한다.
 - Target Secret은 32-byte CSPRNG으로 생성하고 원문은 Target 생성 응답에서 한 번만 반환한다. 서버에는 검증용 hash만 저장한다.
 - `AppCheckVerifier` 입력은 `AppCheckEvidence(rawToken)`, 성공 출력은 `VerifiedApp(firebaseAppId)`다. Stage 1.1 fake는 test allowlist만 통과시키며 실제 token cryptography를 증명하지 않는다.
 
@@ -144,7 +145,8 @@ notificationControl/pollLease
 - 전체 active unique Match도 최대 100개다. 여러 Target이 같은 Match를 구독해도 하나로 계산한다.
 - subscribe/unsubscribe/global OFF는 Target revision, subscription, tracked count, global capacity를 한 transaction에서 일치시킨다.
 - global OFF는 최대 100개 subscription에 bounded된 하나의 transaction이며 replay나 crash retry로 count를 두 번 감소시키지 않는다.
-- 한 `(targetId, matchId, START)`에는 deterministic intent 하나만 존재한다.
+- 한 `(targetId, matchId, START)`에는 deterministic intent 하나만 존재한다. `intentId`는 `lowercaseHex(SHA-256(lp("vlrgg-match-start-intent-v1") || lp(canonicalTargetId) || lp(canonicalMatchId) || lp("START")))`로 고정한다. `lp(value)`는 UTF-8 byte length를 4-byte unsigned big-endian으로 붙인 length-prefixed encoding이고, `canonicalTargetId`는 위 lowercase hyphenated UUID, `canonicalMatchId`는 부호와 leading zero가 없는 10진수다.
+- 이 `intentId`를 `deliveryIntents` document ID, fan-out create-if-absent, replay 조회, claim과 provider command에 동일하게 사용한다. 기존 document의 natural key가 요청 tuple과 다르면 hash collision 또는 저장소 손상으로 보고 fail-closed하며 새 intent를 만들거나 발송하지 않는다.
 - terminal/revoked/unsendable Target과 Match는 claim/query 대상에서 제외한다.
 - Emulator가 증명하는 범위는 transaction/query/document mapping이다. production IAM, index readiness, quota와 retry 차이는 Stage 2에서 검증한다.
 
@@ -152,11 +154,11 @@ notificationControl/pollLease
 
 - 10분은 desired schedule 간격이다. Stage 1.1 use case 자체가 timer를 소유하지 않는다.
 - caller는 canonical `scheduleSlot`과 내부 `requestOwnerId`만 전달한다.
-- deadline 500초, active Match 100, fan-out batch 100, delivery batch 500, lease 550초, clock skew 5초는 immutable server policy다.
+- deadline 500초, active Match 100, fan-out batch 100, delivery batch 500, fan-out batch start reserve 10초, lease 550초, clock skew 5초는 immutable server policy다.
 - poll lease는 Firestore transaction/CAS로 한 owner만 획득한다.
 - 최초 정상 관찰은 baseline이다. `UPCOMING` 또는 `POSTPONED`에서 `LIVE`로 전환할 때만 START intent를 만든다.
 - 최초 관찰이 이미 LIVE/terminal이거나 repeat, time change, cancelled, missing, network/parsing failure이면 START intent를 만들지 않는다.
-- fan-out은 persistent cursor로 이어서 처리하며 request deadline 전에 새 batch를 시작하지 않는다.
+- fan-out은 persistent cursor로 이어서 처리한다. 각 batch 직전 injectable clock의 `now + 10초 <= requestDeadline`일 때만 새 batch를 시작한다. 조건을 만족하지 않으면 현재 cursor를 checkpoint하고 새 write를 시작하지 않은 채 다음 Scheduler 요청에서 resume한다.
 - Stage 2의 OIDC Scheduler adapter만 이 use case 앞에 붙는다. OIDC/JWKS/IAM은 use case 내부 책임이 아니다.
 
 ## Delivery safety and retry

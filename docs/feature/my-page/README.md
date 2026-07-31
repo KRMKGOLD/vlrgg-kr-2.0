@@ -105,7 +105,7 @@ system permission이 거부된 상태는 콘텐츠 오류가 아니라 알림 �
 - OFF 전환 시 current Target에 연결된 Match 알림을 false-only global-OFF endpoint로 비활성화한다.
 - OFF 전환만으로 Team/Player 즐겨찾기나 Match 즐겨찾기를 삭제하지 않는다.
 - 현재 target의 모든 Match subscription이 OFF로 확인될 때까지 전역 토글은 전환 중 상태를 유지한다. 일부만 성공하거나 응답이 불확실하면 OFF 완료로 표시하지 않고, 성공한 항목은 유지한 채 미확정 항목과 재시도·재동기화 동작을 보여준다.
-- 전역 OFF 전환 중 개별 Match 알림을 ON으로 선택하면 OFF 재시도보다 이 최신 의도를 우선한다. 앱은 남은 OFF 재시도를 중단하고 전역 ON 활성화 흐름과 해당 Match 설정 상태를 표시하며, 오래된 OFF 응답으로 다시 OFF 완료를 표시하지 않는다.
+- 전역 OFF 전환 중 개별 Match 알림을 ON으로 선택하면 OFF 재시도보다 이 최신 의도를 우선한다. 앱은 남은 OFF 재시도를 중단하고 system permission 확인과 앱의 전역 알림 설정 활성화 흐름 및 해당 Match의 개별 설정 상태를 표시하며, 오래된 OFF 응답으로 다시 OFF 완료를 표시하지 않는다. 서버의 false-only global-OFF endpoint에 전체 ON을 요청하지 않는다.
 - 앱 삭제·재설치 등으로 자격을 잃은 이전 Target은 같은 물리 기기나 사용자로 추론하거나 해제하지 않는다. 이전 Target의 독립 구독은 남을 수 있으며, 이 current-target 의미는 [Matches 문서](../matches/README.md#전역-알림-off)를 따른다.
 - OFF 상태에서 Match Detail이 알림을 요청하면 활성화 필요 dialog를 띄우며, 사용자가 활성화를 선택하면 같은 permission 확인 흐름을 수행한다.
 

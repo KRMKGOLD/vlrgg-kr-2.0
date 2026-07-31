@@ -220,7 +220,7 @@ server subscription 생성이 확정적으로 실패하면 local favorite를 남
 - MyPage의 전역 OFF는 기존 Match favorite를 Team/Player favorite로 변환하거나 삭제하지 않는다.
 - 전역 OFF는 current Target에 연결된 Match 알림만 비활성화한다.
 - 현재 target에 연결된 여러 Match subscription 중 일부만 OFF로 확인되거나 응답이 불확실하면 앱은 전역 OFF를 완료 상태로 표시하지 않는다. 이미 OFF로 확인된 subscription은 그대로 유지하고 미확정 subscription만 pending으로 표시해 재시도·재동기화하며, 이 과정에서도 모든 favorite는 보존한다.
-- 전역 OFF가 pending인 동안 사용자가 개별 Match 알림을 다시 ON으로 선택하면 그 선택이 최신 전역·Match 의도가 된다. 앱은 남은 전역 OFF 재시도를 중단하고 전역 ON 활성화 흐름 뒤 해당 Match를 설정하며, 지연된 이전 bulk OFF 요청이나 응답이 이 ON을 되돌려서는 안 된다.
+- 전역 OFF가 pending인 동안 사용자가 개별 Match 알림을 다시 ON으로 선택하면 그 선택이 최신 전역·Match 의도가 된다. 앱은 남은 전역 OFF 재시도를 중단하고 system permission 확인과 앱의 전역 알림 설정 활성화 흐름 뒤 해당 Match를 개별 설정하며, 지연된 이전 bulk OFF 요청이나 응답이 이 ON을 되돌려서는 안 된다. 서버의 false-only global-OFF endpoint에 전체 ON을 요청하지 않는다.
 - 앱과 서버는 잃어버린 이전 Target을 같은 물리 기기나 사용자로 추론하거나 해제하지 않는다. 이전 Target의 구독은 명시적 revoke, provider invalid 또는 정리 정책까지 유효할 수 있고 일시적 중복 전달은 MVP에서 허용한다.
 - OFF 상태에서 새 Match 알림을 요청하면 activation-required dialog를 표시한다.
 
@@ -347,9 +347,9 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 
 ### 즐겨찾기, 권한, 전역 설정
 
-- [ ] 활성 권한/전역 ON 상태에서 Match 알림을 설정하면 local Match favorite와 server subscription이 모두 생성된다.
+- [ ] 활성 system permission과 앱 전역 알림 설정 ON 상태에서 Match 알림을 설정하면 local Match favorite와 server subscription이 모두 생성된다.
 - [ ] Match favorite는 MyPage에 표시되고 MyPage와 Match Detail 모두에서 같은 상세 화면으로 이동한다.
-- [ ] 허용된 App Check evidence로 Target을 생성하면 Target ID와 one-time Target Secret을 받고 token은 response/state/log에 다시 노출되지 않는다.
+- [ ] 허용된 App Check evidence로 Target을 생성하면 Target ID와 one-time Target Secret을 받는다. FCM registration token은 서버 저장소의 전달 주소로만 보관하고 후속 public response, UI/public state, log에는 노출하지 않는다.
 - [ ] 같은 Target/Match의 서버 알림 설정을 반복하면 중복 없이 alarm ON으로 수렴하고 같은 revision/operation을 안전하게 replay한다.
 - [ ] Match favorite 해제는 current Target의 대응 subscription도 취소하며 반복 해제는 alarm OFF로 수렴한다.
 - [ ] 같은 Target의 설정·해제·global OFF는 revision ordering으로 최신 승인 의도에 수렴하며 stale·replay·conflict·exhaustion을 구분한다.
