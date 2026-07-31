@@ -1,529 +1,445 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 
-import com.zaxxer.hikari.HikariConfig
-import com.zaxxer.hikari.HikariDataSource
-import org.flywaydb.core.Flyway
-import java.nio.charset.StandardCharsets
+import com.google.cloud.firestore.Firestore
+import com.google.cloud.firestore.FirestoreOptions
+import com.google.cloud.firestore.SetOptions
+import com.google.cloud.firestore.TransactionOptions
+import com.google.api.core.ApiFuture
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets.UTF_8
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
-import java.sql.SQLIntegrityConstraintViolationException
-import java.sql.SQLTransactionRollbackException
+import java.util.Base64
 import java.util.UUID
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.CompletionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-@JvmInline value class PushTarget(val id: UUID)
+/** The only production-facing App Check boundary. Real verification belongs to Stage 2. */
+@JvmInline value class AppCheckEvidence(val rawToken: String)
+data class VerifiedApp(val firebaseAppId: String)
+interface AppCheckVerifier { suspend fun verify(evidence: AppCheckEvidence): VerifiedApp? }
 
-enum class TargetResolution { CREATED, EXISTING, TARGET_REFRESH_REQUIRED }
-data class TargetLookupResult(val target: PushTarget?, val resolution: TargetResolution, val revision: RevisionResult?)
-enum class RevisionResult { APPLIED, STALE, REPLAYED, CONFLICT, REVISION_EXHAUSTED }
-enum class ObservationStatus { UPCOMING, LIVE, COMPLETED, POSTPONED, CANCELLED }
-enum class ObservationResult { SUCCESS, NETWORK_FAILURE, PARSING_FAILURE, MISSING }
-enum class NotificationEventType { START, END }
+data class NotificationCommand(
+    val targetId: String, val matchId: Long, val registrationToken: String, val intentId: String,
+    val event: NotificationEventType = NotificationEventType.START,
+    val title: String = "Match starting", val body: String = "Your selected match has started.",
+)
+enum class NotificationEventType { START }
+enum class ProviderRetryKind { RATE_LIMITED, UNAVAILABLE }
+sealed interface ProviderResult {
+    data class Accepted(val providerMessageId: String? = null) : ProviderResult
+    data object InvalidTarget : ProviderResult
+    data class Retryable(val kind: ProviderRetryKind, val hintMillis: Long? = null) : ProviderResult
+    data class NonRetryable(val safeCode: String) : ProviderResult
+    data object Unknown : ProviderResult
+}
+interface NotificationProvider { suspend fun send(command: NotificationCommand): ProviderResult }
+
 enum class DeliveryState { PENDING, RETRY_WAIT, CLAIMED_NOT_STARTED, CALL_STARTED, ACCEPTED, INVALID_TARGET, TERMINAL_FAILURE, UNKNOWN }
-data class DeliveryClaim(val intentId: UUID, val target: PushTarget, val event: NotificationEventType, val token: UUID, val attemptCount: Int, val retryDelayMillis: Long?, val retryDecisionAt: Instant?, val retryDueAt: Instant?)
-internal data class DeliveryCall(val claim: DeliveryClaim, val target: SendableDeliveryTarget)
-internal data class DeliveryDetails(
-    val state: DeliveryState,
-    val attemptCount: Int,
-    val terminalReason: String?,
-    val retryDelayMillis: Long?,
-    val retryDecisionAt: Instant?,
-    val retryDueAt: Instant?,
-)
-data class SubscriptionProjection(val matchId: Long, val active: Boolean)
-data class NotificationStateProjection(val acceptedRevision: Long, val subscriptions: List<SubscriptionProjection>)
-internal typealias TargetDigest = (ByteArray, FirebaseTargetMode, String) -> ByteArray
+enum class ObservationStatus { UPCOMING, LIVE, COMPLETED, POSTPONED, CANCELLED }
+data class TargetRecord(val targetId: String, val revision: Long, val sendable: Boolean, val subscriptions: List<SubscriptionRecord>)
+data class SubscriptionRecord(val matchId: Long, val enabled: Boolean)
+data class RegisteredTarget(val targetId: String, val targetSecret: String, val revision: Long)
+data class DeliveryClaim(val intentId: String, val targetId: String, val matchId: Long, val registrationToken: String, val claimToken: String, val attempt: Int)
+internal data class DeliveryCall(val claim: DeliveryClaim, val command: NotificationCommand)
 
-/** Public persistence projection deliberately excludes a raw registration value. */
-data class TargetProjection(
-    val id: PushTarget,
-    val sendable: Boolean,
-    val targetMode: FirebaseTargetMode,
-    val acceptedRevision: Long,
-)
+class ActiveMatchCapacityExceededException : RuntimeException()
+class SubscriptionLimitExceededException : RuntimeException()
+class RevisionConflictException : RuntimeException()
+class RevisionExhaustedException : RuntimeException()
 
-/** Internal-only boundary for the future delivery worker. */
-internal data class SendableDeliveryTarget(val target: PushTarget, val registrationValue: String, val mode: FirebaseTargetMode)
+/**
+ * A claim transaction can recover both kinds of expired work and claim one delivery.  Keep the
+ * combined write maximum deliberately below Firestore's 500-write transaction limit.
+ */
+internal object FirestoreNotificationStoreLimits {
+    const val FIRESTORE_RPC_TIMEOUT_MILLIS = 30_000L
+    const val TRANSACTION_MAX_ATTEMPTS = 5
+    const val MAX_ACTIVE_UNIQUE_MATCHES = 100
+    const val MAX_ENABLED_SUBSCRIPTIONS_PER_TARGET = 100
+    const val EXPIRED_CALL_STARTED_RECOVERY_LIMIT = 200
+    const val EXPIRED_PRE_CALL_RECOVERY_LIMIT = 200
+    const val CLAIM_WRITE_RESERVE = 1
+    const val MAX_CLAIM_TRANSACTION_WRITES = EXPIRED_CALL_STARTED_RECOVERY_LIMIT + EXPIRED_PRE_CALL_RECOVERY_LIMIT + CLAIM_WRITE_RESERVE
+}
 
-class NotificationStore private constructor(
-    private val dataSource: HikariDataSource,
-    private val configuration: NotificationConfiguration,
-    private val targetDigest: TargetDigest,
-) : AutoCloseable {
-    private val mode get() = configuration.targetMode
-    private val lookupKey get() = requireNotNull(configuration.lookupDigestKey)
-    private val keyId get() = sha256Hex(lookupKey)
-
-    fun findOrRegister(registrationValue: String, operation: String, revision: Long, now: Instant = Instant.now()): TargetLookupResult {
-        requireValidRevision(revision)
-        requireValidRegistrationValue(registrationValue)
-        return retryingTransaction { connection ->
-            when (val resolved = resolveTarget(connection, registrationValue)) {
-                is TargetAddressResolution.Absent -> TargetLookupResult(insertTarget(connection, resolved.digest, registrationValue, revision, operation, now), TargetResolution.CREATED, RevisionResult.APPLIED)
-                TargetAddressResolution.RefreshRequired -> TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
-                is TargetAddressResolution.Existing -> TargetLookupResult(resolved.target, TargetResolution.EXISTING, applyRevision(connection, resolved.target, resolved.row.revision, resolved.row.operationHash, revision, operation, now))
-            }
-        }
-    }
-
-    fun mutateSubscription(target: PushTarget, matchId: Long, active: Boolean, revision: Long, operation: String, now: Instant = Instant.now()): RevisionResult = retryingTransaction { connection ->
-        requireValidRevision(revision)
-        requireValidMatchId(matchId)
-        val row = targetRow(connection, target) ?: return@retryingTransaction RevisionResult.CONFLICT
-        if (!row.sendable) return@retryingTransaction RevisionResult.CONFLICT
-        val revisionOutcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
-        if (revisionOutcome != RevisionResult.APPLIED) return@retryingTransaction revisionOutcome
-        val priorActive = subscriptionActive(connection, target, matchId)
-        if (active && priorActive != true && activeSubscriptionCount(connection, target) >= configuration.activeSubscriptionsMax) throw SubscriptionLimitExceededException()
-        val result = applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
-        if (result != RevisionResult.APPLIED) return@retryingTransaction result
-        if (priorActive == null) insertSubscription(connection, target, matchId, active, now) else updateSubscription(connection, target, matchId, active, now)
-        result
-    }
-
-    /** Applies address resolution, target revision and the desired match state in one transaction. */
-    fun reconcileSubscription(registrationValue: String, matchId: Long, active: Boolean, revision: Long, now: Instant = Instant.now()): TargetLookupResult {
-        requireValidRegistrationValue(registrationValue)
-        requireValidMatchId(matchId)
-        requireValidRevision(revision)
-        val operation = "subscription:$matchId:${if (active) "on" else "off"}"
-        return retryingTransaction { connection ->
-            when (val resolved = resolveTarget(connection, registrationValue)) {
-                is TargetAddressResolution.Absent -> {
-                val target = insertTarget(connection, resolved.digest, registrationValue, revision, operation, now)
-                insertSubscription(connection, target, matchId, active, now)
-                TargetLookupResult(target, TargetResolution.CREATED, RevisionResult.APPLIED)
-                }
-                TargetAddressResolution.RefreshRequired -> TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
-                is TargetAddressResolution.Existing -> {
-                val (target, row) = resolved
-                val outcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
-                if (outcome != RevisionResult.APPLIED) TargetLookupResult(target, TargetResolution.EXISTING, outcome) else {
-                val priorActive = subscriptionActive(connection, target, matchId)
-                if (active && priorActive != true && activeSubscriptionCount(connection, target) >= configuration.activeSubscriptionsMax) throw SubscriptionLimitExceededException()
-                applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
-                if (priorActive == null) insertSubscription(connection, target, matchId, active, now) else updateSubscription(connection, target, matchId, active, now)
-                TargetLookupResult(target, TargetResolution.EXISTING, RevisionResult.APPLIED)
-                }
-                }
-            }
-        }
-    }
-
-    fun reconcileGlobalOff(registrationValue: String, revision: Long, now: Instant = Instant.now()): TargetLookupResult {
-        requireValidRegistrationValue(registrationValue)
-        requireValidRevision(revision)
-        val operation = "global:off"
-        return retryingTransaction { connection ->
-            val resolved = resolveTarget(connection, registrationValue)
-            if (resolved !is TargetAddressResolution.Existing) return@retryingTransaction TargetLookupResult(null, TargetResolution.TARGET_REFRESH_REQUIRED, null)
-            val (target, row) = resolved
-            val outcome = revisionOutcome(row.revision, row.operationHash, revision, operation)
-            if (outcome != RevisionResult.APPLIED) return@retryingTransaction TargetLookupResult(target, TargetResolution.EXISTING, outcome)
-            applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
-            connection.prepareStatement("UPDATE notification_subscriptions SET active=FALSE, updated_at=? WHERE target_id=? AND active=TRUE").use { statement ->
-                statement.setObject(1, now); statement.setObject(2, target.id); statement.executeUpdate()
-            }
-            TargetLookupResult(target, TargetResolution.EXISTING, RevisionResult.APPLIED)
-        }
-    }
-
-    fun stateForRegistration(registrationValue: String): NotificationStateProjection? {
-        requireValidRegistrationValue(registrationValue)
-        return transaction { connection ->
-            val resolved = resolveTarget(connection, registrationValue) as? TargetAddressResolution.Existing ?: return@transaction null
-            val (target, row) = resolved
-            NotificationStateProjection(row.revision, subscriptions(connection, target))
-        }
-    }
-
-    fun activeMatchIds(): List<Long> = transaction { connection ->
-        connection.prepareStatement("""
-            SELECT DISTINCT s.match_id
-            FROM notification_subscriptions s
-            LEFT JOIN notification_match_tracking tracking ON tracking.match_id=s.match_id
-            WHERE s.active=TRUE AND COALESCE(tracking.terminal, FALSE)=FALSE
-            ORDER BY s.match_id
-        """.trimIndent()).use { statement ->
-            statement.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getLong(1)) } }
-        }
-    }
-
-    /** Recovers only pre-call claims.  A committed call marker is deliberately ambiguous and quarantined. */
-    internal fun claimDueDelivery(now: Instant): DeliveryClaim? = retryingTransaction { connection ->
-        connection.prepareStatement("UPDATE notification_delivery_intents SET state='UNKNOWN', terminal_reason='CALL_STARTED_LEASE_EXPIRED', updated_at=? WHERE state='CALL_STARTED' AND lease_until<?").use {
-            it.setObject(1, now); it.setObject(2, now); it.executeUpdate()
-        }
-        connection.prepareStatement("UPDATE notification_delivery_intents SET state='PENDING', claim_token=NULL, claimed_at=NULL, lease_until=NULL, updated_at=? WHERE state='CLAIMED_NOT_STARTED' AND lease_until<?").use {
-            it.setObject(1, now); it.setObject(2, now); it.executeUpdate()
-        }
-        connection.prepareStatement("SELECT id, target_id, event_type, application_attempt_count, retry_delay_millis, retry_decision_at, due_at FROM notification_delivery_intents WHERE state='PENDING' OR (state='RETRY_WAIT' AND due_at<=?) ORDER BY COALESCE(due_at, created_at), id LIMIT 1 FOR UPDATE").use { select ->
-            select.setObject(1, now); select.executeQuery().use { rows ->
-                if (!rows.next()) return@retryingTransaction null
-                val id = rows.getObject(1, UUID::class.java)
-                val target = PushTarget(rows.getObject(2, UUID::class.java))
-                val event = NotificationEventType.valueOf(rows.getString(3))
-                val token = UUID.randomUUID()
-                connection.prepareStatement("UPDATE notification_delivery_intents SET state='CLAIMED_NOT_STARTED', claim_token=?, claimed_at=?, lease_until=?, updated_at=? WHERE id=? AND state IN ('PENDING','RETRY_WAIT')").use { update ->
-                    update.setObject(1, token); update.setObject(2, now); update.setObject(3, now.plusMillis(configuration.claimLeaseMillis)); update.setObject(4, now); update.setObject(5, id)
-                    check(update.executeUpdate() == 1)
-                }
-                DeliveryClaim(id, target, event, token, rows.getInt(4), rows.getLong(5).takeUnless { rows.wasNull() }, rows.getObject(6, Instant::class.java), rows.getObject(7, Instant::class.java))
-            }
-        }
-    }
-
-    internal fun releaseDeliveryClaim(claim: DeliveryClaim, now: Instant): Boolean = transaction { connection ->
-        connection.prepareStatement("UPDATE notification_delivery_intents SET state=CASE WHEN retry_delay_millis IS NULL THEN 'PENDING' ELSE 'RETRY_WAIT' END, claim_token=NULL, claimed_at=NULL, lease_until=NULL, updated_at=? WHERE id=? AND state='CLAIMED_NOT_STARTED' AND claim_token=?").use {
-            it.setObject(1, now); it.setObject(2, claim.intentId); it.setObject(3, claim.token); it.executeUpdate() == 1
-        }
-    }
-
-    /** This committed marker is the sole boundary before an adapter invocation. */
-    internal fun markDeliveryCallStarted(claim: DeliveryClaim, now: Instant): DeliveryCall? = transaction { connection ->
-        val target = readSendableTargetForDelivery(connection, claim.target) ?: run {
-            connection.prepareStatement("UPDATE notification_delivery_intents SET state='INVALID_TARGET', terminal_reason='TARGET_UNSENDABLE', updated_at=? WHERE id=? AND state='CLAIMED_NOT_STARTED' AND claim_token=?").use {
-                it.setObject(1, now); it.setObject(2, claim.intentId); it.setObject(3, claim.token); it.executeUpdate()
-            }
-            return@transaction null
-        }
-        connection.prepareStatement("UPDATE notification_delivery_intents SET state='CALL_STARTED', application_attempt_count=application_attempt_count+1, call_started_at=?, updated_at=? WHERE id=? AND state='CLAIMED_NOT_STARTED' AND claim_token=?").use { update ->
-            update.setObject(1, now); update.setObject(2, now); update.setObject(3, claim.intentId); update.setObject(4, claim.token)
-            if (update.executeUpdate() != 1) return@transaction null
-        }
-        DeliveryCall(claim.copy(attemptCount = claim.attemptCount + 1), target)
-    }
-
-    internal fun finalizeAccepted(call: DeliveryCall, now: Instant): Boolean = finalizeCall(call.claim, now, "ACCEPTED", null, null)
-    internal fun finalizeUnknown(call: DeliveryCall, reason: String, now: Instant): Boolean = finalizeCall(call.claim, now, "UNKNOWN", reason, null)
-    internal fun finalizeTerminal(call: DeliveryCall, reason: String, now: Instant): Boolean = finalizeCall(call.claim, now, "TERMINAL_FAILURE", reason, null)
-    internal fun finalizeRetry(call: DeliveryCall, decisionAt: Instant, delayMillis: Long, dueAt: Instant): Boolean = finalizeCall(call.claim, decisionAt, "RETRY_WAIT", null, dueAt, delayMillis)
-
-    internal fun invalidateDeliveryTarget(call: DeliveryCall, now: Instant): Boolean = transaction { connection ->
-        val claimed = connection.prepareStatement("UPDATE notification_delivery_intents SET state='INVALID_TARGET', terminal_reason='PROVIDER_INVALID_TARGET', updated_at=? WHERE id=? AND state='CALL_STARTED' AND claim_token=?").use {
-            it.setObject(1, now); it.setObject(2, call.claim.intentId); it.setObject(3, call.claim.token); it.executeUpdate() == 1
-        }
-        if (claimed) invalidateTargetInTransaction(connection, call.claim.target, now)
-        claimed
-    }
-
-    internal fun deliveryIntentCount(matchId: Long, event: NotificationEventType): Int = transaction { connection ->
-        connection.prepareStatement("SELECT COUNT(*) FROM notification_delivery_intents WHERE match_id=? AND event_type=?").use { statement ->
-            statement.setLong(1, matchId); statement.setString(2, event.name); statement.executeQuery().use { rows -> rows.next(); rows.getInt(1) }
-        }
-    }
-
-    internal fun deliveryState(matchId: Long, event: NotificationEventType): Pair<DeliveryState, Int>? = transaction { connection ->
-        connection.prepareStatement("SELECT state, application_attempt_count FROM notification_delivery_intents WHERE match_id=? AND event_type=? LIMIT 1").use { statement ->
-            statement.setLong(1, matchId); statement.setString(2, event.name); statement.executeQuery().use { rows ->
-                if (rows.next()) DeliveryState.valueOf(rows.getString(1)) to rows.getInt(2) else null
-            }
-        }
-    }
-
-    internal fun deliveryDetails(matchId: Long, event: NotificationEventType): DeliveryDetails? = transaction { connection ->
-        connection.prepareStatement("SELECT state, application_attempt_count, terminal_reason, retry_delay_millis, retry_decision_at, due_at FROM notification_delivery_intents WHERE match_id=? AND event_type=? LIMIT 1").use { statement ->
-            statement.setLong(1, matchId); statement.setString(2, event.name); statement.executeQuery().use { rows ->
-                if (!rows.next()) null else DeliveryDetails(
-                    state = DeliveryState.valueOf(rows.getString(1)),
-                    attemptCount = rows.getInt(2),
-                    terminalReason = rows.getString(3),
-                    retryDelayMillis = rows.getLong(4).takeUnless { rows.wasNull() },
-                    retryDecisionAt = rows.getObject(5, Instant::class.java),
-                    retryDueAt = rows.getObject(6, Instant::class.java),
-                )
-            }
-        }
-    }
-
-    internal fun observationResultCount(matchId: Long, result: ObservationResult): Int = transaction { connection ->
-        connection.prepareStatement("SELECT COUNT(*) FROM notification_observations WHERE match_id=? AND source_result=?").use { statement ->
-            statement.setLong(1, matchId); statement.setString(2, result.name); statement.executeQuery().use { rows -> rows.next(); rows.getInt(1) }
-        }
-    }
-
-    /** Writes every source result, but transitions compare only the prior successful observation. */
-    fun recordObservation(matchId: Long, result: ObservationResult, status: ObservationStatus? = null, now: Instant = Instant.now()): Int = retryingTransaction { connection ->
-        requireValidMatchId(matchId)
-        require((result == ObservationResult.SUCCESS) == (status != null)) { "successful observations require a status" }
-        val terminalAlreadyObserved = trackingTerminalForUpdate(connection, matchId, now)
-        val previous = if (result == ObservationResult.SUCCESS) lastSuccessfulStatus(connection, matchId) else null
-        // This comes from committed H2 state, not process memory, so reopen and another store preserve ordering.
-        val observedAt = nextObservationTime(connection, matchId, now)
-        connection.prepareStatement("INSERT INTO notification_observations (id, match_id, status, observed_at, source_result) VALUES (?, ?, ?, ?, ?)").use { statement ->
-            statement.setObject(1, UUID.randomUUID()); statement.setLong(2, matchId); statement.setString(3, status?.name ?: "NONE"); statement.setObject(4, observedAt); statement.setString(5, result.name); statement.executeUpdate()
-        }
-        if (result != ObservationResult.SUCCESS || terminalAlreadyObserved) return@retryingTransaction 0
-        if (status in TERMINAL_OBSERVATION_STATUSES) markTrackingTerminal(connection, matchId, now)
-        val event = transition(previous, requireNotNull(status)) ?: return@retryingTransaction 0
-        activeTargetsForMatch(connection, matchId).sumOf { target -> insertIntentIfAbsent(connection, target, matchId, event, now) }
-    }
-
-    /** Global OFF is one target-level mutation and never changes another target. */
-    fun disableAllSubscriptions(target: PushTarget, revision: Long, operation: String, now: Instant = Instant.now()): RevisionResult = transaction { connection ->
-        requireValidRevision(revision)
-        val row = targetRow(connection, target) ?: return@transaction RevisionResult.CONFLICT
-        if (!row.sendable) return@transaction RevisionResult.CONFLICT
-        val result = applyRevision(connection, target, row.revision, row.operationHash, revision, operation, now)
-        if (result != RevisionResult.APPLIED) return@transaction result
-        connection.prepareStatement("UPDATE notification_subscriptions SET active=FALSE, updated_at=? WHERE target_id=? AND active=TRUE").use { statement ->
-            statement.setObject(1, now); statement.setObject(2, target.id); statement.executeUpdate()
-        }
-        result
-    }
-
-    /** Provider-proven invalidity: one transaction performs only logical erasure and target-local cleanup. */
-    fun invalidateTarget(target: PushTarget, now: Instant = Instant.now()) = transaction { connection ->
-        invalidateTargetInTransaction(connection, target, now)
-    }
-
-    private fun invalidateTargetInTransaction(connection: java.sql.Connection, target: PushTarget, now: Instant) {
-        connection.prepareStatement("UPDATE notification_targets SET sendable=FALSE, registration_value=NULL, invalidated_at=?, updated_at=? WHERE id=?").use { statement ->
-            statement.setObject(1, now); statement.setObject(2, now); statement.setObject(3, target.id); statement.executeUpdate()
-        }
-        connection.prepareStatement("UPDATE notification_subscriptions SET active=FALSE, updated_at=? WHERE target_id=?").use { statement ->
-            statement.setObject(1, now); statement.setObject(2, target.id); statement.executeUpdate()
-        }
-        connection.prepareStatement("UPDATE notification_delivery_intents SET state='TERMINAL_FAILURE', terminal_reason='INVALID_TARGET', updated_at=? WHERE target_id=? AND state IN ('PENDING','RETRY_WAIT','CLAIMED_NOT_STARTED')").use { statement ->
-            statement.setObject(1, now); statement.setObject(2, target.id); statement.executeUpdate()
-        }
-        connection.prepareStatement("INSERT INTO notification_audit_events (id, target_id, category, created_at) VALUES (?, ?, 'target_invalidated', ?)").use { statement ->
-            statement.setObject(1, UUID.randomUUID()); statement.setObject(2, target.id); statement.setObject(3, now); statement.executeUpdate()
-        }
-    }
-
-    fun targetProjection(target: PushTarget): TargetProjection? = transaction { connection ->
-        targetRow(connection, target)?.let { TargetProjection(target, it.sendable, mode, it.revision) }
-    }
-
-    private fun targetByDigest(connection: java.sql.Connection, digest: ByteArray): ExistingTarget? = connection.prepareStatement("SELECT id, registration_value, sendable, accepted_revision, operation_hash FROM notification_targets WHERE provider=? AND target_mode=? AND lookup_digest=?").use { statement ->
-        statement.setString(1, PROVIDER); statement.setString(2, mode.name); statement.setBytes(3, digest); statement.executeQuery().use { rows ->
-            if (rows.next()) ExistingTarget(PushTarget(rows.getObject(1, UUID::class.java)), rows.getString(2), TargetRow(rows.getLong(4), rows.getBytes(5), rows.getBoolean(3))) else null
-        }
-    }
-
-    private fun resolveTarget(connection: java.sql.Connection, registrationValue: String): TargetAddressResolution {
-        val digest = digestFor(registrationValue)
-        val existing = targetByDigest(connection, digest) ?: return TargetAddressResolution.Absent(digest)
-        if (!existing.row.sendable || existing.registrationValue == null) return TargetAddressResolution.RefreshRequired
-        if (!constantTimeEquals(existing.registrationValue.toByteArray(StandardCharsets.UTF_8), registrationValue.toByteArray(StandardCharsets.UTF_8))) throw TargetDigestCollisionException()
-        return TargetAddressResolution.Existing(existing.target, existing.row)
-    }
-
-    private fun digestFor(registrationValue: String): ByteArray = targetDigest(lookupKey, mode, registrationValue).also {
-        require(it.size == 32) { "target digest must be 32 bytes" }
-    }
-
-    private fun insertTarget(connection: java.sql.Connection, digest: ByteArray, registrationValue: String, revision: Long, operation: String, now: Instant): PushTarget {
-        val target = PushTarget(UUID.randomUUID())
-        connection.prepareStatement("INSERT INTO notification_targets (id, provider, target_mode, lookup_digest, lookup_key_id, registration_value, sendable, invalidated_at, accepted_revision, operation_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, TRUE, NULL, ?, ?, ?, ?)").use { insert ->
-            insert.setObject(1, target.id); insert.setString(2, PROVIDER); insert.setString(3, mode.name); insert.setBytes(4, digest); insert.setString(5, keyId); insert.setString(6, registrationValue); insert.setLong(7, revision); insert.setBytes(8, operationHash(operation)); insert.setObject(9, now); insert.setObject(10, now); insert.executeUpdate()
-        }
-        return target
-    }
-
-    private fun subscriptions(connection: java.sql.Connection, target: PushTarget): List<SubscriptionProjection> = connection.prepareStatement("SELECT match_id, active FROM notification_subscriptions WHERE target_id=? ORDER BY match_id").use { statement ->
-        statement.setObject(1, target.id); statement.executeQuery().use { rows -> buildList { while (rows.next()) add(SubscriptionProjection(rows.getLong(1), rows.getBoolean(2))) } }
-    }
-
-    private fun lastSuccessfulStatus(connection: java.sql.Connection, matchId: Long): ObservationStatus? = connection.prepareStatement("SELECT status FROM notification_observations WHERE match_id=? AND source_result='SUCCESS' ORDER BY observed_at DESC, id DESC LIMIT 1").use { statement ->
-        statement.setLong(1, matchId); statement.executeQuery().use { rows -> if (rows.next()) ObservationStatus.valueOf(rows.getString(1)) else null }
-    }
-
-    private fun transition(previous: ObservationStatus?, current: ObservationStatus): NotificationEventType? = when {
-        previous == null -> null
-        previous in setOf(ObservationStatus.UPCOMING, ObservationStatus.POSTPONED) && current == ObservationStatus.LIVE -> NotificationEventType.START
-        previous == ObservationStatus.LIVE && current == ObservationStatus.COMPLETED -> NotificationEventType.END
-        previous in setOf(ObservationStatus.UPCOMING, ObservationStatus.POSTPONED) && current == ObservationStatus.COMPLETED -> NotificationEventType.END
-        else -> null
-    }
-
-    /** A row lock turns terminal observation into a durable one-way latch across concurrent stores. */
-    private fun trackingTerminalForUpdate(connection: java.sql.Connection, matchId: Long, now: Instant): Boolean {
-        connection.prepareStatement("INSERT INTO notification_match_tracking (match_id, terminal, updated_at) SELECT ?, FALSE, ? WHERE NOT EXISTS (SELECT 1 FROM notification_match_tracking WHERE match_id=?)").use { statement ->
-            statement.setLong(1, matchId); statement.setObject(2, now); statement.setLong(3, matchId); statement.executeUpdate()
-        }
-        return connection.prepareStatement("SELECT terminal FROM notification_match_tracking WHERE match_id=? FOR UPDATE").use { statement ->
-            statement.setLong(1, matchId); statement.executeQuery().use { rows -> check(rows.next()); rows.getBoolean(1) }
-        }
-    }
-
-    private fun markTrackingTerminal(connection: java.sql.Connection, matchId: Long, now: Instant) = connection.prepareStatement("UPDATE notification_match_tracking SET terminal=TRUE, updated_at=? WHERE match_id=?").use { statement ->
-        statement.setObject(1, now); statement.setLong(2, matchId); statement.executeUpdate()
-    }
-
-    private fun requireValidRegistrationValue(value: String) {
-        require(value.isNotBlank() && value.none { it.isISOControl() }) { "registration value is invalid" }
-        require(value.toByteArray(StandardCharsets.UTF_8).size <= configuration.registrationValueMaxBytes) { "registration value is too large" }
-    }
-
-    private fun activeTargetsForMatch(connection: java.sql.Connection, matchId: Long): List<PushTarget> = connection.prepareStatement("SELECT target_id FROM notification_subscriptions WHERE match_id=? AND active=TRUE").use { statement ->
-        statement.setLong(1, matchId); statement.executeQuery().use { rows -> buildList { while (rows.next()) add(PushTarget(rows.getObject(1, UUID::class.java))) } }
-    }
-
-    private fun insertIntentIfAbsent(connection: java.sql.Connection, target: PushTarget, matchId: Long, event: NotificationEventType, now: Instant): Int = connection.prepareStatement("INSERT INTO notification_delivery_intents (id, target_id, match_id, event_type, state, application_attempt_count, created_at, updated_at) SELECT ?, ?, ?, ?, 'PENDING', 0, ?, ? WHERE NOT EXISTS (SELECT 1 FROM notification_delivery_intents WHERE target_id=? AND match_id=? AND event_type=?)").use { statement ->
-        statement.setObject(1, UUID.randomUUID()); statement.setObject(2, target.id); statement.setLong(3, matchId); statement.setString(4, event.name); statement.setObject(5, now); statement.setObject(6, now); statement.setObject(7, target.id); statement.setLong(8, matchId); statement.setString(9, event.name); statement.executeUpdate()
-    }
-
-    // H2's timestamp precision is microseconds.  Retrying on the V1 unique key also covers concurrent cycles.
-    private fun nextObservationTime(connection: java.sql.Connection, matchId: Long, requested: Instant): Instant = connection.prepareStatement("SELECT MAX(observed_at) FROM notification_observations WHERE match_id=?").use { statement ->
-        statement.setLong(1, matchId); statement.executeQuery().use { rows ->
-            rows.next()
-            val prior = rows.getObject(1, Instant::class.java)
-            if (prior == null || requested > prior) requested else prior.plusMillis(1)
-        }
-    }
-
-    internal fun readSendableTargetForDelivery(target: PushTarget): SendableDeliveryTarget? = transaction { connection ->
-        readSendableTargetForDelivery(connection, target)
-    }
-
-    private fun readSendableTargetForDelivery(connection: java.sql.Connection, target: PushTarget): SendableDeliveryTarget? {
-        return connection.prepareStatement("SELECT registration_value, sendable, target_mode FROM notification_targets WHERE id=?").use { statement ->
-            statement.setObject(1, target.id); statement.executeQuery().use { rows ->
-                if (!rows.next() || !rows.getBoolean(2)) null else rows.getString(1)?.let { SendableDeliveryTarget(target, it, FirebaseTargetMode.valueOf(rows.getString(3))) }
-            }
-        }
-    }
-
-    private fun finalizeCall(claim: DeliveryClaim, now: Instant, state: String, reason: String?, dueAt: Instant?, delayMillis: Long? = null): Boolean = transaction { connection ->
-        connection.prepareStatement("UPDATE notification_delivery_intents SET state=?, terminal_reason=?, retry_decision_at=?, retry_delay_millis=?, due_at=?, updated_at=? WHERE id=? AND state='CALL_STARTED' AND claim_token=?").use { update ->
-            update.setString(1, state); update.setString(2, reason); update.setObject(3, if (state == "RETRY_WAIT") now else null); update.setObject(4, delayMillis); update.setObject(5, dueAt); update.setObject(6, now); update.setObject(7, claim.intentId); update.setObject(8, claim.token)
-            update.executeUpdate() == 1
-        }
-    }
-
-    private fun targetRow(connection: java.sql.Connection, target: PushTarget): TargetRow? = connection.prepareStatement("SELECT accepted_revision, operation_hash, sendable FROM notification_targets WHERE id=?").use { statement ->
-        statement.setObject(1, target.id); statement.executeQuery().use { rows -> if (rows.next()) TargetRow(rows.getLong(1), rows.getBytes(2), rows.getBoolean(3)) else null }
-    }
-
-    private fun subscriptionActive(connection: java.sql.Connection, target: PushTarget, matchId: Long): Boolean? = connection.prepareStatement("SELECT active FROM notification_subscriptions WHERE target_id=? AND match_id=?").use { statement ->
-        statement.setObject(1, target.id); statement.setLong(2, matchId); statement.executeQuery().use { rows -> if (rows.next()) rows.getBoolean(1) else null }
-    }
-
-    private fun activeSubscriptionCount(connection: java.sql.Connection, target: PushTarget): Int = connection.prepareStatement("SELECT COUNT(*) FROM notification_subscriptions WHERE target_id=? AND active=TRUE").use { statement ->
-        statement.setObject(1, target.id); statement.executeQuery().use { rows -> rows.next(); rows.getInt(1) }
-    }
-
-    private fun insertSubscription(connection: java.sql.Connection, target: PushTarget, matchId: Long, active: Boolean, now: Instant) = connection.prepareStatement("INSERT INTO notification_subscriptions (id, target_id, match_id, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").use { statement ->
-        statement.setObject(1, UUID.randomUUID()); statement.setObject(2, target.id); statement.setLong(3, matchId); statement.setBoolean(4, active); statement.setObject(5, now); statement.setObject(6, now); statement.executeUpdate()
-    }
-
-    private fun updateSubscription(connection: java.sql.Connection, target: PushTarget, matchId: Long, active: Boolean, now: Instant) = connection.prepareStatement("UPDATE notification_subscriptions SET active=?, updated_at=? WHERE target_id=? AND match_id=?").use { statement ->
-        statement.setBoolean(1, active); statement.setObject(2, now); statement.setObject(3, target.id); statement.setLong(4, matchId); statement.executeUpdate()
-    }
-
-    private fun applyRevision(connection: java.sql.Connection, target: PushTarget, current: Long, currentOperationHash: ByteArray, requested: Long, operation: String, now: Instant): RevisionResult {
-        requireValidRevision(requested)
-        val outcome = revisionOutcome(current, currentOperationHash, requested, operation)
-        if (outcome != RevisionResult.APPLIED) return outcome
-        connection.prepareStatement("UPDATE notification_targets SET accepted_revision=?, operation_hash=?, updated_at=? WHERE id=? AND accepted_revision=?").use { statement ->
-            statement.setLong(1, requested); statement.setBytes(2, operationHash(operation)); statement.setObject(3, now); statement.setObject(4, target.id); statement.setLong(5, current)
-            if (statement.executeUpdate() != 1) throw RevisionCasRaceException()
-        }
-        return RevisionResult.APPLIED
-    }
-
-    private fun revisionOutcome(current: Long, currentOperationHash: ByteArray, requested: Long, operation: String): RevisionResult {
-        val hash = operationHash(operation)
-        return when {
-            requested < current -> RevisionResult.STALE
-            current == Long.MAX_VALUE -> if (constantTimeEquals(currentOperationHash, hash)) RevisionResult.REPLAYED else RevisionResult.REVISION_EXHAUSTED
-            requested == current -> if (constantTimeEquals(currentOperationHash, hash)) RevisionResult.REPLAYED else RevisionResult.CONFLICT
-            else -> RevisionResult.APPLIED
-        }
-    }
-
-    private fun <T> transaction(block: (java.sql.Connection) -> T): T = dataSource.connection.use { connection ->
-        connection.autoCommit = false
-        try { block(connection).also { connection.commit() } } catch (error: Throwable) { connection.rollback(); throw error }
-    }
-
-    private fun <T> retryingTransaction(block: (java.sql.Connection) -> T): T {
-        repeat(MAX_MUTATION_RETRIES - 1) {
-            try { return transaction(block) } catch (_: SQLIntegrityConstraintViolationException) { }
-            catch (_: SQLTransactionRollbackException) { }
-            catch (_: RevisionCasRaceException) { }
-        }
-        return transaction(block)
-    }
-
-    override fun close() = dataSource.close()
-
-    private data class TargetRow(val revision: Long, val operationHash: ByteArray, val sendable: Boolean)
-    private data class ExistingTarget(val target: PushTarget, val registrationValue: String?, val row: TargetRow)
-    private sealed interface TargetAddressResolution {
-        data class Absent(val digest: ByteArray) : TargetAddressResolution
-        data object RefreshRequired : TargetAddressResolution
-        data class Existing(val target: PushTarget, val row: TargetRow) : TargetAddressResolution
-    }
-
-    companion object {
-        private const val PROVIDER = "FIREBASE"
-        private const val MAX_MUTATION_RETRIES = 4
-        private val TERMINAL_OBSERVATION_STATUSES = setOf(ObservationStatus.COMPLETED, ObservationStatus.CANCELLED)
-
-        fun open(configuration: NotificationConfiguration, random: SecureRandom = SecureRandom()): NotificationStore = openInternal(configuration, random, ::lookupDigest)
-
-        internal fun openForTesting(configuration: NotificationConfiguration, targetDigest: TargetDigest): NotificationStore = openInternal(configuration, SecureRandom(), targetDigest)
-
-        private fun openInternal(configuration: NotificationConfiguration, random: SecureRandom, targetDigest: TargetDigest): NotificationStore {
-            check(configuration.enabled) { "disabled notification configuration must not create a store" }
-            val config = HikariConfig().apply {
-                jdbcUrl = h2JdbcUrl(requireNotNull(configuration.databasePath))
-                driverClassName = "org.h2.Driver"
-                maximumPoolSize = configuration.jdbcPoolSize
-                minimumIdle = 0
-                isAutoCommit = false
-            }
-            val dataSource = HikariDataSource(config)
-            try {
-                Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate()
-                return NotificationStore(dataSource, configuration, targetDigest).also { it.verifyMetadata(random) }
-            } catch (error: Throwable) { dataSource.close(); throw error }
-        }
-
-        fun lookupDigest(key: ByteArray, mode: FirebaseTargetMode, registrationValue: String): ByteArray {
-            val mac = Mac.getInstance("HmacSHA256"); mac.init(SecretKeySpec(key, "HmacSHA256"))
-            return mac.doFinal(listOf("vlrgg-match-notification-target-v1", PROVIDER, mode.name, registrationValue).joinToString("\u0000").toByteArray(StandardCharsets.UTF_8))
-        }
-
-        private fun h2JdbcUrl(path: java.nio.file.Path): String {
-            val normalized = path.toAbsolutePath().normalize()
-            val value = normalized.toString()
-            if (!normalized.isAbsolute || value.startsWith("//") || value.startsWith("\\\\") || value.any { it.code < 32 || it.code == 127 } || value.any { it in ";?#" }) {
-                throw NotificationConfigurationException(ConfigurationCategory.UNSAFE_STORAGE, ConfigurationField.STORAGE_PATH)
-            }
-            return "jdbc:h2:file:$value;AUTO_SERVER=FALSE;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000;WRITE_DELAY=0"
-        }
-    }
-
-    private fun verifyMetadata(random: SecureRandom) = transaction { connection ->
-        connection.prepareStatement("SELECT target_mode, key_id, verifier_challenge, verifier FROM notification_store_metadata WHERE singleton_id=1").use { statement ->
-            statement.executeQuery().use { rows ->
-                if (!rows.next()) {
-                    val challenge = ByteArray(32).also(random::nextBytes)
-                    connection.prepareStatement("INSERT INTO notification_store_metadata (singleton_id, target_mode, key_id, verifier_challenge, verifier, created_at) VALUES (1, ?, ?, ?, ?, ?)").use { insert ->
-                        insert.setString(1, mode.name); insert.setString(2, keyId); insert.setBytes(3, challenge); insert.setBytes(4, hmac(lookupKey, challenge)); insert.setObject(5, Instant.now()); insert.executeUpdate()
-                    }
-                } else {
-                    if (rows.getString(1) != mode.name) throw NotificationConfigurationException(ConfigurationCategory.TARGET_MODE_MISMATCH, ConfigurationField.TARGET_MODE)
-                    if (!constantTimeEquals(rows.getString(2).toByteArray(StandardCharsets.UTF_8), keyId.toByteArray(StandardCharsets.UTF_8)) || !constantTimeEquals(rows.getBytes(4), hmac(lookupKey, rows.getBytes(3)))) throw NotificationConfigurationException(ConfigurationCategory.DIGEST_KEY_MISMATCH, ConfigurationField.LOOKUP_DIGEST_KEY)
-                }
-            }
-        }
+/** Explicit emulator-only client construction: it never discovers ADC or a production project. */
+object EmulatorFirestoreClientFactory {
+    fun create(environment: Map<String, String> = System.getenv()): Firestore {
+        val host = environment["FIRESTORE_EMULATOR_HOST"]?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("FIRESTORE_EMULATOR_HOST is required")
+        val projectId = environment["VLRGG_FIRESTORE_TEST_PROJECT_ID"]?.takeIf { it.matches(Regex("[a-z][a-z0-9-]{2,62}")) }
+            ?: throw IllegalStateException("VLRGG_FIRESTORE_TEST_PROJECT_ID is required")
+        return FirestoreOptions.newBuilder().setProjectId(projectId).setEmulatorHost(host)
+            .build().service
     }
 }
 
-class TargetDigestCollisionException : IllegalStateException("target lookup collision")
-class SubscriptionLimitExceededException : IllegalStateException("subscription limit exceeded")
-private class RevisionCasRaceException : RuntimeException()
+/**
+ * Firestore-backed state. Mutations that affect subscriptions use one transaction for target
+ * revision, target-local count, tracked count, and the global unique-Match capacity document.
+ */
+class FirestoreNotificationStore(private val firestore: Firestore, private val clock: Clock = Clock.systemUTC()) : AutoCloseable {
+    private data class SubscriptionCapacity(
+        val subscription: com.google.cloud.firestore.DocumentReference,
+        val previousEnabledAt: Any?,
+        val match: com.google.cloud.firestore.DocumentReference,
+        val matchRow: com.google.cloud.firestore.DocumentSnapshot,
+        val count: Long,
+        val nextCount: Long,
+        val usedCapacity: Long?,
+    )
+    /** An attempted observation consumes one scheduler interval, even when the upstream has no status. */
+    private val observationInterval: Duration = Duration.ofMinutes(10)
+    private val targets get() = firestore.collection("notificationTargets")
+    private val tracked get() = firestore.collection("trackedMatches")
+    private val intents get() = firestore.collection("deliveryIntents")
+    private val control get() = firestore.collection("notificationControl")
+    private fun <T> transaction(block: com.google.cloud.firestore.Transaction.Function<T>): ApiFuture<T> =
+        firestore.runTransaction(
+            block,
+            TransactionOptions.createReadWriteOptionsBuilder()
+                .setNumberOfAttempts(FirestoreNotificationStoreLimits.TRANSACTION_MAX_ATTEMPTS)
+                .build(),
+        )
 
-private fun requireValidRevision(value: Long) { require(value > 0) { "revision must be a positive signed Long" } }
-private fun requireValidMatchId(value: Long) { require(value > 0) { "match id must be positive" } }
-private fun operationHash(operation: String): ByteArray = MessageDigest.getInstance("SHA-256").digest(operation.toByteArray(StandardCharsets.UTF_8))
-private fun hmac(key: ByteArray, value: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").run { init(SecretKeySpec(key, "HmacSHA256")); doFinal(value) }
-private fun sha256Hex(value: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(value).joinToString("") { "%02x".format(it) }
-private fun constantTimeEquals(first: ByteArray, second: ByteArray): Boolean = MessageDigest.isEqual(first, second)
+    /** Firestore's Java SDK waits synchronously; application callers must use these IO-bound entry points. */
+    suspend fun registerOnIo(registrationToken: String): RegisteredTarget = firestoreIo { register(registrationToken) }
+    suspend fun readAuthorizedOnIo(targetId: String, secret: String): TargetRecord? = firestoreIo { readAuthorized(targetId, secret) }
+    suspend fun refreshRegistrationTokenOnIo(targetId: String, secret: String, token: String, expectedRevision: Long): Long = firestoreIo { refreshRegistrationToken(targetId, secret, token, expectedRevision) }
+    suspend fun setSubscriptionOnIo(targetId: String, secret: String, matchId: Long, enabled: Boolean, expectedRevision: Long): Long = firestoreIo { setSubscription(targetId, secret, matchId, enabled, expectedRevision) }
+    suspend fun disableAllOnIo(targetId: String, secret: String, expectedRevision: Long): Long = firestoreIo { disableAll(targetId, secret, expectedRevision) }
+    suspend fun revokeOnIo(targetId: String, secret: String, expectedRevision: Long): Long = firestoreIo { revoke(targetId, secret, expectedRevision) }
+    suspend fun recordObservationOnIo(matchId: Long, status: ObservationStatus?) = firestoreIo { recordObservation(matchId, status) }
+    suspend fun dueActiveMatchIdsOnIo(limit: Int): List<Long> = firestoreIo { dueActiveMatchIds(limit) }
+    suspend fun acquirePollLeaseOnIo(scheduleSlot: String, ownerId: String, lease: Duration): Boolean = firestoreIo { acquirePollLease(scheduleSlot, ownerId, lease) }
+    suspend fun resumeStartFanoutOnIo(matchId: Long, batchSize: Int): Boolean = firestoreIo { resumeStartFanout(matchId, batchSize) }
+    suspend fun pendingFanoutMatchIdsOnIo(limit: Int = 100): List<Long> = firestoreIo { pendingFanoutMatchIds(limit) }
+    suspend fun claimDueDeliveryOnIo(lease: Duration = Duration.ofMinutes(2)): DeliveryClaim? = firestoreIo { claimDueDelivery(lease) }
+    internal suspend fun markDeliveryCallStartedOnIo(claim: DeliveryClaim, lease: Duration = Duration.ofMinutes(2)): DeliveryCall? = firestoreIo { markDeliveryCallStarted(claim, lease) }
+    internal suspend fun finalizeDeliveryOnIo(call: DeliveryCall, state: DeliveryState, reason: String? = null, dueAt: Instant? = null): Boolean = firestoreIo { finalizeDelivery(call, state, reason, dueAt) }
+
+    internal fun register(registrationToken: String): RegisteredTarget {
+        requireToken(registrationToken)
+        val id = UUID.randomUUID().toString()
+        val secret = TargetSecrets.generate()
+        transaction { tx ->
+            tx.create(targets.document(id), mapOf("registrationToken" to registrationToken, "secretHash" to TargetSecrets.hash(secret), "revision" to 1L, "operationHash" to operationHash("register"), "operationExpectedRevision" to 0L, "sendable" to true, "createdAt" to now(), "updatedAt" to now()))
+            RegisteredTarget(id, secret, 1)
+        }.awaitTransaction()
+        return RegisteredTarget(id, secret, 1)
+    }
+
+    internal fun readAuthorized(targetId: String, secret: String): TargetRecord? {
+        requireCanonicalTargetId(targetId)
+        val snapshot = targets.document(targetId).get().awaitOperation()
+        if (!snapshot.exists() || snapshot.getBoolean("sendable") != true || !TargetSecrets.matches(secret, snapshot.getString("secretHash"))) return null
+        val subs = targets.document(targetId).collection("subscriptions").get().awaitOperation().documents.mapNotNull { doc ->
+            doc.getLong("matchId")?.let { SubscriptionRecord(it, doc.getBoolean("enabled") == true) }
+        }.sortedBy { it.matchId }
+        return TargetRecord(targetId, snapshot.getLong("revision") ?: 0, true, subs)
+    }
+
+    internal fun refreshRegistrationToken(targetId: String, secret: String, token: String, expectedRevision: Long): Long {
+        requireToken(token)
+        return mutate(targetId, secret, expectedRevision, "refresh:$token") { tx, target, _ ->
+        tx.update(target, mapOf("registrationToken" to token))
+        }
+    }
+
+    internal fun setSubscription(targetId: String, secret: String, matchId: Long, enabled: Boolean, expectedRevision: Long): Long {
+        require(matchId > 0) { "match ID must be canonical positive decimal" }
+        return mutate(targetId, secret, expectedRevision, "subscription:$matchId:$enabled") { tx, target, row ->
+            val sub = target.collection("subscriptions").document(matchId.toString())
+            val old = tx.get(sub).get()
+            val wasEnabled = old.exists() && old.getBoolean("enabled") == true
+            if (wasEnabled == enabled) return@mutate Unit
+            val capacity = readSubscriptionCapacity(tx, target, sub, matchId, enabled, old)
+            if (enabled && capacity.count == 0L && capacity.usedCapacity!! >= FirestoreNotificationStoreLimits.MAX_ACTIVE_UNIQUE_MATCHES) throw ActiveMatchCapacityExceededException()
+            // Read phase ends above.  Firestore transactions reject every read after the first write.
+            updateCapacity(tx, enabled, capacity)
+            val fields = mutableMapOf<String, Any>(
+                "enabledTargetCount" to capacity.nextCount,
+                "terminal" to (capacity.matchRow.getBoolean("terminal") ?: false),
+                "updatedAt" to now(),
+            )
+            if (enabled && capacity.count == 0L) fields["nextCheckAt"] = nowMillis()
+            tx.set(capacity.match, fields, SetOptions.merge())
+            tx.set(capacity.subscription, mapOf("targetId" to targetId, "matchId" to matchId, "enabled" to enabled, "enabledAt" to if (enabled) nowMillis() else capacity.previousEnabledAt, "updatedAt" to now()))
+        }
+    }
+
+    internal fun disableAll(targetId: String, secret: String, expectedRevision: Long): Long = mutate(targetId, secret, expectedRevision, "global:off") { tx, target, _ ->
+        disableEnabledSubscriptions(tx, target)
+    }
+
+    internal fun revoke(targetId: String, secret: String, expectedRevision: Long): Long = mutate(targetId, secret, expectedRevision, "revoke") { tx, target, _ ->
+        disableEnabledSubscriptions(tx, target)
+        tx.update(target, "sendable", false, "registrationToken", null, "revokedAt", now())
+    }
+
+    /**
+     * Records the result of one observation attempt and schedules the next attempt ten minutes
+     * from the store clock. Terminal matches stay terminal and are never reintroduced to polling.
+     */
+    internal fun recordObservation(matchId: Long, status: ObservationStatus?) {
+        require(matchId > 0)
+        transaction { tx ->
+            val match = tracked.document(matchId.toString()); val row = tx.get(match).get()
+            val previous = row.getString("lastObservation"); val terminal = row.getBoolean("terminal") == true
+            if (terminal) return@transaction
+            val current = nowMillis()
+            val nextCheckAt = Math.addExact(current, observationInterval.toMillis())
+            if (status == ObservationStatus.COMPLETED || status == ObservationStatus.CANCELLED) {
+                tx.set(match, mapOf("terminal" to true, "lastObservation" to status.name, "nextCheckAt" to null, "updatedAt" to now()), SetOptions.merge())
+            } else if (status == ObservationStatus.LIVE && previous in setOf(ObservationStatus.UPCOMING.name, ObservationStatus.POSTPONED.name) && row.get("startLatchedAt") == null) {
+                tx.set(match, mapOf("startLatchedAt" to current, "fanoutCursor" to null, "lastObservation" to status.name, "nextCheckAt" to nextCheckAt, "updatedAt" to now()), SetOptions.merge())
+                tx.create(firestore.collection("startFanoutJobs").document(matchId.toString()), mapOf("matchId" to matchId, "cursor" to null, "completed" to false, "createdAt" to now(), "updatedAt" to now()))
+            } else {
+                val fields = mutableMapOf<String, Any>("nextCheckAt" to nextCheckAt, "updatedAt" to now())
+                if (status != null) fields["lastObservation"] = status.name
+                tx.set(match, fields, SetOptions.merge())
+            }
+        }.awaitTransaction()
+    }
+
+    /** Firestore filters inactive, terminal, and not-yet-due matches before applying the bound. */
+    internal fun dueActiveMatchIds(limit: Int): List<Long> {
+        require(limit in 1..100)
+        return tracked
+            .whereEqualTo("terminal", false)
+            .whereGreaterThan("enabledTargetCount", 0L)
+            .whereLessThanOrEqualTo("nextCheckAt", nowMillis())
+            .orderBy("nextCheckAt")
+            .orderBy("enabledTargetCount")
+            .limit(limit)
+            .get().awaitOperation().documents.mapNotNull { it.id.toLongOrNull() }
+    }
+
+    /** Scheduler ownership is a durable lease; no process-local singleton is involved. */
+    internal fun acquirePollLease(scheduleSlot: String, ownerId: String, lease: Duration): Boolean {
+        require(scheduleSlot.matches(Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z$")))
+        require(ownerId.isNotBlank() && lease.isPositive)
+        return transaction { tx ->
+            val ref = control.document("pollLease"); val row = tx.get(ref).get()
+            val current = nowMillis()
+            val until = row.getLong("leaseUntil")
+            if (until != null && until > current && row.getString("ownerId") != ownerId) return@transaction false
+            tx.set(ref, mapOf("ownerId" to ownerId, "scheduleSlot" to scheduleSlot, "leaseUntil" to Math.addExact(current, lease.toMillis()), "updatedAt" to now()))
+            true
+        }.awaitTransaction()
+    }
+
+    /** Creates at most one deterministic START intent per target/match and checkpoints the cursor atomically. */
+    internal fun resumeStartFanout(matchId: Long, batchSize: Int): Boolean {
+        require(matchId > 0 && batchSize in 1..100)
+        val job = firestore.collection("startFanoutJobs").document(matchId.toString())
+        return transaction { tx ->
+            val row = tx.get(job).get()
+            if (!row.exists() || row.getBoolean("completed") == true) return@transaction false
+            val startLatchedAt = row.getLong("startLatchedAt")
+                ?: tx.get(tracked.document(matchId.toString())).get().getLong("startLatchedAt")
+                ?: return@transaction false
+            val cursor = row.getString("cursor")
+            var query = firestore.collectionGroup("subscriptions").whereEqualTo("matchId", matchId).whereEqualTo("enabled", true).orderBy("targetId").limit(batchSize)
+            if (cursor != null) query = query.startAfter(cursor)
+            val subscriptions = tx.get(query).get().documents
+            data class FanoutCandidate(val targetId: String, val create: Boolean)
+            val candidates = subscriptions.mapNotNull { subscription ->
+                val targetId = subscription.getString("targetId") ?: return@mapNotNull null
+                val target = tx.get(targets.document(targetId)).get()
+                val enabledAt = subscription.getLong("enabledAt")
+                if (enabledAt != null && enabledAt <= startLatchedAt && target.getBoolean("sendable") == true && target.getString("registrationToken") != null) {
+                    val intentId = deterministicIntentId(targetId, matchId)
+                    val intent = intents.document(intentId)
+                    val existing = tx.get(intent).get()
+                    if (existing.exists()) {
+                        check(existing.getString("targetId") == targetId && existing.getLong("matchId") == matchId && existing.getString("event") == "START") { "delivery intent integrity failure" }
+                    }
+                    FanoutCandidate(targetId, !existing.exists())
+                } else null
+            }
+            // All target and intent reads are complete before any create/checkpoint write.
+            candidates.filter { it.create }.forEach { candidate ->
+                tx.create(intents.document(deterministicIntentId(candidate.targetId, matchId)), mapOf("targetId" to candidate.targetId, "matchId" to matchId, "event" to "START", "state" to DeliveryState.PENDING.name, "attempt" to 0L, "createdAt" to now(), "updatedAt" to now()))
+            }
+            val last = subscriptions.lastOrNull()?.getString("targetId")
+            tx.set(job, mapOf("cursor" to last, "completed" to (subscriptions.size < batchSize), "updatedAt" to now()), SetOptions.merge())
+            subscriptions.isNotEmpty()
+        }.awaitTransaction()
+    }
+
+    internal fun pendingFanoutMatchIds(limit: Int = 100): List<Long> = firestore.collection("startFanoutJobs").whereEqualTo("completed", false).limit(limit).get().awaitOperation().documents.mapNotNull { it.getLong("matchId") }
+
+    /** Claims one due delivery and writes at most [FirestoreNotificationStoreLimits.MAX_CLAIM_TRANSACTION_WRITES] documents. */
+    internal fun claimDueDelivery(lease: Duration = Duration.ofMinutes(2)): DeliveryClaim? = transaction { tx ->
+        val current = nowMillis()
+        val expiredStarted = tx.get(intents.whereEqualTo("state", DeliveryState.CALL_STARTED.name).whereLessThan("leaseUntil", current).limit(FirestoreNotificationStoreLimits.EXPIRED_CALL_STARTED_RECOVERY_LIMIT)).get().documents
+        val expiredPreCall = tx.get(intents.whereEqualTo("state", DeliveryState.CLAIMED_NOT_STARTED.name).whereLessThan("leaseUntil", current).limit(FirestoreNotificationStoreLimits.EXPIRED_PRE_CALL_RECOVERY_LIMIT)).get().documents
+        val pending = tx.get(intents.whereEqualTo("state", DeliveryState.PENDING.name).limit(1)).get().documents.firstOrNull()
+            ?: tx.get(intents.whereEqualTo("state", DeliveryState.RETRY_WAIT.name).whereLessThanOrEqualTo("dueAt", current).limit(1)).get().documents.firstOrNull()
+            ?: expiredPreCall.firstOrNull()
+        val targetId = pending?.getString("targetId")
+        val matchId = pending?.getLong("matchId")?.takeIf { it > 0 }
+        val target = targetId?.let { tx.get(targets.document(it)).get() }
+        // Read phase ends above; recovery and claim writes follow.
+        expiredStarted.forEach { tx.update(it.reference, mapOf("state" to DeliveryState.UNKNOWN.name, "terminalReason" to "CALL_STARTED_LEASE_EXPIRED", "updatedAt" to now())) }
+        expiredPreCall.forEach { tx.update(it.reference, mapOf("state" to DeliveryState.PENDING.name, "claimToken" to null, "leaseUntil" to null, "updatedAt" to now())) }
+        if (pending == null) return@transaction null
+        if (matchId == null) {
+            tx.update(pending.reference, mapOf("state" to DeliveryState.UNKNOWN.name, "terminalReason" to "INTENT_MISSING_MATCH_ID", "claimToken" to null, "leaseUntil" to null, "updatedAt" to now()))
+            return@transaction null
+        }
+        if (targetId == null || target == null) return@transaction null
+        if (target.getBoolean("sendable") != true || target.getString("registrationToken") == null) {
+            tx.update(pending.reference, mapOf("state" to DeliveryState.INVALID_TARGET.name, "updatedAt" to now())); return@transaction null
+        }
+        val token = UUID.randomUUID().toString(); val nextAttempt = (pending.getLong("attempt") ?: 0L).toInt() + 1
+        tx.update(pending.reference, mapOf("state" to DeliveryState.CLAIMED_NOT_STARTED.name, "claimToken" to token, "leaseUntil" to Math.addExact(current, lease.toMillis()), "updatedAt" to now()))
+        DeliveryClaim(pending.id, targetId, matchId, target.getString("registrationToken")!!, token, nextAttempt)
+    }.awaitTransaction()
+
+    /** The marker commits before a provider call, so cancellation/timeout can never cause an automatic resend. */
+    internal fun markDeliveryCallStarted(claim: DeliveryClaim, lease: Duration = Duration.ofMinutes(2)): DeliveryCall? = transaction { tx ->
+        val intent = tx.get(intents.document(claim.intentId)).get()
+        if (intent.getString("state") != DeliveryState.CLAIMED_NOT_STARTED.name || intent.getString("claimToken") != claim.claimToken) return@transaction null
+        tx.update(intent.reference, mapOf("state" to DeliveryState.CALL_STARTED.name, "callStartedAt" to now(), "leaseUntil" to Math.addExact(nowMillis(), lease.toMillis()), "attempt" to claim.attempt.toLong(), "updatedAt" to now()))
+        DeliveryCall(claim, NotificationCommand(claim.targetId, claim.matchId, claim.registrationToken, claim.intentId))
+    }.awaitTransaction()
+
+    internal fun finalizeDelivery(call: DeliveryCall, state: DeliveryState, reason: String? = null, dueAt: Instant? = null): Boolean {
+        require(state in setOf(DeliveryState.ACCEPTED, DeliveryState.INVALID_TARGET, DeliveryState.RETRY_WAIT, DeliveryState.TERMINAL_FAILURE, DeliveryState.UNKNOWN))
+        return transaction { tx ->
+            val intent = tx.get(intents.document(call.claim.intentId)).get()
+            if (intent.getString("state") != DeliveryState.CALL_STARTED.name || intent.getString("claimToken") != call.claim.claimToken) return@transaction false
+            val target = if (state == DeliveryState.INVALID_TARGET) tx.get(targets.document(call.claim.targetId)).get() else null
+            // All reads, including the bounded subscription set used for invalid-target cleanup,
+            // occur before this transaction writes its terminal intent state.
+            if (target != null && target.exists() && target.getBoolean("sendable") == true) {
+                disableEnabledSubscriptions(tx, targets.document(call.claim.targetId))
+                tx.update(targets.document(call.claim.targetId), "sendable", false, "registrationToken", null, "invalidatedAt", now())
+            }
+            tx.update(intent.reference, mapOf("state" to state.name, "terminalReason" to reason, "dueAt" to dueAt?.toEpochMilli(), "claimToken" to null, "leaseUntil" to null, "updatedAt" to now()))
+            true
+        }.awaitTransaction()
+    }
+
+    private fun mutate(targetId: String, secret: String, expected: Long, operation: String, action: (com.google.cloud.firestore.Transaction, com.google.cloud.firestore.DocumentReference, com.google.cloud.firestore.DocumentSnapshot) -> Unit): Long {
+        requireCanonicalTargetId(targetId); require(expected > 0)
+        return transaction { tx ->
+            val ref = targets.document(targetId); val row = tx.get(ref).get()
+            if (!row.exists() || row.getBoolean("sendable") != true || !TargetSecrets.matches(secret, row.getString("secretHash"))) throw SecurityException("target auth")
+            val current = row.getLong("revision") ?: 0
+            val hash = operationHash(operation)
+            if (row.getLong("operationExpectedRevision") == expected && row.getString("operationHash") == hash) return@transaction current
+            if (current != expected) throw RevisionConflictException()
+            if (current == Long.MAX_VALUE) throw RevisionExhaustedException()
+            action(tx, ref, row)
+            val next = current + 1; tx.update(ref, "revision", next, "operationHash", hash, "operationExpectedRevision", expected, "updatedAt", now()); next
+        }.awaitTransaction()
+    }
+    private fun readSubscriptionCapacity(
+        tx: com.google.cloud.firestore.Transaction,
+        target: com.google.cloud.firestore.DocumentReference,
+        subscription: com.google.cloud.firestore.DocumentReference,
+        matchId: Long,
+        enabled: Boolean,
+        previous: com.google.cloud.firestore.DocumentSnapshot,
+    ): SubscriptionCapacity {
+        val active = tx.get(target.collection("subscriptions").whereEqualTo("enabled", true)).get().size()
+        if (enabled && active >= FirestoreNotificationStoreLimits.MAX_ENABLED_SUBSCRIPTIONS_PER_TARGET) throw SubscriptionLimitExceededException()
+        val match = tracked.document(matchId.toString())
+        val matchRow = tx.get(match).get()
+        val count = matchRow.getLong("enabledTargetCount") ?: 0L
+        val nextCount = (count + if (enabled) 1 else -1).coerceAtLeast(0L)
+        val needsCapacity = (enabled && count == 0L) || (!enabled && count > 0L && nextCount == 0L)
+        val usedCapacity = if (needsCapacity) tx.get(control.document("capacity")).get().getLong("activeUniqueMatchCount") ?: 0L else null
+        return SubscriptionCapacity(subscription, previous.get("enabledAt"), match, matchRow, count, nextCount, usedCapacity)
+    }
+    private fun updateCapacity(tx: com.google.cloud.firestore.Transaction, enabled: Boolean, change: SubscriptionCapacity) {
+        if (enabled && change.count == 0L) {
+            tx.set(control.document("capacity"), mapOf("activeUniqueMatchCount" to change.usedCapacity!! + 1, "updatedAt" to now()), SetOptions.merge())
+        } else if (!enabled && change.count > 0L && change.nextCount == 0L) {
+            tx.set(control.document("capacity"), mapOf("activeUniqueMatchCount" to (change.usedCapacity!! - 1).coerceAtLeast(0), "updatedAt" to now()), SetOptions.merge())
+        }
+    }
+    private fun disableEnabledSubscriptions(tx: com.google.cloud.firestore.Transaction, target: com.google.cloud.firestore.DocumentReference) {
+        data class EnabledSubscription(
+            val document: com.google.cloud.firestore.QueryDocumentSnapshot,
+            val match: com.google.cloud.firestore.DocumentReference,
+            val nextCount: Long,
+        )
+        val enabled = tx.get(target.collection("subscriptions").whereEqualTo("enabled", true)).get().documents.mapNotNull { doc ->
+            val matchId = doc.getLong("matchId") ?: return@mapNotNull null
+            val match = tracked.document(matchId.toString())
+            val nextCount = ((tx.get(match).get().getLong("enabledTargetCount") ?: 1L) - 1).coerceAtLeast(0)
+            EnabledSubscription(doc, match, nextCount)
+        }
+        val capacity = control.document("capacity")
+        val zeroed = enabled.count { it.nextCount == 0L }
+        val used = if (zeroed > 0) tx.get(capacity).get().getLong("activeUniqueMatchCount") ?: 0L else null
+        // Read phase is complete: write every bounded subscription/count update afterwards.
+        enabled.forEach { subscription ->
+            tx.update(subscription.document.reference, mapOf("enabled" to false, "updatedAt" to now()))
+            tx.set(subscription.match, mapOf("enabledTargetCount" to subscription.nextCount, "updatedAt" to now()), SetOptions.merge())
+        }
+        if (zeroed > 0) tx.set(capacity, mapOf("activeUniqueMatchCount" to (used!! - zeroed).coerceAtLeast(0), "updatedAt" to now()), SetOptions.merge())
+    }
+    private fun now() = Instant.now(clock).toString()
+    private fun nowMillis() = Instant.now(clock).toEpochMilli()
+    override fun close() = firestore.close()
+}
+
+private suspend fun <T> firestoreIo(block: () -> T): T = withContext(Dispatchers.IO) { block() }
+
+object TargetSecrets {
+    private val random = SecureRandom()
+    fun generate(): String = ByteArray(32).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
+    fun hash(secret: String): String {
+        val salt = ByteArray(16).also(random::nextBytes)
+        val saltText = Base64.getUrlEncoder().withoutPadding().encodeToString(salt)
+        return "v1:$saltText:" + digest(salt, secret)
+    }
+    fun matches(secret: String, stored: String?): Boolean {
+        val parts = stored?.split(':') ?: return false
+        if (parts.size != 3 || parts[0] != "v1") return false
+        val salt = runCatching { Base64.getUrlDecoder().decode(parts[1]) }.getOrNull()?.takeIf { it.size == 16 } ?: return false
+        return MessageDigest.isEqual(digest(salt, secret).toByteArray(UTF_8), parts[2].toByteArray(UTF_8))
+    }
+    private fun digest(salt: ByteArray, secret: String) = sha256("vlrgg-target-secret-v1".toByteArray(UTF_8) + salt + secret.toByteArray(UTF_8))
+}
+
+fun deterministicIntentId(targetId: String, matchId: Long): String {
+    requireCanonicalTargetId(targetId); require(matchId > 0)
+    fun lp(v: String) = ByteBuffer.allocate(4 + v.toByteArray(UTF_8).size).putInt(v.toByteArray(UTF_8).size).put(v.toByteArray(UTF_8)).array()
+    return sha256(lp("vlrgg-match-start-intent-v1") + lp(targetId) + lp(matchId.toString()) + lp("START"))
+}
+private fun operationHash(value: String) = sha256(value.toByteArray(UTF_8))
+private fun sha256(value: ByteArray) = MessageDigest.getInstance("SHA-256").digest(value).joinToString("") { "%02x".format(it) }
+internal fun <T> ApiFuture<T>.awaitTransaction(): T = awaitFirestore("transaction")
+private fun <T> ApiFuture<T>.awaitOperation(): T = awaitFirestore("operation")
+private fun <T> ApiFuture<T>.awaitFirestore(label: String): T = try {
+    get(FirestoreNotificationStoreLimits.FIRESTORE_RPC_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
+} catch (error: ExecutionException) {
+    throw normalizeFirestoreTransactionFailure(error)
+} catch (error: InterruptedException) {
+    Thread.currentThread().interrupt()
+    throw IllegalStateException("Firestore $label interrupted", error)
+} catch (error: TimeoutException) {
+    cancel(true)
+    throw IllegalStateException("Firestore $label timed out", error)
+}
+internal fun normalizeFirestoreTransactionFailure(error: Throwable): RuntimeException {
+    var cause = error
+    while (cause is ExecutionException || cause is CompletionException) cause = cause.cause ?: break
+    return cause as? RuntimeException ?: IllegalStateException("Firestore transaction failed", cause)
+}
+fun requireCanonicalTargetId(value: String) { require(Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").matches(value) && runCatching { UUID.fromString(value).toString() == value }.getOrDefault(false)) }
+private fun requireToken(value: String) { require(value.isNotBlank() && value.encodeToByteArray().size <= 4096 && value.none { it.isISOControl() }) }

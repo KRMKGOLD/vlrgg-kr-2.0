@@ -1,0 +1,9 @@
+{
+  "firestore": {
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": { "port": 8081 },
+    "ui": { "enabled": false }
+  }
+}

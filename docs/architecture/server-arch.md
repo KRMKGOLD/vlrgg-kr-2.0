@@ -10,9 +10,9 @@ Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selecto
 
 ## Current State and Direction
 
-현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API와 런타임 OpenAPI/Swagger 개발 문서를 구현했다. Match 알림 Stage 1 코드에는 default-disabled loopback 구독 API, H2/Flyway desired state, process-owned observation/delivery loop, START/END intent, named Firebase Admin adapter와 claim/retry lifecycle이 존재한다.
+현재 `server`는 JSON serialization, request/failure logging, 공통 error envelope, Ktor CIO 기반 HTML transport와 `/health`를 공통 기반으로 제공한다. 이 기반 위에서 News, Matches, Events, Search, Team Detail, Player Detail, Series Detail의 app-facing API와 런타임 OpenAPI/Swagger 개발 문서를 구현했다. 과거 Stage 1은 default-disabled loopback 구독 API, H2/Flyway desired state, process-owned observation/delivery loop, START/END intent, named Firebase Admin adapter와 claim/retry lifecycle을 사용했다.
 
-Stage 1.1은 이 알림 runtime을 Firestore SDK + Emulator, 익명 Target ID/Secret, START-only intent와 request-bound scheduler use case로 교체하는 승인된 설계이며 아직 구현되지 않았다. App, 실제 App Check/FCM, production Firestore, Cloud Run/Scheduler/WIF/CD smoke는 Stage 2다. 현재 구현과 목표의 상세 차이는 [Stage 1.1 contract](server-fcm-stage1.md)와 [ADR-0002](adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
+Stage 1.1은 이 알림 runtime을 Firestore SDK + Emulator, 익명 Target ID/Secret, START-only intent와 request-bound scheduler use case로 교체했고 offline server evidence가 GREEN이다. App, 실제 App Check/FCM, production Firestore, Cloud Run/Scheduler/WIF/CD smoke는 `NOT RUN — Stage 2`다. 현재 구현과 경계의 상세는 [Stage 1.1 contract](server-fcm-stage1.md)와 [ADR-0002](adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
 
 서버 기능은 단일 `:server` Gradle module 안에서 feature-based modular structure로 개발한다.
 

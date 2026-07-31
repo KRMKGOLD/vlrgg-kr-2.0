@@ -51,7 +51,7 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | Feature 미구현 |
 | Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | Feature 미구현 |
 | MyPage, Team·Player·Match 즐겨찾기, About | Backend 기능 없음 | Feature 미구현 |
-| Match 알림 | Stage 1 H2/loop/Firebase 기반 코드 존재. Firestore Emulator·익명 Target 권한·START-only·request-bound scheduler로 교체하는 Stage 1.1은 설계 완료/구현 전 | Feature 미구현 — App·실제 Firebase 연동은 Stage 2 |
+| Match 알림 | Stage 1.1 server offline GREEN — Firestore Emulator, 익명 Target 권한, START-only, request-bound scheduler | Feature 미구현 — App·실제 Firebase 연동은 `NOT RUN — Stage 2` |
 
 ## MVP 제외 범위
 

@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '22'
+
+      - name: Cache Firebase Emulator downloads
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/firebase
+          key: firebase-emulator-${{ runner.os }}-15.25.1
+
+      - name: Run credential-free KMP and Android checks
+        run: >
+          ./gradlew --no-daemon
+          :app:shared:testAndroidHostTest
+          :app:androidApp:testDebugUnitTest
+          :app:androidApp:lintDebug
+
+      - name: Start, wait for, test, and always clean up Firestore Emulator
+        env:
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8081
+          VLRGG_FIRESTORE_TEST_PROJECT_ID: demo-vlrgg-stage11
+        run: >
+          npx --yes firebase-tools@15.25.1 emulators:exec
+          --project demo-vlrgg-stage11
+          --only firestore
+          "FIRESTORE_EMULATOR_HOST=$FIRESTORE_EMULATOR_HOST
+          VLRGG_FIRESTORE_TEST_PROJECT_ID=$VLRGG_FIRESTORE_TEST_PROJECT_ID
+          ./gradlew --no-daemon
+          :server:test
+          :server:firestoreEmulatorTest
+          :server:build
+          :server:installDist"
+
+      - name: Smoke packaged health and fail-closed notification routes
+        shell: bash
+        run: |
+          PORT=18080 server/build/install/server/bin/server > server-health.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in {1..30}; do
+            if curl --connect-timeout 1 --max-time 1 --fail --silent http://127.0.0.1:18080/health | jq -e '.status == "ok"' > /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            cat server-health.log
+            exit 1
+          fi
+          test "$(curl --connect-timeout 1 --max-time 1 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/notification-targets)" = '404'
+
+      - name: Check event patch formatting
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          if [ "$EVENT_NAME" = pull_request ]; then
+            git diff --check "$PR_BASE_SHA...$HEAD_SHA"
+          elif git rev-parse --verify --quiet "$PUSH_BEFORE_SHA^{commit}" > /dev/null; then
+            git diff --check "$PUSH_BEFORE_SHA...$HEAD_SHA"
+          else
+            git diff --check "$(git hash-object -t tree /dev/null)" "$HEAD_SHA"
+          fi

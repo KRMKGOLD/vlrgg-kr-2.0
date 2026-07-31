@@ -1,12 +1,12 @@
 # CI/CD and Cloud Run delivery direction
 
-- Status: Stage 1.1 CI planned; Stage 2 live deployment deferred
+- Status: Stage 1.1 credential-free CI implemented; Stage 2 live deployment deferred
 - Last reviewed: 2026-07-31
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
 ## Goal and stage boundary
 
-작은 사이드 프로젝트에 맞춰 PR에서는 credential-free 검증만 수행하고, `main` 병합 후 서버 영향 변경만 Cloud Run으로 배포하는 구조를 목표로 한다. 이 문서 변경 시점에는 `.github/workflows/`가 없으며 CI/CD는 구현되지 않았다.
+작은 사이드 프로젝트에 맞춰 PR에서는 credential-free 검증만 수행하고, `main` 병합 후 서버 영향 변경만 Cloud Run으로 배포하는 구조를 목표로 한다. `.github/workflows/ci.yml`은 완료된 Stage 1.1 offline gate를 구현하며 deploy workflow는 없다.
 
 Stage 1.1은 실제 Firebase App/GCP project/Cloud Run을 연결하지 않는다. Stage 1.1 구현 PR은 Firestore Emulator와 fake provider를 포함한 offline GREEN까지만 소유한다. 실제 App Check, FCM, production Firestore, Cloud Run과 배포 health/rollback은 Stage 2에서 수행한다.
 
@@ -22,14 +22,14 @@ server           Ktor 3 Netty application
 
 `server`는 `core`에 직접 의존한다. 현재 server plugin은 Kotlin JVM, Kotlin Serialization, Ktor plugin이고 `application.mainClass`는 `kr.co.cotton.vlrgg_mobile.ApplicationKt`다. 확인된 server task는 `:server:test`, `:server:build`, `:server:installDist`, `:server:run`이다.
 
-현재 Cloud Run 배포 전 수정이 필요한 항목은 다음과 같다.
+현재 Stage 1.1 구현과 Stage 2 Cloud Run 배포 전 남은 항목은 다음과 같다.
 
-- listener는 `0.0.0.0`을 기본으로 사용하지만 port는 Cloud Run `PORT`가 아니라 `VLRGG_SERVER_PORT`만 읽는다.
-- Stage 1 알림 runtime은 local H2 file, process-owned loop와 enabled 시 ADC/Firebase lifecycle에 의존한다.
+- listener는 `0.0.0.0`과 Cloud Run `PORT`를 지원하며 legacy `VLRGG_SERVER_PORT` fallback 및 packaged `/health` smoke가 검증됐다.
+- Stage 1.1 알림 runtime은 Firestore 기반 request-bound 계약으로 교체됐고, 일반 runtime의 production provider·알림 route는 Stage 2까지 disabled/fail-closed다.
 - repository root source build의 `:server:installDist` entrypoint를 buildpack에 알려 주는 설정이 없다.
-- `.github/workflows/`와 source-deploy용 ignore/config 파일이 없다.
+- `.github/workflows/ci.yml`은 존재하지만 deploy workflow와 source-deploy용 ignore/config 파일은 아직 없다.
 
-Stage 1.1 구현은 첫 두 항목을 offline-safe runtime으로 교체하고 `PORT`/packaged health를 검증한다. buildpack 및 실제 Cloud Run 동작은 Stage 2에서 검증한다.
+남은 buildpack entrypoint, deploy workflow 및 실제 Cloud Run 동작은 Stage 2에서 검증한다.
 
 확인된 app task는 다음과 같다.
 
@@ -79,7 +79,7 @@ Cloud Scheduler
 
 FCM Topic은 공용 공지 요구가 생겼을 때 별도 흐름으로 추가할 수 있으나 현재 Match 알림에는 사용하지 않는다.
 
-## Planned `ci.yml`
+## Implemented `ci.yml`
 
 Trigger:
 
@@ -97,7 +97,7 @@ Jobs:
 
 iOS 검증은 macOS runner 비용 때문에 `app/shared/**`, `app/iosApp/**`, `core/**`, Gradle 설정 변경에 한해 별도 job 또는 `main`/수동 workflow로 운영한다. 최소 task는 `:app:shared:compileKotlinIosSimulatorArm64`; simulator test를 gate로 선택하면 `:app:shared:iosSimulatorArm64Test`를 사용한다.
 
-Stage 1.1 문서 PR은 workflow 파일을 추가하지 않는다. 구현 PR에서 실제 `firestoreEmulatorTest` task와 emulator bootstrap이 생긴 뒤 CI를 함께 연결한다.
+`ci.yml`은 Node 22, Java 21, pinned `firebase-tools@15.25.1`의 foreground `emulators:exec`로 Firestore를 시작·ready 확인·`:server:test :server:firestoreEmulatorTest :server:build :server:installDist` 실행·cleanup한다. KMP Android host, Android unit/lint, packaged `/health`와 notification-route fail-closed smoke도 credential 없이 실행한다. Patch whitespace 검사는 PR에서는 base SHA와 head SHA의 범위, `main` push에서는 event before와 head SHA의 범위를 검사하며, `app/**` zero-touch는 이 Stage 1.1 branch evidence이지 향후 app PR을 막는 permanent CI rule이 아니다.
 
 ## Planned `deploy-server.yml`
 
@@ -231,9 +231,9 @@ smoke 성공 뒤 새 revision으로 traffic을 전환하고 post-switch health�
 
 | Evidence | Stage 1.1 | Stage 2 |
 | --- | --- | --- |
-| Server unit/build/installDist | GREEN required | final rerun |
-| Firestore SDK + Emulator | GREEN required | production smoke |
-| Fake App Check/FCM | GREEN required | replaced by real adapters |
+| Server unit/build/installDist | GREEN — 2026-07-31 | final rerun |
+| Firestore SDK + Emulator | GREEN — 2026-07-31 | production smoke |
+| Fake App Check/FCM | GREEN — 2026-07-31 | replaced by real adapters |
 | App Android/iOS Firebase integration | NOT RUN — Stage 2 | required |
 | Real App Check/FCM | NOT RUN — Stage 2 | required |
 | Production Firestore/IAM/index | NOT RUN — Stage 2 | required |

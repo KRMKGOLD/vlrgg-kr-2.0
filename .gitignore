@@ -79,6 +79,13 @@ build/
 # Local configuration file
 local.properties
 
+# Firebase Emulator runtime logs
+firebase-debug.log
+firestore-debug.log
+health.json
+notification-route.json
+server-health.log
+
 # AI
 .omx
 .stitch/
