@@ -3,7 +3,7 @@
 ## 문서 상태
 
 - Status: Active
-- Last reviewed: 2026-07-12
+- Last reviewed: 2026-07-30
 - Product scope: VLR.GG Mobile Tracker 1차 MVP
 - Design source: [`../../DESIGN.md`](../../DESIGN.md)
 - App architecture: [`../app-arch/app-arch.md`](../app-arch/app-arch.md)
@@ -35,20 +35,22 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | 5 | Match Detail Basic, Series Detail | [`matches/README.md`](matches/README.md), [`series/README.md`](series/README.md) |
 | Cross-feature | MyPage, Team·Player·Match 즐겨찾기, Match 알림, About | [`my-page/README.md`](my-page/README.md), [`about/README.md`](about/README.md) |
 
-## 구현 상태 (2026-07-22)
+## 구현 상태 (2026-07-30)
 
-아래 상태는 원격 `main`의 `d220a69b59d4863c0ade0e09c77c1192c36bba95` 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. `app/shared`는 아직 템플릿 단계이므로, 앱 화면·원격 DTO/Domain 매핑·내비게이션·로컬 즐겨찾기 구현은 이 표의 모든 feature에서 미구현이다.
+아래 상태는 원격 `main`의 `ed02f9c4d7ea9a4222b59af822859bf56ab76116` 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. 서버 공통 기반에는 공개 콘텐츠 route의 런타임 OpenAPI/Swagger 문서가 구현되어 있다.
+
+앱 공통 기반은 feature 구현과 분리해서 판단한다. `DESIGN.md` Step 1의 Light theme, Typography, `VlrButton`, `VlrIconButton`, `VlrSearchField`, `StatusChip`은 `app/shared`에 구현되어 있다. 실제 feature 화면, Navigation 3, Metro DI, remote DTO/Domain/Data 계층, 로컬 즐겨찾기, Match 알림 App 연동은 미구현이며, physical Android/iOS의 시각·접근성 검증도 완료되지 않았다.
 
 | Feature slice | Backend | App |
 | --- | --- | --- |
-| News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | 미구현 |
-| Matches | 콘텐츠 조회 구현 완료 — Upcoming/Results 목록과 Match Detail API. 알림 구독·scheduler·delivery는 미구현 | 미구현 |
-| Events | 구현 완료 — 목록, 상세, Matches, News, Stats API | 미구현 |
-| Search | 구현 완료 — Series/Event/Team/Player 결과 API | 미구현 |
-| Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | 미구현 |
-| Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | 미구현 |
-| Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | 미구현 |
-| MyPage, 즐겨찾기, Match 알림, About | Match 알림의 서버 구독·polling·delivery 미구현 | 앱 로컬 저장·권한 흐름 미구현 |
+| News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | Feature 미구현 — 공통 디자인 시스템 Step 1만 사용 가능 |
+| Matches | 콘텐츠 조회 구현 완료 — Upcoming/Results 목록과 Match Detail API | Feature 미구현 — 목록·상세·내비게이션 없음 |
+| Events | 구현 완료 — 목록, 상세, Matches, News, Stats API | Feature 미구현 |
+| Search | 구현 완료 — Series/Event/Team/Player 결과 API | Feature 미구현 |
+| Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | Feature 미구현 |
+| Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | Feature 미구현 |
+| Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | Feature 미구현 |
+| MyPage, 즐겨찾기, Match 알림, About | Match 알림 Wave A/B/C 핵심 구현 존재 — local/private 구독·추적·offline Firebase provider/delivery. intent-ID redaction과 bounded observability가 남아 Stage 1 normative acceptance는 미완료이며, Stage 2 live smoke와 Stage 3 public/production도 미완료 | Feature 미구현 — 로컬 저장·권한·FCM registration 연동 없음 |
 
 ## MVP 제외 범위
 
@@ -170,7 +172,7 @@ MyPage ─────────────────→ Favorite Team / Pl
 - 완료된 경기의 추적과 구독 작업을 종료한다.
 - 경기 취소·연기·시간 변경·upstream 누락은 내부 상태로 구분한다.
 
-target/subscription의 상세 의미는 [Matches 추적 계약](matches/README.md#10분-match-추적-및-알림-contract), current-target OFF는 [Matches 전역 알림 계약](matches/README.md#전역-알림-off), registration 동기화·provider-invalid target 정리·credential 경계는 [서버 아키텍처 문서](../architecture/server-arch.md#match-notification-planned-exception)가 소유한다.
+target/subscription의 상세 의미는 [Matches 추적 계약](matches/README.md#10분-match-추적-및-알림-contract), current-target OFF는 [Matches 전역 알림 계약](matches/README.md#전역-알림-off), registration 동기화·provider-invalid target 정리·credential 경계는 [서버 아키텍처 문서](../architecture/server-arch.md#match-notification-stage-1-구현과-후속-gate)가 소유한다.
 
 알림 권한과 앱 설정은 다음 흐름을 따른다.
 
