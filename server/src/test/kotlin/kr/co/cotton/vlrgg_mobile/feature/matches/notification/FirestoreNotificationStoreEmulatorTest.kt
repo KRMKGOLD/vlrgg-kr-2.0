@@ -184,6 +184,22 @@ class FirestoreNotificationStoreEmulatorTest {
         assertEquals(1, intents.whereEqualTo("state", DeliveryState.CALL_STARTED.name).get().get().size())
     }
 
+    @Test fun `claim isolates an intent missing its match ID without staging a lease`() {
+        val targetId = UUID.randomUUID().toString()
+        firestore.collection("notificationTargets").document(targetId)
+            .set(mapOf("sendable" to true, "registrationToken" to "missing-match-id-token")).get()
+        val intent = firestore.collection("deliveryIntents").document("missing-match-id")
+        intent.set(mapOf("state" to DeliveryState.PENDING.name, "targetId" to targetId, "attempt" to 0L)).get()
+
+        assertNull(store.claimDueDelivery())
+
+        val row = intent.get().get()
+        assertEquals(DeliveryState.UNKNOWN.name, row.getString("state"))
+        assertEquals("INTENT_MISSING_MATCH_ID", row.getString("terminalReason"))
+        assertNull(row.getString("claimToken"))
+        assertNull(row.getLong("leaseUntil"))
+    }
+
     @Test fun `expired recovery backlogs reserve a claim write below Firestore transaction limit`() {
         val intents = firestore.collection("deliveryIntents")
         val expiredLease = Instant.parse("2025-01-01T00:00:00Z").toEpochMilli()

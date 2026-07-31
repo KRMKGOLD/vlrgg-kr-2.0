@@ -37,27 +37,27 @@ internal fun Application.configureNotificationTargetRoutes(
             try { store.registerOnIo(request.registrationToken).also { call.respond(HttpStatusCode.Created, RegisterTargetResponse(it.targetId, it.targetSecret, it.revision.toString())) } }
             catch (_: IllegalArgumentException) { call.invalid() }
         }
-        get("/{targetId}") { call.authorizeAndGet(store, verifier, allowedAppIds)?.let { call.respond(TargetStateResponse(it.targetId, it.revision.toString(), it.sendable, it.subscriptions.map { s -> TargetSubscriptionResponse(s.matchId.toString(), s.enabled) })) } }
+        get("/{targetId}") { call.authorizeAndGet(store, verifier, allowedAppIds)?.target?.let { call.respond(TargetStateResponse(it.targetId, it.revision.toString(), it.sendable, it.subscriptions.map { s -> TargetSubscriptionResponse(s.matchId.toString(), s.enabled) })) } }
         put("/{targetId}/registration-token") {
             val auth = call.authorizeAndGet(store, verifier, allowedAppIds) ?: return@put; val request = call.readBody<RefreshRegistrationTokenRequest>(maximumBodyBytes) ?: return@put
-            call.respondMutation(call.mutate { store.refreshRegistrationTokenOnIo(auth.targetId, call.targetSecret()!!, request.registrationToken, request.expectedRevision.canonicalRevision()) }, "registration_token_refreshed")
+            call.respondMutation(call.mutate { store.refreshRegistrationTokenOnIo(auth.target.targetId, auth.secret, request.registrationToken, request.expectedRevision.canonicalRevision()) }, "registration_token_refreshed")
         }
         put("/{targetId}/match-subscriptions/{matchId}") {
             val auth = call.authorizeAndGet(store, verifier, allowedAppIds) ?: return@put
             val rawMatch = call.parameters["matchId"]
             val match = rawMatch?.takeIf { Regex("^[1-9][0-9]*$").matches(it) }?.toLongOrNull() ?: return@put call.invalid()
             val request = call.readBody<SetMatchSubscriptionRequest>(maximumBodyBytes) ?: return@put
-            val revision = call.mutate { store.setSubscriptionOnIo(auth.targetId, call.targetSecret()!!, match, request.enabled, request.expectedRevision.canonicalRevision()) }
+            val revision = call.mutate { store.setSubscriptionOnIo(auth.target.targetId, auth.secret, match, request.enabled, request.expectedRevision.canonicalRevision()) }
             if (revision != null) call.respond(MatchSubscriptionResponse(match.toString(), request.enabled, revision.toString()))
         }
         put("/{targetId}/match-subscriptions") {
             val auth = call.authorizeAndGet(store, verifier, allowedAppIds) ?: return@put; val request = call.readBody<SetAllMatchSubscriptionsRequest>(maximumBodyBytes) ?: return@put
             if (request.enabled) return@put call.invalid()
-            call.respondMutation(call.mutate { store.disableAllOnIo(auth.targetId, call.targetSecret()!!, request.expectedRevision.canonicalRevision()) }, "all_subscriptions_disabled")
+            call.respondMutation(call.mutate { store.disableAllOnIo(auth.target.targetId, auth.secret, request.expectedRevision.canonicalRevision()) }, "all_subscriptions_disabled")
         }
         post("/{targetId}/revoke") {
             val auth = call.authorizeAndGet(store, verifier, allowedAppIds) ?: return@post; val request = call.readBody<RevokeTargetRequest>(maximumBodyBytes) ?: return@post
-            call.respondMutation(call.mutate { store.revokeOnIo(auth.targetId, call.targetSecret()!!, request.expectedRevision.canonicalRevision()) }, "revoked")
+            call.respondMutation(call.mutate { store.revokeOnIo(auth.target.targetId, auth.secret, request.expectedRevision.canonicalRevision()) }, "revoked")
         }
     }
 }
@@ -66,14 +66,17 @@ private suspend fun ApplicationCall.verifyApp(verifier: AppCheckVerifier, allowe
     val raw = request.headers["X-Firebase-AppCheck"] ?: return appFailed()
     return if (verifier.verify(AppCheckEvidence(raw))?.firebaseAppId in allowed) true else appFailed()
 }
-private suspend fun ApplicationCall.authorizeAndGet(store: FirestoreNotificationStore, verifier: AppCheckVerifier, allowed: Set<String>): TargetRecord? {
+private data class AuthorizedTarget(val target: TargetRecord, val secret: String)
+
+private suspend fun ApplicationCall.authorizeAndGet(store: FirestoreNotificationStore, verifier: AppCheckVerifier, allowed: Set<String>): AuthorizedTarget? {
     if (!verifyApp(verifier, allowed)) return null
     val targetId = parameters["targetId"] ?: return targetFailed()
     if (runCatching { requireCanonicalTargetId(targetId) }.isFailure) {
         invalid()
         return null
     }
-    return try { store.readAuthorizedOnIo(targetId, targetSecret() ?: return targetFailed()) ?: targetFailed() } catch (_: IllegalArgumentException) { targetFailed() }
+    val secret = targetSecret() ?: return targetFailed()
+    return try { store.readAuthorizedOnIo(targetId, secret)?.let { AuthorizedTarget(it, secret) } ?: targetFailed() } catch (_: IllegalArgumentException) { targetFailed() }
 }
 private fun ApplicationCall.targetSecret(): String? {
     val target = parameters["targetId"] ?: return null

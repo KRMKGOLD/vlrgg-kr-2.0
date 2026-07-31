@@ -11,7 +11,6 @@ interface MatchObservationProvider { suspend fun observe(matchId: Long): Observa
 data class NotificationSchedulerPolicy(
     val deadlineSeconds: Long = 500, val activeMatchLimit: Int = 100, val fanoutBatchSize: Int = 100,
     val deliveryBatchSize: Int = 500, val leaseSeconds: Long = 550, val fanoutReserveSeconds: Long = 10,
-    val clockSkewSeconds: Long = 5,
 )
 
 data class SchedulerResult(val leaseAcquired: Boolean, val matchesScanned: Int, val deadlineReached: Boolean)
@@ -57,6 +56,7 @@ class NotificationSchedulerUseCase(
             val pending = store.pendingFanoutMatchIdsOnIo()
             var progressed = false
             pending.forEach { matchId ->
+                if (!batchMayStart()) return
                 if (store.resumeStartFanoutOnIo(matchId, policy.fanoutBatchSize)) progressed = true
             }
             if (!progressed) return

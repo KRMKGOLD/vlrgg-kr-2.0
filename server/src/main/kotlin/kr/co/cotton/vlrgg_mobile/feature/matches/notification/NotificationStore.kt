@@ -19,7 +19,6 @@ import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
 
 /** The only production-facing App Check boundary. Real verification belongs to Stage 2. */
@@ -61,6 +60,10 @@ class RevisionExhaustedException : RuntimeException()
  * combined write maximum deliberately below Firestore's 500-write transaction limit.
  */
 internal object FirestoreNotificationStoreLimits {
+    const val FIRESTORE_RPC_TIMEOUT_MILLIS = 30_000L
+    const val TRANSACTION_MAX_ATTEMPTS = 5
+    const val MAX_ACTIVE_UNIQUE_MATCHES = 100
+    const val MAX_ENABLED_SUBSCRIPTIONS_PER_TARGET = 100
     const val EXPIRED_CALL_STARTED_RECOVERY_LIMIT = 200
     const val EXPIRED_PRE_CALL_RECOVERY_LIMIT = 200
     const val CLAIM_WRITE_RESERVE = 1
@@ -69,9 +72,6 @@ internal object FirestoreNotificationStoreLimits {
 
 /** Explicit emulator-only client construction: it never discovers ADC or a production project. */
 object EmulatorFirestoreClientFactory {
-    internal const val EMULATOR_RPC_TOTAL_TIMEOUT_MILLIS = 30_000L
-    internal const val EMULATOR_TRANSACTION_MAX_ATTEMPTS = 2
-
     fun create(environment: Map<String, String> = System.getenv()): Firestore {
         val host = environment["FIRESTORE_EMULATOR_HOST"]?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("FIRESTORE_EMULATOR_HOST is required")
@@ -106,7 +106,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
         firestore.runTransaction(
             block,
             TransactionOptions.createReadWriteOptionsBuilder()
-                .setNumberOfAttempts(EmulatorFirestoreClientFactory.EMULATOR_TRANSACTION_MAX_ATTEMPTS)
+                .setNumberOfAttempts(FirestoreNotificationStoreLimits.TRANSACTION_MAX_ATTEMPTS)
                 .build(),
         )
 
@@ -126,7 +126,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
     internal suspend fun markDeliveryCallStartedOnIo(claim: DeliveryClaim, lease: Duration = Duration.ofMinutes(2)): DeliveryCall? = firestoreIo { markDeliveryCallStarted(claim, lease) }
     internal suspend fun finalizeDeliveryOnIo(call: DeliveryCall, state: DeliveryState, reason: String? = null, dueAt: Instant? = null): Boolean = firestoreIo { finalizeDelivery(call, state, reason, dueAt) }
 
-    fun register(registrationToken: String): RegisteredTarget {
+    internal fun register(registrationToken: String): RegisteredTarget {
         requireToken(registrationToken)
         val id = UUID.randomUUID().toString()
         val secret = TargetSecrets.generate()
@@ -137,7 +137,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
         return RegisteredTarget(id, secret, 1)
     }
 
-    fun readAuthorized(targetId: String, secret: String): TargetRecord? {
+    internal fun readAuthorized(targetId: String, secret: String): TargetRecord? {
         requireCanonicalTargetId(targetId)
         val snapshot = targets.document(targetId).get().awaitOperation()
         if (!snapshot.exists() || snapshot.getBoolean("sendable") != true || !TargetSecrets.matches(secret, snapshot.getString("secretHash"))) return null
@@ -147,14 +147,14 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
         return TargetRecord(targetId, snapshot.getLong("revision") ?: 0, true, subs)
     }
 
-    fun refreshRegistrationToken(targetId: String, secret: String, token: String, expectedRevision: Long): Long {
+    internal fun refreshRegistrationToken(targetId: String, secret: String, token: String, expectedRevision: Long): Long {
         requireToken(token)
         return mutate(targetId, secret, expectedRevision, "refresh:$token") { tx, target, _ ->
         tx.update(target, mapOf("registrationToken" to token))
         }
     }
 
-    fun setSubscription(targetId: String, secret: String, matchId: Long, enabled: Boolean, expectedRevision: Long): Long {
+    internal fun setSubscription(targetId: String, secret: String, matchId: Long, enabled: Boolean, expectedRevision: Long): Long {
         require(matchId > 0) { "match ID must be canonical positive decimal" }
         return mutate(targetId, secret, expectedRevision, "subscription:$matchId:$enabled") { tx, target, row ->
             val sub = target.collection("subscriptions").document(matchId.toString())
@@ -162,7 +162,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
             val wasEnabled = old.exists() && old.getBoolean("enabled") == true
             if (wasEnabled == enabled) return@mutate Unit
             val capacity = readSubscriptionCapacity(tx, target, sub, matchId, enabled, old)
-            if (enabled && capacity.count == 0L && capacity.usedCapacity!! >= 100) throw ActiveMatchCapacityExceededException()
+            if (enabled && capacity.count == 0L && capacity.usedCapacity!! >= FirestoreNotificationStoreLimits.MAX_ACTIVE_UNIQUE_MATCHES) throw ActiveMatchCapacityExceededException()
             // Read phase ends above.  Firestore transactions reject every read after the first write.
             updateCapacity(tx, enabled, capacity)
             val fields = mutableMapOf<String, Any>(
@@ -176,11 +176,11 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
         }
     }
 
-    fun disableAll(targetId: String, secret: String, expectedRevision: Long): Long = mutate(targetId, secret, expectedRevision, "global:off") { tx, target, _ ->
+    internal fun disableAll(targetId: String, secret: String, expectedRevision: Long): Long = mutate(targetId, secret, expectedRevision, "global:off") { tx, target, _ ->
         disableEnabledSubscriptions(tx, target)
     }
 
-    fun revoke(targetId: String, secret: String, expectedRevision: Long): Long = mutate(targetId, secret, expectedRevision, "revoke") { tx, target, _ ->
+    internal fun revoke(targetId: String, secret: String, expectedRevision: Long): Long = mutate(targetId, secret, expectedRevision, "revoke") { tx, target, _ ->
         disableEnabledSubscriptions(tx, target)
         tx.update(target, "sendable", false, "registrationToken", null, "revokedAt", now())
     }
@@ -189,7 +189,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
      * Records the result of one observation attempt and schedules the next attempt ten minutes
      * from the store clock. Terminal matches stay terminal and are never reintroduced to polling.
      */
-    fun recordObservation(matchId: Long, status: ObservationStatus?) {
+    internal fun recordObservation(matchId: Long, status: ObservationStatus?) {
         require(matchId > 0)
         transaction { tx ->
             val match = tracked.document(matchId.toString()); val row = tx.get(match).get()
@@ -211,7 +211,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
     }
 
     /** Firestore filters inactive, terminal, and not-yet-due matches before applying the bound. */
-    fun dueActiveMatchIds(limit: Int): List<Long> {
+    internal fun dueActiveMatchIds(limit: Int): List<Long> {
         require(limit in 1..100)
         return tracked
             .whereEqualTo("terminal", false)
@@ -224,7 +224,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
     }
 
     /** Scheduler ownership is a durable lease; no process-local singleton is involved. */
-    fun acquirePollLease(scheduleSlot: String, ownerId: String, lease: Duration): Boolean {
+    internal fun acquirePollLease(scheduleSlot: String, ownerId: String, lease: Duration): Boolean {
         require(scheduleSlot.matches(Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z$")))
         require(ownerId.isNotBlank() && lease.isPositive)
         return transaction { tx ->
@@ -238,7 +238,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
     }
 
     /** Creates at most one deterministic START intent per target/match and checkpoints the cursor atomically. */
-    fun resumeStartFanout(matchId: Long, batchSize: Int): Boolean {
+    internal fun resumeStartFanout(matchId: Long, batchSize: Int): Boolean {
         require(matchId > 0 && batchSize in 1..100)
         val job = firestore.collection("startFanoutJobs").document(matchId.toString())
         return transaction { tx ->
@@ -276,10 +276,10 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
         }.awaitTransaction()
     }
 
-    fun pendingFanoutMatchIds(limit: Int = 100): List<Long> = firestore.collection("startFanoutJobs").whereEqualTo("completed", false).limit(limit).get().awaitOperation().documents.mapNotNull { it.getLong("matchId") }
+    internal fun pendingFanoutMatchIds(limit: Int = 100): List<Long> = firestore.collection("startFanoutJobs").whereEqualTo("completed", false).limit(limit).get().awaitOperation().documents.mapNotNull { it.getLong("matchId") }
 
     /** Claims one due delivery and writes at most [FirestoreNotificationStoreLimits.MAX_CLAIM_TRANSACTION_WRITES] documents. */
-    fun claimDueDelivery(lease: Duration = Duration.ofMinutes(2)): DeliveryClaim? = transaction { tx ->
+    internal fun claimDueDelivery(lease: Duration = Duration.ofMinutes(2)): DeliveryClaim? = transaction { tx ->
         val current = nowMillis()
         val expiredStarted = tx.get(intents.whereEqualTo("state", DeliveryState.CALL_STARTED.name).whereLessThan("leaseUntil", current).limit(FirestoreNotificationStoreLimits.EXPIRED_CALL_STARTED_RECOVERY_LIMIT)).get().documents
         val expiredPreCall = tx.get(intents.whereEqualTo("state", DeliveryState.CLAIMED_NOT_STARTED.name).whereLessThan("leaseUntil", current).limit(FirestoreNotificationStoreLimits.EXPIRED_PRE_CALL_RECOVERY_LIMIT)).get().documents
@@ -287,17 +287,23 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
             ?: tx.get(intents.whereEqualTo("state", DeliveryState.RETRY_WAIT.name).whereLessThanOrEqualTo("dueAt", current).limit(1)).get().documents.firstOrNull()
             ?: expiredPreCall.firstOrNull()
         val targetId = pending?.getString("targetId")
+        val matchId = pending?.getLong("matchId")?.takeIf { it > 0 }
         val target = targetId?.let { tx.get(targets.document(it)).get() }
         // Read phase ends above; recovery and claim writes follow.
         expiredStarted.forEach { tx.update(it.reference, mapOf("state" to DeliveryState.UNKNOWN.name, "terminalReason" to "CALL_STARTED_LEASE_EXPIRED", "updatedAt" to now())) }
         expiredPreCall.forEach { tx.update(it.reference, mapOf("state" to DeliveryState.PENDING.name, "claimToken" to null, "leaseUntil" to null, "updatedAt" to now())) }
-        if (pending == null || targetId == null || target == null) return@transaction null
+        if (pending == null) return@transaction null
+        if (matchId == null) {
+            tx.update(pending.reference, mapOf("state" to DeliveryState.UNKNOWN.name, "terminalReason" to "INTENT_MISSING_MATCH_ID", "claimToken" to null, "leaseUntil" to null, "updatedAt" to now()))
+            return@transaction null
+        }
+        if (targetId == null || target == null) return@transaction null
         if (target.getBoolean("sendable") != true || target.getString("registrationToken") == null) {
             tx.update(pending.reference, mapOf("state" to DeliveryState.INVALID_TARGET.name, "updatedAt" to now())); return@transaction null
         }
         val token = UUID.randomUUID().toString(); val nextAttempt = (pending.getLong("attempt") ?: 0L).toInt() + 1
         tx.update(pending.reference, mapOf("state" to DeliveryState.CLAIMED_NOT_STARTED.name, "claimToken" to token, "leaseUntil" to Math.addExact(current, lease.toMillis()), "updatedAt" to now()))
-        DeliveryClaim(pending.id, targetId, pending.getLong("matchId") ?: return@transaction null, target.getString("registrationToken")!!, token, nextAttempt)
+        DeliveryClaim(pending.id, targetId, matchId, target.getString("registrationToken")!!, token, nextAttempt)
     }.awaitTransaction()
 
     /** The marker commits before a provider call, so cancellation/timeout can never cause an automatic resend. */
@@ -348,7 +354,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
         previous: com.google.cloud.firestore.DocumentSnapshot,
     ): SubscriptionCapacity {
         val active = tx.get(target.collection("subscriptions").whereEqualTo("enabled", true)).get().size()
-        if (enabled && active >= 100) throw SubscriptionLimitExceededException()
+        if (enabled && active >= FirestoreNotificationStoreLimits.MAX_ENABLED_SUBSCRIPTIONS_PER_TARGET) throw SubscriptionLimitExceededException()
         val match = tracked.document(matchId.toString())
         val matchRow = tx.get(match).get()
         val count = matchRow.getLong("enabledTargetCount") ?: 0L
@@ -391,9 +397,7 @@ class FirestoreNotificationStore(private val firestore: Firestore, private val c
     override fun close() = firestore.close()
 }
 
-private suspend fun <T> firestoreIo(block: () -> T): T = withTimeout(EmulatorFirestoreClientFactory.EMULATOR_RPC_TOTAL_TIMEOUT_MILLIS) {
-    withContext(Dispatchers.IO) { block() }
-}
+private suspend fun <T> firestoreIo(block: () -> T): T = withContext(Dispatchers.IO) { block() }
 
 object TargetSecrets {
     private val random = SecureRandom()
@@ -419,27 +423,18 @@ fun deterministicIntentId(targetId: String, matchId: Long): String {
 }
 private fun operationHash(value: String) = sha256(value.toByteArray(UTF_8))
 private fun sha256(value: ByteArray) = MessageDigest.getInstance("SHA-256").digest(value).joinToString("") { "%02x".format(it) }
-internal fun <T> ApiFuture<T>.awaitTransaction(): T = try {
-    get(EmulatorFirestoreClientFactory.EMULATOR_RPC_TOTAL_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
+internal fun <T> ApiFuture<T>.awaitTransaction(): T = awaitFirestore("transaction")
+private fun <T> ApiFuture<T>.awaitOperation(): T = awaitFirestore("operation")
+private fun <T> ApiFuture<T>.awaitFirestore(label: String): T = try {
+    get(FirestoreNotificationStoreLimits.FIRESTORE_RPC_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
 } catch (error: ExecutionException) {
     throw normalizeFirestoreTransactionFailure(error)
 } catch (error: InterruptedException) {
     Thread.currentThread().interrupt()
-    throw IllegalStateException("Firestore transaction interrupted", error)
+    throw IllegalStateException("Firestore $label interrupted", error)
 } catch (error: TimeoutException) {
     cancel(true)
-    throw IllegalStateException("Firestore transaction timed out", error)
-}
-private fun <T> ApiFuture<T>.awaitOperation(): T = try {
-    get(EmulatorFirestoreClientFactory.EMULATOR_RPC_TOTAL_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
-} catch (error: ExecutionException) {
-    throw normalizeFirestoreTransactionFailure(error)
-} catch (error: InterruptedException) {
-    Thread.currentThread().interrupt()
-    throw IllegalStateException("Firestore operation interrupted", error)
-} catch (error: TimeoutException) {
-    cancel(true)
-    throw IllegalStateException("Firestore operation timed out", error)
+    throw IllegalStateException("Firestore $label timed out", error)
 }
 internal fun normalizeFirestoreTransactionFailure(error: Throwable): RuntimeException {
     var cause = error
