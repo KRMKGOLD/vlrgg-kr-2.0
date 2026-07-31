@@ -1,6 +1,6 @@
 # ADR-0002: Stage 1.1 offline Firestore and anonymous Target boundary
 
-- Status: Accepted; implementation pending
+- Status: Accepted; Stage 1.1 offline implementation GREEN
 - Date: 2026-07-31
 - Decision scope: Match notification Stage 1.1 server and offline verification
 - Supersedes: [ADR-0001](0001-match-notification-stage1-storage-and-provider-boundary.md) for persistence, target authority, event scope, provider lifecycle and scheduling
@@ -41,7 +41,7 @@ Stage 1.1은 production-facing `AppCheckVerifier`와 `NotificationProvider` 계�
 
 MVP event는 `START`만 지원한다. `END`는 제거한다. scheduler는 process-owned background loop가 아니라 `NotificationSchedulerUseCase(scheduleSlot, requestOwnerId)` 한 번의 bounded 요청이다. Firestore lease가 동일 slot의 단일 owner를 정하고 persistent fan-out cursor와 delivery state가 요청 종료·crash 후 재개를 보장한다.
 
-10분은 외부 Scheduler가 요청할 desired 간격이다. Stage 1.1은 test harness로 같은 use case를 검증하며 public Scheduler route를 등록하지 않는다. Google OIDC route와 Cloud Scheduler resource는 Stage 2가 소유한다.
+10분은 외부 Scheduler가 요청할 desired 간격이다. Stage 1.1은 active unique Match를 처음 만들 때 즉시 due로 기록하고, 각 observation attempt 뒤 store clock 기준 10분 후 `nextCheckAt`으로 전진시킨다. query는 due, non-terminal, enabled Match만 `activeMatchLimit`까지 읽으므로 scheduler가 non-due 작업을 스캔하지 않는다. Stage 1.1은 test harness로 같은 use case를 검증하며 public Scheduler route를 등록하지 않는다. Google OIDC route와 Cloud Scheduler resource는 Stage 2가 소유한다.
 
 ### Delivery ambiguity
 
@@ -86,3 +86,5 @@ Stage 2 작업량은 줄 수 있으나 실제 project/token/network 없이 produ
 - packaged notification-disabled `/health` smoke GREEN
 - `app/**` 변경 없음
 - 실제 App/Firebase/GCP/Cloud Run 행은 정확히 `NOT RUN — Stage 2`
+
+2026-07-31에 위 offline criteria는 credential-free server test/build/installDist, foreground Firestore Emulator suite, generated launcher smoke, and no-`app/**` branch diff evidence로 GREEN이다. 실제 App/Firebase/GCP/Cloud Run 검증은 이 결과에 포함되지 않으며 `NOT RUN — Stage 2`로 남는다.

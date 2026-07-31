@@ -17,10 +17,7 @@ kotlin = "2.4.0"
 ktor = "3.5.0"
 logback = "1.5.34"
 material3 = "1.11.0-alpha07"
-firebaseAdmin = "9.10.0"
-flyway = "13.0.0"
-h2 = "2.4.240"
-hikari = "6.3.0"
+googleCloudFirestore = "3.42.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -54,10 +51,7 @@ ktor-serverRoutingOpenapi = { module = "io.ktor:ktor-server-routing-openapi-jvm"
 ktor-serverSwagger = { module = "io.ktor:ktor-server-swagger-jvm", version.ref = "ktor" }
 ktor-clientCio = { module = "io.ktor:ktor-client-cio-jvm", version.ref = "ktor" }
 ktor-clientMock = { module = "io.ktor:ktor-client-mock-jvm", version.ref = "ktor" }
-firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebaseAdmin" }
-flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
-h2 = { module = "com.h2database:h2", version.ref = "h2" }
-hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
+google-cloud-firestore = { module = "com.google.cloud:google-cloud-firestore", version.ref = "googleCloudFirestore" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

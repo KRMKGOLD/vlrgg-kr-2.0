@@ -7,7 +7,7 @@
 ## 구현 상태 (2026-07-31)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
-- **Backend Match 알림/구독: Stage 1 코드 존재, Stage 1.1 구현 전.** 현재 H2/Flyway, registration-value loopback API, process-owned fixed-delay loop, START/END intent와 Firebase Admin adapter가 존재한다. Firestore Emulator, 익명 Target ID/Secret, START-only, request-bound scheduler로 교체하는 Stage 1.1은 설계만 승인됐으며 아직 GREEN 구현이 아니다. 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md), [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](../../architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
+- **Backend Match 알림/구독: Stage 1.1 server offline GREEN.** Firestore Emulator, 익명 Target ID/Secret, START-only, request-bound scheduler로 Stage 1 runtime을 교체했고 credential-free contract/emulator/package evidence가 GREEN이다. 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md), [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](../../architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
 - **App: 미구현/Stage 2.** 목록·상세 UI, 내비게이션, 로컬 Match 즐겨찾기, Target credential, App Check/FCM, 권한과 전역 알림 흐름은 Stage 1.1 범위가 아니다.
 
 ## 목적과 사용자 가치

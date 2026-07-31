@@ -1,113 +1,63 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches.notification
 
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.withContext
-import org.slf4j.LoggerFactory
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
-import java.util.concurrent.atomic.AtomicBoolean
-import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
-import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
-import kr.co.cotton.vlrgg_mobile.feature.matches.MatchStatus
-import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesService
+import kotlinx.coroutines.CancellationException
 
-/** The scraper-facing seam keeps network, parse and missing observations distinct. */
-internal interface MatchObservationProvider {
-    suspend fun observe(matchId: Long): MatchObservation
-}
+/** Scheduler-owned observation seam. It has no process loop or background job. */
+interface MatchObservationProvider { suspend fun observe(matchId: Long): ObservationStatus? }
 
-internal sealed interface MatchObservation {
-    data class Success(val status: ObservationStatus) : MatchObservation
-    data object NetworkFailure : MatchObservation
-    data object ParsingFailure : MatchObservation
-    data object Missing : MatchObservation
-}
+data class NotificationSchedulerPolicy(
+    val deadlineSeconds: Long = 500, val activeMatchLimit: Int = 100, val fanoutBatchSize: Int = 100,
+    val deliveryBatchSize: Int = 500, val leaseSeconds: Long = 550, val clockSkewSeconds: Long = 5,
+)
 
-internal class MatchesServiceObservationProvider(private val matchesService: MatchesService) : MatchObservationProvider {
-    override suspend fun observe(matchId: Long): MatchObservation = try {
-        when (matchesService.getMatch(matchId.toString()).status) {
-            MatchStatus.UPCOMING -> MatchObservation.Success(ObservationStatus.UPCOMING)
-            MatchStatus.LIVE -> MatchObservation.Success(ObservationStatus.LIVE)
-            MatchStatus.COMPLETED -> MatchObservation.Success(ObservationStatus.COMPLETED)
-            MatchStatus.POSTPONED -> MatchObservation.Success(ObservationStatus.POSTPONED)
-            MatchStatus.CANCELLED -> MatchObservation.Success(ObservationStatus.CANCELLED)
-            MatchStatus.UNAVAILABLE -> MatchObservation.Missing
-        }
-    } catch (_: UpstreamNetworkFailure) {
-        MatchObservation.NetworkFailure
-    } catch (_: SourceParsingFailure) {
-        MatchObservation.ParsingFailure
-    }
-}
+data class SchedulerResult(val leaseAcquired: Boolean, val matchesScanned: Int, val deadlineReached: Boolean)
 
-/** One cycle snapshots unique active IDs and never lets one upstream failure stop another Match. */
-internal class MatchTracker(
-    private val store: NotificationStore,
-    private val provider: MatchObservationProvider,
+/** One bounded invocation. Scheduler/OIDC ownership is intentionally outside this use case. */
+class NotificationSchedulerUseCase(
+    private val store: FirestoreNotificationStore, private val observations: MatchObservationProvider,
+    private val policy: NotificationSchedulerPolicy = NotificationSchedulerPolicy(),
+    private val delivery: NotificationDeliveryService? = null,
     private val clock: Clock = Clock.systemUTC(),
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val logUnexpectedObservation: (Long) -> Unit = { matchId -> logger.warn("notification_tracking_failure matchId={} category=UNEXPECTED_OBSERVATION_FAILURE", matchId) },
 ) {
-    suspend fun runCycle() {
-        withContext(ioDispatcher) { store.activeMatchIds() }.forEach { matchId ->
-            val result = try { provider.observe(matchId) } catch (error: CancellationException) { throw error } catch (_: Exception) {
-                logUnexpectedObservation(matchId)
+    suspend fun run(scheduleSlot: String, requestOwnerId: String): SchedulerResult {
+        require(canonicalScheduleSlot(scheduleSlot))
+        require(requestOwnerId.isNotBlank())
+        if (!store.acquirePollLease(scheduleSlot, requestOwnerId, Duration.ofSeconds(policy.leaseSeconds))) return SchedulerResult(false, 0, false)
+        val deadline = Instant.now(clock).plusSeconds(policy.deadlineSeconds)
+        fun batchMayStart() = Instant.now(clock).plusSeconds(10) <= deadline
+        while (batchMayStart()) {
+            val progressed = store.pendingFanoutMatchIds().any { store.resumeStartFanout(it, policy.fanoutBatchSize) }
+            if (!progressed) break
+        }
+        var scanned = 0
+        for (id in store.dueActiveMatchIds(policy.activeMatchLimit)) {
+            if (Instant.now(clock) >= deadline) return SchedulerResult(true, scanned, true)
+            val status = try {
+                observations.observe(id)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // A failed observation still consumes this Match's cadence and cannot block others.
                 null
             }
-            if (result == null) return@forEach
-            when (result) {
-                is MatchObservation.Success -> withContext(ioDispatcher) { store.recordObservation(matchId, ObservationResult.SUCCESS, result.status, Instant.now(clock)) }
-                MatchObservation.NetworkFailure -> withContext(ioDispatcher) { store.recordObservation(matchId, ObservationResult.NETWORK_FAILURE, now = Instant.now(clock)) }
-                MatchObservation.ParsingFailure -> withContext(ioDispatcher) { store.recordObservation(matchId, ObservationResult.PARSING_FAILURE, now = Instant.now(clock)) }
-                MatchObservation.Missing -> withContext(ioDispatcher) { store.recordObservation(matchId, ObservationResult.MISSING, now = Instant.now(clock)) }
-            }
+            store.recordObservation(id, status)
+            if (status != null) scanned++
         }
-    }
-}
-
-/** Owns a single tracker job: close happens only after cancellation has completed. */
-internal class OwnedTrackingJob(
-    private val job: Job,
-    private val closeStore: () -> Unit,
-) {
-    private val closed = AtomicBoolean(false)
-
-    fun stopWithoutBlockingLifecycleThread() {
-        job.invokeOnCompletion { closeOnce() }
-        job.cancel()
-    }
-
-    suspend fun stopAndJoin() {
-        job.cancelAndJoin()
-        closeOnce()
-    }
-
-    private fun closeOnce() {
-        if (closed.compareAndSet(false, true)) closeStore()
-    }
-}
-
-/** Fixed delay (not fixed rate): the next cycle starts only after the previous cycle completes. */
-internal class FixedDelayMatchPolling(
-    private val runCycle: suspend () -> Unit,
-    private val delayMillis: Long,
-    private val logCycleFailure: () -> Unit = { logger.warn("notification_tracking_failure category=CYCLE_FAILURE") },
-) {
-    constructor(tracker: MatchTracker, delayMillis: Long) : this(tracker::runCycle, delayMillis)
-
-    suspend fun run() {
-        while (currentCoroutineContext().isActive) {
-            try { runCycle() } catch (error: CancellationException) { throw error } catch (_: Exception) { logCycleFailure() }
-            delay(delayMillis)
+        while (batchMayStart()) {
+            val progressed = store.pendingFanoutMatchIds().any { store.resumeStartFanout(it, policy.fanoutBatchSize) }
+            if (!progressed) break
         }
+        if (delivery != null) for (unused in 0 until policy.deliveryBatchSize) {
+            if (Instant.now(clock) >= deadline || !delivery.runOnce()) break
+        }
+        return SchedulerResult(true, scanned, Instant.now(clock) >= deadline)
     }
-}
 
-private val logger = LoggerFactory.getLogger("MatchTracking")
+    private fun canonicalScheduleSlot(value: String): Boolean = runCatching {
+        if (!Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z$").matches(value)) return false
+        Instant.parse(value.dropLast(1) + ":00Z"); true
+    }.getOrDefault(false)
+}

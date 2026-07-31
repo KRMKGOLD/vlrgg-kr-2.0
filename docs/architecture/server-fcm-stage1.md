@@ -1,6 +1,6 @@
 # Server FCM Match Notification — Stage 1.1 offline contract
 
-- Status: Accepted design; implementation pending
+- Status: Stage 1.1 offline server implementation GREEN
 - Last reviewed: 2026-07-31
 - Scope: `server` only, credential-free and offline-verifiable
 - Related: [ADR-0001](adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](adr/0002-match-notification-stage1-1-offline-firestore-boundary.md), [Matches](../feature/matches/README.md), [CI/CD](../ci-cd.md)
@@ -16,6 +16,10 @@
 Stage 1.1의 종료 문구는 다음과 같다.
 
 > All contracts, offline implementation, and offline tests are GREEN. Real FCM and Cloud Run smoke tests remain NOT RUN — Stage 2.
+
+2026-07-31 fresh evidence: `:server:test`, foreground Firestore Emulator `:server:firestoreEmulatorTest`, `:server:build`, `:server:installDist`, and the generated-launcher `/health` plus notification-route fail-closed smoke are GREEN. The PR-level `origin/main...HEAD -- app` check is empty; it is evidence for this Stage 1.1 branch rather than a permanent CI restriction on future app work.
+
+`firestore.indexes.json` snapshots the current collection-group fan-out, due-Match, and delivery compound query shapes for review and later activation. Emulator coverage does not claim production index activation, which remains `NOT RUN — Stage 2`.
 
 ## Product boundary
 
@@ -124,19 +128,19 @@ global OFF endpoint의 `enabled=true`는 `400 INVALID_REQUEST`다. 전체 ON은 
 notificationTargets/{targetId}
   registrationToken, secretHash, revision, operationHash, sendable
   subscriptions/{matchId}
-    enabled, revision, updatedAt
+    enabled, enabledAt (epoch millis), revision, updatedAt
 
 notificationControl/capacity
   activeUniqueMatchCount
 
 trackedMatches/{matchId}
-  enabledTargetCount, terminal, lastObservation, fanoutCursor
+  enabledTargetCount, terminal, nextCheckAt (epoch millis), startLatchedAt (epoch millis), lastObservation, fanoutCursor
 
 deliveryIntents/{intentId}
-  targetId, matchId, event=START, state, claim, retry, timestamps
+  targetId, matchId, event=START, state, claim, dueAt (epoch millis), leaseUntil (epoch millis), timestamps
 
 notificationControl/pollLease
-  ownerId, scheduleSlot, leaseUntil
+  ownerId, scheduleSlot, leaseUntil (epoch millis)
 ```
 
 필수 불변식:
@@ -148,6 +152,7 @@ notificationControl/pollLease
 - 한 `(targetId, matchId, START)`에는 deterministic intent 하나만 존재한다. `intentId`는 `lowercaseHex(SHA-256(lp("vlrgg-match-start-intent-v1") || lp(canonicalTargetId) || lp(canonicalMatchId) || lp("START")))`로 고정한다. `lp(value)`는 UTF-8 byte length를 4-byte unsigned big-endian으로 붙인 length-prefixed encoding이고, `canonicalTargetId`는 위 lowercase hyphenated UUID, `canonicalMatchId`는 부호와 leading zero가 없는 10진수다.
 - 이 `intentId`를 `deliveryIntents` document ID, fan-out create-if-absent, replay 조회, claim과 provider command에 동일하게 사용한다. 기존 document의 natural key가 요청 tuple과 다르면 hash collision 또는 저장소 손상으로 보고 fail-closed하며 새 intent를 만들거나 발송하지 않는다.
 - terminal/revoked/unsendable Target과 Match는 claim/query 대상에서 제외한다.
+- query, ordering, lease, retry due, fan-out eligibility에 쓰는 시간 field(`nextCheckAt`, `startLatchedAt`, `enabledAt`, `leaseUntil`, `dueAt`)은 signed UTC epoch milliseconds로 저장한다. 사람이 읽는 audit timestamp(`createdAt`, `updatedAt` 등)는 ISO-8601 문자열로 남길 수 있다.
 - Emulator가 증명하는 범위는 transaction/query/document mapping이다. production IAM, index readiness, quota와 retry 차이는 Stage 2에서 검증한다.
 
 ## START observation and request-bound scheduling
@@ -156,6 +161,8 @@ notificationControl/pollLease
 - caller는 canonical `scheduleSlot`과 내부 `requestOwnerId`만 전달한다.
 - deadline 500초, active Match 100, fan-out batch 100, delivery batch 500, fan-out batch start reserve 10초, lease 550초, clock skew 5초는 immutable server policy다.
 - poll lease는 Firestore transaction/CAS로 한 owner만 획득한다.
+- 처음 active unique Match가 될 때 `nextCheckAt` epoch milliseconds를 store clock의 현재 시각으로 설정한다. due query는 `enabledTargetCount > 0`, `terminal = false`, `nextCheckAt <= store clock`를 Firestore에서 제한하고 `activeMatchLimit`까지만 반환한다.
+- 관찰 시도(정상 status, status 없음, upstream 실패)는 다음 due를 store clock 기준 10분 뒤로 전진시킨다. terminal 관찰은 `nextCheckAt`을 지우고 terminal 상태를 유지한다.
 - 최초 정상 관찰은 baseline이다. `UPCOMING` 또는 `POSTPONED`에서 `LIVE`로 전환할 때만 START intent를 만든다.
 - 최초 관찰이 이미 LIVE/terminal이거나 repeat, time change, cancelled, missing, network/parsing failure이면 START intent를 만들지 않는다.
 - fan-out은 persistent cursor로 이어서 처리한다. 각 batch 직전 injectable clock의 `now + 10초 <= requestDeadline`일 때만 새 batch를 시작한다. 조건을 만족하지 않으면 현재 cursor를 checkpoint하고 새 write를 시작하지 않은 채 다음 Scheduler 요청에서 resume한다.
