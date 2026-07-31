@@ -1,9 +1,9 @@
 # ADR-0001: Stage 1 Match notification storage and provider boundary
 
-- Status: Accepted decision; core Stage 1 implementation exists, normative acceptance open
+- Status: Superseded in part by [ADR-0002](0002-match-notification-stage1-1-offline-firestore-boundary.md); retained as Stage 1 history
 - Date: 2026-07-29
 - Decision scope: `server` Match notification vertical slice only
-- Related: [Stage 1 technical contract](../server-fcm-stage1.md), [Matches product contract](../../feature/matches/README.md)
+- Related: [Stage 1.1 technical contract](../server-fcm-stage1.md), [ADR-0002](0002-match-notification-stage1-1-offline-firestore-boundary.md), [Matches product contract](../../feature/matches/README.md)
 
 ## Context at decision time
 
@@ -11,7 +11,9 @@ Match notifications needed durable subscription intent, one START and one END in
 
 ## Current implementation status
 
-Stage 1 Wave A/B/C now has the accepted boundary's core implementation: H2/Flyway persistence, local/private desired-state routes, fixed-delay tracking, durable START/END delivery intent, offline-testable Firebase provider adapter, claim/retry processing and owned lifecycle. Normative acceptance remains open because the default delivery failure logger exposes an intent ID and the contract's bounded startup/lifecycle/provider observability is incomplete. This does not supersede the decision, weaken its redaction requirements, or expand its authority. Stage 2 live credential/project and App-supplied target proof, and all Stage 3 public/production concerns, remain deferred.
+Stage 1 Wave A/B/C implemented this decision's H2/Flyway persistence, local/private desired-state routes, fixed-delay tracking, durable START/END delivery intent, offline-testable Firebase provider adapter, claim/retry processing and owned lifecycle. It remains the historical explanation for the current code until Stage 1.1 replaces that runtime.
+
+The later product decision requires an install-scoped anonymous Target, Target Secret authority, START-only MVP delivery, Firestore persistence and request-bound scheduling suitable for Cloud Run scale-to-zero. [ADR-0002](0002-match-notification-stage1-1-offline-firestore-boundary.md) supersedes this ADR for those areas. This ADR still records why the existing Stage 1 code looks as it does and preserves the call-marker/`UNKNOWN` safety rationale adopted by ADR-0002.
 
 ## Decision
 
@@ -32,4 +34,4 @@ Delivery persists intent and call boundaries before asynchronous provider work. 
 
 ## Deferred decisions
 
-Stage 2 owns the credential/project smoke and selected-mode compatibility preflight. Stage 3 owns PostgreSQL, public API authority, public deployment, encryption/KMS, multi-instance worker ownership, and production operations.
+These were the deferred decisions at the time of Stage 1. The current stage ownership is defined by ADR-0002 and the Stage 1.1 contract; in particular PostgreSQL is no longer the planned default and Firestore is selected for this narrow notification state.

@@ -9,6 +9,7 @@
 ```text
 docs/
   README.md
+  ci-cd.md
   feature/
     README.md
     <feature>/
@@ -23,6 +24,7 @@ docs/
     server-fcm-stage1.md
     adr/
       0001-match-notification-stage1-storage-and-provider-boundary.md
+      0002-match-notification-stage1-1-offline-firestore-boundary.md
 ```
 
 | 위치 | 책임 |
@@ -30,6 +32,7 @@ docs/
 | [`feature/`](feature/README.md) | 전체 MVP 지도, 기능별 사용자 흐름, 화면 상태, 노출 데이터, 수용 기준 |
 | [`app-arch/`](app-arch/app-arch.md) | Compose Multiplatform 앱의 모듈·UI·Domain·Data 경계 |
 | [`architecture/`](architecture/server-arch.md) | Ktor 서버, scraping, API 오류, 공통 server policy와 서버 전용 ADR |
+| [`ci-cd.md`](ci-cd.md) | 실제 Gradle task, credential-free CI, Stage 2 Cloud Run/WIF/CD 방향과 gate |
 | [`../DESIGN.md`](../DESIGN.md) | 공통 visual language, component, 접근성, interaction contract |
 | `.omx/` | 임시 계획, 인터뷰, 분석, 검토와 실행 상태 |
 
@@ -64,6 +67,8 @@ docs/
 - Domain 계층: [`app-arch/domain-layer.md`](app-arch/domain-layer.md)
 - Data 계층: [`app-arch/data-layer.md`](app-arch/data-layer.md)
 - 서버 구조: [`architecture/server-arch.md`](architecture/server-arch.md)
-- Match 알림 Stage 1 서버 계약: [`architecture/server-fcm-stage1.md`](architecture/server-fcm-stage1.md)
-- Match 알림 Stage 1 ADR: [`architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md`](architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md)
+- Match 알림 Stage 1.1 서버 계약: [`architecture/server-fcm-stage1.md`](architecture/server-fcm-stage1.md)
+- Match 알림 Stage 1 역사 ADR: [`architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md`](architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md)
+- Match 알림 Stage 1.1 ADR: [`architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md`](architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)
+- CI/CD와 Cloud Run 방향: [`ci-cd.md`](ci-cd.md)
 - 저장소 작업 규칙: [`../AGENTS.md`](../AGENTS.md)
