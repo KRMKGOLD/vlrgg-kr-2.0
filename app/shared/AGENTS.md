@@ -23,3 +23,5 @@
 - RemoteResponse, DTO, Entity, raw exception을 ViewModel이나 UiState에 직접 노출하지 않는다.
 - 공통 component는 실제 재사용이 생긴 뒤 `ui/component`로 이동한다.
 - 새 dependency가 필요하면 먼저 `gradle/libs.versions.toml`과 architecture 문서를 확인한다.
+- KMP 의존성 버전은 Compose Multiplatform 릴리스의 Coordinator/컴포넌트 표를 최우선 호환성 기준으로 삼고, 표에 지정된 alpha/beta 버전도 허용한다. 현재 CMP `1.11.1` 정렬은 Material3 `1.11.0-alpha07`, Lifecycle `2.11.0-beta01`, Navigation 3 `1.1.2`를 따른다.
+- Coordinator 비대상 라이브러리는 필요한 기능이 prerelease에만 제공되는 경우가 아니면 stable 버전을 사용한다.
