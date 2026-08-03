@@ -1,5 +1,10 @@
 # About 기능 기획
 
+## 구현 상태 (2026-08-03)
+
+- **Backend: 해당 없음.** About은 정적 앱 정보와 외부 Source Code 링크만 사용하며 별도 API/scraping이 없다.
+- **App: 미구현.** About root UI, external-link recovery, Search/Bottom Navigation 연결은 아직 구현되지 않았다.
+
 ## 목적과 사용자 가치
 
 About은 앱의 목적과 현재 버전, 코드 공개 위치, 테마 지원 범위, 데이터 출처를 투명하게 안내한다. 사용자는 이 앱이 VLR.GG의 공식 앱이 아닌 개인 포트폴리오 프로젝트임을 이해하고 공개된 source code를 확인할 수 있다.
@@ -74,11 +79,9 @@ About은 앱의 목적과 현재 버전, 코드 공개 위치, 테마 지원 범
 | 상태 | 동작 |
 | --- | --- |
 | Populated | 빌드 버전과 확정된 Source Code 링크를 포함한 모든 정보 영역을 표시한다. |
-| Partial | 외부 앱에서 Source Code 링크를 실행할 수 없으면 나머지 정보를 유지하고 해당 액션에 안전한 안내를 표시한다. |
-| Error | 버전 등 필수 로컬 정보를 읽지 못하면 안전한 대체 표기와 일반화된 안내를 사용한다. |
-| Empty | 제품상 정상적인 전체 empty 상태는 없다. 필수 소개·출처·Theme 정보는 앱에 포함된다. |
-| Loading | 원격 조회가 없으므로 일반적인 콘텐츠 loading은 필요하지 않다. platform 버전 정보 준비가 비동기라면 해당 값만 안정적인 placeholder로 표시한다. |
-| Stale | 정적/빌드 정보 화면이므로 stale 상태를 사용하지 않는다. |
+| Source Link Error | 외부 앱에서 Source Code 링크를 실행할 수 없으면 모든 정보를 유지하고 Snackbar에 `링크 복사` action을 제공한다. |
+| Version unavailable | 버전 조회가 실패하면 해당 값만 안전한 unavailable copy로 대체하며 전체 화면 오류로 만들지 않는다. |
+| Static availability | About은 원격 조회가 없으므로 독립 Loading/Empty/Stale screen을 만들지 않는다. platform 버전 정보 준비가 비동기라면 해당 값만 안정적인 placeholder로 표시한다. |
 
 ## 사용자 인터랙션
 
@@ -94,7 +97,7 @@ About은 앱의 목적과 현재 버전, 코드 공개 위치, 테마 지원 범
 - 앱 소개와 attribution 문구를 제품 리소스로 제공한다.
 - 실제 build version을 platform/shared boundary를 통해 표시한다.
 - Source Code 외부 이동을 platform 방식으로 처리한다.
-- 실패한 외부 이동을 raw platform 오류 없이 사용자에게 안내한다.
+- 실패한 외부 이동을 raw platform 오류 없이 Snackbar로 안내하고 `링크 복사` recovery를 제공한다.
 - Theme 영역은 Light-only MVP 계약을 따른다.
 
 ### 서버
@@ -114,7 +117,7 @@ About은 앱의 목적과 현재 버전, 코드 공개 위치, 테마 지원 범
 - [ ] 앱 소개, 실제 build version, Source Code, Theme, attribution 영역을 표시한다.
 - [ ] Source Code 액션은 `https://github.com/KRMKGOLD/vlrgg-kr-2.0`을 외부 앱으로 연다.
 - [ ] About은 Feedback 액션을 표시하지 않는다.
-- [ ] 외부 이동을 처리할 앱이 없거나 실행이 실패해도 앱이 종료되지 않고 안내를 표시한다.
+- [ ] 외부 이동을 처리할 앱이 없거나 실행이 실패해도 모든 콘텐츠를 유지하고 Snackbar와 `링크 복사` recovery를 표시한다.
 - [ ] Theme 영역은 Light만 현재 지원됨을 표시하고 Dark Mode가 MVP에 포함된 것처럼 동작하지 않는다.
 - [ ] VLR.GG 데이터 출처와 비공식·개인 프로젝트 문맥을 명확히 표시한다.
 - [ ] About은 별도 server API를 호출하지 않는다.

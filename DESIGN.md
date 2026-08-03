@@ -4,20 +4,38 @@
 
 **Status:** Active — Step 1 contract
 
-**Last refreshed:** 2026-07-30
+**Last refreshed:** 2026-08-03
 **Applies to:** Compose Multiplatform UI in `app/shared/src/commonMain`; Android and iOS mobile first.
 
 This is the canonical visual, interaction, and accessibility contract for the app. Feature documents own their data and flows; [the app architecture](docs/app-arch/app-arch.md) owns placement and runtime boundaries. Step 1 ships the Light theme (`Theme.kt`, `Colors.kt`, `Typography.kt`, `Dimensions.kt`) and shared `VlrButton`, `VlrIconButton`, `VlrSearchField`, and `StatusChip` contracts in `commonMain`; this document remains the handoff for feature adoption and visual validation.
 
 ## Evidence and confidence
 
-The contract is grounded in Stitch project metadata (`MOBILE`, `LIGHT`, `ROUND_EIGHT`, custom color `#FF4654`), all 19 screen objects, and downloaded screenshots/HTML for the recurring-component surfaces: **Design System Reference**, **Matches Root Corrected**, **Match Detail Refined**, **Search Root**, **MyPage Root Corrected**, and **About Root Corrected**. The full screen inventory is: News Detail Preview, Search Root, DESIGN.md, News Root, Design System Reference, MyPage Root, Events Root, Events Root Corrected, Matches Root, About Root, Match Detail Root, Event Detail Root, Match Detail Refined, Series Detail Root, Team Detail Root, Matches Root Corrected, Player Detail Root, MyPage Root Corrected, and About Root Corrected.
+The contract uses Stitch project metadata (`MOBILE`, `LIGHT`, `ROUND_EIGHT`, custom color `#FF4654`) and prior project exports as historical visual evidence. The 19 historical Stitch objects, including corrected/duplicate variants such as **Matches Root Corrected**, **Match Detail Refined**, **MyPage Root Corrected**, and **About Root Corrected**, are not the canonical reconstruction or a current implementation baseline. The approved screen-level contract is recorded in this committed `DESIGN.md` and `docs/feature/**`; feature screens and navigation remain unimplemented unless the implementation-status tables explicitly say otherwise.
 
 - **[Observed]** means a value or behavior appears in project metadata, a Stitch source, or a screenshot.
 - **[Normalized]** means the sources differed slightly; this file chooses one durable token without inventing a new visual direction.
 - **[Inferred]** means it is an implementation or accessibility rule required to turn the observed design into a safe shared Compose contract. It is not represented as a Stitch screenshot fact.
 
-The project contains a previous `Tactical Information Architecture` asset and an older reference screen. They are useful evidence but do not override the current project metadata or the corrected product screens. In particular, source exports vary between `#FF4654`/`#FF4655`, `Public Sans`/`Inter`, and nearby neutral values. The normalized tokens below resolve those export differences deliberately.
+The project contains a previous `Tactical Information Architecture` asset, older reference screens, and corrected Stitch exports. They are all historical evidence and do not override the committed canonical contracts in `DESIGN.md` and `docs/feature/**`. Source exports vary between `#FF4654`/`#FF4655`, `Public Sans`/`Inter`, and nearby neutral values; the normalized tokens below resolve those export differences deliberately.
+
+The canonical wireframes are an approved reconstruction brief, not evidence that the current app already implements the 12 product surfaces. Stitch generation and feature implementation are separate follow-up work; this file records the visual contract and validation criteria only.
+
+## Canonical screen contract (2026-08-03)
+
+- Root is fixed five-tab navigation: `News`, `Matches`, `MyPage`, `Events`, `About`; `MyPage` is the default destination. Every root has title + Search. Detail and Search are pushed screens without bottom navigation.
+- Detail top bars use Back plus only feature-required actions: News/Event/Series Back-only, Match Back + bell only for Upcoming/Postponed, Team/Player Back + star. Search is full-screen push, explicit-submit-only, maximum 30 characters; blank or symbol-only input cannot submit.
+- News rows are thumbnail/card-free divider rows whose full bounds open News Detail. Search rows are image-free divided rows with text type labels and full-row navigation.
+- Match Card visual anatomy is shared, but navigation is contextual: Matches Root may expose stable-ID Team/Event nested targets; Event/Team/Player/MyPage Next Matches cards open Match Detail only. Match Detail retains Maps then Head to Head; existing server `pastMatches` may remain in the response but is UI-hidden and belongs to follow-up contract cleanup.
+- MyPage provides no Match favorite feature or group and displays no Match bell. Team favorites are the primary personalization; Player favorites are secondary. The planned `Next Matches` contract aggregates upcoming Matches from favorite Team IDs, dedupes by stable Match ID, sorts by scheduled time, distinguishes no teams/no matches/section failure, reuses Compact Match Card, and opens Match Detail only. No endpoint or DTO is invented here.
+- Event Detail uses `Matches` (default), `News`, `Stats` tabs with per-tab state/scroll preservation. Stats keeps a pinned identity column, horizontally scrolls metrics in `Rounds`/`Rating`/`ACS`/`K-D`/`ADR`/`KAST` order, and only the Player identity cell opens Player Detail. Team/Player Detail use section Empty/missing markers with no generic Partial screen; Series uses full-content loading/error with no generic Partial. About is flat information sections with exact source URL; source-link failure is Snackbar + Copy Link.
+
+## Accessibility and interaction acceptance
+
+- All interactive controls have a reachable 48dp target, programmatic name, visible focus order, and safe-area-aware placement. Modal dialogs trap focus, restore focus on dismissal, and expose explicit actions.
+- Status and Live are written labels, not color-only signals; Live contrast and all normal text/UI boundaries target WCAG 2.2 AA intent (4.5:1 normal text, 3:1 large text/UI boundary where applicable).
+- Tables expose row identity with every metric label; horizontally scrollable metric columns do not remove the pinned identity. Search focus order is Back → field → clear → results.
+- Loading, empty, initial error, pagination error, and mutation states preserve the correct layout/recovery boundary. Snackbar recovery actions remain reachable and are announced; mutation spinners disable the covered screen actions.
 
 ## 1. Visual theme and atmosphere
 
@@ -34,7 +52,7 @@ Use semantic token names in Compose; feature code must not contain raw hex value
 
 | Token | Value | Role and evidence |
 | --- | --- | --- |
-| `AccentLive` | `#FF4654` | Bright Valorant signal for live labels, selected navigation, scores, focus outline, and toggles. **[Observed]** project custom color and corrected screens. |
+| `AccentLive` | `#FF4654` | Bright Valorant signal for live labels, selected navigation, scores, focus outline, and toggles. **[Observed]** project custom color and historical exports. |
 | `AccentLiveContainer` | `#FF4654` at 10% alpha | Quiet live/selected background; keep the full-color foreground separate. **[Observed]** Matches Root Corrected. |
 | `ActionPrimary` | `#D32F2F` | Solid primary and destructive action surface. **[Observed]** Design System Reference. |
 | `OnActionPrimary` | `#FFFFFF` | White label/icon on `ActionPrimary`; `#D32F2F` supplies the accessible action-red, not `AccentLive`. **[Observed]** reference; **[Normalized]** for contrast. |
@@ -158,8 +176,8 @@ The 4dp grid and 16dp horizontal inset are **[Observed]** in the project design 
 **Purpose:** a prominent query input with leading search icon, optional clear action, and separate result/empty regions. **[Observed]** Search Root.
 
 - **Variants:** `Standard` (56dp visual height, pill shape, filled `SurfaceSubtle`, 2dp accent focus border; **[Observed]** Design System Reference) and `Compact` (40dp visual height, 8dp corner, outlined `Surface`; **[Observed]** Search Root). The parent must provide a 48dp reachable clear/back action even for Compact. **[Inferred]**
-- **Content/icon rules:** leading 20–24dp search icon is always visible; placeholder is “팀, 선수, 대회 검색…” or feature-equivalent Korean copy; clear icon appears only for non-empty editable input and has the accessible name “검색어 지우기.” Use a trailing spinner only while a submitted/debounced query is loading. **[Observed]** icon and placeholder; spinner rule **[Inferred]**.
-- **Result rule:** initial state uses a dashed quiet panel with a search/explore icon and instruction; results are 8dp outlined identity rows with 40dp imagery and chevron. **[Observed]** Search Root.
+- **Content/icon rules:** leading 20–24dp search icon is always visible; placeholder is “팀, 선수, 대회 검색…” or feature-equivalent Korean copy; clear icon appears only for non-empty editable input and has the accessible name “검색어 지우기.” Use a trailing spinner only while an explicitly submitted query is loading. **[Observed]** icon and placeholder; spinner rule **[Inferred]**.
+- **Result rule:** initial state uses a quiet panel with a search/explore icon and instruction; results are image-free divided rows with a persistent text type label and available metadata. The full row is the Detail target. **[Approved wireframe contract]**
 
 | State | Visual and behavioral contract |
 | --- | --- |
@@ -171,7 +189,7 @@ The 4dp grid and 16dp horizontal inset are **[Observed]** in the project design 
 | Loading | Keep query and results layout stable; show progress in trailing slot and set busy semantics. **[Inferred]** |
 | Selected | Text selection is platform-owned; the field itself has no selected variant. |
 
-**Semantics and accessibility [Inferred]:** use an editable-text/text-field role with programmatic label, current value, hint, error, and busy state. The clear affordance is a separate labelled button. Search results are individual buttons/links with a combined name (type, name, optional region); decorative logo duplicates are not separately announced. Meet 4.5:1 text contrast and preserve focus order: back, field, clear, then results.
+**Semantics and accessibility [Inferred]:** use an editable-text/text-field role with programmatic label, current value, hint, error, and busy state. The clear affordance is a separate labelled button. Image-free Search results are individual buttons/links with a combined name (type, name, optional region); do not add decorative logo semantics. Meet 4.5:1 text contrast and preserve focus order: back, field, clear, then results.
 
 **Compose mapping [Inferred]:** wrap Material 3 `TextField`/`OutlinedTextField` behavior in `commonMain` only after two features need it. Supply custom `TextFieldColors`, 8dp/pill shapes, leading/trailing slots, `singleLine`, IME search action, and stable state hoisting (`value`, `onValueChange`, `isLoading`, `error`). Do not couple search navigation or server error types to the field.
 
@@ -196,9 +214,30 @@ The 4dp grid and 16dp horizontal inset are **[Observed]** in the project design 
 
 **Compose mapping [Inferred]:** model `StatusChip` as a sealed status value plus localized display label owned by the UI layer; map its colors in theme tokens. It must not expose raw server error codes, exceptions, selectors, URLs, or parser details. Keep it feature-local until the same display/semantics contract is reused by two features.
 
+### 5.5 Divider full-row
+
+**Purpose:** present News and Search results as flat, scan-friendly navigation rows without card or thumbnail decoration.
+
+- Use a 1dp `Outline` divider between rows, with title/name as the strongest text and author/time or type metadata as secondary text.
+- The entire bounded row is one target with a minimum 48dp reachable area; do not create a title-only nested target.
+- Search rows are image-free and carry a visible text type label (`Series`, `Event`, `Team`, or `Player`). There is no logo or decorative image whose semantics need announcing.
+- Supported internal links use link semantics and a persistent cue beyond color; unsupported or external links remain non-routable.
+
+### 5.6 Compact Match Card
+
+**Purpose:** share the match visual anatomy across roots and detail contexts while keeping navigation capability context-aware.
+
+- Stable scan order is status/time rail → two Team identities → score/result → Event or stage context. Live always includes a written `LIVE` label.
+- Use a low-emphasis 1dp outline and compact spacing; avoid decorative elevation. Team logo/image failure uses a same-size neutral placeholder and preserves the adjacent name.
+- The non-link surface opens Match Detail. Only Matches Root may expose nested Team/Event targets, and only when stable IDs are present; Event, Team, Player, and MyPage `Next Matches` cards open Match Detail only. Event context is `stage` when the parent Event is already visible.
+- Nested targets have distinct semantics, do not overlap the card target, and remain reachable at 48dp. Team identity is not a target when the current response has no Team ID.
+
 ## 6. Navigation, feedback, and accessibility rules
 
 - **Navigation:** the observed mobile shell is News, Matches, MyPage, Events, About; each item has icon and always-visible label. Selection uses red icon/text with a subtle red container. Search is reached from app-bar action and returns to the prior destination. **[Observed]** screens; navigation implementation remains governed by [app runtime](docs/app-arch/app-runtime.md).
+- **Detail bars:** News/Event/Series use Back-only; Match uses Back plus a bell only for Upcoming/Postponed; Team/Player use Back plus a favorite star. Detail screens and Search are pushed destinations without bottom navigation.
+- **Favorite mutation recovery:** Team/Player Add failure restores star OFF; Remove failure keeps star ON. Both expose an actionable Retry Snackbar and never block the entire screen. Match notification mutation uses the separate bell contract and modal blocking spinner described below.
+- **Mutation feedback:** Match notification subscribe/unsubscribe shows a modal scrim and centered spinner while disabling all covered-screen actions; subscribe failure keeps the bell OFF, unsubscribe failure keeps it ON, and each provides an announced Snackbar Retry action.
 - **Loading:** preserve app chrome and final content geometry with a spinner or skeleton. Do not replace an entire populated screen with a spinner for a local refresh. **[Observed]** matches footer/reference skeleton; **[Inferred]** refresh rule.
 - **Empty and error:** distinguish no results, unavailable data, and load failure. Use concise Korean recovery copy and an explicit retry only when retry is meaningful. Do not reveal HTTP status, exception text, upstream URLs, selectors, or raw HTML. **[Inferred]** from the project/server boundary.
 - **Interaction:** visible focus follows visual reading order; hover may add feedback on pointer targets but never reveals an essential action. Pressed feedback must be short and must not delay live information. **[Inferred]**

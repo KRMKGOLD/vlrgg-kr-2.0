@@ -2,7 +2,7 @@
 
 ## 목적과 사용자 가치
 
-Events 기능은 사용자가 Valorant 대회의 현재 진행 상태를 훑고, 선택한 Event의 경기와 관련 뉴스를 한곳에서 탐색하게 한다. Event List는 진행 중·예정·종료/중단 Event를 구분해 발견하는 진입점이며, Event Detail은 해당 대회의 기본 정보와 `Matches All`, `News List`, 기본 통계를 연결하는 허브다.
+Events 기능은 사용자가 Valorant 대회의 현재 진행 상태를 훑고, 선택한 Event의 경기·뉴스·통계를 탭으로 탐색하게 한다. Event List는 진행 중·예정·종료/중단 Event를 구분해 발견하는 진입점이며, Event Detail은 `Matches`(기본), `News`, `Stats` 탭을 연결하는 허브다.
 
 이 문서는 제품 동작을 정의한다. 색상, 타이포그래피, 공통 컴포넌트와 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
@@ -25,11 +25,10 @@ Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 ### Event Detail
 
 - Event 기본 정보
-- 해당 Event의 전체 경기 목록인 `Matches All`
-- 해당 Event의 `News List`
-- Event 기본 통계
+- `Matches`, `News`, `Stats` 탭 (`Matches` 기본)
 - Match 선택 시 Match Detail 이동
 - News 선택 시 News Detail 이동
+- Stats의 pinned Player identity cell 선택 시 Player Detail 이동
 
 ## 명시적 제외 범위
 
@@ -74,12 +73,13 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 
 ### Event Detail
 
-1. Event 기본 정보와 현재 상태
-2. `Matches All`
-3. `News List`
-4. 기본 통계
+1. Back-only Top App Bar
+2. Event 기본 정보와 현재 상태
+3. `Matches` 탭
+4. `News` 탭
+5. `Stats` 탭
 
-정보가 많은 경우 위 섹션은 탭 또는 명확히 구분된 세로 섹션으로 표현할 수 있다. 어떤 표현을 사용하더라도 Event 정체성과 상태가 가장 먼저 읽혀야 하며, Matches와 News로의 이동 경로가 통계보다 우선한다.
+탭별 loading, empty, error와 scroll position을 독립 보존한다. Matches가 기본 탭이며 Event identity는 탭 전환·재시도 중에도 유지한다.
 
 ## 노출 데이터
 
@@ -98,7 +98,7 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 - 원본에 존재하는 일정 또는 기간
 - Event를 식별하는 이미지·지역·시리즈 등 기본 메타데이터는 parser contract에서 존재 여부와 선택성을 확인한 뒤 노출한다.
 
-### Matches All
+### Matches tab (Matches All API source)
 
 - Match 식별자
 - 경기 시간과 상태
@@ -107,8 +107,9 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 - Match를 선택하는 데 필요한 설명 정보
 
 Match 표시에 관한 세부 규칙은 Match 기능 문서가 소유하며 Event Detail은 같은 요약 표현을 재사용한다.
+Event 문맥에서는 Match card의 Event context를 `stage`로 대체한다. 현재 API 응답의 Team ID가 없으므로 Team cell은 비클릭 콘텐츠이며 card 전체만 Match Detail을 연다.
 
-### News List
+### News tab
 
 - News 식별자
 - 제목
@@ -116,10 +117,11 @@ Match 표시에 관한 세부 규칙은 Match 기능 문서가 소유하며 Even
 - 작성 시각
 
 News 표시에 관한 세부 규칙은 News 기능 문서가 소유한다.
+News row는 thumbnail/card 없이 divider full-row이며 전체 row가 News Detail을 연다.
 
 ### Event 기본 통계
 
-Event Stats는 1차 MVP에 포함되는 정식 섹션이다. upstream Stats resource가 정상 응답하면서 `No stats available`을 나타내면 아직 제공할 통계가 없는 정상 empty state로 처리한다. network 실패, 예상하지 못한 응답, parsing 실패는 통계 없음으로 위장하지 않고 별도 error state와 재시도를 제공한다.
+Event Stats는 독립 endpoint/state를 갖는 정식 탭이다. 첫 Player/Team identity column을 고정하고 metric column만 수평 스크롤한다. metric 순서는 `Rounds`, `Rating`, `ACS`, `K-D`, `ADR`, `KAST`이며 identity cell은 Player Detail로 이동하고 metric cell은 비클릭이다. upstream Stats resource가 정상 응답하면서 `No stats available`을 나타내면 정상 empty state로 처리한다. network 실패, 예상하지 못한 응답, parsing 실패는 통계 없음으로 위장하지 않고 별도 error state와 재시도를 제공한다.
 
 ## 화면 상태
 
@@ -139,9 +141,9 @@ Event Stats는 1차 MVP에 포함되는 정식 섹션이다. upstream Stats reso
 - Event 상태 그룹과 각 항목의 경계가 명확해야 한다.
 - Event Detail에서 Event 기본 정보, Matches, News, 통계를 서로 구분한다.
 
-### Partial
+### Tab-local error
 
-- Event 기본 정보는 성공했지만 Matches, News 또는 Stats 일부가 실패한 경우 성공한 콘텐츠는 유지하고 실패한 섹션을 명확히 표시한다.
+- Event identity와 성공한 다른 탭은 유지하고 선택한 탭만 Retry 상태로 표시한다. generic Partial 화면은 만들지 않는다.
 - 원본에 존재하지 않는 선택 필드를 임의 값으로 채우지 않는다.
 
 ### Error
@@ -162,6 +164,7 @@ Event Stats는 1차 MVP에 포함되는 정식 섹션이다. upstream Stats reso
 - 당겨서 새로고침 또는 명시적 재시도: 현재 화면 데이터를 다시 요청
 - 공유 Top App Bar Search 선택: Search Screen을 현재 화면 위에 push
 - 시스템 뒤로 가기: 이전 화면과 탐색 상태 복원
+- Event Detail 탭 전환은 성공한 탭을 불필요하게 재요청하지 않으며 각 탭의 scroll position을 보존한다.
 
 MVP에서 제공하지 않는 필터나 브래킷 탭은 비활성 placeholder로 노출하지 않는다.
 
@@ -171,7 +174,7 @@ MVP에서 제공하지 않는 필터나 브래킷 탭은 비활성 placeholder�
 
 - app-facing Response를 app Domain Model로 매핑한다.
 - Event 상태별 그룹화와 화면용 날짜·시간 포맷을 담당한다.
-- loading, empty, populated, partial, error, stale 화면 상태를 표현한다.
+- loading, empty, populated, tab-local error, stale 화면 상태를 표현한다.
 - Event, Match, News 선택을 Navigation 3 Screen callback으로 전달한다.
 - VLR.GG HTML, selector, Jsoup 타입을 알지 않는다.
 
@@ -186,7 +189,7 @@ MVP에서 제공하지 않는 필터나 브래킷 탭은 비활성 placeholder�
 
 ### 서버 API 계약
 
-Event Detail의 섹션별 partial 상태와 독립 재시도를 지원하기 위해 기본 정보, 경기, 뉴스, 통계를 각각 조회한다.
+Event Detail의 탭별 상태와 독립 재시도를 지원하기 위해 기본 정보, 경기, 뉴스, 통계를 각각 조회한다. 성공한 탭은 유지하고 실패한 선택 탭만 Retry 상태로 표시한다.
 
 ```text
 GET /api/v1/events
@@ -225,11 +228,13 @@ https://www.vlr.gg/event/stats/2955/esports-world-cup-2026-pacific-qualifier
 - [ ] Event List가 `All` 첫 페이지의 Event를 `Ongoing`, `Upcoming`, `Completed / Paused`로 구분해 표시한다.
 - [ ] 하단 `Events` 탭, Matches의 Event 참조, Search의 Event 결과에서 Event Detail에 진입할 수 있다.
 - [ ] Team Detail과 Player Detail에는 Event 직접 이동 요소가 없다.
-- [ ] Event Detail이 Event 기본 정보, `Matches All`, `News List`, 기본 통계 영역을 구분한다.
+- [ ] Event Detail이 `Matches`, `News`, `Stats` 탭을 제공하고 `Matches`가 기본이며 탭별 상태·스크롤을 보존한다.
 - [ ] Event Stats가 `No stats available`을 반환하면 정상 empty state를 표시한다.
 - [ ] Event Stats의 network 또는 parsing 실패는 empty와 구분된 error state와 재시도를 표시한다.
-- [ ] Event Detail의 Match와 News가 각각 대응하는 Detail 화면으로 이동한다.
-- [ ] loading, 전체 empty, 섹션 empty, partial, error, stale 상태가 정상 콘텐츠와 시각·의미적으로 구분된다.
+- [ ] Event Detail의 Match card는 stage 문맥을 재사용하고 Team ID 부재 시 Team cell은 비클릭이며 card 전체가 Match Detail로 이동한다.
+- [ ] Event Detail의 News full-row가 News Detail로 이동한다.
+- [ ] Stats는 Rounds/Rating/ACS/K-D/ADR/KAST 순서의 독립 table이며 pinned identity cell이 Player Detail로 이동한다.
+- [ ] loading, 전체 empty, 탭별 empty, tab-local error, stale 상태가 정상 콘텐츠와 시각·의미적으로 구분된다.
 - [ ] 누락된 선택 데이터를 `0`, 빈 문자열 또는 추정 값으로 위장하지 않는다.
 - [x] 서버 parser fixture가 Event 상태 분류와 Detail 섹션 추출을 검증한다.
 - [x] 서버 오류에 raw HTML, selector, 원본 예외 또는 민감한 내부 정보가 포함되지 않는다.

@@ -2,19 +2,19 @@
 
 ## 문서 역할
 
-이 문서는 Upcoming/Live, Results, Match Detail, Match 즐겨찾기와 경기 시작 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
+이 문서는 Upcoming/Live, Results, Match Detail과 경기 시작 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
-## 구현 상태 (2026-07-31)
+## 구현 상태 (2026-08-03)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
 - **Backend Match 알림/구독: Stage 1.1 server offline GREEN.** Firestore Emulator, 익명 Target ID/Secret, START-only, request-bound scheduler로 Stage 1 runtime을 교체했고 credential-free contract/emulator/package evidence가 GREEN이다. 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md), [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](../../architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
-- **App: 미구현/Stage 2.** 목록·상세 UI, 내비게이션, 로컬 Match 즐겨찾기, Target credential, App Check/FCM, 권한과 전역 알림 흐름은 Stage 1.1 범위가 아니다.
+- **App: 미구현/Stage 2.** 목록·상세 UI, 내비게이션, Match notification UI, Target credential, App Check/FCM, 권한과 전역 알림 흐름은 Stage 1.1 범위가 아니다.
 
 ## 목적과 사용자 가치
 
 - 예정, 진행 중, 완료 경기를 시간과 상태 중심으로 빠르게 확인하게 한다.
 - Match에서 관련 Event와 Team으로 이어지는 탐색 경로를 제공한다.
-- 사용자가 선택한 Match를 즐겨찾기에 보관하고, 앱을 계속 열어두지 않아도 경기 시작을 알 수 있게 한다.
+- 사용자가 선택한 Upcoming/Postponed Match의 서버 알림을 구독하고, 앱을 계속 열어두지 않아도 경기 시작을 알 수 있게 한다.
 
 ## MVP 범위
 
@@ -42,13 +42,12 @@
 - 스코어와 경기 상태
 - 맵 목록
 - Head to Head
-- Past Matches
-- Match 알림/즐겨찾기 설정 및 해제
+- Upcoming/Postponed Match 알림 설정 및 해제
 
-### Match 즐겨찾기와 알림
+### Match 알림
 
-- Match 알림 설정과 Match 즐겨찾기 생성을 하나의 사용자 동작으로 처리
-- 로컬 Match 즐겨찾기 저장과 MyPage 노출
+- Match 알림 설정은 로컬 즐겨찾기 없이 서버 notification subscription만 생성
+- Match 알림 해제는 로컬 즐겨찾기 부작용 없이 서버 subscription만 해제
 - 앱 설치 단위의 익명 Target ID/Secret과 opaque FCM registration token을 이용한 서버 알림 구독
 - 외부 Scheduler가 10분 schedule slot마다 활성 구독의 고유 Match ID 상태 확인을 요청
 - Match 시작 알림 intent 1회
@@ -73,7 +72,7 @@ BO1/BO3/BO5와 몰수승·패처럼 정보가 제한된 경기는 MVP parser가 
 
 - Bottom navigation의 `Matches` 탭에서 진입한다.
 - Matches는 최상위 탭이므로 공통 Top App Bar와 Search 액션을 제공한다.
-- Event Detail, Team Detail, MyPage의 Match 즐겨찾기에서도 Match Detail로 진입할 수 있다.
+- Event Detail, Team Detail, MyPage의 planned `Next Matches`에서도 Match Detail로 진입할 수 있다.
 
 ### 내부 이동과 이탈
 
@@ -105,15 +104,16 @@ Live 상태는 색상만으로 전달하지 않고 텍스트 label을 함께 사
 
 ### Match Detail
 
-1. 뒤로가기, Match 즐겨찾기/알림 action
+1. 뒤로가기, Upcoming/Postponed에서만 보이는 Match 알림 action
 2. 경기 상태와 예정/시작 시각
 3. Event 이름과 경기 설명
 4. 양 팀과 스코어
 5. 맵 목록
 6. Head to Head
-7. Past Matches
 
 정보가 존재하지 않는 FFW 등의 terminal Match는 비어 있는 정상 스탯 화면처럼 보이지 않아야 한다. 확인 가능한 팀, 결과, 상태를 우선 표시하고 사용할 수 없는 section은 명시적으로 생략하거나 unavailable로 표현한다.
+Upcoming/Postponed pre-match에서는 Maps와 Head to Head를 section-level Empty로 표시할 수 있다. Match Detail의 Event identity와 Team identity는 각각 Event/Team Detail로 이동한다.
+Team hero는 양쪽 모두 로고를 위에, Team name을 아래에 쌓는 대칭 구조이며, score/result는 두 Team hero 사이의 수평 중앙에 배치한다. Team logo가 없어도 Team name과 중앙 score/result의 관계는 유지한다.
 
 ## 표시 데이터와 선택성
 
@@ -135,13 +135,12 @@ Live 상태는 색상만으로 전달하지 않고 텍스트 label을 함께 사
 - series format 또는 확인 가능한 BO 정보
 - 맵 목록과 각 맵의 기본 결과(원문에 존재하는 범위)
 - Head to Head 목록
-- Past Matches 목록
+- (기존 서버 응답에 `pastMatches`가 있으면 server 구현 사실은 보존하되 UI에서는 비노출하며 후속 계약에서 정리한다.)
 
 Match Detail Basic에 필수인 팀과 상태를 해석하지 못하면 parsing failure로 처리한다. 경기 전이라 스코어가 없거나 FFW로 맵 정보가 없는 경우는 정상적인 상태별 선택성이다.
 
-### 즐겨찾기/구독 상태
+### 알림 구독 상태
 
-- 로컬 Match 즐겨찾기 여부
 - 앱 전역 알림 ON/OFF
 - platform system permission 상태
 - 서버 구독 생성/해제 작업 상태
@@ -152,18 +151,18 @@ FCM registration token, Target Secret, scheduler 내부 delivery marker와 다�
 
 ### Matches List
 
-- `Loading`: 최초 목록 skeleton을 표시한다.
+- `Initial loading`: 최초 목록 skeleton을 표시한다.
 - `Populated`: 선택한 목록의 경기가 날짜별로 표시된다.
 - `Empty`: 정상 응답이지만 선택한 Upcoming/Live 또는 Results에 경기가 없다.
-- `Partial`: 기존 페이지는 유지되지만 다음 페이지 또는 일부 선택적 Team 이미지 로딩이 실패했다.
-- `Error`: 최초 목록 요청 실패로 표시할 경기가 없다. 일반 오류 문구와 재시도를 제공한다.
+- `Pagination error`: 기존 페이지는 유지하지만 다음 페이지 요청이 실패했다. footer Retry를 제공한다. Team image failure는 same-size placeholder로 처리한다.
+- `Initial error`: 최초 목록 요청 실패로 표시할 경기가 없다. 전체 화면 Retry를 제공한다.
 - `Stale`: 서버는 이전 scraping 결과를 fallback으로 반환하지 않는다. 향후 앱이 기존 목록을 유지한다면 마지막 확인 시각과 갱신 실패를 명시해야 한다.
 
 ### Match Detail
 
 - `Loading`: 상태/팀/스코어/section skeleton을 안정적으로 표시한다.
 - `Populated`: Match 상태에 맞는 필수 정보와 사용 가능한 section을 표시한다.
-- `Partial`: 기본 Match 정보는 유효하지만 map, Head to Head, Past Matches 중 선택적 section 일부를 사용할 수 없다.
+- `Partial`: 기본 Match 정보는 유효하지만 map 또는 Head to Head 중 선택적 section 일부를 사용할 수 없다.
 - `Empty/Unavailable`: Match는 식별되지만 표시 가능한 필수 정보가 없거나 upstream에서 더 이상 정상 제공되지 않는다.
 - `Error`: network 또는 필수 구조 parsing 실패로 상세를 표시할 수 없다.
 - `Stale`: 목록과 동일하게 MVP server stale fallback은 없으며, 새로고침 실패를 최신 상태로 위장하지 않는다.
@@ -172,12 +171,13 @@ FCM registration token, Target Secret, scheduler 내부 delivery marker와 다�
 
 - `Ready`: 전역 알림과 system permission이 활성화되어 설정 가능
 - `ActivationRequired`: 앱 전역 알림 또는 system permission이 비활성화
-- `Subscribing`: 로컬 favorite와 서버 subscription을 일관되게 만들기 위한 처리 중
-- `Subscribed`: local favorite와 활성 server subscription이 일치
+- `Subscribing`: 서버 subscription 생성 처리 중
+- `Subscribed`: 활성 server subscription이 확인된 상태
 - `Unsubscribing`: 해제 처리 중
 - `SubscriptionError`: 생성 또는 해제가 완료되지 않았으며 사용자에게 재시도 가능한 상태를 제공
 
-Match 알림 설정과 즐겨찾기 생성은 하나의 원자적 사용자 동작이다. 서버 subscription 생성에 실패하면 새 local favorite를 되돌리고 전체 설정을 실패 처리한다. 해제 시 서버 unsubscribe가 실패하면 local favorite 제거를 확정하지 않고 기존 favorite/subscribed 상태를 유지한다. 두 경우 모두 실패 범위와 재시도 동작을 제공한다.
+Match 알림 설정은 로컬 즐겨찾기 없이 서버 subscription을 생성하는 하나의 원자적 사용자 동작이다. Subscribe/unsubscribe 실패 시 Match Detail을 유지하고, subscribe는 confirmed bell OFF, unsubscribe는 confirmed bell ON을 유지한다. 두 경우 모두 full-content/initial Error로 전환하지 않고 actionable Snackbar `재시도`를 제공한다.
+Mutation 중에는 modal scrim·center spinner를 표시하고 화면 전체 action을 disable한다. 실패 시에도 Match Detail을 유지하며 subscribe는 벨 OFF, unsubscribe는 벨 ON을 유지하고 actionable Snackbar `재시도`를 제공한다.
 
 ## 사용자 인터랙션
 
@@ -193,33 +193,33 @@ Match 알림 설정과 즐겨찾기 생성은 하나의 원자적 사용자 동�
 ### Match 알림 설정
 
 1. 사용자가 Match Detail에서 알림 action을 선택한다.
-2. 앱 전역 알림과 system permission이 모두 활성화된 경우 local favorite 저장과 server subscription 생성을 진행한다.
+2. 앱 전역 알림과 system permission이 모두 활성화된 경우 server subscription 생성을 진행한다.
 3. 하나라도 비활성화된 경우 알림 활성화가 필요하다는 dialog를 표시한다.
 4. dialog에서 활성화를 선택하면 system permission을 확인하고, 요청 가능한 상태면 permission을 요청한다.
 5. permission이 허용된 뒤에만 앱 전역 알림을 ON으로 변경하고 Match 설정을 계속한다.
 6. 앱 안에서 다시 요청할 수 없는 상태면 이유와 함께 system settings 이동 action을 제공한다.
-7. 사용자가 취소하면 Match favorite/subscription을 생성하지 않고 상세 화면에 남는다.
+7. 사용자가 취소하면 subscription을 생성하지 않고 상세 화면에 남는다.
 
 하나의 논리적 Match subscription은 서버가 발급한 한 anonymous Target과 한 Match의 쌍이다. 같은 쌍의 설정을 반복하면 중복 subscription을 만들지 않고 alarm ON으로 수렴한다. 응답을 받지 못해 성공 여부가 불확실해도 같은 revision/operation을 안전하게 재시도할 수 있다.
 
-server subscription 생성이 확정적으로 실패하면 local favorite를 남기지 않고 전체 설정 실패를 표시한다. 성공한 것으로 보이는 중간 상태를 유지하지 않으며 사용자는 같은 동작을 재시도할 수 있다.
+server subscription 생성이 확정적으로 실패하면 벨을 OFF로 유지하고 전체 설정 실패를 표시한다. 성공한 것으로 보이는 중간 상태를 유지하지 않으며 사용자는 같은 동작을 재시도할 수 있다.
 
 앱 최초 실행에서도 platform이 요청을 허용하는 상태라면 알림 권한을 요청한다. 권한 거부 자체가 News/Matches 등 비알림 기능 사용을 막아서는 안 된다.
 
 ### Match 알림 해제
 
-- Match favorite 해제는 local favorite 제거와 current Target의 해당 Match subscription 취소를 함께 요청한다.
-- MyPage와 Match Detail 어디에서 해제해도 같은 결과가 되어야 한다.
-- Team/Player favorite에는 이 흐름을 적용하지 않는다.
-- server unsubscribe가 실패하면 local favorite 제거도 확정하지 않고 기존 favorite/subscribed 상태와 재시도 동작을 유지한다.
+- Match 알림 해제는 current Target의 해당 Match subscription 취소만 요청한다.
+- 해제 action은 Match Detail에서만 제공한다.
+- Team/Player 즐겨찾기에는 이 흐름을 적용하지 않는다.
+- server unsubscribe가 실패하면 기존 subscribed 상태와 재시도 동작을 유지한다.
 - 같은 Target/Match의 해제를 반복하면 alarm OFF로 수렴한다. 한 Target의 해제 요청은 다른 Target의 subscription을 변경하지 않는다.
-- Stage 1.1 서버는 같은 Target의 모든 mutation에 positive `Long` revision을 사용하고 stale·replay·conflict를 구분하도록 구현해야 한다. 앱이 revision을 발행·영속·재시도하는 동작은 Stage 2다.
+- Stage 1.1 서버는 같은 Target의 모든 mutation에 positive `Long` revision을 사용하고 stale·replay·conflict를 구분한다. 앱이 revision을 발행·영속·재시도하는 동작은 Stage 2다.
 
 ### 전역 알림 OFF
 
-- MyPage의 전역 OFF는 기존 Match favorite를 Team/Player favorite로 변환하거나 삭제하지 않는다.
+- MyPage의 전역 OFF는 Team/Player 즐겨찾기를 삭제하지 않는다.
 - 전역 OFF는 current Target에 연결된 Match 알림만 비활성화한다.
-- 현재 target에 연결된 여러 Match subscription 중 일부만 OFF로 확인되거나 응답이 불확실하면 앱은 전역 OFF를 완료 상태로 표시하지 않는다. 이미 OFF로 확인된 subscription은 그대로 유지하고 미확정 subscription만 pending으로 표시해 재시도·재동기화하며, 이 과정에서도 모든 favorite는 보존한다.
+- 현재 target에 연결된 여러 Match subscription 중 일부만 OFF로 확인되거나 응답이 불확실하면 앱은 전역 OFF를 완료 상태로 표시하지 않는다. 이미 OFF로 확인된 subscription은 그대로 유지하고 미확정 subscription만 pending으로 표시해 재시도·재동기화하며, 이 과정에서도 Team/Player 즐겨찾기는 보존한다.
 - 전역 OFF가 pending인 동안 사용자가 개별 Match 알림을 다시 ON으로 선택하면 그 선택이 최신 전역·Match 의도가 된다. 앱은 남은 전역 OFF 재시도를 중단하고 system permission 확인과 앱의 전역 알림 설정 활성화 흐름 뒤 해당 Match를 개별 설정하며, 지연된 이전 bulk OFF 요청이나 응답이 이 ON을 되돌려서는 안 된다. 서버의 false-only global-OFF endpoint에 전체 ON을 요청하지 않는다.
 - 앱과 서버는 잃어버린 이전 Target을 같은 물리 기기나 사용자로 추론하거나 해제하지 않는다. 이전 Target의 구독은 명시적 revoke, provider invalid 또는 정리 정책까지 유효할 수 있고 일시적 중복 전달은 MVP에서 허용한다.
 - OFF 상태에서 새 Match 알림을 요청하면 activation-required dialog를 표시한다.
@@ -268,7 +268,7 @@ token SDK 획득·Target credential 보관·서버 동기화는 Stage 2 App이, 
 ### 앱
 
 - remote DTO를 app Domain Model로 매핑하고 목록/상세 UiState를 관리한다.
-- local Match favorite와 전역 알림 설정을 저장한다.
+- 전역 알림 설정만 저장하며 로컬 즐겨찾기는 저장하지 않는다.
 - platform permission 확인/요청과 system settings 이동 bridge를 제공한다.
 - 서버 구독 생성/해제 결과를 반영해 로컬과 서버 상태가 일치하도록 조정한다.
 - push credential이나 raw server failure를 UI에 노출하지 않는다.
@@ -332,7 +332,7 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 
 ## 검증 가능한 수용 기준
 
-체크된 서버 항목은 `main`에서 실제로 증명된 현재 기능 범위다. Stage 1.1로 교체되는 Target/Firestore/START-only/scheduler 항목은 구현과 offline GREEN evidence가 생기기 전까지 체크하지 않는다. App 연동, 실제 Firebase/GCP와 기기 표시는 Stage 2다.
+체크된 서버 항목은 `main`에서 실제로 증명된 현재 기능 범위이며, Stage 1.1 Target/Firestore/START-only/scheduler 항목도 offline GREEN evidence가 확인된 구현 사실이다. App 연동, 실제 Firebase/GCP와 기기 표시는 Stage 2다.
 
 ### 목록과 상세
 
@@ -341,29 +341,30 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 - [ ] Results는 날짜, 완료 시각, 양 팀, 스코어, Event를 표시한다.
 - [ ] 목록 pagination이 중복 항목 없이 동작하고 추가 페이지 실패 시 기존 목록을 유지한다.
 - [ ] 경기 항목은 Match Detail로, Event reference는 Event Detail로 이동한다.
-- [ ] Match Detail은 Event, 경기 설명, 양 팀, 스코어, 상태, 맵, Head to Head, Past Matches를 사용 가능한 범위에서 표시한다.
+- [ ] Match Detail은 Event, 경기 설명, 양 팀, 스코어, 상태, 맵, Head to Head를 사용 가능한 범위에서 표시하고 기존 서버 `pastMatches` field를 UI section으로 렌더링하지 않는다.
+- [ ] Match Detail의 양 Team hero는 각각 로고 위·이름 아래로 쌓이고 score/result는 두 Team 사이 중앙에 배치된다.
 - [x] BO1/BO3/BO5와 FFW fixture에서 상태별 선택성이 parsing failure와 구분된다.
-- [ ] loading, empty, partial, error, stale/unavailable 표현이 정상 populated 상태와 구분된다.
+- [ ] initial loading, empty, initial error, pagination error, stale/unavailable 표현이 정상 populated 상태와 구분된다.
 
 ### 즐겨찾기, 권한, 전역 설정
 
-- [ ] 활성 system permission과 앱 전역 알림 설정 ON 상태에서 Match 알림을 설정하면 local Match favorite와 server subscription이 모두 생성된다.
-- [ ] Match favorite는 MyPage에 표시되고 MyPage와 Match Detail 모두에서 같은 상세 화면으로 이동한다.
+- [ ] 활성 system permission과 앱 전역 알림 설정 ON 상태에서 Upcoming/Postponed Match 알림을 설정하면 server subscription만 생성되고 로컬 즐겨찾기는 생성되지 않는다.
+- [ ] Match 알림은 MyPage에 별도 경기 즐겨찾기 그룹으로 표시되지 않으며, MyPage의 Next Matches는 즐겨찾기 Team 기반 계획 계약이다.
 - [ ] 허용된 App Check evidence로 Target을 생성하면 Target ID와 one-time Target Secret을 받는다. FCM registration token은 서버 저장소의 전달 주소로만 보관하고 후속 public response, UI/public state, log에는 노출하지 않는다.
 - [ ] 같은 Target/Match의 서버 알림 설정을 반복하면 중복 없이 alarm ON으로 수렴하고 같은 revision/operation을 안전하게 replay한다.
-- [ ] Match favorite 해제는 current Target의 대응 subscription도 취소하며 반복 해제는 alarm OFF로 수렴한다.
+- [ ] Upcoming/Postponed Match 알림 해제는 current Target의 대응 subscription만 취소하며 반복 해제는 alarm OFF로 수렴한다.
 - [ ] 같은 Target의 설정·해제·global OFF는 revision ordering으로 최신 승인 의도에 수렴하며 stale·replay·conflict·exhaustion을 구분한다.
-- [ ] Team/Player favorite는 Match 알림 subscription을 만들지 않는다.
+- [ ] Team/Player 즐겨찾기는 Match 알림 subscription을 만들지 않는다.
 - [ ] 최초 앱 실행에서 platform이 허용하면 알림 권한을 요청하며, 거부해도 비알림 기능을 사용할 수 있다.
 - [ ] 전역 OFF 또는 권한 비활성 상태에서 Match 알림을 누르면 activation-required dialog가 표시된다.
 - [ ] dialog 활성화 흐름은 permission 성공 뒤에만 전역 설정을 ON으로 바꾸고 구독을 생성한다.
 - [ ] 앱 내 재요청이 불가능하면 명확한 안내와 system settings 이동 action을 제공한다.
-- [ ] 전역 알림 OFF는 기존 Match favorite를 삭제하지 않고 current Target의 알림만 비활성화하며, 잃어버린 이전 Target까지 해제했다고 표현하지 않는다.
+- [ ] 전역 알림 OFF는 Team/Player 즐겨찾기를 삭제하지 않고 current Target의 알림만 비활성화하며, 잃어버린 이전 Target까지 해제했다고 표현하지 않는다.
 - [ ] 전역 알림 OFF가 부분 성공하거나 응답이 불확실하면 완료로 표시하지 않고, 이미 OFF인 subscription을 되돌리지 않으면서 미확정 subscription만 재시도·재동기화한다.
 - [ ] 전역 OFF pending 중 개별 Match를 ON으로 선택하면 남은 OFF 재시도를 중단하고 해당 ON 의도를 우선하며, 지연된 bulk OFF가 이를 되돌리지 않는다.
-- [ ] server subscription 생성에 실패하면 local Match favorite가 남지 않고 전체 설정 실패와 재시도가 표시된다.
-- [ ] server unsubscribe가 실패하면 기존 Match favorite/subscribed 상태가 유지되고 해제 실패와 재시도가 표시된다.
-- [ ] MyPage와 Match Detail은 같은 성공·실패 결과를 표시한다.
+- [ ] server subscription 생성에 실패해도 Match Detail을 유지하고 confirmed bell OFF와 actionable Snackbar Retry를 표시한다.
+- [ ] server unsubscribe가 실패해도 Match Detail을 유지하고 confirmed bell ON과 actionable Snackbar Retry를 표시한다.
+- [ ] Match Detail의 벨은 Live/Completed/Cancelled/Unavailable/FFW에는 노출되지 않는다.
 
 ### 서버 추적과 전달
 

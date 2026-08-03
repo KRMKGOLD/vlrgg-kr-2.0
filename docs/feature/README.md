@@ -3,7 +3,7 @@
 ## 문서 상태
 
 - Status: Active
-- Last reviewed: 2026-07-31
+- Last reviewed: 2026-08-03
 - Product scope: VLR.GG Mobile Tracker 1차 MVP
 - Design source: [`../../DESIGN.md`](../../DESIGN.md)
 - App architecture: [`../app-arch/app-arch.md`](../app-arch/app-arch.md)
@@ -13,14 +13,14 @@
 
 VLR.GG Mobile Tracker는 VLR.GG의 뉴스, 경기, 이벤트, 시리즈, 팀, 선수 정보를 모바일에서 빠르게 탐색할 수 있도록 재구성하는 개인용 포트폴리오 앱이다.
 
-웹사이트를 그대로 복제하지 않는다. 사용자가 News, Match, Event, Series, Team, Player 사이를 자연스럽게 이동하고, 관심 있는 Team·Player·Match를 MyPage에서 다시 찾을 수 있는 연결형 탐색 경험을 제공한다.
+웹사이트를 그대로 복제하지 않는다. 사용자가 News, Match, Event, Series, Team, Player 사이를 자연스럽게 이동하고, 관심 있는 Team·Player를 MyPage에서 다시 찾으며 경기 시작 알림을 관리할 수 있는 연결형 탐색 경험을 제공한다.
 
 앱과 서버는 다음 책임을 가진다.
 
 - Ktor 서버는 VLR.GG HTML을 요청하고 Jsoup으로 해석해 app-facing response로 가공한다.
 - Compose Multiplatform 앱은 서버 API를 통해 데이터를 받고 Android와 iOS에 공통 UI를 제공한다.
-- Team·Player 즐겨찾기는 기기 로컬에 저장한다.
-- Match 즐겨찾기는 로컬 저장과 서버 알림 구독을 함께 생성한다.
+- Team·Player 즐겨찾기는 기기 로컬에 저장한다. Team 즐겨찾기가 주 개인화이고 Player 즐겨찾기는 보조다.
+- 사용자에게 Match 즐겨찾기 기능/그룹을 제공하지 않는다. Match 벨은 `Upcoming`/`Postponed` Match의 서버 알림 구독만 제어하며 로컬 즐겨찾기를 만들지 않는다.
 
 ## 1차 MVP 범위
 
@@ -33,9 +33,9 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | 3 | Event List, Event Detail의 Matches·News·기본 Stats | [`events/README.md`](events/README.md) |
 | 4 | Search, Team Detail, Player Detail | [`search/README.md`](search/README.md), [`teams/README.md`](teams/README.md), [`players/README.md`](players/README.md) |
 | 5 | Match Detail Basic, Series Detail | [`matches/README.md`](matches/README.md), [`series/README.md`](series/README.md) |
-| Cross-feature | MyPage, Team·Player·Match 즐겨찾기, Match 알림, About | [`my-page/README.md`](my-page/README.md), [`about/README.md`](about/README.md) |
+| Cross-feature | MyPage, Team·Player 즐겨찾기, Match 알림, About | [`my-page/README.md`](my-page/README.md), [`about/README.md`](about/README.md) |
 
-## 구현 상태 (2026-07-31)
+## 구현 상태 (2026-08-03)
 
 아래 상태는 원격 `main`의 `6d442cd` 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. 서버 공통 기반에는 공개 콘텐츠 route의 런타임 OpenAPI/Swagger 문서가 구현되어 있다.
 
@@ -50,7 +50,7 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | Feature 미구현 |
 | Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | Feature 미구현 |
 | Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | Feature 미구현 |
-| MyPage, Team·Player·Match 즐겨찾기, About | Backend 기능 없음 | Feature 미구현 |
+| MyPage, Team·Player 즐겨찾기, About | Backend 기능 없음 | Feature 미구현 |
 | Match 알림 | Stage 1.1 server offline GREEN — Firestore Emulator, 익명 Target 권한, START-only, request-bound scheduler | Feature 미구현 — App·실제 Firebase 연동은 `NOT RUN — Stage 2` |
 
 ## MVP 제외 범위
@@ -87,12 +87,20 @@ Bottom navigation은 다음 순서로 고정한다.
 
 ### Shared Top App Bar와 Search
 
-- 모든 최상위 탭은 공통 Top App Bar를 사용한다.
-- Top App Bar는 Search 진입 action을 제공한다.
+- 모든 최상위 탭은 title과 Search action을 가진 공통 Top App Bar를 사용한다.
+- Detail Top App Bar는 Back과 선택적 title 및 기능별 action만 사용한다. News/Event/Series는 Back-only, Match는 Upcoming/Postponed에만 bell, Team/Player는 star를 사용한다.
 - Search는 Bottom navigation item이 아니다.
 - Search action을 누르면 현재 화면 위에 별도 Search Screen을 push한다.
 - Back을 누르면 직전 탭과 화면 상태로 돌아간다.
 - Search 결과는 Series, Event, Team, Player Detail로 이동한다.
+- Search는 full-screen push이며 bottom navigation을 표시하지 않는다. 입력은 최대 30자, explicit submit-only이고 blank/symbol-only query는 제출할 수 없다.
+
+### 공통 목록·상태 계약
+
+- News는 thumbnail/card 없는 divider full-row이며 전체 row가 News Detail로 이동한다. Search 결과도 이미지 없는 divider row와 text type label을 사용한다.
+- Paginated News/Matches 목록은 initial loading/empty/initial error/pagination error를 구분한다. initial error는 전체 화면 Retry, pagination error는 하단 Retry를 제공한다.
+- Paginated News/Matches의 Pull-to-refresh는 기존 데이터를 초기화한 뒤 `page=1`만 요청하고, pagination은 footer spinner·중복 요청 방지·중복 삽입 방지를 보장한다. Events는 기존 `All` 첫 페이지 single-page 계약을 유지하므로 pagination이나 `page=1` 규칙은 적용하지 않지만, Pull-to-refresh에서는 `GET /api/v1/events`의 단일 전체 응답을 다시 불러온다.
+- Match Card는 시각 anatomy를 공유하지만 navigation capability는 context별로 분리한다. Matches Root만 stable Team/Event ID가 있을 때 nested target을 제공하고, Event/Team/Player/MyPage Next Matches는 card 전체를 Match Detail로 연결한다.
 
 ### 주요 route
 
@@ -135,7 +143,8 @@ Events ─────────────────→ Event Detail
      │
 Search ─────────────────→ Series / Event / Team / Player Detail
 
-MyPage ─────────────────→ Favorite Team / Player / Match Detail
+MyPage ─────────────────→ Favorite Team / Player Detail
+     └──────────────────→ planned Next Matches → Match Detail
 ```
 
 - Event는 Events 탭, Matches의 event context, Search 결과에서 접근할 수 있다.
@@ -150,25 +159,25 @@ MyPage ─────────────────→ Favorite Team / Pl
 ### Team·Player
 
 - 기기 로컬 저장소에 저장한다.
-- MyPage에서 각각 별도 섹션으로 표시한다.
+- MyPage에서 Team을 주 섹션, Player를 compact 보조 섹션으로 표시한다.
 - 알림 기능을 제공하지 않는다.
 - 서버 사용자 DB나 계정을 요구하지 않는다.
 
-### Match
+### Match 알림
 
-- Match 알림 설정은 Match 즐겨찾기 등록을 함께 수행한다.
-- 기기 로컬 저장소와 서버 알림 구독에 함께 반영한다.
-- MyPage의 Favorite Matches 섹션에 표시한다.
-- Match 즐겨찾기를 해제하면 서버 알림 구독도 해제한다.
+- Match Detail의 벨은 `Upcoming`/`Postponed`에서만 노출되는 서버 알림 구독 action이다.
+- 벨 ON/OFF는 로컬 즐겨찾기나 MyPage의 Match 즐겨찾기 그룹을 생성·삭제하지 않는다.
+- `Live`, `Completed`, `Cancelled`, `Unavailable`, FFW Match에는 벨을 노출하지 않는다.
 
 ## Match 알림 공통 계약
 
-- 사용자가 Match Detail에서 특정 경기에 알림을 직접 설정한다.
+- 사용자가 Match Detail에서 `Upcoming` 또는 `Postponed` 경기에만 알림을 직접 설정한다. `Live`, `Completed`, `Cancelled`, `Unavailable`, FFW에는 벨을 노출하지 않는다.
+- 이 action은 서버 notification subscription만 변경하며 로컬 즐겨찾기를 생성·삭제하지 않는다.
 - Match 알림의 전송 provider는 FCM이다. opaque FCM registration token은 한 익명 Target의 전달 주소이지 사용자 인증, Target 권한, FID나 물리 기기 ID가 아니다.
 - 앱 설치 단위의 Target은 서버가 발급한 Target ID/Secret으로 구분한다. 앱 삭제·재설치로 자격을 잃어 새 Target이 생기는 것은 허용하며 이전 Target을 자동 복원·병합하지 않는다.
 - 같은 Target의 token refresh는 전달 주소만 교체하고 Match 설정을 보존한다. 서로 다른 Target의 독립 구독과 일시적 중복 전달은 MVP에서 허용한다.
 - 같은 Target/Match의 설정과 해제는 각각 alarm ON/OFF로 수렴하며 target-scoped revision으로 늦은 요청이 최신 의도를 되돌리지 않게 한다.
-- MyPage의 전역 OFF는 즐겨찾기를 보존하고 current Target의 Match 구독만 하나의 bounded transaction으로 비활성화한다. 전체 ON은 없고 각 Match를 명시적으로 다시 선택한다.
+- MyPage의 전역 OFF는 Team/Player favorite를 보존하고 current Target의 Match 구독만 하나의 bounded transaction으로 비활성화한다. 전체 ON은 없고 각 Match를 명시적으로 다시 선택한다.
 - 서버는 외부 Scheduler가 전달한 10분 schedule slot마다 활성 구독의 고유 Match ID를 확인한다.
 - 서버는 subscription별 경기 START intent를 한 번으로 관리한다. END 알림은 MVP에서 제외한다. 이는 FCM transport나 기기 표시의 exactly-once 보장이 아니다.
 - 완료된 경기의 추적과 구독 작업을 종료한다.
@@ -179,7 +188,7 @@ Target/subscription의 상세 의미는 [Matches 추적 계약](matches/README.m
 알림 권한과 앱 설정은 다음 흐름을 따른다.
 
 1. 앱 최초 실행 시 플랫폼이 허용하는 경우 알림 권한을 요청한다.
-2. MyPage에서 앱 전역 알림 ON/OFF를 제공한다.
+2. MyPage에서 앱 전역 Match 알림 ON/OFF를 제공한다. 이 설정은 favorite를 삭제하지 않는다.
 3. 전역 알림 또는 시스템 권한이 꺼진 상태에서 Match 알림을 요청하면 활성화 안내 dialog를 표시한다.
 4. 사용자가 활성화하면 시스템 권한 상태를 확인하고 가능한 경우 권한을 요청한다.
 5. 앱 내부에서 다시 요청할 수 없는 상태라면 시스템 앱 설정으로 이동할 수 있는 action을 제공한다.
@@ -215,7 +224,7 @@ Target/subscription의 상세 의미는 [Matches 추적 계약](matches/README.m
 - 모든 화면은 진입/이탈 경로와 loading·empty·error 상태를 정의한다.
 - 목록 화면은 pagination 또는 MVP의 명시적인 단일-page 정책을 정의한다.
 - Detail 화면은 누락 가능한 데이터의 숨김/대체 표시 정책을 feature 수준에서 정의한다.
-- Team·Player 즐겨찾기와 Match 즐겨찾기/알림의 차이가 모든 관련 문서에서 동일하다.
+- Team·Player 즐겨찾기와 Match 서버 알림 구독의 차이가 모든 관련 문서에서 동일하다.
 - Navigation 설명은 Bottom navigation, Search push, Back 복귀 계약과 일치한다.
 - UI 결정은 루트 `DESIGN.md`의 Light theme, 접근성, color/token 규칙을 따른다.
 - Parser 구현 전 대표 HTML fixture와 필수 parsing assertion이 feature 문서 또는 테스트 계획에 연결된다.
