@@ -74,7 +74,7 @@ Event row의 세부 표현은 Events 기능 문서와 같은 Event 요약 규칙
 
 ### Loading
 
-- Series 정체성과 두 Event 섹션의 안정적인 자리를 유지하는 skeleton을 표시한다.
+- Back app bar 아래 full-content loading을 표시한다. 세부 section skeleton을 독립 화면으로 만들지 않는다.
 
 ### Empty
 
@@ -87,15 +87,15 @@ Event row의 세부 표현은 Events 기능 문서와 같은 Event 요약 규칙
 - Upcoming과 Completed의 구분이 text label과 구조로 명확해야 한다.
 - 각 Event는 선택 가능하며 Event Detail로 연결된다.
 
-### Partial
+### Optional row omission
 
-- 한 Event 섹션만 정상적으로 해석되거나 일부 Event의 보조 정보가 누락되면 유효한 데이터는 유지하고 누락 상태를 명확히 표시한다.
+- 서버 응답은 atomic이므로 generic Partial 화면은 만들지 않는다. 일부 Event의 optional metadata가 누락되면 해당 row 안에서만 missing-value marker를 표시한다.
 - ID나 이름이 없어 Event를 식별할 수 없는 항목은 정상 Event로 노출하지 않는다.
 
 ### Error
 
-- Series를 불러오지 못한 상태를 Event가 없는 상태와 구분한다.
-- 같은 Series를 다시 요청하는 재시도 액션을 제공한다.
+- Series를 불러오지 못한 상태를 Event가 없는 상태와 구분하는 full-content Error Screen을 표시한다.
+- Back은 유지하고 같은 Series를 다시 요청하는 Retry action을 제공한다.
 - raw exception, HTTP status, selector 또는 upstream URL을 노출하지 않는다.
 
 ### Stale
@@ -117,7 +117,7 @@ Standings나 지원하지 않는 고급 기능은 비활성 탭 또는 placehold
 
 - app-facing Series Response를 app Domain Model로 매핑한다.
 - Event를 Upcoming과 Completed 섹션에 표시하고 날짜·상태를 화면용으로 포맷한다.
-- loading, empty, populated, partial, error, stale 화면 상태를 표현한다.
+- full-content loading, empty, populated, error, stale 화면 상태를 표현한다. generic Partial은 사용하지 않는다.
 - Event 선택을 Navigation 3 Screen callback으로 전달한다.
 - VLR.GG HTML과 selector를 직접 해석하지 않는다.
 
@@ -188,8 +188,9 @@ https://www.vlr.gg/series/85/valorant-challengers-league-2026
 - [ ] 두 섹션의 Event를 선택하면 Event Detail로 이동한다.
 - [ ] Event Detail에서 뒤로 가면 Series의 스크롤과 섹션 상태가 복원된다.
 - [ ] Series에서 뒤로 가면 Search 검색어와 결과가 복원된다.
-- [ ] 한 섹션만 비거나 실패한 상태가 전체 empty/error와 구분된다.
-- [ ] loading, empty, populated, partial, error, stale 상태가 정상 콘텐츠와 구분된다.
+- [ ] 한 섹션만 비어 다른 섹션의 Event가 유지되는 section Empty와 두 섹션 모두 비는 전체 Empty를 구분한다.
+- [ ] Series response는 atomic이므로 section-specific transport failure는 제공하지 않으며, transport/parsing failure는 Series identity와 섹션을 대체하는 full-content Error Screen과 Retry로 처리한다.
+- [ ] full-content loading, empty, populated, error, stale 상태가 정상 콘텐츠와 구분되고 generic Partial screen은 없다.
 - [ ] Standings와 기타 제외 기능이 placeholder로 노출되지 않는다.
 - [x] parser fixture가 Upcoming/Completed Event 상태 그룹을 검증한다.
 - [x] 서버 오류가 raw HTML, selector 또는 내부 예외 정보를 노출하지 않는다.

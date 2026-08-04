@@ -20,7 +20,8 @@ Search는 Phase 4 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 - 결과를 `Series`, `Event`, `Team`, `Player` 타입으로 분류
 - 각 결과에서 대응하는 Detail 화면으로 이동
 - 뒤로 가기 시 Search를 열기 전 화면과 상태 복원
-- 검색 결과 없음, 입력 전, loading, partial, error 상태 구분
+- Search 독립 화면은 Initial, Loading, Populated, Empty, Error로 구분한다.
+- 입력은 최대 30자이며 명시적 제출로만 실행한다.
 
 ## 명시적 제외 범위
 
@@ -60,7 +61,7 @@ Search는 Phase 4 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 4. 검색 상태 안내
 5. 타입별 결과 그룹
 
-결과 타입은 한 목록에서 명확한 label로 구분하거나 타입별 섹션으로 제공한다. 어떤 구성을 사용하더라도 각 결과의 타입을 색상만으로 전달하지 않고 text label 또는 접근 가능한 동등 표현을 사용한다.
+결과는 Series → Event → Team → Player 그룹 순서의 섹션으로 제공한다. 결과 row는 이미지 없는 divider row이며 text type label을 포함하고 전체 row가 대응 Detail로 이동한다. 타입은 색상만으로 전달하지 않는다.
 
 ## 노출 데이터
 
@@ -86,7 +87,7 @@ Search는 Phase 4 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 
 - 아직 유효한 검색을 실행하지 않은 상태다.
 - 결과 없음으로 표현하지 않고 검색어 입력을 안내한다.
-- 공백만 있는 검색어는 네트워크 요청을 만들지 않는다.
+- 공백만 있거나 문자·숫자가 전혀 없는 검색어는 제출할 수 없으며 네트워크 요청을 만들지 않는다.
 
 ### Loading
 
@@ -103,7 +104,7 @@ Search는 Phase 4 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 - 각 결과의 타입과 이름이 명확하며 대응하는 Detail로 이동할 수 있다.
 - 결과가 없는 타입을 가짜 빈 row로 채우지 않는다.
 
-### Partial
+### Annotations (not independent screens)
 
 - upstream 검색 결과에서 일부 항목의 보조 정보가 누락돼도 식별자·이름·타입이 유효하면 해당 결과를 제공할 수 있다.
 - 결과 항목 자체를 식별할 수 없거나 Detail 이동에 필요한 ID가 없으면 정상 결과로 노출하지 않는다.
@@ -114,21 +115,17 @@ Search는 Phase 4 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 - 입력 검색어를 보존하고 같은 검색을 다시 시도할 수 있게 한다.
 - raw exception, HTTP status, selector 또는 upstream URL을 노출하지 않는다.
 
-### Stale
-
-- 서버는 이전 검색 결과를 실패 fallback으로 반환하지 않는다.
-- 앱이 새 요청 중 이전 결과를 일시 유지한다면 해당 결과가 이전 검색어의 결과인지 명확히 표시한다. 서로 다른 검색어의 결과를 현재 검색 결과처럼 표시하지 않는다.
-
 ## 사용자 인터랙션
 
 - Top App Bar Search 선택: Search Screen push와 입력 focus
-- 검색어 입력 및 제출: 앞뒤 공백을 사용자 입력 의미를 해치지 않는 범위에서 정리한 뒤 검색
+- 검색어 입력 및 제출: 앞뒤 공백을 정리하고 키보드 Search 또는 명시적 `검색` action으로만 실행한다.
+- 입력 길이는 앱에서 30자로 제한하며 debounce/per-keystroke 요청은 사용하지 않는다.
 - 입력 지우기: 현재 검색어와 결과를 초기 상태로 되돌림
 - 결과 선택: 결과 타입에 맞는 Detail 화면 push
 - 재시도: 유지된 검색어로 동일 요청 재실행
 - 뒤로 가기: Search stack을 역순으로 닫고 이전 화면 상태 복원
 
-검색 요청을 매 keystroke마다 보낼지 명시적 제출로 보낼지는 구현 시 입력 방식과 부하를 함께 결정할 수 있다. MVP 수용 기준은 공백 요청 방지, 결과 상태의 정확성, 탐색 복원에 둔다.
+빈 입력·기호만 입력된 경우 visible/IME Search action을 비활성화한다. 별도 validation-error screen은 만들지 않는다.
 
 ## 앱과 서버 책임 경계
 
@@ -159,7 +156,7 @@ GET /api/v1/search?q={query}
 
 - `q`는 필수 단일 query parameter이며 다른 query parameter는 허용하지 않는다.
 - 서버는 앞뒤 공백을 제거한 query를 검색과 성공 response에 사용한다.
-- 정규화한 query는 1~80자이고 문자 또는 숫자를 하나 이상 포함해야 한다.
+- 정규화한 query는 서버 계약상 1~80자이고 문자 또는 숫자를 하나 이상 포함해야 한다. 앱은 그보다 좁은 30자 maximum을 적용한다.
 - 제어 문자, malformed percent encoding을 포함하거나 공백·기호만으로 구성된 query는 upstream 요청 없이 거절한다.
 
 ### 성공 response
@@ -219,12 +216,15 @@ https://www.vlr.gg/search/?q=search_keyword
 - [ ] 각 결과가 타입에 맞는 Detail 화면으로 이동한다.
 - [ ] Search에서 뒤로 가면 진입 전 화면과 스크롤·선택·필터 상태가 복원된다.
 - [ ] Detail에서 Search로 돌아오면 검색어와 결과가 복원된다.
-- [ ] 입력 전 상태, 결과 없음, loading, populated, partial, error, stale 상태가 서로 구분된다.
-- [ ] 공백만 있는 검색어는 서버 요청을 만들지 않는다.
+- [ ] Search 독립 화면은 Initial, Loading, Populated, Empty, Error 5개뿐이다.
+- [ ] optional metadata 누락은 Populated 결과의 annotation으로 처리하고 별도 Partial/Stale 화면을 만들지 않는다.
+- [ ] 앱 입력은 30자를 넘지 않고, 빈 입력·기호만 입력된 경우 명시적 제출 action이 비활성화된다.
+- [ ] 검색은 keyboard Search 또는 visible Search action 제출 시에만 실행되며 debounce/per-keystroke 요청이 없다.
+- [ ] 결과는 이미지 없는 divider row와 text type label로 Series/Event/Team/Player 그룹을 구분하고 전체 row가 클릭된다.
 - [ ] 검색 실패가 검색 결과 없음으로 표시되지 않는다.
 - [x] parser fixture가 네 지원 타입, 결과 없음, 누락 보조 정보, 예상하지 못한 타입을 검증한다.
 - [x] 서버 오류가 raw HTML, selector 또는 내부 예외 정보를 노출하지 않는다.
 
 ## 열린 결정
 
-현재 Search 구현을 차단하는 제품 결정은 없다. 검색 실행 시점(명시적 제출 또는 debounce)과 타입별 보조 필드의 정확한 선택성은 대표 upstream fixture를 확인해 구현 contract에서 확정한다.
+현재 Search 구현을 차단하는 제품 결정은 없다. 앱의 30자·명시적 제출 계약은 서버의 기존 1~80자 검증을 좁히는 UI 정책이며 서버 API contract를 변경하지 않는다.

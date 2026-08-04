@@ -22,6 +22,7 @@
 - 최신순 뉴스 목록
 - 페이지 기반 추가 로딩
 - 뉴스 제목, 작성자, 작성 시각
+- thumbnail/card 없이 divider로 구분한 flat full-row
 - 항목 선택을 통한 News Detail 이동
 
 ### News Detail
@@ -65,12 +66,12 @@ News Detail은 bottom-navigation 목적지가 아니다. Event 및 Match 내부 
 
 1. Top App Bar: 화면 제목, Search 액션
 2. 최신 뉴스 목록
-3. 각 행: 제목을 우선하고 작성자와 작성 시각을 보조 정보로 표시
+3. 각 divider row 전체가 News Detail target이며 제목을 우선하고 작성자와 게시 시각을 보조 정보로 표시
 4. 다음 페이지 로딩 또는 페이지 로딩 실패 표시
 
 ### News Detail
 
-1. 뒤로가기와 기사 제목
+1. Back-only Top App Bar
 2. 작성자와 작성 시각
 3. 원문 순서를 보존한 본문 block
 4. 문단, 이미지/캡션, 목록, 링크가 포함된 텍스트
@@ -104,8 +105,8 @@ News Detail은 bottom-navigation 목적지가 아니다. Event 및 Match 내부 
 - `Loading`: 최초 목록을 불러오는 중이며 skeleton으로 목록의 구조를 예고한다.
 - `Populated`: 한 개 이상의 뉴스가 최신순으로 표시된다.
 - `Empty`: 정상 응답이지만 표시할 뉴스가 없다. 로딩 화면과 구분되는 안내를 표시한다.
-- `Partial`: 기존 페이지는 유지되지만 다음 페이지 요청이 실패했다. 목록 전체를 오류 화면으로 대체하지 않고 하단에서 재시도를 제공한다.
-- `Error`: 최초 요청이 실패해 표시할 데이터가 없다. 안전한 일반 오류 문구와 재시도를 제공한다.
+- `Pagination error`: 기존 페이지는 유지되지만 다음 페이지 요청이 실패했다. 목록 전체를 오류 화면으로 대체하지 않고 하단에서 재시도를 제공한다.
+- `Error`: 최초 요청 또는 기존 목록을 초기화한 Pull-to-refresh 요청이 실패해 표시할 데이터가 없다. 전체 화면의 안전한 일반 오류 문구와 Retry를 제공한다.
 - `Stale`: MVP는 이전 서버 성공 응답을 최신 데이터처럼 반환하지 않는다. 향후 앱이 이전 데이터를 유지한다면 갱신 실패와 마지막 확인 시점을 명시하기 전에는 `Populated`로 표현할 수 없다.
 
 ### News Detail
@@ -120,13 +121,14 @@ News Detail은 bottom-navigation 목적지가 아니다. Event 및 Match 내부 
 ## 사용자 인터랙션
 
 - 뉴스 행 선택: News Detail 이동
-- 목록 끝 접근: 다음 페이지가 있으면 한 번만 추가 요청
-- 페이지 로딩 실패 재시도: 실패한 페이지부터 다시 요청
+- 목록 끝 접근: 다음 페이지가 있으면 중복 없이 한 번만 추가 요청하고 footer spinner를 표시
+- 페이지 로딩 실패 재시도: 실패한 페이지부터 footer action으로 다시 요청
+- Pull-to-refresh: 기존 목록을 즉시 초기화하고 `page=1`만 요청한다. 진행 중인 pagination 요청은 취소하거나 그 응답을 무시하여 stale 항목이 삽입되지 않게 하며, 실패 시 Initial Error 전체 화면과 Retry를 표시하고 성공 시 page 1 결과로 교체한다.
 - Team/Player 본문 링크 선택: 해당 앱 상세 화면 이동
 - 뒤로가기: 직전 화면과 News List 상태 복원
 - Search 선택: 현재 화면 위에 Search Screen push
 
-중복된 pagination 요청으로 동일 항목이 반복 삽입되지 않아야 한다. 링크는 색상만으로 구분하지 않고 접근성 role과 선택 가능한 상태를 제공한다.
+중복된 pagination 요청으로 동일 항목이 반복 삽입되지 않아야 한다. initial loading/empty/initial error/pagination error를 구분하고 initial error는 전체 화면 Retry, pagination error는 하단 Retry로 복구한다. Pull-to-refresh 중 중복 요청을 막고 진행 중 pagination 응답의 stale 삽입을 막으며, 링크는 색상만으로 구분하지 않는다.
 
 ## 앱과 서버 책임 경계
 
@@ -210,7 +212,7 @@ VLR.GG DOM은 불안정한 외부 contract다. selector나 보정 규칙은 pars
 
 ## 검증 가능한 수용 기준
 
-- [ ] News 탭에서 제목, 작성자, 작성 시각이 포함된 최신 뉴스 목록을 확인할 수 있다.
+- [ ] News 탭에서 thumbnail/card 없이 divider full-row로 제목, 작성자, 게시 시각이 포함된 최신 뉴스 목록을 확인할 수 있다.
 - [ ] 목록 끝에 도달하면 다음 페이지가 중복 없이 추가되고 기존 항목과 스크롤 상태가 유지된다.
 - [ ] 다음 페이지 로딩만 실패하면 기존 목록이 남고 실패한 페이지를 재시도할 수 있다.
 - [ ] 뉴스 항목을 누르면 제목, 작성자, 작성 시각과 순서가 보존된 본문이 표시된다.
@@ -218,7 +220,8 @@ VLR.GG DOM은 불안정한 외부 contract다. selector나 보정 규칙은 pars
 - [ ] hover card, reference card, script, style, sidebar, comments의 텍스트가 기사 본문에 포함되지 않는다.
 - [ ] Team 링크는 Team Detail로, Player 링크는 Player Detail로 이동한다.
 - [ ] Back으로 News List에 돌아오면 이전 페이지와 스크롤 위치가 복원된다.
-- [ ] 최초 로딩, 빈 결과, pagination 일부 실패, 전체 실패가 서로 구분된다.
+- [ ] initial loading, empty, initial error, pagination error가 서로 구분되고 initial은 전체 화면 Retry, pagination은 하단 Retry를 제공한다.
+- [ ] Pull-to-refresh는 기존 목록을 즉시 초기화한 뒤 `page=1`만 요청하고, 진행 중 pagination 요청을 취소하거나 응답을 무시해 stale 삽입을 막는다. 실패 시 Initial Error 전체 화면 Retry를, 성공 시 page 1 결과를 표시한다.
 - [ ] 서버 response와 앱 모델에 raw HTML, Jsoup type, CSS selector가 노출되지 않는다.
 - [x] parser fixture가 hover-card 비혼입, 내부 링크 분류, 이미지/캡션, 목록 처리를 검증한다.
 

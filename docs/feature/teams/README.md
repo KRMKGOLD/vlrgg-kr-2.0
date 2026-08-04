@@ -52,12 +52,11 @@ Team Detail에서는 Event Detail로 직접 이동하지 않는다.
 
 1. Top App Bar
    - Back
-   - 화면 제목 또는 팀 이름
+   - Team favorite star
 2. Team header
    - 팀 로고 또는 안정적인 placeholder
    - 팀 이름
    - 제공 가능한 기본 정보
-   - 즐겨찾기 토글
 3. Upcoming Matches
 4. Recent Matches
 5. Current Roster
@@ -86,9 +85,11 @@ source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만
 | --- | --- |
 | Loading | header와 주요 섹션의 안정적인 skeleton을 표시한다. |
 | Populated | 존재하는 기본 정보와 섹션을 계층에 맞게 표시한다. |
-| Partial | 일부 섹션만 누락되면 성공한 섹션을 유지하고 누락 섹션을 별도로 안내한다. |
+| Sparse / Empty section | 현재 server response는 atomic이므로 generic Partial 화면을 만들지 않는다. Match, Roster, News의 누락은 section-level Empty로 표시하고 missing value는 marker로 표시한다. |
 | Empty section | Match, Roster, News가 없으면 섹션별 명시적 빈 상태를 표시한다. |
 | Error | Team Detail 자체를 불러오지 못하면 일반화된 오류와 재시도 동작을 표시한다. raw exception이나 파서 정보를 노출하지 않는다. |
+| Add favorite error | star를 OFF로 되돌리고 actionable Retry Snackbar를 표시한다. |
+| Remove favorite error | star를 ON으로 유지하고 actionable Retry Snackbar를 표시한다. |
 | Stale | 앱이 이전 데이터를 유지해 표시하도록 구현하는 경우 마지막 갱신 시각과 오래된 데이터임을 명시한다. silent stale fallback은 사용하지 않는다. |
 
 존재하는 정보가 적은 팀은 오류가 아니라 정상적인 부분/빈 콘텐츠로 처리한다.
@@ -96,10 +97,11 @@ source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만
 ## 사용자 인터랙션
 
 - 즐겨찾기 토글을 누르면 해당 Team을 로컬 즐겨찾기에 추가하거나 제거한다.
-- 즐겨찾기 변경은 즉시 화면과 MyPage에 일관되게 반영한다.
+- 즐겨찾기 변경은 즉시 화면과 MyPage에 일관되게 반영한다. mutation 중에는 화면 전체 action을 막지 않는다.
+- 즐겨찾기 Add 실패는 star를 OFF로 되돌리고 Retry Snackbar를, Remove 실패는 star를 ON으로 유지하고 Retry Snackbar를 표시한다.
 - 즐겨찾기 등록은 notification permission을 요구하거나 서버 알림 구독을 만들지 않는다.
 - Match, Player, News 항목을 누르면 대응하는 Detail로 이동한다.
-- 오류 상태의 재시도를 통해 Team Detail을 다시 요청할 수 있다.
+- 오류 상태는 Retry/Back만 제공하는 modal error dialog로 표시하며 generic Partial screen은 만들지 않는다.
 
 ## 앱·서버 책임 경계
 
@@ -162,6 +164,9 @@ https://www.vlr.gg/team/19296/team-korea
 - [ ] Match, Player, News 항목은 각각 올바른 Detail로 이동한다.
 - [ ] Team Detail에는 Event로 직접 이동하는 인터랙션이 없다.
 - [ ] 즐겨찾기 등록 후 Team이 MyPage의 Team 그룹에 나타나고, 제거 후 사라진다.
+- [ ] Team favorite Add 실패는 star OFF와 actionable Retry Snackbar를 표시한다.
+- [ ] Team favorite Remove 실패는 star ON을 유지하고 actionable Retry Snackbar를 표시한다.
+- [ ] Team favorite mutation은 전체 화면을 block하지 않는다.
 - [ ] Team 즐겨찾기 등록·해제는 서버 notification subscription을 생성하거나 변경하지 않는다.
-- [ ] loading, empty section, partial, error, stale 상태가 유효 콘텐츠와 시각적으로 구분된다.
+- [ ] loading, empty section, error dialog, stale 상태가 유효 콘텐츠와 시각적으로 구분되고 generic Partial screen은 없다.
 - [x] 서버 parser test는 일반 팀과 이력이 적은 팀 fixture를 모두 검증한다.

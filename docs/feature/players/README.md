@@ -15,6 +15,7 @@ Player Detail은 사용자가 선수의 기본 정보, 현재 소속, 주로 사
 - 현재 팀
 - 전체 기간(`timespan=all`)의 Agent별 기본 스탯
 - 최근 경기 5개
+- Recent Matches는 최대 5개를 표시하며 검색, 더보기, pagination, infinite scroll을 제공하지 않는다.
 - Player 즐겨찾기 등록 및 해제
 - 현재 팀과 최근 경기 Detail로 이동
 
@@ -50,17 +51,16 @@ Player Detail에서는 Event Detail로 직접 이동하지 않는다.
 
 1. Top App Bar
    - Back
-   - 화면 제목 또는 Player handle
+   - Player favorite star
 2. Player header
    - Player 이미지 또는 안정적인 placeholder
    - handle
    - 제공 가능한 기본 정보
-   - 즐겨찾기 토글
 3. Current Team
 4. Agent Stats
 5. Recent Matches
 
-기본 정보와 현재 팀을 먼저 보여주고, 표 형태의 Agent Stats는 작은 화면에서도 지표와 행의 관계가 유지되도록 구성한다. Recent Matches는 최대 5개만 표시한다.
+기본 정보와 현재 팀을 먼저 보여주고, 표 형태의 Agent Stats는 고정 Agent identity column과 수평 metric table로 구성한다. metric 순서는 `Maps`, `Pick Rate`, `Rating`, `ACS`, `K/D`, `KAST`, `ADR`이며 Recent Matches는 최대 5개만 표시한다.
 
 ## 표시 데이터
 
@@ -80,9 +80,11 @@ upstream에 없는 기본 정보나 Stats 값을 `0` 또는 임의 값으로 만
 | --- | --- |
 | Loading | header, stats, 최근 경기 영역의 안정적인 skeleton을 표시한다. |
 | Populated | 기본 정보, 현재 팀, Agent Stats, 최근 경기를 표시한다. |
-| Partial | 일부 기본 정보, 현재 팀, 특정 지표 또는 최근 경기만 누락되면 나머지 콘텐츠를 유지하고 누락을 명시한다. |
+| Sparse / Empty section | 현재 server response는 atomic이므로 generic Partial 화면을 만들지 않는다. Current Team, Agent Stats, Recent Matches의 누락은 section-level Empty로 표시하고 missing metric은 `—` marker로 표시한다. |
 | Empty section | 현재 팀, Stats, Recent Matches가 없으면 해당 섹션별 빈 상태를 표시한다. |
 | Error | Player Detail 자체를 불러오지 못하면 일반화된 오류와 재시도 동작을 표시한다. |
+| Add favorite error | star를 OFF로 되돌리고 actionable Retry Snackbar를 표시한다. |
+| Remove favorite error | star를 ON으로 유지하고 actionable Retry Snackbar를 표시한다. |
 | Stale | 이전 데이터를 유지해 표시하도록 구현하는 경우 마지막 갱신 시각과 오래된 데이터임을 명시한다. silent stale fallback은 사용하지 않는다. |
 
 Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표현할 수 있어야 한다.
@@ -91,10 +93,11 @@ Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표
 
 - 즐겨찾기 토글을 누르면 해당 Player를 로컬 즐겨찾기에 추가하거나 제거한다.
 - 즐겨찾기 변경은 즉시 화면과 MyPage에 일관되게 반영한다.
+- 즐겨찾기 Add 실패는 star를 OFF로 되돌리고 Retry Snackbar를, Remove 실패는 star를 ON으로 유지하고 Retry Snackbar를 표시한다.
 - 즐겨찾기 등록은 notification permission을 요구하거나 서버 알림 구독을 만들지 않는다.
 - Current Team을 누르면 Team Detail로 이동한다.
 - Recent Match를 누르면 Match Detail로 이동한다.
-- 오류 상태에서 Player Detail을 다시 요청할 수 있다.
+- 오류 상태는 Retry/Back만 제공하는 modal error dialog로 표시하며 generic Partial screen은 만들지 않는다.
 
 ## 앱·서버 책임 경계
 
@@ -175,9 +178,13 @@ https://www.vlr.gg/player/488/rb/?timespan=all
 - [ ] Agent Stats가 없는 상태와 Player Detail 조회 실패를 구분한다.
 - [ ] 누락된 Stats 값은 `0` 또는 임의 값으로 표시되지 않는다.
 - [ ] Recent Matches는 최대 5개만 표시되고 전체 목록 더보기는 제공하지 않는다.
+- [ ] Recent Matches에는 검색, 더보기, pagination, infinite scroll이 모두 없다.
 - [ ] Current Team과 Recent Match는 각각 Team Detail과 Match Detail로 이동한다.
 - [ ] Player Detail에는 Event로 직접 이동하는 인터랙션이 없다.
 - [ ] 즐겨찾기 등록 후 Player가 MyPage의 Player 그룹에 나타나고, 제거 후 사라진다.
+- [ ] Player favorite Add 실패는 star OFF와 actionable Retry Snackbar를 표시한다.
+- [ ] Player favorite Remove 실패는 star ON을 유지하고 actionable Retry Snackbar를 표시한다.
+- [ ] Player favorite mutation은 전체 화면을 block하지 않는다.
 - [ ] Player 즐겨찾기 등록·해제는 서버 notification subscription을 생성하거나 변경하지 않는다.
 - [ ] 현재 팀, Stats 또는 최근 경기가 없어도 나머지 Player 정보는 정상 표시된다.
-- [ ] loading, empty section, partial, error, stale 상태가 유효 콘텐츠와 시각적으로 구분된다.
+- [ ] loading, empty section, error dialog, stale 상태가 유효 콘텐츠와 시각적으로 구분되고 generic Partial screen은 없다.
