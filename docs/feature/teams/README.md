@@ -57,7 +57,6 @@ Team Detail에서는 Event Detail로 직접 이동하지 않는다.
    - 팀 로고 또는 안정적인 placeholder
    - 팀 이름
    - 제공 가능한 기본 정보
-   - 즐겨찾기 토글
 3. Upcoming Matches
 4. Recent Matches
 5. Current Roster

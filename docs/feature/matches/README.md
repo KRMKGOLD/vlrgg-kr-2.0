@@ -268,7 +268,7 @@ token SDK 획득·Target credential 보관·서버 동기화는 Stage 2 App이, 
 ### 앱
 
 - remote DTO를 app Domain Model로 매핑하고 목록/상세 UiState를 관리한다.
-- 전역 알림 설정만 저장하며 로컬 즐겨찾기는 저장하지 않는다.
+- 앱이 저장하지 않는 로컬 즐겨찾기는 Match뿐이다. Team·Player 로컬 즐겨찾기의 저장 책임은 [`my-page/README.md`](../my-page/README.md) 계약을 따른다.
 - platform permission 확인/요청과 system settings 이동 bridge를 제공한다.
 - 서버 구독 생성/해제 결과를 반영해 로컬과 서버 상태가 일치하도록 조정한다.
 - push credential이나 raw server failure를 UI에 노출하지 않는다.

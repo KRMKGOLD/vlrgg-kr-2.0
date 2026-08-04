@@ -56,7 +56,6 @@ Player Detail에서는 Event Detail로 직접 이동하지 않는다.
    - Player 이미지 또는 안정적인 placeholder
    - handle
    - 제공 가능한 기본 정보
-   - 즐겨찾기 토글
 3. Current Team
 4. Agent Stats
 5. Recent Matches

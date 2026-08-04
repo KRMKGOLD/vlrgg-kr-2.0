@@ -177,7 +177,7 @@ MyPage ─────────────────→ Favorite Team / Pl
 - 앱 설치 단위의 Target은 서버가 발급한 Target ID/Secret으로 구분한다. 앱 삭제·재설치로 자격을 잃어 새 Target이 생기는 것은 허용하며 이전 Target을 자동 복원·병합하지 않는다.
 - 같은 Target의 token refresh는 전달 주소만 교체하고 Match 설정을 보존한다. 서로 다른 Target의 독립 구독과 일시적 중복 전달은 MVP에서 허용한다.
 - 같은 Target/Match의 설정과 해제는 각각 alarm ON/OFF로 수렴하며 target-scoped revision으로 늦은 요청이 최신 의도를 되돌리지 않게 한다.
-- MyPage의 전역 OFF는 Team/Player favorite를 보존하고 current Target의 Match 구독만 하나의 bounded transaction으로 비활성화한다. 전체 ON은 없고 각 Match를 명시적으로 다시 선택한다.
+- MyPage의 전역 OFF는 Team/Player favorite를 보존하고 current Target의 Match 구독만 하나의 bounded transaction으로 비활성화한다. 전역 ON은 앱 알림 설정 및 권한 활성화 흐름일 뿐 기존 Match 구독을 일괄 복원하지 않으며, 각 Match는 다시 명시적으로 선택한다.
 - 서버는 외부 Scheduler가 전달한 10분 schedule slot마다 활성 구독의 고유 Match ID를 확인한다.
 - 서버는 subscription별 경기 START intent를 한 번으로 관리한다. END 알림은 MVP에서 제외한다. 이는 FCM transport나 기기 표시의 exactly-once 보장이 아니다.
 - 완료된 경기의 추적과 구독 작업을 종료한다.
@@ -188,7 +188,7 @@ Target/subscription의 상세 의미는 [Matches 추적 계약](matches/README.m
 알림 권한과 앱 설정은 다음 흐름을 따른다.
 
 1. 앱 최초 실행 시 플랫폼이 허용하는 경우 알림 권한을 요청한다.
-2. MyPage에서 앱 전역 Match 알림 ON/OFF를 제공한다. 이 설정은 favorite를 삭제하지 않는다.
+2. MyPage에서 앱 전역 Match 알림 ON/OFF를 제공한다. ON은 앱 알림 설정 및 권한 활성화 흐름이며 기존 Match 구독을 일괄 복원하지 않고, 각 Match는 다시 명시적으로 선택한다. OFF만 Team/Player favorite를 보존한 채 current Target의 Match 구독을 일괄 비활성화한다.
 3. 전역 알림 또는 시스템 권한이 꺼진 상태에서 Match 알림을 요청하면 활성화 안내 dialog를 표시한다.
 4. 사용자가 활성화하면 시스템 권한 상태를 확인하고 가능한 경우 권한을 요청한다.
 5. 앱 내부에서 다시 요청할 수 없는 상태라면 시스템 앱 설정으로 이동할 수 있는 action을 제공한다.

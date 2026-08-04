@@ -57,7 +57,7 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 - Event Detail의 Match를 선택하면 Match Detail을 push한다.
 - Event Detail의 News를 선택하면 News Detail을 push한다.
 - 뒤로 가기는 직전 화면과 그 화면의 목록 위치·필터·탭 상태를 복원한다.
-- 하단 `Events` 탭에서 진입한 루트 화면에는 공유 Top App Bar의 Search 액션을 노출한다.
+- 공유 Top App Bar의 Search 액션은 하단 `Events` 탭에서 진입한 Event List/root에만 노출한다. Event Detail은 Back-only다.
 
 ## 화면과 콘텐츠 계층
 
@@ -107,7 +107,7 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 - Match를 선택하는 데 필요한 설명 정보
 
 Match 표시에 관한 세부 규칙은 Match 기능 문서가 소유하며 Event Detail은 같은 요약 표현을 재사용한다.
-Event 문맥에서는 Match card의 Event context를 `stage`로 대체한다. 현재 API 응답의 Team ID가 없으므로 Team cell은 비클릭 콘텐츠이며 card 전체만 Match Detail을 연다.
+Event 문맥의 `stage`는 wire field가 아닌 UI 문맥명이며 `matches.items[].event.series`를 표시한다. `event.series`가 `null`이면 이 보조 문맥은 생략한다. 현재 API 응답의 Team ID가 없으므로 Team cell은 비클릭 콘텐츠이며 card 전체만 Match Detail을 연다.
 
 ### News tab
 
@@ -121,7 +121,7 @@ News row는 thumbnail/card 없이 divider full-row이며 전체 row가 News Deta
 
 ### Event 기본 통계
 
-Event Stats는 독립 endpoint/state를 갖는 정식 탭이다. 첫 Player/Team identity column을 고정하고 metric column만 수평 스크롤한다. metric 순서는 `Rounds`, `Rating`, `ACS`, `K-D`, `ADR`, `KAST`이며 identity cell은 Player Detail로 이동하고 metric cell은 비클릭이다. upstream Stats resource가 정상 응답하면서 `No stats available`을 나타내면 정상 empty state로 처리한다. network 실패, 예상하지 못한 응답, parsing 실패는 통계 없음으로 위장하지 않고 별도 error state와 재시도를 제공한다.
+Event Stats는 독립 endpoint/state를 갖는 정식 탭이다. 첫 고정 column은 Player identity이며 `teamAbbreviation`은 그 안의 보조 표기다. Team ID나 Team Detail 이동은 제공하지 않으며 Player identity cell만 Player Detail로 이동한다. metric column만 수평 스크롤하고 metric 순서는 `Rounds`, `Rating`, `ACS`, `K-D`, `ADR`, `KAST`이며 metric cell은 비클릭이다. upstream Stats resource가 정상 응답하면서 `No stats available`을 나타내면 정상 empty state로 처리한다. network 실패, 예상하지 못한 응답, parsing 실패는 통계 없음으로 위장하지 않고 별도 error state와 재시도를 제공한다.
 
 ## 화면 상태
 
@@ -143,12 +143,13 @@ Event Stats는 독립 endpoint/state를 갖는 정식 탭이다. 첫 Player/Team
 
 ### Tab-local error
 
-- Event identity와 성공한 다른 탭은 유지하고 선택한 탭만 Retry 상태로 표시한다. generic Partial 화면은 만들지 않는다.
+- `GET /api/v1/events/{eventId}/matches`, `/news`, `/stats` 실패는 각각 해당 탭만 Retry 상태로 표시한다. Event identity와 성공한 다른 탭은 유지하며 generic Partial 화면은 만들지 않는다.
 - 원본에 존재하지 않는 선택 필드를 임의 값으로 채우지 않는다.
 
 ### Error
 
-- 최초 요청이 실패하면 유효한 빈 목록처럼 보이지 않는 오류 상태와 재시도 액션을 제공한다.
+- Event List의 최초 요청 실패는 유효한 빈 목록처럼 보이지 않는 전체 오류 상태와 재시도 액션을 제공한다.
+- `GET /api/v1/events/{eventId}` 실패는 Event Detail 전체를 Initial Error와 Retry로 표시한다. 이 기본 정보 요청이 성공한 뒤 탭 endpoint가 실패하는 경우에는 전체 Error로 전환하지 않는다.
 - UI는 raw exception, HTTP status, selector 또는 upstream URL을 노출하지 않는다.
 
 ### Stale
@@ -189,7 +190,7 @@ MVP에서 제공하지 않는 필터나 브래킷 탭은 비활성 placeholder�
 
 ### 서버 API 계약
 
-Event Detail의 탭별 상태와 독립 재시도를 지원하기 위해 기본 정보, 경기, 뉴스, 통계를 각각 조회한다. 성공한 탭은 유지하고 실패한 선택 탭만 Retry 상태로 표시한다.
+Event Detail의 탭별 상태와 독립 재시도를 지원하기 위해 기본 정보, 경기, 뉴스, 통계를 각각 조회한다. `GET /api/v1/events/{eventId}` 실패는 Event Detail 전체 Initial Error+Retry이며, 기본 정보가 성공한 뒤 Matches, News, Stats endpoint 중 하나가 실패하면 Event identity와 성공한 다른 탭을 유지하고 해당 탭만 Retry 상태로 표시한다.
 
 ```text
 GET /api/v1/events
@@ -231,9 +232,10 @@ https://www.vlr.gg/event/stats/2955/esports-world-cup-2026-pacific-qualifier
 - [ ] Event Detail이 `Matches`, `News`, `Stats` 탭을 제공하고 `Matches`가 기본이며 탭별 상태·스크롤을 보존한다.
 - [ ] Event Stats가 `No stats available`을 반환하면 정상 empty state를 표시한다.
 - [ ] Event Stats의 network 또는 parsing 실패는 empty와 구분된 error state와 재시도를 표시한다.
-- [ ] Event Detail의 Match card는 stage 문맥을 재사용하고 Team ID 부재 시 Team cell은 비클릭이며 card 전체가 Match Detail로 이동한다.
+- [ ] Event Detail의 Match card는 `matches.items[].event.series`를 `stage` UI 문맥으로 표시하고, 값이 없으면 생략한다. Team ID 부재 시 Team cell은 비클릭이며 card 전체가 Match Detail로 이동한다.
 - [ ] Event Detail의 News full-row가 News Detail로 이동한다.
-- [ ] Stats는 Rounds/Rating/ACS/K-D/ADR/KAST 순서의 독립 table이며 pinned identity cell이 Player Detail로 이동한다.
+- [ ] Stats는 Rounds/Rating/ACS/K-D/ADR/KAST 순서의 독립 table이며, Player identity 고정 cell만 Player Detail로 이동하고 teamAbbreviation은 보조 표기이며 Team Detail 이동은 없다.
+- [ ] Event Detail 기본 정보 요청 실패는 전체 Initial Error+Retry로, Matches/News/Stats 요청 실패는 Event identity와 성공 탭을 보존한 tab-local Error+Retry로 표시한다.
 - [ ] loading, 전체 empty, 탭별 empty, tab-local error, stale 상태가 정상 콘텐츠와 시각·의미적으로 구분된다.
 - [ ] 누락된 선택 데이터를 `0`, 빈 문자열 또는 추정 값으로 위장하지 않는다.
 - [x] 서버 parser fixture가 Event 상태 분류와 Detail 섹션 추출을 검증한다.
