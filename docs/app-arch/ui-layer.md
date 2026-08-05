@@ -12,7 +12,7 @@ UI Layer는 화면 렌더링, 사용자 이벤트 전달, navigation callback �
 
 - 필요한 runtime dependency는 플랫폼 owner가 준비해 전달한다.
 - 공통 Theme를 적용한다.
-- Metro `AppGraph`가 제공하는 ViewModel factory를 navigation entry에 전달한다.
+- `App.kt`는 `AppGraph`를 `AppNavigation`에 전달하고, `AppNavigation`은 graph를 `NavigationEntryContent`에 전달한다. Entry content는 `graph.appViewModelFactory`를 `NavigationContent`에 제공한다.
 - 최상위 navigation host를 연결한다.
 - 전역 scaffold나 app-level composition local이 필요하면 이 레벨에서 다룬다.
 - 개별 feature의 세부 UI나 비즈니스 로직을 직접 넣지 않는다.
@@ -143,7 +143,7 @@ data class MainUiState(
 )
 ```
 
-DI는 Metro DI를 사용한다. Platform owner가 생성한 `AppGraph`는 `AppViewModelFactory`를 제공하며, Screen은 navigation entry에 전달된 factory를 사용하고 feature composable에서 app graph를 생성하지 않는다. 현재 MyPage 외 feature binding과 scope는 각 기능 구현 시 문서화한다.
+DI는 Metro DI를 사용한다. Platform owner가 생성한 `AppGraph`는 `AppViewModelFactory`를 제공한다. 현재 MyPage entry에서는 `NavigationEntryContent`가 entry의 `ViewModelStoreOwner`를 얻어 factory와 함께 `NavigationContent`에 전달하고, `MyPageScreen`이 owner와 factory로 entry-scoped `MyPageViewModel`을 resolve한 뒤 state를 `MyPageContent`에 전달한다. Feature composable은 app graph를 생성하지 않으며, MyPage 외 feature binding과 scope는 각 기능 구현 시 문서화한다.
 
 ## UI State Rules
 
