@@ -1,5 +1,8 @@
 package kr.co.cotton.vlrgg_mobile.ui.navigation
 
+import androidx.navigation3.runtime.NavBackStack
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.serialization.NavBackStackSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
@@ -9,6 +12,11 @@ import kotlin.test.assertIs
 class AppNavKeySerializationTest {
     private val json = Json {
         classDiscriminator = "type"
+    }
+
+    private val backStackJson = Json {
+        classDiscriminator = "type"
+        serializersModule = appNavKeySavedStateConfiguration.serializersModule
     }
 
     @Test
@@ -95,6 +103,28 @@ class AppNavKeySerializationTest {
             rootNavKeys,
         )
         assertEquals(rootNavKeys, allKeys.filterIsInstance<RootNavKey>())
+    }
+
+    @Test
+    fun navigation3BackStackRoundTripsWithTheCommonSavedStateSerializersModule() {
+        val original = NavBackStack<NavKey>(
+            EventsRoot,
+            Search,
+            TeamDetail(teamId = "1001"),
+        )
+        val serializer = NavBackStackSerializer<NavKey>()
+
+        val restored = backStackJson.decodeFromString(
+            serializer,
+            backStackJson.encodeToString(serializer, original),
+        )
+
+        assertEquals(original.toList(), restored.toList())
+        assertEquals(EventsRoot, AppNavigationState(restored).selectedRoot)
+        assertEquals(
+            listOf(Search, TeamDetail(teamId = "1001")),
+            AppNavigationState(restored).overlay,
+        )
     }
 
     private fun roundTrip(key: AppNavKey): AppNavKey = json.decodeFromString(

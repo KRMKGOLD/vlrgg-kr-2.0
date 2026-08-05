@@ -1,7 +1,11 @@
 package kr.co.cotton.vlrgg_mobile.ui.navigation
 
 import androidx.navigation3.runtime.NavKey
+import androidx.savedstate.serialization.SavedStateConfiguration
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+import kotlinx.serialization.modules.subclass
 
 @Serializable
 sealed interface AppNavKey : NavKey
@@ -65,3 +69,22 @@ val rootNavKeys: List<RootNavKey> = listOf(
     EventsRoot,
     AboutRoot,
 )
+
+internal val appNavKeySavedStateConfiguration = SavedStateConfiguration {
+    serializersModule = SerializersModule {
+        polymorphic(NavKey::class) {
+            subclass(NewsRoot.serializer())
+            subclass(MatchesRoot.serializer())
+            subclass(MyPageRoot.serializer())
+            subclass(EventsRoot.serializer())
+            subclass(AboutRoot.serializer())
+            subclass(Search.serializer())
+            subclass(NewsDetail.serializer())
+            subclass(MatchDetail.serializer())
+            subclass(EventDetail.serializer())
+            subclass(TeamDetail.serializer())
+            subclass(PlayerDetail.serializer())
+            subclass(SeriesDetail.serializer())
+        }
+    }
+}

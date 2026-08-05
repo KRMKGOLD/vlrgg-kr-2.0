@@ -6,14 +6,12 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import kr.co.cotton.vlrgg_mobile.di.AppGraph
@@ -23,24 +21,22 @@ fun AppNavigation(
     graph: AppGraph,
     modifier: Modifier = Modifier,
 ) {
-    val navigationState = remember { AppNavigationState() }
-    var backStack by remember { mutableStateOf(navigationState.backStack) }
+    val backStack = rememberNavBackStack(
+        appNavKeySavedStateConfiguration,
+        MyPageRoot,
+    )
+    val navigationState = remember(backStack) { AppNavigationState(backStack) }
 
     val push: (AppNavKey) -> Unit = { destination ->
         navigationState.push(destination)
-        backStack = navigationState.backStack
     }
     val popOverlay: () -> Unit = {
-        if (navigationState.overlay.isNotEmpty()) {
-            navigationState.popOverlay()
-            backStack = navigationState.backStack
-        }
+        navigationState.popOverlay()
     }
     val selectRoot: (RootNavKey) -> Unit = { root ->
         navigationState.selectRoot(root)
-        backStack = navigationState.backStack
     }
-    val currentDestination = backStack.last()
+    val currentDestination = backStack.last() as AppNavKey
 
     Scaffold(
         modifier = modifier,

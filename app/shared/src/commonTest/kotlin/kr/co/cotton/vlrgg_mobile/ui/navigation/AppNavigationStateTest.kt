@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.navigation
 
+import androidx.navigation3.runtime.NavKey
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -9,83 +10,102 @@ import kotlin.test.assertTrue
 class AppNavigationStateTest {
     @Test
     fun freshStateStartsAtMyPageWithoutAnOverlay() {
-        val state = AppNavigationState()
+        val backStack = mutableListOf<NavKey>(MyPageRoot)
+        val state = AppNavigationState(backStack)
 
         assertEquals(MyPageRoot, state.selectedRoot)
         assertTrue(state.overlay.isEmpty())
-        assertEquals(listOf(MyPageRoot), state.backStack)
+        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
     }
 
     @Test
     fun searchIsPushedAboveEveryRootWithoutChangingSelection() {
         rootNavKeys.forEach { root ->
-            val state = AppNavigationState(selectedRoot = root)
+            val backStack = mutableListOf<NavKey>(root)
+            val state = AppNavigationState(backStack)
 
             state.push(Search)
 
             assertEquals(root, state.selectedRoot)
-            assertEquals(listOf(root, Search), state.backStack)
+            assertEquals(listOf<NavKey>(root, Search), backStack)
         }
     }
 
     @Test
     fun backPopsDetailThenSearch() {
-        val state = AppNavigationState()
+        val backStack = mutableListOf<NavKey>(MyPageRoot)
+        val state = AppNavigationState(backStack)
         state.push(Search)
         state.push(TeamDetail(teamId = "1"))
 
         assertTrue(state.popOverlay())
-        assertEquals(listOf(MyPageRoot, Search), state.backStack)
+        assertEquals(listOf<NavKey>(MyPageRoot, Search), backStack)
         assertTrue(state.popOverlay())
-        assertEquals(listOf(MyPageRoot), state.backStack)
+        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
     }
 
     @Test
     fun selectingAnotherRootClearsTheWholeOverlay() {
-        val state = AppNavigationState()
+        val backStack = mutableListOf<NavKey>(MyPageRoot)
+        val state = AppNavigationState(backStack)
         state.push(Search)
         state.push(TeamDetail(teamId = "1"))
 
         state.selectRoot(NewsRoot)
 
-        assertEquals(listOf(NewsRoot), state.backStack)
+        assertEquals(listOf<NavKey>(NewsRoot), backStack)
         state.selectRoot(MyPageRoot)
-        assertEquals(listOf(MyPageRoot), state.backStack)
+        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
     }
 
     @Test
     fun selectingTheCurrentRootStillClearsTheWholeOverlay() {
-        val state = AppNavigationState()
+        val backStack = mutableListOf<NavKey>(MyPageRoot)
+        val state = AppNavigationState(backStack)
         state.push(Search)
         state.push(TeamDetail(teamId = "1"))
 
         state.selectRoot(MyPageRoot)
 
-        assertEquals(listOf(MyPageRoot), state.backStack)
+        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
         assertTrue(state.overlay.isEmpty())
     }
 
     @Test
     fun backAtRootIsNotConsumedAndDoesNotCreateADestination() {
-        val state = AppNavigationState()
+        val backStack = mutableListOf<NavKey>(MyPageRoot)
+        val state = AppNavigationState(backStack)
 
         assertFalse(state.popOverlay())
-        assertEquals(listOf(MyPageRoot), state.backStack)
+        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
     }
 
     @Test
     fun rootsCannotEnterTheOverlay() {
         rootNavKeys.forEach { root ->
-            val state = AppNavigationState()
+            val backStack = mutableListOf<NavKey>(MyPageRoot)
+            val state = AppNavigationState(backStack)
 
             assertFailsWith<IllegalArgumentException> {
                 state.push(root)
             }
-            assertEquals(listOf(MyPageRoot), state.backStack)
+            assertEquals(listOf<NavKey>(MyPageRoot), backStack)
         }
 
         assertFailsWith<IllegalArgumentException> {
-            AppNavigationState(overlay = listOf(Search, NewsRoot))
+            AppNavigationState(mutableListOf<NavKey>(MyPageRoot, Search, NewsRoot))
         }
+    }
+
+    @Test
+    fun navigationStateOnlyMutatesTheNavigation3BackStackItReceives() {
+        val backStack = mutableListOf<NavKey>(EventsRoot, Search)
+        val state = AppNavigationState(backStack)
+
+        state.push(TeamDetail(teamId = "1001"))
+        state.popOverlay()
+        state.selectRoot(AboutRoot)
+
+        assertEquals(listOf<NavKey>(AboutRoot), backStack)
     }
 }
