@@ -4,14 +4,14 @@
 
 **Status:** Active — Step 1 contract
 
-**Last refreshed:** 2026-08-03
+**Last refreshed:** 2026-08-05
 **Applies to:** Compose Multiplatform UI in `app/shared/src/commonMain`; Android and iOS mobile first.
 
 This is the canonical visual, interaction, and accessibility contract for the app. Feature documents own their data and flows; [the app architecture](docs/app-arch/app-arch.md) owns placement and runtime boundaries. Step 1 ships the Light theme (`Theme.kt`, `Colors.kt`, `Typography.kt`, `Dimensions.kt`) and shared `VlrButton`, `VlrIconButton`, `VlrSearchField`, and `StatusChip` contracts in `commonMain`; this document remains the handoff for feature adoption and visual validation.
 
 ## Evidence and confidence
 
-The contract uses Stitch project metadata (`MOBILE`, `LIGHT`, `ROUND_EIGHT`, custom color `#FF4654`) and prior project exports as historical visual evidence. The 19 historical Stitch objects, including corrected/duplicate variants such as **Matches Root Corrected**, **Match Detail Refined**, **MyPage Root Corrected**, and **About Root Corrected**, are not the canonical reconstruction or a current implementation baseline. The approved screen-level contract is recorded in this committed `DESIGN.md` and `docs/feature/**`; feature screens and navigation remain unimplemented unless the implementation-status tables explicitly say otherwise.
+The contract uses Stitch project metadata (`MOBILE`, `LIGHT`, `ROUND_EIGHT`, custom color `#FF4654`) and prior project exports as historical visual evidence. The 19 historical Stitch objects, including corrected/duplicate variants such as **Matches Root Corrected**, **Match Detail Refined**, **MyPage Root Corrected**, and **About Root Corrected**, are not the canonical reconstruction or a current implementation baseline. The approved screen-level contract is recorded in this committed `DESIGN.md` and `docs/feature/**`; the Navigation 3 runtime foundation is implemented as recorded in [the app runtime guide](docs/app-arch/app-runtime.md), while feature screens remain unimplemented unless the implementation-status tables explicitly say otherwise.
 
 - **[Observed]** means a value or behavior appears in project metadata, a Stitch source, or a screenshot.
 - **[Normalized]** means the sources differed slightly; this file chooses one durable token without inventing a new visual direction.

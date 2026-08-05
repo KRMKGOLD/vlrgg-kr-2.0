@@ -3,7 +3,7 @@
 ## 문서 상태
 
 - Status: Active
-- Last reviewed: 2026-08-03
+- Last reviewed: 2026-08-05
 - Product scope: VLR.GG Mobile Tracker 1차 MVP
 - Design source: [`../../DESIGN.md`](../../DESIGN.md)
 - App architecture: [`../app-arch/app-arch.md`](../app-arch/app-arch.md)
@@ -35,22 +35,33 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | 5 | Match Detail Basic, Series Detail | [`matches/README.md`](matches/README.md), [`series/README.md`](series/README.md) |
 | Cross-feature | MyPage, Team·Player 즐겨찾기, Match 알림, About | [`my-page/README.md`](my-page/README.md), [`about/README.md`](about/README.md) |
 
-## 구현 상태 (2026-08-03)
+## 구현 상태 (2026-08-05)
 
-아래 상태는 원격 `main`의 `6d442cd` 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. 서버 공통 기반에는 공개 콘텐츠 route의 런타임 OpenAPI/Swagger 문서가 구현되어 있다.
+아래 상태는 원격 `main`의 `6cda972` 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. 서버 공통 기반에는 공개 콘텐츠 route의 런타임 OpenAPI/Swagger 문서가 구현되어 있다.
 
-앱 공통 기반은 feature 구현과 분리해서 판단한다. `DESIGN.md` Step 1의 Light theme, Typography, `VlrButton`, `VlrIconButton`, `VlrSearchField`, `StatusChip`은 `app/shared`에 구현되어 있다. 실제 feature 화면, Navigation 3, Metro DI, remote DTO/Domain/Data 계층, 로컬 즐겨찾기, Match 알림 App 연동은 미구현이며, physical Android/iOS의 시각·접근성 검증도 완료되지 않았다.
+앱 공통 기반은 실제 feature 구현과 분리해서 판단한다.
+
+| 앱 공통 기반 | 상태 |
+| --- | --- |
+| 디자인 시스템 | 구현 — `DESIGN.md` Step 1의 Light theme, Typography, `VlrButton`, `VlrIconButton`, `VlrSearchField`, `StatusChip` |
+| KMP 기반 의존성 | 구현 — Navigation 3, Metro DI, Kotlinx Serialization 등 현재 runtime에 필요한 의존성 반영 |
+| Runtime composition | 구현 — Android/iOS platform owner가 `AppGraph`를 생성하고 공통 `App(graph)`가 theme와 navigation을 연결 |
+| DI | 구현 — Metro `AppGraph`와 `AppViewModelFactory`; 현재 factory binding은 MyPage ViewModel skeleton만 포함 |
+| Navigation | 기반 구현 — 직렬화 가능한 root/Search/detail key, MyPage 기본 root, 단일 root + transient overlay back stack, 저장·복원, entry별 saveable state와 ViewModelStore scope |
+| Runtime 회귀 테스트 | 구현 — navigation key 직렬화·상태·descriptor, MyPage ViewModel, Android AppGraph host 테스트 |
+| 실제 feature/data | 미구현 — News/Matches/Events/Search/Team/Player/Series/About 화면, app remote DTO/Domain/Data 계층, 로컬 즐겨찾기, Match 알림 App/Firebase 연동 |
+| 기기 검증 | 미완료 — physical Android/iOS 시각·접근성 검증 |
 
 | Feature slice | Backend | App |
 | --- | --- | --- |
-| News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | Feature 미구현 — 공통 디자인 시스템 Step 1만 사용 가능 |
-| Matches | 콘텐츠 조회 구현 완료 — Upcoming/Results 목록과 Match Detail API | Feature 미구현 — 목록·상세·내비게이션 없음 |
+| News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | Feature 미구현 — root/detail key와 marker만 있고 실제 목록·상세 UI와 data 연동 없음 |
+| Matches | 콘텐츠 조회 구현 완료 — Upcoming/Results 목록과 Match Detail API | Feature 미구현 — root/detail key와 marker만 있고 실제 목록·상세 UI와 data 연동 없음 |
 | Events | 구현 완료 — 목록, 상세, Matches, News, Stats API | Feature 미구현 |
 | Search | 구현 완료 — Series/Event/Team/Player 결과 API | Feature 미구현 |
 | Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | Feature 미구현 |
 | Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | Feature 미구현 |
 | Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | Feature 미구현 |
-| MyPage, Team·Player 즐겨찾기, About | Backend 기능 없음 | Feature 미구현 |
+| MyPage, Team·Player 즐겨찾기, About | Backend 기능 없음 | Feature 미구현 — MyPage entry-scoped ViewModel은 runtime skeleton이며 실제 기능 구현이 아님 |
 | Match 알림 | Stage 1.1 server offline GREEN — Firestore Emulator, 익명 Target 권한, START-only, request-bound scheduler | Feature 미구현 — App·실제 Firebase 연동은 `NOT RUN — Stage 2` |
 
 ## MVP 제외 범위
@@ -83,7 +94,7 @@ Bottom navigation은 다음 순서로 고정한다.
 4. Events
 5. About
 
-시각적 순서와 관계없이 앱의 기본 진입 destination은 `MyPage`다. 각 탭은 독립 back stack 확장을 고려하되, 구체적인 다중 back stack 정책은 Navigation 구현 문서에서 정한다.
+시각적 순서와 관계없이 앱의 기본 진입 destination은 `MyPage`다. 현재 runtime은 하나의 back stack에서 root 하나와 그 위의 transient Search/Detail overlay를 관리한다. root를 선택하면 overlay를 비우고 root를 교체하며, Back은 overlay만 pop한다. 탭별 독립 multi-back-stack은 아직 구현하지 않았다.
 
 ### Shared Top App Bar와 Search
 
@@ -104,7 +115,7 @@ Bottom navigation은 다음 순서로 고정한다.
 
 ### 주요 route
 
-아래 경로는 제품 수준의 destination 식별자다. 실제 Navigation 3 key와 deep-link 문자열은 구현 시 앱 아키텍처에 맞게 정의한다.
+아래 경로는 제품 수준의 destination 식별자다. 대응하는 직렬화 가능한 Navigation 3 root/Search/detail key는 구현되어 있지만, 이 경로 문자열을 사용하는 deep link 연결은 아직 구현하지 않았다.
 
 ```text
 /news

@@ -2,31 +2,45 @@
 
 ## 목적과 적용 상태
 
-이 문서는 Android와 iOS가 공유하는 앱 runtime의 **짧은 기본 원칙**을 정의한다. Compose root, Metro DI, Navigation 3의 구체 API나 파일 구조를 미리 확정하는 구현 명세가 아니다.
+이 문서는 Android와 iOS가 공유하는 앱 runtime의 현재 composition과 navigation 정책을 기록한다. 기준은 원격 `main`의 `6cda972`이며, feature 화면의 제품 요구사항은 `docs/feature/`가 소유한다.
 
-현재 앱은 Compose Multiplatform 템플릿 단계다. 아래 원칙은 첫 DI 또는 navigation 기능을 구현할 때 적용하며, dependency version·platform host 구조·navigation 형태는 해당 기능의 요구사항과 당시 라이브러리 API를 확인해 결정한다.
+현재 공통 앱에는 Metro DI와 Compose Multiplatform Navigation 3 기반 runtime이 구현되어 있다. 다만 MyPage의 entry-scoped ViewModel skeleton을 제외한 root/Search/detail content는 marker와 sample navigation button 단계이며, 실제 feature UI와 data 연동이 구현되었다는 의미는 아니다.
 
-## 기본 원칙
+## Runtime composition
 
-1. 플랫폼 runtime owner는 필요한 app graph를 Compose recomposition 경로 밖에서 준비하고 공통 `App`에 전달한다. graph를 `App()`이나 feature composable에서 새로 만들지 않는다.
-2. 공통 `App`은 theme와 app-level composition을 연결한다. Metro ViewModel을 실제로 도입하는 경우에만 적절한 상위 경계에서 factory를 제공한다. feature가 별도의 app graph나 전역 service locator를 만들지 않는다.
-3. navigation 상태는 navigation owner가 관리한다. Screen은 callback으로 navigation 의도를 전달하고, ViewModel은 back stack이나 controller를 직접 조작하지 않는다.
-4. 저장·복원이 필요한 navigation key에는 안정적인 식별자만 넣고 직렬화 가능하게 만든다. serialization 방식과 `SavedStateConfiguration`은 실제 target과 사용 API에 맞춰 구현 작업에서 정한다.
-5. destination별 ViewModel 수명이 필요한 화면은 Navigation 3의 entry scope를 사용한다. app 또는 feature 공유 상태의 수명은 기능 요구사항에 맞춰 별도로 정한다.
-6. preview와 테스트는 production 전역 객체를 우회해 사용하지 않고, 필요한 state·callback·graph 또는 factory를 명시적으로 제공한다.
+1. Android `MainActivity`와 iOS SwiftUI `iOSApp`이 Compose recomposition 경로 밖에서 `AppGraph`를 한 번 생성한다. Android는 Activity-owned lazy graph, iOS는 app-owned graph를 사용한다.
+2. 플랫폼 host는 graph를 공통 `App(graph)`에 전달한다. 공통 `App`은 `VlrTheme` 안에서 `AppNavigation(graph)`를 연결하며 graph를 새로 만들지 않는다.
+3. Metro `AppGraph`는 `AppViewModelFactory`를 제공한다. 현재 factory는 MyPage ViewModel만 생성하며, MyPage entry가 Navigation 3의 `ViewModelStoreOwner`로부터 entry-scoped ViewModel을 얻는다.
+4. feature composable은 별도의 app graph나 전역 service locator를 만들지 않는다. Screen은 callback으로 navigation 의도를 전달하고 ViewModel은 back stack을 직접 조작하지 않는다.
 
-## 구현 시 결정할 항목
+## Navigation 3 정책
 
-다음은 이 문서에서 고정하지 않는다.
+- root key 순서는 News, Matches, MyPage, Events, About이며 기본 destination은 `MyPageRoot`다.
+- Search와 News/Match/Event/Team/Player/Series detail은 현재 root 위에 push되는 transient overlay다.
+- runtime은 `rememberNavBackStack`과 app 전용 `SavedStateConfiguration`을 사용한다. 모든 key는 직렬화 가능하며 detail key에는 복원에 필요한 안정적인 식별자만 둔다.
+- root 선택은 기존 overlay를 모두 비우고 선택한 root로 교체한다. Back은 overlay가 있을 때 마지막 entry만 pop하며 root에서는 stack을 변경하지 않는다.
+- `NavDisplay`는 entry provider, saveable-state entry decorator, ViewModelStore entry decorator를 연결한다.
+- navigation owner가 back stack을 소유하고 `AppNavigationState`는 같은 stack에서 선택 root와 overlay를 파생해 상태 전이를 수행한다. 별도의 두 번째 navigation state를 유지하지 않는다.
 
-- Android `Application`/Activity와 iOS SwiftUI/UIKit host의 구체 topology 및 graph 생성 API
-- Metro annotation, scope, binding 구성과 platform binding 경계
-- 단일 또는 복수 back stack, adaptive scene, deep link, 인증 흐름, 전체 destination 구조
-- key hierarchy와 KMP state-restoration serializer 구성
-- Navigation 3 decorator 조합, ViewModel scope, dependency version
-- navigation 복원과 관련한 test 범위
+## 아직 확정하거나 구현하지 않은 항목
 
-기능 작업에서는 필요한 항목만 선택해 구현하고, 사용한 runtime 전략과 검증 방법을 관련 feature 또는 architecture 문서에 남긴다. Navigation 구조를 변경할 때는 기존 화면 흐름과 상태 복원 영향만 함께 검토한다.
+- 탭별 독립 multi-back-stack
+- deep link와 제품 route 문자열 binding
+- adaptive scene, 인증 흐름
+- MyPage 외 feature ViewModel binding과 app/feature 공유 state scope
+- 실제 News/Matches/Events/Search/Team/Player/Series/About UI와 data loading
+
+이 항목은 후속 기능 요구사항과 당시 라이브러리 API를 확인해 결정한다. Navigation 구조를 변경할 때는 현재 root/overlay 동작과 저장·복원 영향을 함께 검토한다.
+
+## 현재 검증 근거
+
+- `AppNavKeySerializationTest`: root/Search/detail key 직렬화와 복원
+- `AppNavigationStateTest`: root 선택, overlay push/pop, 복원된 stack 정책
+- `DestinationDescriptorTest`: root 순서와 destination metadata
+- `MyPageViewModelTest`: MyPage skeleton state
+- `AppGraphAndroidHostTest`: Metro graph와 entry별 ViewModelStore scope
+
+이 테스트는 runtime 기반의 회귀 검증이다. 실제 feature 화면의 동작이나 physical Android/iOS 시각·접근성을 검증한 것으로 해석하지 않는다.
 
 ## 관련 문서
 

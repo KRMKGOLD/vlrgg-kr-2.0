@@ -6,13 +6,13 @@ UI Layer는 `commonMain/ui` 아래에 둔다.
 
 UI Layer는 화면 렌더링, 사용자 이벤트 전달, navigation callback 연결, ViewModel state 수집, UI behavior 처리를 담당한다. 비즈니스 규칙, remote/local model 처리, repository 구현은 UI Layer에 두지 않는다.
 
-## `ui/App.kt`
+## `App.kt`
 
 `App.kt`는 Compose 앱의 공통 진입점이다.
 
 - 필요한 runtime dependency는 플랫폼 owner가 준비해 전달한다.
 - 공통 Theme를 적용한다.
-- Metro ViewModel을 도입하면 적절한 상위 경계에서 factory를 제공한다.
+- `App.kt`는 `AppGraph`를 `AppNavigation`에 전달하고, `AppNavigation`은 graph를 `NavigationEntryContent`에 전달한다. Entry content는 `graph.appViewModelFactory`를 `NavigationContent`에 제공한다.
 - 최상위 navigation host를 연결한다.
 - 전역 scaffold나 app-level composition local이 필요하면 이 레벨에서 다룬다.
 - 개별 feature의 세부 UI나 비즈니스 로직을 직접 넣지 않는다.
@@ -43,12 +43,13 @@ Theme는 [`../../DESIGN.md`](../../DESIGN.md), Stitch 결과물, 화면 기획 �
 
 Navigation 관련 코드는 `commonMain/ui/navigation` 아래에 둔다.
 
-Android와 iOS는 가능한 동일한 화면 흐름을 가진다. Navigation은 Compose Multiplatform Navigation 3를 사용한다. 의존성이 아직 Gradle에 없다면 첫 navigation 구현 작업에서 `gradle/libs.versions.toml`과 `app/shared/build.gradle.kts`에 반영한다.
+Android와 iOS는 가능한 동일한 화면 흐름을 가진다. Compose Multiplatform Navigation 3 의존성과 공통 runtime은 구현되어 있으며 현재 정책은 `app-runtime.md`를 따른다.
 
-예상 파일:
+현재 공통 runtime 파일:
 
 - `AppNavKey.kt`
-- `AppNavHost.kt`
+- `AppNavigation.kt`
+- `AppNavigationState.kt`
 
 ### `AppNavKey.kt`
 
@@ -58,17 +59,17 @@ Android와 iOS는 가능한 동일한 화면 흐름을 가진다. Navigation은 
 - 저장·복원이 필요한 key에는 안정적인 식별자만 넣고 직렬화 가능하게 만든다.
 - route string을 화면 곳곳에 흩뿌리지 않는다.
 
-### `AppNavHost.kt`
+### `AppNavigation.kt`
 
-`AppNavHost.kt`는 앱 navigation 상태와 entry mapping을 정의한다.
+`AppNavigation.kt`는 앱 navigation 상태와 entry mapping을 정의한다.
 
 - Screen callback을 기준으로 화면 이동을 처리한다.
-- 기능에 필요한 back stack과 scene을 관리한다.
-- 저장·복원 방식은 실제 target과 Navigation 3 API에 맞춰 결정한다.
-- destination별 ViewModel 수명이 필요한 경우 Navigation 3 entry scope를 사용한다.
+- 현재 단일 root와 transient overlay back stack을 관리한다.
+- 직렬화 가능한 key와 `SavedStateConfiguration`으로 back stack을 저장·복원한다.
+- saveable-state와 ViewModelStore entry decorator를 사용하고 MyPage ViewModel을 entry scope에 둔다.
 - ViewModel이 `NavBackStack` 또는 동등한 navigation state를 직접 다루지 않게 한다.
 
-전체 runtime 구성, state restoration, deep link와 product-flow의 결정 경계는 `app-runtime.md`에서 관리한다. 구체 API와 dependency는 실제 Navigation 3 구현 작업에서 당시 호환 버전을 기준으로 결정한다.
+전체 runtime 구성, state restoration, deep link와 product-flow의 결정 경계는 `app-runtime.md`에서 관리한다. Deep link와 독립 multi-back-stack 등 미구현 범위는 후속 기능에서 당시 호환 API를 기준으로 결정한다.
 
 ## Feature Package Rules
 
@@ -106,7 +107,7 @@ Screen은 ViewModel과 UI를 연결한다. Content는 가능하면 순수하게 
 ```kotlin
 @Composable
 fun MainScreen(
-    viewModel: MainViewModel = metroViewModel(),
+    viewModel: MainViewModel,
     onNavigateToMatchDetail: (String) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -142,7 +143,7 @@ data class MainUiState(
 )
 ```
 
-DI는 Metro DI를 사용한다. Screen은 구성된 상위 DI factory를 사용하며 feature composable에서 app graph를 생성하지 않는다. 의존성이 아직 Gradle에 없다면 첫 DI 구성 작업에서 dependency를 반영하고, 실제 binding과 scope 규칙을 함께 문서화한다.
+DI는 Metro DI를 사용한다. Platform owner가 생성한 `AppGraph`는 `AppViewModelFactory`를 제공한다. 현재 MyPage entry에서는 `NavigationEntryContent`가 entry의 `ViewModelStoreOwner`를 얻어 factory와 함께 `NavigationContent`에 전달하고, `MyPageScreen`이 owner와 factory로 entry-scoped `MyPageViewModel`을 resolve한 뒤 state를 `MyPageContent`에 전달한다. Feature composable은 app graph를 생성하지 않으며, MyPage 외 feature binding과 scope는 각 기능 구현 시 문서화한다.
 
 ## UI State Rules
 
@@ -155,6 +156,6 @@ DI는 Metro DI를 사용한다. Screen은 구성된 상위 DI factory를 사용�
 - ViewModel은 repository의 `AppResult`를 success 또는 generic error `UiState`로 변환한다. UI는 raw exception, HTTP code, Data Layer failure type을 해석하지 않는다.
 - UI event는 explicit ViewModel function callback으로 전달한다. 초기 구조에는 `UiAction`, `Effect`, reducer, Channel/SharedFlow 기반 one-off event stream을 도입하지 않는다.
 - 재시도는 해당 화면 요구가 있을 때만 명시적인 UI event로 추가한다. 자동 재시도와 failure type별 화면 분기는 초기 규칙에 포함하지 않는다.
-- navigation event는 ViewModel이 직접 실행하지 않고 Screen callback 또는 AppNavHost가 처리한다.
+- navigation event는 ViewModel이 직접 실행하지 않고 Screen callback 또는 `AppNavigation`이 처리한다.
 - 초기에는 사용자의 직접 입력으로 발생하는 navigation을 Screen callback으로 처리한다. 비동기 작업 성공 뒤 자동 navigation이 필요한 기능은 해당 기능에서 state 기반 계약을 별도로 설계한다.
 - Toast·Snackbar는 UI behavior다. 공통 message 구현은 지금 정의하지 않으며, 실제 화면 요구가 생길 때 Compose UI 방식과 필요한 platform 위치를 함께 결정한다.
