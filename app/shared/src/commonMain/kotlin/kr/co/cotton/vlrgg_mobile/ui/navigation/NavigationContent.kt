@@ -1,0 +1,167 @@
+package kr.co.cotton.vlrgg_mobile.ui.navigation
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelStoreOwner
+import kr.co.cotton.vlrgg_mobile.di.AppViewModelFactory
+import kr.co.cotton.vlrgg_mobile.ui.feature.mypage.MyPageScreen
+
+@Composable
+fun NavigationContent(
+    destination: AppNavKey,
+    myPageOwner: ViewModelStoreOwner?,
+    viewModelFactory: AppViewModelFactory,
+    onSearch: () -> Unit,
+    onPush: (AppNavKey) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (destination) {
+        MyPageRoot -> RootContent(
+            destination = destination,
+            onSearch = onSearch,
+            modifier = modifier,
+        ) {
+            MyPageScreen(
+                owner = requireNotNull(myPageOwner) {
+                    "MyPageRoot requires its Navigation 3 entry ViewModelStoreOwner."
+                },
+                factory = viewModelFactory,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        NewsRoot,
+        MatchesRoot,
+        EventsRoot,
+        AboutRoot,
+        -> RootContent(
+            destination = destination,
+            onSearch = onSearch,
+            modifier = modifier,
+        ) {
+            DestinationMarker(destination)
+        }
+
+        Search -> SearchContent(
+            onBack = onBack,
+            onPush = onPush,
+            modifier = modifier,
+        )
+
+        is NewsDetail,
+        is MatchDetail,
+        is EventDetail,
+        is TeamDetail,
+        is PlayerDetail,
+        is SeriesDetail,
+        -> PushedContent(
+            destination = destination,
+            onBack = onBack,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun RootContent(
+    destination: AppNavKey,
+    onSearch: () -> Unit,
+    modifier: Modifier,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = destination.destinationDescriptor.title,
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        Button(onClick = onSearch) {
+            Text("Search")
+        }
+        content()
+    }
+}
+
+@Composable
+private fun SearchContent(
+    onBack: () -> Unit,
+    onPush: (AppNavKey) -> Unit,
+    modifier: Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = Search.destinationDescriptor.title,
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        Button(onClick = onBack) {
+            Text("Back")
+        }
+        Button(onClick = { onPush(NewsDetail(articleId = "1", slug = "news")) }) {
+            Text("News Detail")
+        }
+        Button(onClick = { onPush(MatchDetail(matchId = "1")) }) {
+            Text("Match Detail")
+        }
+        Button(onClick = { onPush(EventDetail(eventId = "1")) }) {
+            Text("Event Detail")
+        }
+        Button(onClick = { onPush(TeamDetail(teamId = "1")) }) {
+            Text("Team Detail")
+        }
+        Button(onClick = { onPush(PlayerDetail(playerId = "1")) }) {
+            Text("Player Detail")
+        }
+        Button(onClick = { onPush(SeriesDetail(seriesId = "1")) }) {
+            Text("Series Detail")
+        }
+    }
+}
+
+@Composable
+private fun PushedContent(
+    destination: AppNavKey,
+    onBack: () -> Unit,
+    modifier: Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        DestinationMarker(destination)
+        Button(onClick = onBack) {
+            Text("Back")
+        }
+    }
+}
+
+@Composable
+private fun DestinationMarker(destination: AppNavKey) {
+    Text(
+        text = destination.destinationDescriptor.marker,
+        style = MaterialTheme.typography.bodyLarge,
+    )
+}
