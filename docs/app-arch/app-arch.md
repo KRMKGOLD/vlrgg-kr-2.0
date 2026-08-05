@@ -65,10 +65,10 @@ Screen (Composable)
 
 ```text
 commonMain/
+  App.kt                    # shared app composition root
   di/
-    AppGraph.kt             # target: app runtime DI graph
+    AppGraph.kt             # app runtime DI graph
   ui/
-    App.kt                  # target: shared app composition root
     theme/
       Theme.kt
       Colors.kt
@@ -77,7 +77,8 @@ commonMain/
     component/
     navigation/
       AppNavKey.kt
-      AppNavHost.kt         # navigation state and entry mapping
+      AppNavigation.kt      # navigation state and entry mapping
+      AppNavigationState.kt # root plus transient overlay policy
     feature/
       home/
         components/
