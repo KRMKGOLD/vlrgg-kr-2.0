@@ -5,3 +5,9 @@ PRODUCT_BUNDLE_IDENTIFIER=kr.co.cotton.vlrgg_mobile.Vlrggmobile$(TEAM_ID)
 
 CURRENT_PROJECT_VERSION=1
 MARKETING_VERSION=1.0
+
+SLASH=/
+API_BASE_URL=
+API_BASE_URL[config=Debug]=http:$(SLASH)$(SLASH)127.0.0.1:8080
+
+#include? "Config.local.xcconfig"
