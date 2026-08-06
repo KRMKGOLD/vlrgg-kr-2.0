@@ -16,9 +16,12 @@ docs/
       README.md
   app-arch/
     app-arch.md
+    app-runtime.md
     ui-layer.md
     domain-layer.md
     data-layer.md
+    adr/
+      0001-thin-app-runtime-kernel.md
   architecture/
     server-arch.md
     server-fcm-stage1.md
@@ -63,6 +66,7 @@ docs/
 - 기능 기획: [`feature/README.md`](feature/README.md)
 - 디자인 시스템: [`../DESIGN.md`](../DESIGN.md)
 - 앱 전체 구조: [`app-arch/app-arch.md`](app-arch/app-arch.md)
+- 앱 runtime 확정 계약: [`app-arch/adr/0001-thin-app-runtime-kernel.md`](app-arch/adr/0001-thin-app-runtime-kernel.md)
 - UI 계층: [`app-arch/ui-layer.md`](app-arch/ui-layer.md)
 - Domain 계층: [`app-arch/domain-layer.md`](app-arch/domain-layer.md)
 - Data 계층: [`app-arch/data-layer.md`](app-arch/data-layer.md)
