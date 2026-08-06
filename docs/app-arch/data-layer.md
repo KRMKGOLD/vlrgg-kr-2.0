@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-Data Layer는 `app/shared`의 `commonMain/data` 아래에 두며, server API와 local storage를 Domain Layer의 repository contract 뒤로 감춘다.
+Data Layer는 `app/shared`의 `commonMain/data` 아래에 두며, server API와 local storage를 Domain Layer의 repository contract 뒤로 감춘다. 앱 전체 Ktor client 구성은 `data` 아래에 중첩하지 않고 peer인 `commonMain/network`가 담당한다.
 
 책임:
 
@@ -32,6 +32,11 @@ platform API가 필요한 경우에만 `expect`/`actual` 또는 같은 역할의
 commonMain/.../
   di/
     AppGraph.kt
+  network/
+    HttpClient.kt
+    NetworkConfig.kt
+    di/
+      NetworkBinding.kt
   data/
     di/
       DataBindings.kt
@@ -41,9 +46,6 @@ commonMain/.../
     mapper/
       MatchMapper.kt
       TeamMapper.kt
-    network/
-      HttpClientFactory.kt
-      NetworkConfig.kt
     remote/
       RemoteMatchDataSource.kt
       impl/
@@ -66,9 +68,9 @@ commonMain/.../
 
 ## Network Package
 
-`network`는 one-depth package로 유지한다. Ktor client 생성과 모든 remote 호출에 공통인 설정만 담당한다.
+`network`는 `data`와 같은 depth의 top-level package로 유지한다. Ktor client 생성과 모든 remote 호출에 공통인 설정만 담당하며, app-scoped provider는 `network/di/NetworkBinding.kt`에 둔다.
 
-- `HttpClientFactory`는 Ktor client를 생성한다.
+- `HttpClient.kt`의 common `expect`와 platform `actual`은 Android/iOS Ktor engine으로 client를 생성한다.
 - `NetworkConfig`는 base URL, JSON serialization, logging, timeout처럼 공통 설정을 표현한다.
 - API endpoint, request/response DTO, feature별 HTTP 호출은 `remote`에 둔다.
 - Ktor client/builder 같은 외부 객체는 Metro DI boundary에서 제공하고, remote impl은 constructor injection으로 받는다.
@@ -174,7 +176,7 @@ RepositoryImpl은 `commonMain/data/repository`에 둔다.
 
 ## Metro DI
 
-Metro의 app-level graph는 `commonMain/di/AppGraph.kt`, Data Layer binding은 `commonMain/data/di/DataBindings.kt`에 둔다. graph의 runtime 준비와 navigation 경계는 `app-runtime.md`의 기본 원칙을 따른다. Data Layer는 app graph를 생성하거나 Compose composition local을 제공하지 않는다.
+Metro의 app-level graph는 `commonMain/di/AppGraph.kt`, app-wide client binding은 `commonMain/network/di/NetworkBinding.kt`, feature Data Layer binding은 `commonMain/data/di/DataBindings.kt`에 둔다. graph의 runtime 준비와 navigation 경계는 `app-runtime.md`의 기본 원칙을 따른다. Data Layer와 network package는 app graph를 생성하거나 Compose composition local을 제공하지 않는다.
 
 처음에는 하나의 `DataBindings.kt`에서 영역을 구분한다.
 
@@ -182,14 +184,12 @@ Metro의 app-level graph는 `commonMain/di/AppGraph.kt`, Data Layer binding은 `
 // Remote bindings
 
 // Local bindings
-
-// Network bindings
 ```
 
 - Data binding 구현체는 constructor injection을 우선한다.
 - `HttpClient`, DataStore instance, Room database builder처럼 constructor만으로 만들기 어려운 외부 객체는 data DI boundary에서 제공한다.
-- `remote/di`, `local/di`, `network/di`처럼 package별 DI package를 만들지 않는다.
-- 한 섹션이 커져 읽기 어려워지면 AI가 `data/di` 안의 peer file(`RemoteBindings.kt`, `LocalBindings.kt`, `NetworkBindings.kt`)로 분리할 수 있다.
+- feature-local `remote/di`, `local/di`처럼 세부 package별 DI package를 만들지 않는다. `network/di`는 application-wide Ktor client provider를 data feature binding과 분리하기 위한 예외다.
+- 한 feature binding 섹션이 커져 읽기 어려워지면 AI가 `data/di` 안의 peer file(`RemoteBindings.kt`, `LocalBindings.kt`)로 분리할 수 있다.
 
 Metro binding의 역할은 [Metro dependency graph 문서](https://zacsweers.github.io/metro/latest/dependency-graphs/)를 따른다.
 
