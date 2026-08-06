@@ -1,0 +1,128 @@
+name: KMP implementation packet
+description: RALPLAN 또는 승인된 기획에 기반한 실행 가능한 KMP 작업 단위
+title: "[KMP] "
+labels:
+  - kmp-app
+body:
+  - type: markdown
+    attributes:
+      value: |
+        구현·검증·종료 조건이 구체적인 작업만 등록합니다. 조사나 계약 결정이 더 필요하면 해당 결정을 먼저 작업 범위에 포함하거나 별도 기획으로 분리합니다.
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: 목표
+      description: 완료 후 관찰할 수 있는 제품 또는 기술 결과와 필요한 이유를 작성합니다.
+      placeholder: 사용자는 …할 수 있고, runtime은 …을 보장한다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: plan-packets
+    attributes:
+      label: RALPLAN 또는 기획 단위
+      description: 이 이슈가 구현하는 packet, ADR, 기능 문서 구간을 순서대로 작성합니다.
+      placeholder: |
+        - [ ] H1-K0 — 계약 확정
+        - [ ] H1-K1 — 구현 및 검증
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 포함 범위
+      description: 변경할 모듈, 계층, 플랫폼, 상태와 계약을 구체적으로 작성합니다.
+      placeholder: |
+        - app/shared commonMain …
+        - Android/iOS host …
+    validations:
+      required: true
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: 제외 범위
+      description: 이 이슈에서 구현하지 않을 기능, 의존성, abstraction을 작성합니다.
+      placeholder: |
+        - …은 구현하지 않는다.
+        - …을 추정하거나 미리 만들지 않는다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: 구현 순서
+      description: 결정 gate와 테스트 선행 조건을 포함한 실행 순서를 작성합니다.
+      placeholder: |
+        1. 계약과 테스트를 고정한다.
+        2. …을 구현한다.
+        3. 플랫폼 경계를 검증한다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건
+      description: 구현 의도가 아니라 관찰·검증 가능한 종료 조건을 체크리스트로 작성합니다.
+      value: |
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: 검증
+      description: 종료 전에 필요한 테스트, 빌드, 수동 증거를 정확한 명령 또는 체크리스트로 작성합니다.
+      value: |
+        - [ ] `./gradlew …`
+        - [ ] `git diff --check`
+    validations:
+      required: true
+
+  - type: textarea
+    id: relationships
+    attributes:
+      label: 의존 관계
+      description: 실제 완료 blocker, 후속 이슈, 관련 PR을 작성합니다. 없으면 None으로 명시합니다.
+      placeholder: |
+        Blocked by: #123
+        Blocks: #124
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 근거
+      description: RALPLAN packet, ADR, docs, DESIGN.md 또는 공식 API 문서 링크를 작성합니다.
+      placeholder: |
+        - docs/app-arch/…
+        - docs/feature/…
+    validations:
+      required: true
+
+  - type: textarea
+    id: stop-condition
+    attributes:
+      label: 중단 조건
+      description: 범위 확장, 미확정 계약, 검증 불가 상황에서 작업을 멈추고 분리해야 하는 기준을 작성합니다.
+      placeholder: …이 불명확하면 구현을 진행하지 않고 별도 결정으로 분리한다.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: 실행 준비 확인
+      options:
+        - label: placeholder나 미정 범위 없이 개발자가 바로 구현을 시작할 수 있다.
+          required: true
+        - label: 의존 관계와 근거가 식별되었거나 명시적으로 None이다.
+          required: true
+        - label: 완료 조건과 검증 증거가 구체적이다.
+          required: true
