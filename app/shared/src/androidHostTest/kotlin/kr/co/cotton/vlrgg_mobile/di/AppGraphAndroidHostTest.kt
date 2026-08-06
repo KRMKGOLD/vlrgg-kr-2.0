@@ -15,7 +15,7 @@ import kotlin.test.assertSame
 class AppGraphAndroidHostTest {
     @Test
     fun metroGraphResolvesFactoryCreatesMyPageAndRejectsUnknownViewModels() {
-        val graph = createAppGraph()
+        val graph = createAppGraph(apiBaseUrl = TEST_API_BASE_URL)
         val factory = graph.appViewModelFactory
 
         assertIs<MyPageViewModel>(
@@ -31,7 +31,7 @@ class AppGraphAndroidHostTest {
 
     @Test
     fun projectResolverScopesMyPageToItsNavigationEntryOwner() {
-        val factory = createAppGraph().appViewModelFactory
+        val factory = createAppGraph(apiBaseUrl = TEST_API_BASE_URL).appViewModelFactory
         val firstOwner = TestViewModelStoreOwner()
         val secondOwner = TestViewModelStoreOwner()
 
@@ -53,4 +53,8 @@ class AppGraphAndroidHostTest {
     }
 
     private class UnknownViewModel : ViewModel()
+
+    private companion object {
+        const val TEST_API_BASE_URL = "https://example.invalid"
+    }
 }
