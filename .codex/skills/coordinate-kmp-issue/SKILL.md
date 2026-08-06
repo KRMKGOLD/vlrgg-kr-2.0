@@ -16,10 +16,19 @@ description: 이 저장소의 OMX RALPLAN과 GitHub KMP App 이슈를 기반으�
 - 사용자가 운영 방식을 명시적으로 변경하지 않는 한 `$ultragoal`, `$team`, `$ralph`, `$autopilot`, 서브에이전트를 실행하지 않는다.
 - 기존 작업 트리 변경은 보존하고, 근거 없이 현재 이슈 변경으로 취급하지 않는다.
 - 실행 모드에 들어가기 직전 `mktemp -d`로 저장소 밖의 임시 디렉터리를 만들고 `git status --short --branch`, `git diff`, `git diff --cached`, `git ls-files --others --exclude-standard` 결과를 각각 기준선으로 저장한다. 임시 디렉터리 경로를 기록하고 현재 요청이 끝날 때까지 유지한다. 기준선 파일을 저장소 안에 만들거나 stage하지 않는다.
-- `.omx`는 계획 근거로만 읽는다. host receipt, tracker, workflow state를 만들거나 추정하거나 수정하지 않는다.
+- `.omx`는 계획 근거로만 읽는다. host receipt, tracker, workflow state를 만들거나 추정하거나 수정하지 않으며, `.omx` 또는 `.gitignore`를 생성·복사·동기화·수정하지 않는다.
 - 개발자에게 읽기 전용 작업 패킷을 제공하는 행위는 AI 실행 handoff가 아니므로 RALPLAN host receipt gate로 차단하지 않는다.
 
 사용자가 Codex의 직접 구현, 수정, 테스트, 문서 갱신, Git 또는 GitHub 변경을 명시적으로 요청하면 별도의 재확인을 요구하지 않고 해당 범위에 한해 실행 모드로 전환한다. 이 명시적 요청은 자동 agentic handoff와 구분하며, host receipt 상태를 조작하지 않는다. 요청하지 않은 후속 외부 변경이나 범위 확장은 수행하지 않는다.
+
+## canonical local RALPLAN resolution
+
+연결된 Git/Orca worktree에서도 다음 순서로 canonical RALPLAN 경로를 해석한다.
+
+1. `git rev-parse --show-toplevel` 결과를 `<root>`로 정하고 `<root>/.omx/plans/kmp-app-development-direction-ralplan.md`를 current 후보로 만든다.
+2. `git rev-parse --path-format=absolute --git-common-dir` 결과를 절대 정규화한 `<common-dir>`로 정한다. `<common-dir>`의 이름이 `.git`이고 디렉터리인지 확인한 뒤, 그 부모 `<primary-root>`를 primary 후보로만 도출한다. 다음을 모두 확인해 `<primary-root>`가 같은 common dir을 쓰는 non-bare worktree인지 검증한다: `git -C <primary-root> rev-parse --is-bare-repository`가 `false`인지, `git -C <primary-root> rev-parse --path-format=absolute --git-common-dir`가 `<common-dir>`와 같은지, `git -C <primary-root> rev-parse --show-toplevel` 결과가 `<primary-root>`와 정확히 같은지. 하나라도 실패하면 unsafe derivation으로 `BLOCKED`를 반환한다.
+3. current와 안전하게 도출한 primary 후보만 검사하고 arbitrary scan을 하지 않는다. 후보 경로를 절대 정규화해 비교하며 같은 경로는 하나의 후보로 취급한다. 한 후보만 존재하면 그 경로를 사용하고, 두 후보가 서로 다른 경로로 모두 존재하면 `cmp -s` 같은 byte-for-byte 비교 또는 SHA-256 같은 cryptographic digest로 비교한다. 불일치하면 두 위치와 이유를 포함해 `BLOCKED`를 반환하고, 일치하면 current 경로를 사용한다. 두 후보가 모두 없거나 derivation이 unsafe하면 후보 위치와 이유를 포함해 `BLOCKED`를 반환한다.
+4. 이후 이슈 매핑과 작업 근거 수집에는 반드시 resolved RALPLAN의 절대 경로를 사용하고 cwd-relative `.omx/...` 경로를 가정하지 않는다. resolved RALPLAN과 `.omx`는 읽기 전용 evidence로만 취급하며, 파일이나 `.gitignore`를 생성·복사·동기화·수정하지 않는다.
 
 ## 대상 이슈 결정
 
@@ -29,7 +38,7 @@ description: 이 저장소의 OMX RALPLAN과 GitHub KMP App 이슈를 기반으�
 2. 이슈가 지정되지 않으면 대상 저장소에서 후보를 조회한다.
 3. 명시적으로 지정한 이슈와 자동 조회한 모든 후보에 동일한 검증을 적용한다. 이슈 번호가 `#33`~`#49`이고, state가 `open`이며, milestone title이 정확히 `KMP App MVP`이고, `kmp-app` 라벨이 있는지 GitHub 응답으로 확인한다.
 4. 하나라도 검증에 실패하면 작업 패킷을 만들거나 실행하지 말고 `BLOCKED`를 반환한다.
-5. `.omx/plans/kmp-app-development-direction-ralplan.md`가 존재하고 `GitHub Issue Packaging` heading과 그 직속 표가 각각 정확히 하나인지 확인한다. 표에서 `https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/{번호}` 전체 URL을 고유 anchor로 사용해 정확히 한 행을 찾는다. 그 행의 `Included packets` 셀을 쉼표로 나누고 공백을 제거한 각 packet ID가 문서의 `Packets` 표들에서 정확히 한 행으로 해석되는지 확인한다. 파일·heading·표가 없거나 둘 이상이거나, 이슈 행 또는 packet ID 매핑이 0개 또는 여러 개면 `BLOCKED`를 반환한다.
+5. resolved RALPLAN 파일이 존재하고 `GitHub Issue Packaging` heading과 그 직속 표가 각각 정확히 하나인지 확인한다. 표에서 `https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/{번호}` 전체 URL을 고유 anchor로 사용해 정확히 한 행을 찾는다. 그 행의 `Included packets` 셀을 쉼표로 나누고 공백을 제거한 각 packet ID가 문서의 `Packets` 표들에서 정확히 한 행으로 해석되는지 확인한다. 파일·heading·표가 없거나 둘 이상이거나, 이슈 행 또는 packet ID 매핑이 0개 또는 여러 개면 `BLOCKED`를 반환한다.
 6. 검증한 동일 저장소 경로 `repos/KRMKGOLD/vlrgg-kr-2.0/issues/{번호}/dependencies/blocked_by`로 실제 선행 관계를 확인한다. URL 입력에서 얻은 다른 저장소나 고정되지 않은 현재 저장소를 사용하지 않는다.
 7. 모든 선행 이슈가 종료된 항목 중 `GitHub Issue Packaging` 표의 행 순서가 가장 빠른 이슈를 선택한다.
 8. 선행 이슈가 열린 작업은 시작하지 않는다.
@@ -44,7 +53,7 @@ GitHub 접근에 실패하면 로컬 매핑은 방향 확인에만 사용한다.
 
 1. 루트 `AGENTS.md`와 관련 모듈의 `AGENTS.md`.
 2. GitHub 이슈 본문, 라벨, 마일스톤, 담당자, 선행 관계.
-3. `GitHub Issue Packaging`에서 고유하게 매핑된 RALPLAN packet, 결정 gate, 완료 조건, 검증 항목, 중단 조건.
+3. resolved RALPLAN의 `GitHub Issue Packaging`에서 고유하게 매핑된 packet, 결정 gate, 완료 조건, 검증 항목, 중단 조건.
 4. 관련 `docs/app-arch/`, `docs/feature/`, `DESIGN.md` 구간.
 5. 예상 변경 지점의 현재 구현과 테스트.
 6. `git status --short --branch`로 확인한 기존 사용자 변경.
