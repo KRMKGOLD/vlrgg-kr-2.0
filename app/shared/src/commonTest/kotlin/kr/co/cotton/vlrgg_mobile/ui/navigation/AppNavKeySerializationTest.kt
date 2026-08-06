@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile.ui.navigation
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.serialization.NavBackStackSerializer
+import kotlinx.serialization.PolymorphicSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
@@ -112,7 +113,7 @@ class AppNavKeySerializationTest {
             Search,
             TeamDetail(teamId = "1001"),
         )
-        val serializer = NavBackStackSerializer<NavKey>()
+        val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))
 
         val restored = backStackJson.decodeFromString(
             serializer,
