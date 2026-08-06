@@ -1,0 +1,4 @@
+interface:
+  display_name: "KMP 이슈 개발 코디네이터"
+  short_description: "개발자가 구현하고 Codex가 범위·설계·리뷰를 담당"
+  default_prompt: "$coordinate-kmp-issue 다음으로 진행 가능한 KMP App 이슈를 시작해. 구현은 내가 하고, 너는 작업 패킷 작성과 리뷰만 담당해."
