@@ -23,7 +23,7 @@ The contract uses Stitch project metadata (`MOBILE`, `LIGHT`, `ROUND_EIGHT`, cus
 
 The project contains a previous `Tactical Information Architecture` asset, older reference screens, and corrected Stitch exports. They are all historical evidence and do not override the committed canonical contracts in `DESIGN.md` and `docs/feature/**`. Source exports vary between `#FF4654`/`#FF4655`, `Public Sans`/`Inter`, and nearby neutral values; the normalized tokens below resolve those export differences deliberately.
 
-The canonical wireframes are an approved reconstruction brief, not evidence that the current app already implements the 12 product surfaces. The canonical Stitch project now contains 12 normalized representative Base screens for review; the 88 independent state screens remain pending until those Base screens pass review. Stitch generation and feature implementation remain separate work; this file records the visual contract and validation criteria only.
+The canonical wireframes are an approved reconstruction brief, not evidence that the current app already implements the 12 product surfaces. The canonical Stitch project now contains 12 normalized representative Base screens as review-only inputs; they are separate from, and not included in, the canonical 88-screen delivery scope. Those 88 independent state screens remain pending until the Base screens pass review, so the project name describes the final delivery scope rather than the current screen-object count. Stitch generation and feature implementation remain separate work; this file records the visual contract and validation criteria only.
 
 ## Canonical screen contract (2026-08-03)
 
