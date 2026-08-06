@@ -15,6 +15,7 @@ description: 이 저장소의 OMX RALPLAN과 GitHub KMP App 이슈를 기반으�
 - 기본 가이드 모드에서는 브랜치 생성·전환, 커밋, 푸시, PR 생성·병합, 이슈 종료·수정 작업을 수행하지 않는다.
 - 사용자가 운영 방식을 명시적으로 변경하지 않는 한 `$ultragoal`, `$team`, `$ralph`, `$autopilot`, 서브에이전트를 실행하지 않는다.
 - 기존 작업 트리 변경은 보존하고, 근거 없이 현재 이슈 변경으로 취급하지 않는다.
+- 실행 모드에 들어가기 직전 `mktemp -d`로 저장소 밖의 임시 디렉터리를 만들고 `git status --short --branch`, `git diff`, `git diff --cached`, `git ls-files --others --exclude-standard` 결과를 각각 기준선으로 저장한다. 임시 디렉터리 경로를 기록하고 현재 요청이 끝날 때까지 유지한다. 기준선 파일을 저장소 안에 만들거나 stage하지 않는다.
 - `.omx`는 계획 근거로만 읽는다. host receipt, tracker, workflow state를 만들거나 추정하거나 수정하지 않는다.
 - 개발자에게 읽기 전용 작업 패킷을 제공하는 행위는 AI 실행 handoff가 아니므로 RALPLAN host receipt gate로 차단하지 않는다.
 
@@ -22,16 +23,20 @@ description: 이 저장소의 OMX RALPLAN과 GitHub KMP App 이슈를 기반으�
 
 ## 대상 이슈 결정
 
-1. 요청에 이슈 번호나 URL이 있으면 해당 이슈를 선택한다.
-2. 이슈가 지정되지 않으면 `.omx/plans/kmp-app-development-direction-ralplan.md`의 `GitHub Issue Packaging`을 읽는다.
-3. `KMP App MVP` 마일스톤에서 `kmp-app` 라벨을 가진 열린 이슈를 조회한다.
-4. `gh api repos/KRMKGOLD/vlrgg-kr-2.0/issues/{번호}/dependencies/blocked_by`로 실제 선행 관계를 확인한다.
-5. 모든 선행 이슈가 종료된 항목 중 RALPLAN 권장 순서가 가장 빠른 이슈를 선택한다.
-6. 선행 이슈가 열린 작업은 시작하지 않는다.
+대상 저장소는 정확히 `KRMKGOLD/vlrgg-kr-2.0`으로 제한한다.
+
+1. 요청에 이슈 번호가 있으면 대상 저장소의 해당 이슈로 해석한다. URL이 있으면 URL에서 owner, repository, issue 번호를 추출하고 대상 저장소와 일치하는지 확인한다.
+2. 이슈가 지정되지 않으면 대상 저장소에서 후보를 조회한다.
+3. 명시적으로 지정한 이슈와 자동 조회한 모든 후보에 동일한 검증을 적용한다. 이슈 번호가 `#33`~`#49`이고, state가 `open`이며, milestone title이 정확히 `KMP App MVP`이고, `kmp-app` 라벨이 있는지 GitHub 응답으로 확인한다.
+4. 하나라도 검증에 실패하면 작업 패킷을 만들거나 실행하지 말고 `BLOCKED`를 반환한다.
+5. `.omx/plans/kmp-app-development-direction-ralplan.md`가 존재하고 `GitHub Issue Packaging` heading과 그 직속 표가 각각 정확히 하나인지 확인한다. 표에서 `https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/{번호}` 전체 URL을 고유 anchor로 사용해 정확히 한 행을 찾는다. 그 행의 `Included packets` 셀을 쉼표로 나누고 공백을 제거한 각 packet ID가 문서의 `Packets` 표들에서 정확히 한 행으로 해석되는지 확인한다. 파일·heading·표가 없거나 둘 이상이거나, 이슈 행 또는 packet ID 매핑이 0개 또는 여러 개면 `BLOCKED`를 반환한다.
+6. 검증한 동일 저장소 경로 `repos/KRMKGOLD/vlrgg-kr-2.0/issues/{번호}/dependencies/blocked_by`로 실제 선행 관계를 확인한다. URL 입력에서 얻은 다른 저장소나 고정되지 않은 현재 저장소를 사용하지 않는다.
+7. 모든 선행 이슈가 종료된 항목 중 `GitHub Issue Packaging` 표의 행 순서가 가장 빠른 이슈를 선택한다.
+8. 선행 이슈가 열린 작업은 시작하지 않는다.
 
 native GitHub 선행 관계가 없으면 기본 가이드 모드에서 개발 작업 패킷을 작성한다. RALPLAN receipt gate가 `complete: false`여도 작업 패킷 제공 자체를 막지 않는다.
 
-GitHub 접근에 실패하면 로컬 매핑은 방향 확인에만 사용하고, 선행 관계를 검증하지 못했다는 사실을 보고한다. 상태를 추측하지 않는다.
+GitHub 접근에 실패하면 로컬 매핑은 방향 확인에만 사용한다. 상태나 선행 관계를 추측하거나 작업 패킷을 만들거나 실행하지 말고 `BLOCKED`를 반환한다.
 
 ## 작업 근거 수집
 
@@ -39,7 +44,7 @@ GitHub 접근에 실패하면 로컬 매핑은 방향 확인에만 사용하고,
 
 1. 루트 `AGENTS.md`와 관련 모듈의 `AGENTS.md`.
 2. GitHub 이슈 본문, 라벨, 마일스톤, 담당자, 선행 관계.
-3. 대응하는 RALPLAN packet, 결정 gate, 완료 조건, 검증 항목, 중단 조건.
+3. `GitHub Issue Packaging`에서 고유하게 매핑된 RALPLAN packet, 결정 gate, 완료 조건, 검증 항목, 중단 조건.
 4. 관련 `docs/app-arch/`, `docs/feature/`, `DESIGN.md` 구간.
 5. 예상 변경 지점의 현재 구현과 테스트.
 6. `git status --short --branch`로 확인한 기존 사용자 변경.
@@ -84,17 +89,19 @@ GitHub 이슈는 개발 실행 묶음으로, RALPLAN packet은 세부 범위와 
 
 개발자가 구현 완료를 알리면 다음 순서로 검토한다.
 
-1. staged와 unstaged를 포함한 전체 diff를 확인한다.
-2. 이슈와 packet의 모든 완료 조건에 대조한다.
-3. 최신 테스트·빌드 출력을 확인하고, 필요한 읽기 전용 검증 명령을 안전한 범위에서 실행한다.
-4. 범위, 아키텍처, lifecycle, cancellation, navigation restoration, 플랫폼 일관성을 해당 이슈 범위에 맞게 확인한다.
-5. 문제를 심각도순으로 실제 파일 근거와 함께 보고한다.
-6. 다음 중 하나만 최종 판정으로 반환한다.
+1. PR이 있으면 GitHub에서 실제 base ref를 확인한다. PR이 없으면 현재 브랜치의 upstream 대상 또는 저장소의 remote default branch를 확인하고, 둘 중 하나를 비교 base로 고유하게 확정할 수 없으면 `BLOCKED`를 반환한다. 확정한 base와 `HEAD`의 merge-base를 계산한다.
+2. merge-base부터 `HEAD`까지의 diff, staged diff, unstaged diff를 확인한다. 실행 기준선이 있으면 기준선 이후 새로 생긴 미추적 파일을 확인하고, 기준선이 없으면 현재 미추적 파일 전부를 검토 대상으로 포함해 기존 변경임을 입증하지 못한 항목을 제외하지 않는다.
+3. 위 변경을 합쳐 이슈와 packet의 모든 완료 조건에 대조한다. 어느 변경 출처도 검토에서 제외하지 않는다.
+4. 최신 테스트·빌드 출력을 확인하고, 필요한 읽기 전용 검증 명령을 안전한 범위에서 실행한다.
+5. 범위, 아키텍처, lifecycle, cancellation, navigation restoration, 플랫폼 일관성을 해당 이슈 범위에 맞게 확인한다.
+6. 문제를 심각도순으로 실제 파일 근거와 함께 보고한다.
+7. 다음 중 하나만 최종 판정으로 반환한다.
    - `ACCEPTED`: 모든 완료 조건에 충분한 최신 증거가 있다.
    - `ITERATE`: 수정할 결함이나 빠진 검증이 있다.
    - `BLOCKED`: 외부 계약, 선행 작업, 환경, 사용자 결정이 필요하다.
 
-테스트, 빌드, simulator, 실기기, 접근성 증거가 요구되는 이슈를 코드 확인만으로 `ACCEPTED` 처리하지 않는다.
+모든 변경 출처를 검토하기 전에는 `ACCEPTED`를 반환하지 않는다. 테스트, 빌드, simulator, 실기기, 접근성 증거가 요구되는 이슈를 코드 확인만으로 `ACCEPTED` 처리하지 않는다.
+필수 검증이 아직 실행되지 않았지만 현재 환경에서 실행 가능하면 `ITERATE`를 반환한다. 외부 환경·자격 증명·사용자 결정 없이는 실행할 수 없으면 `BLOCKED`를 반환한다.
 
 ### 명시적 실행 요청
 
@@ -102,10 +109,12 @@ GitHub 이슈는 개발 실행 묶음으로, RALPLAN packet은 세부 범위와 
 
 1. 대상 이슈와 native 선행 관계를 확인한다.
 2. 요청한 구현·수정·테스트·문서·Git·GitHub 작업만 실행 범위로 고정한다.
-3. 기존 사용자 변경을 보존하며 현재 이슈의 범위와 제외 조건을 따른다.
-4. 가장 좁은 테스트부터 실행하고 필요한 플랫폼 검증까지 확장한다.
-5. 사용자가 요청하지 않은 `$ultragoal`, `$team`, `$ralph`, `$autopilot`을 자동 실행하지 않는다.
-6. 결과를 변경 파일, 검증 증거, 남은 위험으로 정리한다.
+3. 실행 모드 진입 직전 저장한 기준선과 계속 비교해 기존 사용자 변경을 보존하며 현재 이슈의 범위와 제외 조건을 따른다.
+4. 커밋을 요청받았는데 기준선에 staged 변경이 있으면 index를 unstage하거나 다시 구성하지 말고 `BLOCKED`를 반환하며 commit, push, PR 생성을 중단한다. 기준선의 staged diff가 비어 있을 때만 현재 이슈 hunk를 stage한다. 기준선의 unstaged diff에 있던 경로는 항상 `git add -p`나 동등한 hunk 선택을 사용하고, 그 밖의 이슈 전용 경로만 명시적 path staging을 허용한다. 기준선의 미추적 경로는 기존 사용자 변경으로 취급해 수정하거나 stage하지 않으며, 현재 이슈가 같은 경로를 요구하면 `BLOCKED`를 반환한다. `git add .`처럼 범위가 넓은 staging은 사용하지 않는다.
+5. `git diff --cached`를 기준선과 비교해 현재 이슈 hunk만 포함됐는지 확인한다. 기존 변경과 현재 이슈 변경이 같은 파일의 같은 hunk에서 겹치면 덮어쓰거나 임의로 분리하지 않고 `BLOCKED`를 반환한다. 두 경우 모두 commit, push, PR 생성은 중단한다.
+6. 가장 좁은 테스트부터 실행하고 필요한 플랫폼 검증까지 확장한다.
+7. 사용자가 요청하지 않은 `$ultragoal`, `$team`, `$ralph`, `$autopilot`을 자동 실행하지 않는다.
+8. 결과를 변경 파일, 검증 증거, 남은 위험으로 정리한다.
 
 `구현 방향 알려줘`, `작업 패킷 작성해`, `리뷰해`는 실행 요청이 아니다. `구현해`, `고쳐줘`, `커밋해`, `PR 만들어`, `이슈 닫아`처럼 실제 변경을 요구하는 표현만 해당 작업의 실행 권한으로 취급한다.
 
@@ -129,6 +138,8 @@ GitHub 이슈는 개발 실행 묶음으로, RALPLAN packet은 세부 범위와 
 - 필요한 서버·제품·플랫폼 계약이 없거나 서로 충돌한다.
 - 요청한 변경이 이슈의 제외 범위를 넘어간다.
 - dependency 또는 아키텍처 선택에 별도 승인이 필요하다.
+- canonical RALPLAN 파일이나 `GitHub Issue Packaging`의 이슈→packet 고유 매핑을 확인할 수 없다.
+- 실행 기준선의 기존 변경과 현재 이슈 변경이 같은 파일의 같은 hunk에서 겹친다.
 - 필수 검증을 실행할 수 없거나 증거가 없다.
 - 계속 진행하려면 사용자가 허용하지 않은 파괴적 작업, 자격 증명, 운영 환경, 외부 상태 변경이 필요하다.
 
