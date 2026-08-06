@@ -1,6 +1,10 @@
 # Design System: VLR.GG Mobile 2.0
 
-**Stitch project:** [VLR.GG Mobile 2.0](https://stitch.withgoogle.com/projects/15805645626358472639) (`15805645626358472639`)
+**Stitch project:** [VLR.GG Mobile 2.0 — Canonical 88 Screens](https://stitch.withgoogle.com/projects/8765150675340843101) (`8765150675340843101`)
+
+**Canonical Stitch design-system asset:** `Tactical Editorial` (`assets/093ced9b20974146bf4905595b92db45`). Use it for subsequent state-screen generation together with the explicit `390 × 884` resource / centered `360 × 780` app-artboard prompt contract below.
+
+**Historical reference project:** [VLR.GG Mobile 2.0](https://stitch.withgoogle.com/projects/15805645626358472639) (`15805645626358472639`)
 
 **Status:** Active — Step 1 contract
 
@@ -19,10 +23,11 @@ The contract uses Stitch project metadata (`MOBILE`, `LIGHT`, `ROUND_EIGHT`, cus
 
 The project contains a previous `Tactical Information Architecture` asset, older reference screens, and corrected Stitch exports. They are all historical evidence and do not override the committed canonical contracts in `DESIGN.md` and `docs/feature/**`. Source exports vary between `#FF4654`/`#FF4655`, `Public Sans`/`Inter`, and nearby neutral values; the normalized tokens below resolve those export differences deliberately.
 
-The canonical wireframes are an approved reconstruction brief, not evidence that the current app already implements the 12 product surfaces. Stitch generation and feature implementation are separate follow-up work; this file records the visual contract and validation criteria only.
+The canonical wireframes are an approved reconstruction brief, not evidence that the current app already implements the 12 product surfaces. The canonical Stitch project now contains 12 normalized representative Base screens as review-only inputs; they are separate from, and not included in, the canonical 88-screen delivery scope. Those 88 independent state screens remain pending until the Base screens pass review, so the project name describes the final delivery scope rather than the current screen-object count. Stitch generation and feature implementation remain separate work; this file records the visual contract and validation criteria only.
 
 ## Canonical screen contract (2026-08-03)
 
+- Canonical product review frames use a fixed `360 × 780px` app artboard centered inside Stitch's `390 × 884px` mobile resource. The resulting 15px horizontal and 52px vertical outer margins are review-canvas space, not product UI or the app's 16px content inset. `360px` remains the minimum supported review width and the normalization baseline for Stitch/Figma handoff. This fixed size applies only to review captures: production Compose layouts remain responsive, respect platform safe areas, and scroll the content region between persistent app chrome. **[Approved 2026-08-04]**
 - Root is fixed five-tab navigation: `News`, `Matches`, `MyPage`, `Events`, `About`; `MyPage` is the default destination. Every root has title + Search. Detail and Search are pushed screens without bottom navigation.
 - Detail top bars use Back plus only feature-required actions: News/Event/Series Back-only, Match Back + bell only for Upcoming/Postponed, Team/Player Back + star. Search is full-screen push, explicit-submit-only, maximum 30 characters; blank or symbol-only input cannot submit.
 - News rows are thumbnail/card-free divider rows whose full bounds open News Detail. Search rows are image-free divided rows with text type labels and full-row navigation.
