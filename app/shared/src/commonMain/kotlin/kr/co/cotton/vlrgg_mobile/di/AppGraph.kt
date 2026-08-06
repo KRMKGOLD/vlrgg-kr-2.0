@@ -1,11 +1,28 @@
 package kr.co.cotton.vlrgg_mobile.di
 
+import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.DependencyGraph
-import dev.zacsweers.metro.createGraph
+import dev.zacsweers.metro.Provides
+import dev.zacsweers.metro.createGraphFactory
+import kr.co.cotton.vlrgg_mobile.network.NetworkConfig
+import kr.co.cotton.vlrgg_mobile.network.di.NetworkBinding
 
-@DependencyGraph
+@DependencyGraph(
+    scope = AppScope::class,
+    bindingContainers = [NetworkBinding::class],
+)
 interface AppGraph {
     val appViewModelFactory: AppViewModelFactory
+
+    @DependencyGraph.Factory
+    fun interface Factory {
+
+        fun create(
+            @Provides networkConfig: NetworkConfig,
+        ): AppGraph
+    }
 }
 
-fun createAppGraph(): AppGraph = createGraph<AppGraph>()
+fun createAppGraph(apiBaseUrl: String): AppGraph =
+    createGraphFactory<AppGraph.Factory>()
+        .create(NetworkConfig(baseUrl = apiBaseUrl))
