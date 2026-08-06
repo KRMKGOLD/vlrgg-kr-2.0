@@ -4,6 +4,7 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
+import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -21,7 +22,7 @@ object NetworkBinding {
     @SingleIn(AppScope::class)
     fun provideHttpClient(
         config: NetworkConfig
-    ) = getHttpClient {
+    ) : HttpClient = getHttpClient {
         install(ContentNegotiation) {
             json(
                 Json {
