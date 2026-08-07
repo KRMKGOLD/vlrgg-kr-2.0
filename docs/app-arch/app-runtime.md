@@ -8,13 +8,13 @@
 
 이 문서에서 runtime은 앱 composition과 lifetime 정책을 의미하며 별도 `AppRuntime` wrapper 타입을 뜻하지 않는다.
 
-Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime-kernel.md)로 확정되었다. platform configuration과 application-owned graph 구성은 반영되었고, keyed ViewModel registry와 failure/cancellation 경계는 H1-K1에서 구현할 target이다.
+Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime-kernel.md)로 확정되었다. platform configuration, application-owned graph와 MetroX ViewModel integration은 반영되었고, failure/cancellation 경계는 H1-K1의 남은 구현 target이다.
 
 ## 현재 Runtime composition
 
 1. Android `Application`과 iOS SwiftUI `iOSApp`의 reference-type owner가 Compose recomposition 경로 밖에서 `AppGraph`를 생성한다. Android는 process-owned lazy graph, iOS는 `@StateObject`가 유지하는 app-owned graph를 사용한다.
-2. 플랫폼 host는 graph를 공통 `App(graph)`에 전달한다. 공통 `App`은 `VlrTheme` 안에서 `AppNavigation(graph)`을 연결하며 graph를 새로 만들지 않는다.
-3. Metro `AppGraph`는 `AppViewModelFactory`를 제공한다. 현재 factory는 MyPage ViewModel만 handwritten `when`으로 생성하며, MyPage entry가 Navigation 3의 `ViewModelStoreOwner`로부터 entry-scoped ViewModel을 얻는다.
+2. 플랫폼 host는 graph를 공통 `App(graph)`에 전달한다. 공통 `App`은 graph의 `metroViewModelFactory`를 `LocalMetroViewModelFactory`에 제공한 뒤 `VlrTheme`과 `AppNavigation()`을 연결하며 graph를 UI 하위 계층으로 전달하거나 새로 만들지 않는다.
+3. Metro `AppGraph`는 `ViewModelGraph`를 확장하고 app-scoped `AppViewModelFactory`는 공식 `MetroViewModelFactory`를 구현한다. MyPage는 keyed map multibinding으로 provider를 기여하고 `MyPageScreen`의 `metroViewModel()`이 Navigation 3 entry의 `ViewModelStoreOwner`에 instance를 보관한다.
 4. `NetworkConfig`와 app-scoped Ktor client provider는 graph에 연결되어 있다. 아직 실제 remote data source가 없어 client consumer는 없으며, 별도 `AppRuntime`이나 `shutdown()` API는 확정 계약에 포함하지 않는다.
 
 ## H1-K0 확정 Runtime kernel 계약
@@ -41,13 +41,13 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 - iOS Debug는 `http://127.0.0.1:8080`을 기본으로 한다. 로컬 override는 ignored `Configuration/Config.local.xcconfig`에서 configuration별 `API_BASE_URL`을 설정하거나, 빌드 시 `API_BASE_URL=https://example.invalid`을 전달한다. Release에는 외부 HTTPS 값을 제공해야 한다.
 - 예: `./gradlew :app:androidApp:assembleDebug -PAPI_BASE_URL=https://example.invalid`, `xcodebuild -project app/iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release API_BASE_URL=https://example.invalid build`.
 
-### ViewModel provider registry
+### MetroX ViewModel provider map
 
-- MyPage 전용 `when`은 Metro keyed provider registry로 교체한다.
-- 각 feature는 ViewModel type과 provider를 가진 entry를 Metro multibinding으로 기여하고, registry는 주입받은 entry 집합을 type-keyed provider map으로 변환한다. 새 ViewModel 추가는 entry binding 추가로 끝나며 factory나 central branch를 수정하지 않는다.
-- known type은 생성하고 missing, duplicate, wrong-type binding은 명확히 실패한다.
-- feature ViewModel 추가는 central type switch 수정이 아니라 binding 추가로 끝나야 한다.
-- Navigation entry의 `ViewModelStoreOwner`가 scope를 계속 소유하며 registry는 navigation/back stack을 알지 못한다.
+- 별도 registry class나 `Set<Entry>` 변환을 만들지 않고 MetroX의 `Map<KClass<out ViewModel>, () -> ViewModel>` multibinding을 사용한다.
+- 각 feature ViewModel은 concrete class에 `@ViewModelKey`와 `@ContributesIntoMap(AppScope::class)`를 선언한다. 새 ViewModel 추가는 contribution 추가로 끝나며 factory나 central branch를 수정하지 않는다.
+- registered/missing lookup은 `MetroViewModelFactory`의 runtime 계약을 따른다. duplicate key와 standard contribution type 오류는 Metro graph compilation에서 실패한다.
+- 공통 `App`만 `LocalMetroViewModelFactory`를 제공하며 feature와 navigation content는 graph나 factory를 parameter로 전달하지 않는다.
+- `metroViewModel()`은 Navigation entry decorator의 `LocalViewModelStoreOwner`를 사용한다. 따라서 app-scoped factory와 별개로 ViewModel instance scope는 navigation entry가 소유한다.
 
 ### Failure와 cancellation
 
@@ -86,7 +86,7 @@ Pagination은 여러 feature에서 사용될 가능성이 있지만 아직 100% 
 - `AppNavigationStateTest`: root 선택, overlay push/pop, 복원된 stack 정책
 - `DestinationDescriptorTest`: root 순서와 destination metadata
 - `MyPageViewModelTest`: MyPage skeleton state
-- `AppGraphAndroidHostTest`: 현재 Metro graph와 entry별 ViewModelStore scope
+- `AppGraphAndroidHostTest`: MetroX known/missing provider lookup과 entry별 `ViewModelStoreOwner` scope
 
 H1-K1 완료까지 추가할 검증:
 
@@ -94,7 +94,6 @@ H1-K1 완료까지 추가할 검증:
 - 같은 graph에서 singleton client가 유지되고 별도 graph는 독립 client를 갖는지 검증
 - Android Activity recreation에서 Application-owned graph 유지
 - iOS scene background에서 app-owned graph 유지
-- ViewModel registry known/missing/duplicate/wrong-type 경로
 - repository failure mapping과 cancellation 전파
 - shared Android host test와 iOS simulator compile/test
 
@@ -113,4 +112,6 @@ H1-K1 완료까지 추가할 검증:
 - [Navigation 3 overview](https://developer.android.com/guide/navigation/navigation-3)
 - [Compose Multiplatform ViewModel](https://kotlinlang.org/docs/multiplatform/compose-viewmodel.html)
 - [Metro dependency graph](https://zacsweers.github.io/metro/latest/dependency-graphs/)
+- [MetroX ViewModel](https://zacsweers.github.io/metro/latest/metrox-viewmodel/)
+- [MetroX ViewModel Compose](https://zacsweers.github.io/metro/latest/metrox-viewmodel-compose/)
 - [Ktor client creation, reuse, and close](https://ktor.io/docs/client-create-and-configure.html)

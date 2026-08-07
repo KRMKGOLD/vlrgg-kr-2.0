@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-06
 - Amended: 2026-08-06 — 별도 `AppRuntime`과 명시적 `shutdown()` 계약을 제거하고 platform-owned `AppGraph` 수명으로 단순화
+- Amended: 2026-08-07 — custom ViewModel registry 대신 MetroX의 keyed map multibinding과 Compose integration을 채택
 - Decision scope: [GitHub Issue #33](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/33)의 H1-K0 app runtime foundation
 - Related: [App Runtime Composition](../app-runtime.md), [App Architecture](../app-arch.md), [Data Layer](../data-layer.md)
 
@@ -39,17 +40,17 @@ platform이 다루는 composition boundary는 application lifetime에 한 번 �
 
 이 문서의 `runtime`은 앱 composition과 lifetime 정책을 가리키는 용어이며 `AppRuntime`이라는 별도 타입 도입을 의미하지 않는다.
 
-### 3. ViewModel creation uses a keyed registry
+### 3. ViewModel creation uses MetroX keyed multibinding
 
-현재 MyPage 전용 `when` factory는 H1-K0에서 Metro가 구성한 keyed provider registry로 교체한다. registry의 내부 collection이나 annotation 형태는 Metro API에 맞추되 다음 동작을 보장한다.
+MyPage 전용 `when` factory는 H1-K1에서 MetroX의 공식 ViewModel integration으로 교체한다. `AppGraph`는 `ViewModelGraph`를 확장하고, app-scoped `AppViewModelFactory`는 `MetroViewModelFactory`를 상속해 `Map<KClass<out ViewModel>, () -> ViewModel>` provider map을 받는다. 각 feature ViewModel은 concrete class에 `@ViewModelKey`와 `@ContributesIntoMap(AppScope::class)`를 선언해 provider map에 직접 기여한다.
 
 - 등록된 ViewModel type은 새 instance를 생성할 수 있다.
-- 미등록 type 요청은 요청 type을 식별할 수 있는 명확한 오류로 실패한다.
-- 같은 key의 중복 binding은 graph 생성 또는 registry 초기화 시 실패한다.
-- provider 결과가 요청 type과 다르면 잘못된 instance를 반환하지 않고 실패한다.
-- H1-K1에서 feature ViewModel을 추가할 때 central `when` 분기를 수정하지 않고 binding을 추가한다.
+- 미등록 type 요청은 `MetroViewModelFactory`가 요청 `KClass`를 포함한 명확한 오류로 실패한다.
+- 같은 map key의 중복 binding은 runtime registry 검사가 아니라 Metro graph compilation에서 실패한다.
+- 표준 ViewModel contribution은 concrete class의 implicit `@ViewModelKey`를 사용한다. app code에서 key와 provider를 따로 조합하는 수동 map provider는 만들지 않아 key/provider type 불일치를 구조적으로 피한다.
+- feature ViewModel을 추가할 때 central `when`, 별도 registry class 또는 `Set<Entry>` 변환을 추가하지 않는다.
 
-Navigation 3 entry의 `ViewModelStoreOwner`가 ViewModel scope를 계속 소유한다. registry는 instance lookup/creation만 담당하며 navigation이나 back stack을 소유하지 않는다.
+공통 `App`은 `LocalMetroViewModelFactory`에 graph factory를 한 번 제공한다. feature Screen의 `metroViewModel()`은 Navigation 3 entry decorator가 제공하는 `LocalViewModelStoreOwner`를 사용하므로 실제 ViewModel scope는 계속 navigation entry가 소유한다. Factory와 provider map은 navigation이나 back stack을 소유하지 않는다.
 
 ### 4. Repository failure remains deliberately small
 
@@ -64,7 +65,8 @@ raw exception, HTTP status, server 내부 메시지, upstream URL이나 parser �
 - 별도 lifecycle wrapper 없이 platform-owned graph와 Metro scope만으로 현재 단일-client 요구를 충족한다.
 - process 실행 중 graph 교체와 client의 명시적 종료는 현재 지원하지 않으며 실제 요구가 생기면 별도 결정이 필요하다.
 - 배포 endpoint는 저장소 밖에서 주입할 수 있지만 앱 binary에서 숨겨지는 secret은 아니다.
-- ViewModel 추가가 central type switch의 수정으로 이어지지 않는다.
+- ViewModel 추가가 central type switch나 custom registry의 수정으로 이어지지 않는다.
+- duplicate key와 standard contribution type 오류는 Metro compilation에서 검출하므로 이를 재현하는 app runtime registry test는 두지 않는다.
 - 작은 failure contract는 초기 feature를 단순하게 유지하지만, 세분화가 필요해지면 Domain·Data·UI 전체 경계를 다시 검토해야 한다.
 
 ## Non-goals and deferred work
@@ -88,7 +90,9 @@ H1-K0 구현은 최소한 다음을 자동 검증한다.
 - 같은 graph에서 client를 반복 resolve하면 동일 instance이고, 별도 graph는 독립 instance를 가진다.
 - Android Activity recreation/configuration change가 Application-owned graph/client를 교체하지 않는다.
 - iOS scene background 전환이 app-owned graph/client를 교체하지 않는다.
-- ViewModel registry의 known, missing, duplicate, wrong-type 경로가 각각 계약대로 동작한다.
+- MetroX factory가 등록된 ViewModel과 미등록 ViewModel 요청을 계약대로 처리한다.
+- duplicate key와 standard contribution type 계약은 Android/iOS Metro graph compilation으로 검증한다.
+- 서로 다른 Navigation entry `ViewModelStoreOwner`가 ViewModel instance scope를 독립적으로 소유한다.
 - Repository가 non-cancellation 실패를 `AppResult.Failure`로 변환하고 cancellation은 전파한다.
 - shared Android host test와 iOS simulator compilation/test가 통과한다.
 
@@ -108,6 +112,8 @@ platform lifecycle을 실제 instrumentation/UI test로 안정적으로 재현�
 
 - [Ktor client creation, reuse, and close](https://ktor.io/docs/client-create-and-configure.html)
 - [Metro dependency graph scopes](https://zacsweers.github.io/metro/latest/dependency-graphs/)
+- [MetroX ViewModel](https://zacsweers.github.io/metro/latest/metrox-viewmodel/)
+- [MetroX ViewModel Compose](https://zacsweers.github.io/metro/latest/metrox-viewmodel-compose/)
 - [Android runtime configuration changes](https://developer.android.com/guide/topics/resources/runtime-changes.html)
 - [Android Application lifecycle reference](https://developer.android.com/reference/android/app/Application.html)
 - [SwiftUI StateObject](https://developer.apple.com/documentation/swiftui/stateobject)

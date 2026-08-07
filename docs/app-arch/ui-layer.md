@@ -12,7 +12,7 @@ UI Layer는 화면 렌더링, 사용자 이벤트 전달, navigation callback �
 
 - 필요한 runtime dependency는 플랫폼 owner가 준비해 전달한다.
 - 공통 Theme를 적용한다.
-- `App.kt`는 `AppGraph`를 `AppNavigation`에 전달하고, `AppNavigation`은 graph를 `NavigationEntryContent`에 전달한다. Entry content는 `graph.appViewModelFactory`를 `NavigationContent`에 제공한다.
+- `App.kt`는 `AppGraph`의 `metroViewModelFactory`를 `LocalMetroViewModelFactory`에 제공하고 `AppNavigation()`을 연결한다. Graph와 factory는 `NavigationContent`나 feature Screen parameter로 전달하지 않는다.
 - 최상위 navigation host를 연결한다.
 - 전역 scaffold나 app-level composition local이 필요하면 이 레벨에서 다룬다.
 - 개별 feature의 세부 UI나 비즈니스 로직을 직접 넣지 않는다.
@@ -143,7 +143,7 @@ data class MainUiState(
 )
 ```
 
-DI는 Metro DI를 사용한다. Platform owner가 생성한 `AppGraph`는 `AppViewModelFactory`를 제공한다. 현재 MyPage entry에서는 `NavigationEntryContent`가 entry의 `ViewModelStoreOwner`를 얻어 factory와 함께 `NavigationContent`에 전달하고, `MyPageScreen`이 owner와 factory로 entry-scoped `MyPageViewModel`을 resolve한 뒤 state를 `MyPageContent`에 전달한다. Feature composable은 app graph를 생성하지 않으며, MyPage 외 feature binding과 scope는 각 기능 구현 시 문서화한다.
+DI는 Metro DI와 MetroX ViewModel integration을 사용한다. Platform owner가 생성한 `AppGraph`는 `ViewModelGraph`를 확장하고, 공통 `App`이 graph의 `MetroViewModelFactory`를 `LocalMetroViewModelFactory`에 한 번 제공한다. 각 ViewModel은 `@ViewModelKey`와 `@ContributesIntoMap(AppScope::class)`로 provider map에 기여하며 Screen은 `metroViewModel()`로 현재 Navigation entry의 `ViewModelStoreOwner`에 속한 instance를 얻는다. `NavigationContent`는 graph, factory 또는 owner를 parameter로 전달하지 않는다. Feature composable은 app graph를 생성하거나 service locator처럼 조회하지 않으며, runtime parameter가 필요한 ViewModel의 assisted creation은 해당 기능 요구가 생길 때 MetroX 계약으로 추가한다.
 
 ## UI State Rules
 
