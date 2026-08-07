@@ -5,6 +5,7 @@ import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -21,24 +22,28 @@ object NetworkBinding {
     @Provides
     @SingleIn(AppScope::class)
     fun provideHttpClient(
-        config: NetworkConfig
-    ) : HttpClient = getHttpClient {
-        install(ContentNegotiation) {
-            json(
-                Json {
-                    ignoreUnknownKeys = true
-                }
-            )
-        }
+        config: NetworkConfig,
+    ): HttpClient = getHttpClient {
+        configureNetwork(config)
+    }
+}
 
-        install(HttpTimeout) {
-            requestTimeoutMillis = 30_000
-            connectTimeoutMillis = 10_000
-        }
+internal fun HttpClientConfig<*>.configureNetwork(config: NetworkConfig) {
+    install(ContentNegotiation) {
+        json(
+            Json {
+                ignoreUnknownKeys = true
+            },
+        )
+    }
 
-        defaultRequest {
-            url(config.baseUrl)
-            accept(ContentType.Application.Json)
-        }
+    install(HttpTimeout) {
+        requestTimeoutMillis = 30_000
+        connectTimeoutMillis = 10_000
+    }
+
+    defaultRequest {
+        url(config.baseUrl)
+        accept(ContentType.Application.Json)
     }
 }
