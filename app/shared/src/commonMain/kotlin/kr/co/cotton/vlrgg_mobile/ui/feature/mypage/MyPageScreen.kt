@@ -8,24 +8,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kr.co.cotton.vlrgg_mobile.di.AppViewModelFactory
-import kr.co.cotton.vlrgg_mobile.di.resolveMyPageViewModel
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 @Composable
 fun MyPageScreen(
-    owner: ViewModelStoreOwner,
-    factory: AppViewModelFactory,
+    viewModel: MyPageViewModel = metroViewModel(),
     modifier: Modifier = Modifier,
 ) {
-    val viewModel = remember(owner, factory) {
-        resolveMyPageViewModel(owner = owner, factory = factory)
-    }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     MyPageContent(

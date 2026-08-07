@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.di
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.CreationExtras
@@ -16,22 +17,22 @@ class AppGraphAndroidHostTest {
     @Test
     fun metroGraphResolvesFactoryCreatesMyPageAndRejectsUnknownViewModels() {
         val graph = createAppGraph(apiBaseUrl = TEST_API_BASE_URL)
-        val factory = graph.appViewModelFactory
+        val factory = graph.metroViewModelFactory
 
         assertIs<MyPageViewModel>(
             factory.create(MyPageViewModel::class, CreationExtras.Empty),
         )
 
-        val failure = assertFailsWith<IllegalStateException> {
+        val failure = assertFailsWith<IllegalArgumentException> {
             factory.create(UnknownViewModel::class, CreationExtras.Empty)
         }
-        assertContains(failure.message.orEmpty(), "Unsupported ViewModel class")
-        assertContains(failure.message.orEmpty(), UnknownViewModel::class.qualifiedName.orEmpty())
+        assertContains(failure.message.orEmpty(), "Unknown model class")
+        assertContains(failure.message.orEmpty(), UnknownViewModel::class.simpleName.orEmpty())
     }
 
     @Test
-    fun projectResolverScopesMyPageToItsNavigationEntryOwner() {
-        val factory = createAppGraph(apiBaseUrl = TEST_API_BASE_URL).appViewModelFactory
+    fun viewModelProviderScopesMyPageToItsNavigationEntryOwner() {
+        val factory = createAppGraph(apiBaseUrl = TEST_API_BASE_URL).metroViewModelFactory
         val firstOwner = TestViewModelStoreOwner()
         val secondOwner = TestViewModelStoreOwner()
 
@@ -47,6 +48,11 @@ class AppGraphAndroidHostTest {
         assertNotSame(firstEntryInstance, reenteredFirstEntryInstance)
         assertSame(reenteredFirstEntryInstance, resolveMyPageViewModel(firstOwner, factory))
     }
+
+    private fun resolveMyPageViewModel(
+        owner: ViewModelStoreOwner,
+        factory: ViewModelProvider.Factory,
+    ): MyPageViewModel = ViewModelProvider.create(owner, factory)[MyPageViewModel::class]
 
     private class TestViewModelStoreOwner : ViewModelStoreOwner {
         override val viewModelStore = ViewModelStore()
