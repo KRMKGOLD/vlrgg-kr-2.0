@@ -29,6 +29,8 @@ object NetworkBinding {
 }
 
 internal fun HttpClientConfig<*>.configureNetwork(config: NetworkConfig) {
+    expectSuccess = true
+
     install(ContentNegotiation) {
         json(
             Json {
