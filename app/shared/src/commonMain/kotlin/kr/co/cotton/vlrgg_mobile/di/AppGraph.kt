@@ -5,12 +5,16 @@ import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.createGraphFactory
 import dev.zacsweers.metrox.viewmodel.ViewModelGraph
+import kr.co.cotton.vlrgg_mobile.data.di.DataBinding
 import kr.co.cotton.vlrgg_mobile.network.NetworkConfig
 import kr.co.cotton.vlrgg_mobile.network.di.NetworkBinding
 
 @DependencyGraph(
     scope = AppScope::class,
-    bindingContainers = [NetworkBinding::class],
+    bindingContainers = [
+        NetworkBinding::class,
+        DataBinding::class,
+    ],
 )
 interface AppGraph : ViewModelGraph {
 

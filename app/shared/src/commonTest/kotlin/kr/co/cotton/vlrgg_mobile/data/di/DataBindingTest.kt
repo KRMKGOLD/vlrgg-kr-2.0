@@ -1,0 +1,67 @@
+package kr.co.cotton.vlrgg_mobile.data.di
+
+import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.DependencyGraph
+import dev.zacsweers.metro.Provides
+import dev.zacsweers.metro.createGraphFactory
+import dev.zacsweers.metrox.viewmodel.ViewModelGraph
+import io.ktor.client.HttpClient
+import kr.co.cotton.vlrgg_mobile.data.remote.RemoteNewsDataSource
+import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteNewsDataSourceImpl
+import kr.co.cotton.vlrgg_mobile.data.repository.NewsRepositoryImpl
+import kr.co.cotton.vlrgg_mobile.domain.repository.NewsRepository
+import kr.co.cotton.vlrgg_mobile.network.NetworkConfig
+import kr.co.cotton.vlrgg_mobile.network.di.NetworkBinding
+import kotlin.test.Test
+import kotlin.test.assertIs
+
+class DataBindingTest {
+
+    @Test
+    fun remoteNewsDataSourceIsBoundToImplementation() {
+        val graph = createGraphFactory<TestDataGraph.Factory>()
+            .create(NetworkConfig(baseUrl = TEST_BASE_URL))
+
+        try {
+            assertIs<RemoteNewsDataSourceImpl>(graph.remoteNewsDataSource)
+        } finally {
+            graph.httpClient.close()
+        }
+    }
+
+    @Test
+    fun newsRepositoryIsBoundToImplementation() {
+        val graph = createGraphFactory<TestDataGraph.Factory>()
+            .create(NetworkConfig(baseUrl = TEST_BASE_URL))
+
+        try {
+            assertIs<NewsRepositoryImpl>(graph.newsRepository)
+        } finally {
+            graph.httpClient.close()
+        }
+    }
+
+    private companion object {
+        const val TEST_BASE_URL = "https://example.invalid"
+    }
+}
+
+@DependencyGraph(
+    scope = AppScope::class,
+    bindingContainers = [
+        NetworkBinding::class,
+        DataBinding::class,
+    ],
+)
+internal interface TestDataGraph : ViewModelGraph {
+    val remoteNewsDataSource: RemoteNewsDataSource
+    val newsRepository: NewsRepository
+    val httpClient: HttpClient
+
+    @DependencyGraph.Factory
+    fun interface Factory {
+        fun create(
+            @Provides networkConfig: NetworkConfig,
+        ): TestDataGraph
+    }
+}
