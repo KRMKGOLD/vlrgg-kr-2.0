@@ -7,7 +7,7 @@ Data Layer는 `app/shared`의 `commonMain/data` 아래에 두며, server API와 
 책임:
 
 - Domain Layer의 Repository Interface 구현
-- network client 설정과 remote 통신
+- `network/di`에서 주입받은 client를 사용하는 feature remote 통신
 - local storage/cache 접근
 - transport DTO 및 local entity를 Domain 또는 app-facing model로 매핑
 - remote/local 조합, freshness, fallback, `AppResult` 변환 정책 구현
@@ -20,7 +20,7 @@ Data Layer는 UiModel, UiState, navigation을 알지 못한다. 반대로 Domain
 
 | 위치 | 책임 |
 | --- | --- |
-| `commonMain` | repository/data source contract와 impl, mapper, DTO/entity, shared Ktor 설정, Metro graph/binding, 공통 DataStore·Room API 사용 |
+| `commonMain` | repository/data source contract와 impl, mapper, DTO/entity, 공통 DataStore·Room API 사용 |
 | `androidMain` | Android `Context`를 사용하는 DataStore 경로/인스턴스 생성, Room database builder 등 Android 전용 생성 코드 |
 | `iosMain` | `NSDocumentDirectory` 경로를 사용하는 DataStore 생성, Room database builder 등 iOS 전용 생성 코드 |
 
@@ -71,9 +71,9 @@ commonMain/.../
 `network`는 `data`와 같은 depth의 top-level package로 유지한다. Ktor client 생성과 모든 remote 호출에 공통인 설정만 담당하며, app-scoped provider는 `network/di/NetworkBinding.kt`에 둔다.
 
 - `HttpClient.kt`의 common `expect`와 platform `actual`은 Android/iOS Ktor engine으로 client를 생성한다.
-- `NetworkConfig`는 base URL, JSON serialization, logging, timeout처럼 공통 설정을 표현한다.
+- `NetworkConfig`는 base URL 같은 immutable runtime input을 표현하고, JSON serialization과 timeout 등 공통 client 설정은 `network/di/NetworkBinding.kt`가 적용한다.
 - API endpoint, request/response DTO, feature별 HTTP 호출은 `remote`에 둔다.
-- Ktor client/builder 같은 외부 객체는 Metro DI boundary에서 제공하고, remote impl은 constructor injection으로 받는다.
+- Ktor client/builder는 `network/di`의 Metro DI boundary에서 제공하고, remote impl은 constructor injection으로 받는다.
 
 ## Remote Data Source
 
@@ -187,8 +187,8 @@ Metro의 app-level graph는 `commonMain/di/AppGraph.kt`, app-wide client binding
 ```
 
 - Data binding 구현체는 constructor injection을 우선한다.
-- `HttpClient`, DataStore instance, Room database builder처럼 constructor만으로 만들기 어려운 외부 객체는 data DI boundary에서 제공한다.
-- feature-local `remote/di`, `local/di`처럼 세부 package별 DI package를 만들지 않는다. `network/di`는 application-wide Ktor client provider를 data feature binding과 분리하기 위한 예외다.
+- DataStore instance와 Room database builder처럼 constructor만으로 만들기 어려운 data-owned 외부 객체는 data DI boundary에서 제공한다.
+- feature-local `remote/di`, `local/di`처럼 세부 package별 DI package를 만들지 않는다. application-wide Ktor client provider는 독립적인 `network/di` 경계가 소유한다.
 - 한 feature binding 섹션이 커져 읽기 어려워지면 AI가 `data/di` 안의 peer file(`RemoteBindings.kt`, `LocalBindings.kt`)로 분리할 수 있다.
 
 Metro binding의 역할은 [Metro dependency graph 문서](https://zacsweers.github.io/metro/latest/dependency-graphs/)를 따른다.
@@ -209,7 +209,7 @@ Metro binding의 역할은 [Metro dependency graph 문서](https://zacsweers.git
 
 ## Error and Testing Expectations
 
-- HTTP, network, serialization, cache miss, local persistence 실패를 구분 가능한 error category로 변환한다.
+- non-cancellation loading failure는 repository 경계에서 단일 `AppResult.Failure`로 변환한다. 상세 error category는 Data Layer 내부 관측 요구가 생길 때만 별도로 도입한다.
 - raw exception을 ViewModel이나 UI로 직접 노출하지 않는다.
 - mapper test는 DTO/entity/preference value에서 Domain 또는 app-facing model로의 변환을 검증한다.
 - repository test는 remote/local 조합, fallback, refresh, error mapping을 기능 정책에 맞게 검증한다.

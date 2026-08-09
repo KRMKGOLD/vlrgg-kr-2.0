@@ -8,7 +8,7 @@
 
 이 문서에서 runtime은 앱 composition과 lifetime 정책을 의미하며 별도 `AppRuntime` wrapper 타입을 뜻하지 않는다.
 
-Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime-kernel.md)로 확정되었다. platform configuration, application-owned graph와 MetroX ViewModel integration은 반영되었고, failure/cancellation 경계는 H1-K1의 남은 구현 target이다.
+Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime-kernel.md)로 확정되었다. platform configuration, application-owned graph, MetroX ViewModel integration과 최소 `AppResult` failure/cancellation 경계가 반영되었다. 실제 feature repository와 data source는 후속 feature 구현 범위다.
 
 ## 현재 Runtime composition
 
@@ -37,9 +37,9 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 
 ### 구성 주입
 
-- Android는 `-PAPI_BASE_URL=...`를 우선하고, 없으면 `API_BASE_URL` 환경 변수를 사용한다. Debug는 둘 다 없을 때 `http://10.0.2.2:8080`이고 Release는 빈 값으로 남아 공통 configuration 검증에서 실패한다.
+- Android Debug의 tracked 기본값은 `http://10.0.2.2:8080`이고 Release의 tracked 기본값은 빈 문자열이므로 공통 configuration 검증에서 실패한다. Gradle property와 환경 변수 provider seam은 존재하지만 외부 값을 generated Java 문자열 리터럴로 변환하는 지원은 후속 작업이며, 현재 검증된 주입 경로로 간주하지 않는다.
 - iOS Debug는 `http://127.0.0.1:8080`을 기본으로 한다. 로컬 override는 ignored `Configuration/Config.local.xcconfig`에서 configuration별 `API_BASE_URL`을 설정하거나, 빌드 시 `API_BASE_URL=https://example.invalid`을 전달한다. Release에는 외부 HTTPS 값을 제공해야 한다.
-- 예: `./gradlew :app:androidApp:assembleDebug -PAPI_BASE_URL=https://example.invalid`, `xcodebuild -project app/iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release API_BASE_URL=https://example.invalid build`.
+- iOS 외부 주입 예: `xcodebuild -project app/iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release API_BASE_URL=https://example.invalid build`.
 
 ### MetroX ViewModel provider map
 
@@ -87,15 +87,16 @@ Pagination은 여러 feature에서 사용될 가능성이 있지만 아직 100% 
 - `DestinationDescriptorTest`: root 순서와 destination metadata
 - `MyPageViewModelTest`: MyPage skeleton state
 - `AppGraphAndroidHostTest`: MetroX known/missing provider lookup과 entry별 `ViewModelStoreOwner` scope
+- `NetworkBindingTest`: graph 내부 client singleton, graph 간 client 독립성과 요청 base URL 적용
+- `RepositoryResultTest`: success/failure 변환과 `CancellationException` 재전파
 
 H1-K1 완료까지 추가할 검증:
 
-- platform별 exact base URL 전달과 invalid/missing configuration 실패
-- 같은 graph에서 singleton client가 유지되고 별도 graph는 독립 client를 갖는지 검증
+- Android/iOS platform entry의 exact base URL 전달과 invalid/missing configuration 실패
 - Android Activity recreation에서 Application-owned graph 유지
 - iOS scene background에서 app-owned graph 유지
-- repository failure mapping과 cancellation 전파
-- shared Android host test와 iOS simulator compile/test
+
+회귀 검증 시 `:app:shared:testAndroidHostTest`, `:app:shared:iosSimulatorArm64Test`, Android assemble과 iOS target compile을 함께 실행한다.
 
 이 테스트들은 runtime 기반의 회귀 검증이다. 실제 feature 화면 동작이나 physical Android/iOS 시각·접근성을 검증한 것으로 해석하지 않는다.
 
