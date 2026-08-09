@@ -55,7 +55,7 @@ android {
             buildConfigField(
                 "String",
                 "API_BASE_URL",
-                apiBaseUrl.orNull ?: "",
+                apiBaseUrl.orNull ?: "\"\"",
             )
             isMinifyEnabled = false
         }
