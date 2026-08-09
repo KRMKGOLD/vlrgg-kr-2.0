@@ -1,0 +1,5 @@
+// 이 파일은 실제로 사용되지 않습니다. Config.local.xcconfig 파일을 만들어 사용하세요.
+// 실제 배포 엔드포인트를 포함하지 않기 위해서입니다.
+
+API_BASE_URL[config=Debug]=https:$(SLASH)$(SLASH)example.invalid
+API_BASE_URL[config=Release]=https:$(SLASH)$(SLASH)example.invalid

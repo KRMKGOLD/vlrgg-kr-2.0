@@ -21,6 +21,9 @@ dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
 
+val apiBaseUrl = providers.gradleProperty("API_BASE_URL")
+    .orElse(providers.environmentVariable("API_BASE_URL"))
+
 android {
     namespace = "kr.co.cotton.vlrgg_mobile"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -32,13 +35,28 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
+    buildFeatures {
+        buildConfig = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
     buildTypes {
+        getByName("debug") {
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                (apiBaseUrl.orNull ?: "\"http://10.0.2.2:8080\""),
+            )
+        }
         getByName("release") {
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                apiBaseUrl.orNull ?: "\"\"",
+            )
             isMinifyEnabled = false
         }
     }

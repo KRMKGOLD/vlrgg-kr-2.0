@@ -8,17 +8,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import kr.co.cotton.vlrgg_mobile.di.AppGraph
 
 @Composable
 fun AppNavigation(
-    graph: AppGraph,
     modifier: Modifier = Modifier,
 ) {
     val backStack = rememberNavBackStack(
@@ -65,7 +62,6 @@ fun AppNavigation(
                 entry(NewsRoot) { destination ->
                     NavigationEntryContent(
                         destination = destination,
-                        graph = graph,
                         onSearch = { push(Search) },
                         onPush = push,
                         onBack = popOverlay,
@@ -74,7 +70,6 @@ fun AppNavigation(
                 entry(MatchesRoot) { destination ->
                     NavigationEntryContent(
                         destination = destination,
-                        graph = graph,
                         onSearch = { push(Search) },
                         onPush = push,
                         onBack = popOverlay,
@@ -83,7 +78,6 @@ fun AppNavigation(
                 entry(MyPageRoot) { destination ->
                     NavigationEntryContent(
                         destination = destination,
-                        graph = graph,
                         onSearch = { push(Search) },
                         onPush = push,
                         onBack = popOverlay,
@@ -92,7 +86,6 @@ fun AppNavigation(
                 entry(EventsRoot) { destination ->
                     NavigationEntryContent(
                         destination = destination,
-                        graph = graph,
                         onSearch = { push(Search) },
                         onPush = push,
                         onBack = popOverlay,
@@ -101,7 +94,6 @@ fun AppNavigation(
                 entry(AboutRoot) { destination ->
                     NavigationEntryContent(
                         destination = destination,
-                        graph = graph,
                         onSearch = { push(Search) },
                         onPush = push,
                         onBack = popOverlay,
@@ -110,29 +102,28 @@ fun AppNavigation(
                 entry(Search) { destination ->
                     NavigationEntryContent(
                         destination = destination,
-                        graph = graph,
                         onSearch = { push(Search) },
                         onPush = push,
                         onBack = popOverlay,
                     )
                 }
                 entry<NewsDetail> { destination ->
-                    NavigationEntryContent(destination, graph, { push(Search) }, push, popOverlay)
+                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
                 }
                 entry<MatchDetail> { destination ->
-                    NavigationEntryContent(destination, graph, { push(Search) }, push, popOverlay)
+                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
                 }
                 entry<EventDetail> { destination ->
-                    NavigationEntryContent(destination, graph, { push(Search) }, push, popOverlay)
+                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
                 }
                 entry<TeamDetail> { destination ->
-                    NavigationEntryContent(destination, graph, { push(Search) }, push, popOverlay)
+                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
                 }
                 entry<PlayerDetail> { destination ->
-                    NavigationEntryContent(destination, graph, { push(Search) }, push, popOverlay)
+                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
                 }
                 entry<SeriesDetail> { destination ->
-                    NavigationEntryContent(destination, graph, { push(Search) }, push, popOverlay)
+                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
                 }
             },
         )
@@ -142,23 +133,13 @@ fun AppNavigation(
 @Composable
 private fun NavigationEntryContent(
     destination: AppNavKey,
-    graph: AppGraph,
     onSearch: () -> Unit,
     onPush: (AppNavKey) -> Unit,
     onBack: () -> Unit,
 ) {
-    val myPageOwner = if (destination === MyPageRoot) {
-        checkNotNull(LocalViewModelStoreOwner.current) {
-            "MyPageRoot requires a Navigation 3 ViewModelStoreOwner."
-        }
-    } else {
-        null
-    }
 
     NavigationContent(
         destination = destination,
-        myPageOwner = myPageOwner,
-        viewModelFactory = graph.appViewModelFactory,
         onSearch = onSearch,
         onPush = onPush,
         onBack = onBack,

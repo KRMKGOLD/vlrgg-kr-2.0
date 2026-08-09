@@ -42,7 +42,7 @@ VLR.GG Mobile 2.0 앱은 vlr.gg의 Valorant e-sports 정보를 Android와 iOS에
 
 Client architecture는 UI, Domain, Data의 세 경계를 가진다. UI는 `StateFlow`로 화면 snapshot을 노출하고 explicit ViewModel function과 Screen callback으로 UDF를 구성한다. Domain Layer는 app-facing business model, repository contract, 공통 `AppResult`를 담당하고, Data Layer는 server API, local cache, mapper, repository implementation을 담당한다. UseCase는 필수 계층이 아니라 필요한 경우에만 생성한다.
 
-레이어 의존성과 별도로 앱 runtime composition은 플랫폼 runtime owner에서 시작한다. 필요한 graph는 Compose recomposition 경로 밖에서 준비해 공통 `App`에 전달한다. navigation 상태의 형태와 Metro factory 제공 위치는 기능 요구사항에 맞춰 정하며, 기본 경계는 `app-runtime.md`를 따른다.
+레이어 의존성과 별도로 앱 runtime composition은 platform-owned graph에서 시작한다. Android `Application`과 iOS app owner가 필요한 graph를 Compose recomposition 경로 밖에서 준비해 공통 `App`에 전달한다. 별도 `AppRuntime` wrapper는 두지 않는다. 공통 `App`은 graph의 MetroX ViewModel factory를 `LocalMetroViewModelFactory`에 제공하고, Navigation 3 entry decorator가 실제 ViewModel instance scope를 소유한다. 기본 경계는 `app-runtime.md`를 따른다.
 
 서버가 같은 저장소 안에 있고, 스크래핑 데이터를 앱 친화적인 API로 가공해서 제공하기 때문에 앱의 Domain Layer는 상대적으로 작게 유지한다.
 
@@ -67,7 +67,8 @@ Screen (Composable)
 commonMain/
   App.kt                    # shared app composition root
   di/
-    AppGraph.kt             # app runtime DI graph
+    AppGraph.kt             # application-owned app DI graph
+    AppViewModelFactory.kt  # MetroX keyed provider map adapter
   ui/
     theme/
       Theme.kt
@@ -121,12 +122,14 @@ commonMain/
       LocalMatchDataSource.kt
       datastore/ # optional: Preferences storage feature only
       room/      # optional: relational/large local DB feature only
-    network/
-      HttpClientFactory.kt
-      NetworkConfig.kt
+  network/
+    HttpClient.kt
+    NetworkConfig.kt
+    di/
+      NetworkBinding.kt
 ```
 
-`commonMain`에는 공통 contract, repository 정책, mapper, Ktor client 설정, Metro graph/binding을 둔다. `androidMain`과 `iosMain`에는 DataStore path와 Room builder처럼 platform API가 필요한 좁은 factory 구현만 둔다.
+`data`와 `network`는 서로 중첩하지 않는 peer package다. `commonMain`에는 공통 contract, repository 정책, mapper, Ktor client 설정, Metro graph/binding을 둔다. `androidMain`과 `iosMain`에는 Ktor engine, DataStore path, Room builder처럼 platform API가 필요한 좁은 factory 구현만 둔다.
 
 이 구조는 목표 구조다. 실제 기능이 없는 빈 패키지를 먼저 대량으로 만들 필요는 없다. DataStore와 Room branch는 저장 요구가 있는 기능에서만 생성한다. 세부 package 책임, model 규칙, DI binding 규칙은 `data-layer.md`를 따른다.
 

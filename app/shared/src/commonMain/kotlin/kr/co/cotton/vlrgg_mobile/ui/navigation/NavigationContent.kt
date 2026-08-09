@@ -11,15 +11,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModelStoreOwner
-import kr.co.cotton.vlrgg_mobile.di.AppViewModelFactory
 import kr.co.cotton.vlrgg_mobile.ui.feature.mypage.MyPageScreen
 
 @Composable
 fun NavigationContent(
     destination: AppNavKey,
-    myPageOwner: ViewModelStoreOwner?,
-    viewModelFactory: AppViewModelFactory,
     onSearch: () -> Unit,
     onPush: (AppNavKey) -> Unit,
     onBack: () -> Unit,
@@ -32,10 +28,6 @@ fun NavigationContent(
             modifier = modifier,
         ) {
             MyPageScreen(
-                owner = requireNotNull(myPageOwner) {
-                    "MyPageRoot requires its Navigation 3 entry ViewModelStoreOwner."
-                },
-                factory = viewModelFactory,
                 modifier = Modifier.fillMaxSize(),
             )
         }
