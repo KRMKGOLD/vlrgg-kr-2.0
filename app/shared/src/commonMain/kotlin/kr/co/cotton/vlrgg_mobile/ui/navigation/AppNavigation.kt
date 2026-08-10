@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -13,6 +14,13 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import org.jetbrains.compose.resources.vectorResource
+import vlrggmobile.app.shared.generated.resources.Res
+import vlrggmobile.app.shared.generated.resources.ic_event
+import vlrggmobile.app.shared.generated.resources.ic_info
+import vlrggmobile.app.shared.generated.resources.ic_match
+import vlrggmobile.app.shared.generated.resources.ic_news
+import vlrggmobile.app.shared.generated.resources.ic_person
 
 @Composable
 fun AppNavigation(
@@ -157,7 +165,20 @@ private fun RootNavigationBar(
             NavigationBarItem(
                 selected = root == selectedRoot,
                 onClick = { onSelectRoot(root) },
-                icon = { Text((descriptor.rootOrder!! + 1).toString()) },
+                icon = {
+                    val icon = when (root) {
+                        EventsRoot -> vectorResource(Res.drawable.ic_event)
+                        MatchesRoot -> vectorResource(Res.drawable.ic_match)
+                        MyPageRoot -> vectorResource(Res.drawable.ic_person)
+                        NewsRoot -> vectorResource(Res.drawable.ic_news)
+                        AboutRoot -> vectorResource(Res.drawable.ic_info)
+                    }
+
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                    )
+                },
                 label = { Text(descriptor.title) },
             )
         }
