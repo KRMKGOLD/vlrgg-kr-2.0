@@ -19,15 +19,14 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 @Composable
 fun NewsListItem(
     news: NewsSummary,
-    onClickNews: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-
     Column(
         modifier = modifier
-            .clickable { onClickNews(news.articleId) }
+            .clickable(onClick = onClick)
             .padding(vertical = Space3, horizontal = Space4)
-            .fillMaxWidth()
+            .fillMaxWidth(),
     ) {
         val desc = buildString {
             append(news.author)
@@ -60,7 +59,7 @@ fun PreviewNewsListItem() {
                 author = "Editor",
                 publishedAt = "2023-10-27"
             ),
-            onClickNews = {}
+            onClick = {},
         )
     }
 }
