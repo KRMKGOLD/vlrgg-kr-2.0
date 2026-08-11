@@ -372,7 +372,45 @@ class NewsListViewModelTest {
     }
 
     @Test
-    fun refreshCancelsInFlightLoadMoreAndRejectsItsLateResult() = runViewModelTest {
+    fun refreshCancelsInFlightInitialLoad() = runViewModelTest {
+        val staleInitial = newsSummary(articleId = "stale-id", slug = "stale-slug")
+        val refreshed = newsSummary(articleId = "refreshed-id", slug = "refreshed-slug")
+        val pendingInitial = CompletableDeferred<AppResult<NewsPage>>()
+        val repository = FakeNewsRepository { page, callIndex ->
+            when (callIndex) {
+                0 -> pendingInitial.await()
+                1 -> AppResult.Success(newsPage(items = listOf(refreshed), nextPage = 2))
+                else -> error("Unexpected request for page $page")
+            }
+        }
+        val viewModel = NewsListViewModel(repository)
+        runCurrent()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 1), repository.requestedPages)
+        assertEquals(
+            NewsListUiState(
+                contentState = NewsListContentState.Content(listOf(refreshed)),
+            ),
+            viewModel.uiState.value,
+        )
+
+        pendingInitial.complete(
+            AppResult.Success(newsPage(items = listOf(staleInitial), nextPage = null)),
+        )
+        advanceUntilIdle()
+        assertEquals(
+            NewsListUiState(
+                contentState = NewsListContentState.Content(listOf(refreshed)),
+            ),
+            viewModel.uiState.value,
+        )
+    }
+
+    @Test
+    fun refreshCancelsInFlightLoadMore() = runViewModelTest {
         val existing = newsSummary(articleId = "existing-id", slug = "existing-slug")
         val stale = newsSummary(articleId = "stale-id", slug = "stale-slug")
         val refreshed = newsSummary(articleId = "refreshed-id", slug = "refreshed-slug")

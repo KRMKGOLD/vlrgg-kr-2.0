@@ -57,7 +57,7 @@
 
 - News List의 항목을 누르면 News Detail을 push한다.
 - News Detail의 Team 링크는 Team Detail로, Player 링크는 Player Detail로 이동한다.
-- Back은 직전 화면으로 돌아간다. News Detail 진입 전의 로딩된 페이지와 스크롤 위치를 정밀하게 복원하는 동작은 News List 완료를 막는 필수 수용 기준으로 두지 않는다.
+- Back은 직전 화면으로 돌아가며, News List의 `NewsListUiState`와 이미 로드한 항목을 유지한다. 정밀한 스크롤 위치 복원은 News List 완료를 막는 필수 수용 기준으로 두지 않는다.
 - Search를 열었다가 Back으로 돌아오는 경우에도 기존 News 상태를 보존한다.
 
 News Detail은 bottom-navigation 목적지가 아니다. Event 및 Match 내부 이동은 MVP에서 제공하지 않는다.
@@ -127,7 +127,7 @@ News Detail은 bottom-navigation 목적지가 아니다. Event 및 Match 내부 
 - 페이지 로딩 실패 재시도: 실패한 페이지부터 footer action으로 다시 요청
 - Pull-to-refresh: 기존 목록을 즉시 초기화하고 `page=1`만 요청한다. 진행 중인 pagination 요청은 취소하거나 그 응답을 무시하여 stale 항목이 삽입되지 않게 하며, 실패 시 Initial Error 전체 화면과 Retry를 표시하고 성공 시 page 1 결과로 교체한다.
 - Team/Player 본문 링크 선택: 해당 앱 상세 화면 이동
-- 뒤로가기: 직전 화면으로 복귀
+- 뒤로가기: 기존 News List 상태와 이미 로드한 항목을 유지하며 직전 화면으로 복귀
 - Search 선택: 현재 화면 위에 Search Screen push
 
 중복된 pagination 요청으로 동일 항목이 반복 삽입되지 않아야 한다. initial loading/empty/initial error/pagination error를 구분하고 initial error는 전체 화면 Retry, pagination error는 하단 Retry로 복구한다. Pull-to-refresh 중 중복 요청을 막고 진행 중 pagination 응답의 stale 삽입을 막으며, 링크는 색상만으로 구분하지 않는다.
@@ -221,7 +221,7 @@ VLR.GG DOM은 불안정한 외부 contract다. selector나 보정 규칙은 pars
 - [ ] 문단, 이미지/캡션, bullet/numbered list가 서로 섞이지 않고 원문의 읽기 순서대로 렌더링된다.
 - [ ] hover card, reference card, script, style, sidebar, comments의 텍스트가 기사 본문에 포함되지 않는다.
 - [ ] Team 링크는 Team Detail로, Player 링크는 Player Detail로 이동한다.
-- [x] News Detail placeholder에서 Back으로 News List에 돌아올 수 있다.
+- [x] News Detail placeholder에서 Back으로 News List에 돌아오며 기존 목록 상태와 이미 로드한 항목을 유지한다.
 - [x] initial loading, empty, initial error, pagination error가 서로 구분되고 initial은 전체 화면 Retry, pagination은 하단 Retry를 제공한다.
 - [x] Pull-to-refresh는 기존 목록을 즉시 초기화한 뒤 `page=1`만 요청하고, 진행 중 pagination 요청을 취소하거나 응답을 무시해 stale 삽입을 막는다. 실패 시 Initial Error 전체 화면 Retry를, 성공 시 page 1 결과를 표시한다.
 - [x] 서버 response와 앱 모델에 raw HTML, Jsoup type, CSS selector가 노출되지 않는다.

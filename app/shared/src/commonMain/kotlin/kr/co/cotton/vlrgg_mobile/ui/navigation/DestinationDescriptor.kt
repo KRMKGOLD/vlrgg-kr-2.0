@@ -16,6 +16,7 @@ val AppNavKey.destinationDescriptor: DestinationDescriptor
             marker = "news",
             title = "News",
             rootOrder = 0,
+            requiresEntryScope = true,
         )
 
         MatchesRoot -> rootDescriptor(

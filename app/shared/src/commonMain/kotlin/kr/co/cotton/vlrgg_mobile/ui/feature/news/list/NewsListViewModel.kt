@@ -26,10 +26,11 @@ class NewsListViewModel(
 
     private var nextPage: Int? = null
 
+    private var firstPageJob: Job? = null
     private var loadMoreJob: Job? = null
 
     init {
-        loadNewsPage(page = 1)
+        firstPageJob = loadNewsPage(page = 1)
     }
 
     fun retryInitial() {
@@ -37,7 +38,7 @@ class NewsListViewModel(
 
         _uiState.value = NewsListUiState()
         nextPage = null
-        loadNewsPage(page = 1)
+        firstPageJob = loadNewsPage(page = 1)
     }
 
     private fun loadNewsPage(page: Int) = viewModelScope.launch {
@@ -98,6 +99,8 @@ class NewsListViewModel(
     fun refresh() {
         if (_uiState.value.isRefreshing) return
 
+        firstPageJob?.cancel()
+        firstPageJob = null
         loadMoreJob?.cancel()
         loadMoreJob = null
         nextPage = null
@@ -107,6 +110,6 @@ class NewsListViewModel(
             isRefreshing = true,
         )
 
-        loadNewsPage(page = 1)
+        firstPageJob = loadNewsPage(page = 1)
     }
 }
