@@ -30,6 +30,7 @@ data class VlrColors(
     val statusPostponedContainer: Color,
     val statusPostponed: Color,
     val statusCancelled: Color,
+    val skeleton: Color,
 )
 
 val VlrLightColors = VlrColors(
@@ -55,4 +56,5 @@ val VlrLightColors = VlrColors(
     statusPostponedContainer = Color(0xFFFFF3E0),
     statusPostponed = Color(0xFFF57C00),
     statusCancelled = Color(0xFF757575),
+    skeleton = Color(0xFFE4E1E6),
 )
