@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.ui.feature.mypage.MyPageScreen
+import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.NewsScreen
 
 @Composable
 fun NavigationContent(
@@ -32,11 +33,23 @@ fun NavigationContent(
             )
         }
 
-        NewsRoot,
+        NewsRoot -> NewsScreen(
+            onSearch = onSearch,
+            onNewsClick = { articleId, slug ->
+                onPush(
+                    NewsDetail(
+                        articleId = articleId,
+                        slug = slug,
+                    )
+                )
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+
         MatchesRoot,
         EventsRoot,
         AboutRoot,
-        -> RootContent(
+            -> RootContent(
             destination = destination,
             onSearch = onSearch,
             modifier = modifier,
@@ -56,7 +69,7 @@ fun NavigationContent(
         is TeamDetail,
         is PlayerDetail,
         is SeriesDetail,
-        -> PushedContent(
+            -> PushedContent(
             destination = destination,
             onBack = onBack,
             modifier = modifier,

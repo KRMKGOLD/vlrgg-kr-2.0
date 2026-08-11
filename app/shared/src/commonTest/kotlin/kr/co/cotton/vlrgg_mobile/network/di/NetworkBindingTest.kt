@@ -4,7 +4,6 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.createGraphFactory
-import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -106,7 +105,7 @@ class NetworkBindingTest {
     scope = AppScope::class,
     bindingContainers = [NetworkBinding::class],
 )
-internal interface TestNetworkGraph : ViewModelGraph {
+internal interface TestNetworkGraph {
     val httpClient: HttpClient
 
     @DependencyGraph.Factory

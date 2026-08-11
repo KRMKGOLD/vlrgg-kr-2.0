@@ -3,7 +3,7 @@
 ## 문서 상태
 
 - Status: Active
-- Last reviewed: 2026-08-05
+- Last reviewed: 2026-08-11
 - Product scope: VLR.GG Mobile Tracker 1차 MVP
 - Design source: [`../../DESIGN.md`](../../DESIGN.md)
 - App architecture: [`../app-arch/app-arch.md`](../app-arch/app-arch.md)
@@ -35,9 +35,9 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | 5 | Match Detail Basic, Series Detail | [`matches/README.md`](matches/README.md), [`series/README.md`](series/README.md) |
 | Cross-feature | MyPage, Team·Player 즐겨찾기, Match 알림, About | [`my-page/README.md`](my-page/README.md), [`about/README.md`](about/README.md) |
 
-## 구현 상태 (2026-08-05)
+## 구현 상태 (2026-08-11)
 
-아래 상태는 원격 `main`의 `6cda972` 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. 서버 공통 기반에는 공개 콘텐츠 route의 런타임 OpenAPI/Swagger 문서가 구현되어 있다.
+아래 상태는 News List 구현 브랜치의 현재 코드 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. 서버 공통 기반에는 공개 콘텐츠 route의 런타임 OpenAPI/Swagger 문서가 구현되어 있다.
 
 앱 공통 기반은 실제 feature 구현과 분리해서 판단한다.
 
@@ -46,15 +46,15 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | 디자인 시스템 | 구현 — `DESIGN.md` Step 1의 Light theme, Typography, `VlrButton`, `VlrIconButton`, `VlrSearchField`, `StatusChip` |
 | KMP 기반 의존성 | 구현 — Navigation 3, Metro DI, Kotlinx Serialization 등 현재 runtime에 필요한 의존성 반영 |
 | Runtime composition | 구현 — Android/iOS platform owner가 `AppGraph`를 생성하고 공통 `App(graph)`가 theme와 navigation을 연결 |
-| DI | 구현 — Metro `AppGraph`와 `AppViewModelFactory`; 현재 factory binding은 MyPage ViewModel skeleton만 포함 |
-| Navigation | 기반 구현 — 직렬화 가능한 root/Search/detail key, MyPage 기본 root, 단일 root + transient overlay back stack, 저장·복원, entry별 saveable state와 ViewModelStore scope |
-| Runtime 회귀 테스트 | 구현 — navigation key 직렬화·상태·descriptor, MyPage ViewModel, Android AppGraph host 테스트 |
-| 실제 feature/data | 미구현 — News/Matches/Events/Search/Team/Player/Series/About 화면, app remote DTO/Domain/Data 계층, 로컬 즐겨찾기, Match 알림 App/Firebase 연동 |
+| DI | 구현 — Metro `AppGraph`와 `AppViewModelFactory`; News List와 MyPage ViewModel binding 포함 |
+| Navigation | 기반 구현 — 직렬화 가능한 root/Search/detail key, MyPage 기본 root, 단일 root + transient overlay back stack, 저장·복원, entry별 saveable state와 ViewModelStore scope. News root는 실제 News List를 표시하고 News Detail placeholder로 이동 |
+| Runtime 회귀 테스트 | 구현 — navigation key 직렬화·상태·descriptor, MyPage/News List ViewModel, Android AppGraph host 테스트 |
+| 실제 feature/data | 일부 구현 — News remote DTO/Domain/Data 계층과 News List UI 구현. News Detail 본문 및 Matches/Events/Search/Team/Player/Series/About 화면, 로컬 즐겨찾기, Match 알림 App/Firebase 연동은 미구현 |
 | 기기 검증 | 미완료 — physical Android/iOS 시각·접근성 검증 |
 
 | Feature slice | Backend | App |
 | --- | --- | --- |
-| News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | Feature 미구현 — root/detail key와 marker만 있고 실제 목록·상세 UI와 data 연동 없음 |
+| News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | 목록 구현 완료 — remote DTO/Domain/Data 계층, 목록 상태·pagination·pull-to-refresh UI, News Detail placeholder 이동. 상세 본문 UI와 내부 링크 navigation은 미구현 |
 | Matches | 콘텐츠 조회 구현 완료 — Upcoming/Results 목록과 Match Detail API | Feature 미구현 — root/detail key와 marker만 있고 실제 목록·상세 UI와 data 연동 없음 |
 | Events | 구현 완료 — 목록, 상세, Matches, News, Stats API | Feature 미구현 |
 | Search | 구현 완료 — Series/Event/Team/Player 결과 API | Feature 미구현 |

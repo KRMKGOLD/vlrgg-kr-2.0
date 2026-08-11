@@ -7,3 +7,21 @@ sealed interface AppResult<out T> {
 
     data object Failure : AppResult<Nothing>
 }
+
+inline fun <T> AppResult<T>.onSuccess(
+    action: (T) -> Unit,
+): AppResult<T> {
+    if (this is AppResult.Success) {
+        action(data)
+    }
+    return this
+}
+
+inline fun <T> AppResult<T>.onFailure(
+    action: () -> Unit,
+): AppResult<T> {
+    if (this is AppResult.Failure) {
+        action()
+    }
+    return this
+}
