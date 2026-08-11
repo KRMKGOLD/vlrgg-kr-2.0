@@ -4,6 +4,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 
 val VlrLightMaterialColorScheme: ColorScheme = lightColorScheme(
@@ -29,6 +30,18 @@ val VlrLightMaterialColorScheme: ColorScheme = lightColorScheme(
 
 val LocalVlrColors = staticCompositionLocalOf { VlrLightColors }
 val LocalVlrTypography = staticCompositionLocalOf { VlrTypography }
+
+object VlrTheme {
+    val colors: VlrColors
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalVlrColors.current
+
+    val typography: VlrTypeScale
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalVlrTypography.current
+}
 
 @Composable
 fun VlrTheme(content: @Composable () -> Unit) {
