@@ -9,7 +9,7 @@
 
 News Detail은 서버가 제공하는 `NewsArticleBlock.Image(imageUrl, caption)`을 Android와 iOS의 Compose Multiplatform UI에서 표시해야 한다. 이미지 요청의 loading 또는 failure가 문단, 목록, 캡션을 포함한 기사 전체의 읽기 가능성을 훼손해서는 안 된다.
 
-현재 toolchain은 Compose Multiplatform 1.11.1, Kotlin 2.4.0, Ktor 3.5.0, Coroutines 1.10.2다. 앱 runtime은 platform owner가 만든 하나의 `AppGraph`를 application lifetime 동안 유지하며, app-scoped resource를 Metro `AppScope`의 `@SingleIn` binding으로 소유한다. 이미지 로더도 이 lifetime과 test isolation 계약에 맞아야 한다.
+현재 toolchain은 Compose Multiplatform 1.11.1, Kotlin 2.4.0, Ktor 3.5.0, Coroutines 1.10.2다. Coil 공식 문서는 일반적인 Compose Multiplatform 앱에 singleton-backed `coil-compose` API를 기본 경로로 제공하며, 별도 설정이 없다면 기본 `ImageLoader`를 지연 생성해 애플리케이션 전체에서 공유한다.
 
 이미지 로딩은 교체 가능한 UI/runtime dependency다. Domain과 Data 계층의 모델 또는 repository 계약에 image loader type, cache policy, Compose type을 추가하지 않는다.
 
@@ -28,37 +28,35 @@ News Detail은 서버가 제공하는 `NewsArticleBlock.Image(imageUrl, caption)
 
 News image pipeline은 Coil 3.5.0을 사용한다. 최소 dependency surface는 다음과 같다.
 
-- `commonMain`: `io.coil-kt.coil3:coil-compose-core:3.5.0`
+- `commonMain`: `io.coil-kt.coil3:coil-compose:3.5.0`
 - `commonMain`: `io.coil-kt.coil3:coil-network-ktor3:3.5.0`
 - `commonTest`: `io.coil-kt.coil3:coil-test:3.5.0`
 
-기존 `androidMain`의 `io.ktor:ktor-client-android:3.5.0`과 `iosMain`의 `io.ktor:ktor-client-darwin:3.5.0`을 platform engine으로 재사용한다. Coil singleton overload를 포함하는 `coil-compose`, `coil-network-cache-control`, SVG/GIF/video decoder module은 H4에 추가하지 않는다.
+기존 `androidMain`의 `io.ktor:ktor-client-android:3.5.0`과 `iosMain`의 `io.ktor:ktor-client-darwin:3.5.0`을 platform engine으로 재사용한다. `coil-network-cache-control`, SVG/GIF/video decoder module은 H4에 추가하지 않는다.
 
 Coil 3.5.0은 Kotlin 2.4.0, Compose Multiplatform 1.11.1, Coroutines 1.10.2로 빌드된 stable release다. Android minimum SDK 23과 Java 11 bytecode 요구사항은 현재 앱의 minimum SDK 29와 JVM target 11에 들어온다. 현재 iOS target인 `iosArm64`와 `iosSimulatorArm64`는 지원 범위이며 제거된 `iosX64` target은 앱에 존재하지 않는다.
 
 `coil-network-ktor3:3.5.0`은 Ktor 3 adapter이며 published metadata에서 `ktor-client-core:3.1.0`을 non-strict dependency로 요구한다. Ktor는 같은 major의 minor release를 backward-compatible functionality로 정의하고, 앱이 Ktor 3.5.0을 직접 선언하므로 Gradle resolution은 Ktor 3.5.0을 선택하는 것으로 판단한다. 다만 Coil upstream이 Ktor 3.5.0 조합을 별도로 인증하지는 않았으므로 Android/iOS dependency resolution, compilation, 실제 image fetch가 integration gate다.
 
-### 2. One ImageLoader is owned by AppGraph, not Coil global state
+### 2. Use Coil's default application-wide singleton
 
-`ImageLoader`는 Metro `@SingleIn(AppScope::class)` binding으로 제공하고 하나의 `AppGraph` 안에서 동일 instance를 재사용한다. Android `Application`과 iOS `AppRuntimeOwner`가 보존하는 graph lifetime이 loader, memory cache, disk cache와 내부 network resource의 lifetime이다.
+일반적인 Compose Multiplatform 앱을 위한 Coil 공식 기본 경로를 따른다. `coil-compose`의 singleton-backed `AsyncImage`는 현재 platform context로 기본 `ImageLoader`를 최초 요청 시 한 번 생성하고 이후 Android/iOS Compose UI에서 공유한다. loader의 memory cache, disk cache와 내부 network resource도 이 application-wide instance가 재사용한다.
 
-- Coil의 `SingletonImageLoader`, `setSingletonImageLoaderFactory`, `setSafe`, `setUnsafe`를 production app에서 사용하지 않는다.
-- composable, Screen, navigation entry 또는 article block마다 loader를 생성하지 않는다.
-- API repository가 사용하는 app `HttpClient`를 Coil에 주입하지 않는다. Coil Ktor 3 adapter가 소유하는 image 전용 client를 기본 설정으로 사용해 API와 image pipeline의 header, timeout, failure와 cache 책임을 분리한다.
-- graph 생성에 필요한 Coil `PlatformContext`는 platform runtime owner가 graph creation boundary에 제공한다. 공통 `App`이나 feature composable이 graph 또는 loader를 생성하지 않는다.
-- production에서 별도 shutdown callback을 correctness 조건으로 두지 않는다. graph를 직접 만든 테스트는 자신이 만든 loader의 정리 책임을 가진다.
+- `ImageLoader`를 Metro `AppGraph`, Screen, navigation entry 또는 article block에 주입하지 않는다.
+- app-owned `CompositionLocal`이나 platform별 graph wrapper를 추가하지 않는다.
+- 별도 설정이 없으므로 production에서 `setSingletonImageLoaderFactory`를 호출하지 않는다.
+- API repository가 사용하는 app `HttpClient`를 Coil에 주입하지 않는다. Coil Ktor 3 adapter가 소유하는 image 전용 client의 기본 설정을 사용해 API와 image pipeline의 header, timeout, failure와 cache 책임을 분리한다.
+- custom cache, authenticated request 또는 공통 request 설정이 필요해지면 `setSingletonImageLoaderFactory`를 app root에서 최초 image request 전에 한 번 호출하는 방식을 재검토한다.
 
-### 3. The app root provides the loader through a CompositionLocal
+### 3. Use the singleton-backed AsyncImage overload
 
-공통 `App(graph)`은 graph가 제공하는 `ImageLoader`를 app root의 app-owned `CompositionLocal`에 한 번 제공한다. News Detail의 feature-local image renderer는 이 local을 읽어 `coil-compose-core`의 explicit `AsyncImage(..., imageLoader = imageLoader)` overload에 전달한다.
-
-이 구조는 각 Screen과 navigation callback에 loader parameter를 반복 전달하지 않으면서도 Coil process-global singleton을 만들지 않는다. 테스트는 같은 CompositionLocal에 fake loader를 제공할 수 있다. CompositionLocal과 Coil type은 UI/runtime 경계에만 존재하며 ViewModel, Domain, Data, navigation key에는 노출하지 않는다.
+News Detail의 feature-local image renderer는 `coil-compose`의 `AsyncImage(model = ..., contentDescription = ...)` overload를 사용한다. loader parameter를 Screen, navigation callback, ViewModel, Domain 또는 Data 계층으로 전달하지 않는다.
 
 News article image renderer는 News Detail package에 둔다. 두 번째로 동일한 image UI 계약을 가진 consumer가 실제로 생기기 전에는 범용 image component나 design-system abstraction으로 승격하지 않는다.
 
 ### 4. Coil default cache and request lifecycle policies are used
 
-H4에서는 `ImageLoader.Builder`의 기본 memory cache, disk cache, request lifecycle과 network component 설정을 사용한다.
+H4에서는 Coil singleton의 기본 memory cache, disk cache, request lifecycle과 network component 설정을 사용한다.
 
 - 별도 cache directory, size percentage, cache key 또는 eviction policy를 지정하지 않는다.
 - `coil-network-cache-control`을 추가하지 않는다. 따라서 network response는 Coil 기본 정책에 따라 disk cache에 기록된다.
@@ -83,11 +81,11 @@ Twitch, YouTube, X/Twitter 또는 다른 iframe/embed는 image가 아니며 Coil
 
 ### 6. Image behavior is tested through an explicit fake seam
 
-`coil-test`의 `FakeImageLoaderEngine`을 설치한 test-owned `ImageLoader`를 CompositionLocal에 제공해 success와 failure를 deterministic하게 검증한다. production singleton을 교체하거나 network I/O에 의존하는 UI test를 만들지 않는다.
+`coil-test`의 `FakeImageLoaderEngine`을 설치한 test-owned `ImageLoader`를 Coil의 test-only singleton 교체 경계에 제공해 success와 failure를 deterministic하게 검증한다. production 코드에서 singleton을 교체하거나 network I/O에 의존하는 UI test를 만들지 않는다. singleton을 교체하는 테스트는 다른 테스트와 상태가 섞이지 않도록 자체적으로 loader를 설치하고 정리한다.
 
 H4의 image 관련 최소 assertion은 다음과 같다.
 
-- 같은 graph에서 반복 resolve한 `ImageLoader`가 동일 instance이고 별도 graph는 공유하지 않는다.
+- singleton-backed `AsyncImage`가 test-owned fake loader의 결과를 사용한다.
 - image loading success가 해당 block과 caption 순서를 보존한다.
 - image failure에도 앞뒤 문단, 목록, caption과 article content가 남는다.
 - image failure가 article-wide Error나 내부 navigation을 발생시키지 않는다.
@@ -97,10 +95,10 @@ H4의 image 관련 최소 assertion은 다음과 같다.
 
 ## Consequences
 
-- Android/iOS가 하나의 Compose Multiplatform image pipeline과 cache를 공유한다.
-- loader가 graph scope에 묶여 global service locator 없이 application lifetime과 테스트 격리가 명확해진다.
-- App root CompositionLocal 덕분에 Screen마다 loader parameter가 확산되지 않지만, image UI는 app root provider 아래에서만 사용할 수 있다.
-- `coil-compose-core`의 explicit loader overload 때문에 fake 주입과 loader ownership이 드러나며 Coil singleton API에 의존하지 않는다.
+- Android/iOS가 Coil의 기본 singleton을 통해 하나의 Compose Multiplatform image pipeline과 cache를 공유한다.
+- AppGraph와 platform entrypoint가 Coil `PlatformContext` 또는 `ImageLoader`를 알지 않으므로 runtime wiring이 단순하게 유지된다.
+- Screen마다 loader parameter나 app-owned CompositionLocal이 확산되지 않는다.
+- test-only singleton 교체는 명시적 DI보다 격리가 약하므로 image UI 테스트는 상태 설치와 정리 책임을 가진다.
 - 기본 cache 정책은 초기 구현을 작게 유지하지만 HTTP `Cache-Control`을 준수하지 않고 network response를 disk cache에 기록한다.
 - API client와 image client를 분리하므로 구성 결합은 줄지만 각 pipeline이 별도 network resources를 보유한다.
 - image failure가 기사 전체 상태와 분리되어 텍스트 가독성은 유지되지만 H4에서는 실패한 이미지를 화면에서 직접 재시도할 수 없다.
@@ -147,7 +145,7 @@ H4 screen packet 완료 전에는 다음 전체 경계를 검증한다.
 - SVG, GIF, video frame 또는 iframe/embed를 실제 article block으로 지원해야 함
 - 서로 다른 cache/auth 정책을 가진 두 번째 image pipeline이 필요함
 - 두 번째 feature가 News와 동일한 image presentation 계약을 사용해 공통 component 승격 근거가 생김
-- process 실행 중 graph 교체 또는 명시적 resource shutdown이 제품 기능이 됨
+- custom `ImageLoader` 설정이나 명시적 resource shutdown이 제품 기능이 됨
 - `iosX64` 등 현재 지원하지 않는 platform target이 추가됨
 - image failure에 retry, fallback 또는 별도 접근성 표현이 필요해짐
 
@@ -157,6 +155,7 @@ H4 screen packet 완료 전에는 다음 전체 경계를 검증한다.
 - [Coil 3.5.0 changelog](https://github.com/coil-kt/coil/blob/3.5.0/CHANGELOG.md)
 - [Coil image loader ownership and caching](https://coil-kt.github.io/coil/image_loaders/)
 - [Coil Compose artifacts and Ktor 3 adapter](https://coil-kt.github.io/coil/getting_started/)
+- [Coil 3.5.0 singleton AsyncImage source](https://github.com/coil-kt/coil/blob/3.5.0/coil-compose/src/commonMain/kotlin/coil3/compose/SingletonAsyncImage.kt)
 - [Coil network images and Ktor engines](https://coil-kt.github.io/coil/network/)
 - [Coil testing and FakeImageLoaderEngine](https://coil-kt.github.io/coil/testing/)
 - [Coil 3.5.0 Ktor 3 module metadata](https://repo1.maven.org/maven2/io/coil-kt/coil3/coil-network-ktor3/3.5.0/coil-network-ktor3-3.5.0.module)
