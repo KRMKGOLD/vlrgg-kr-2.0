@@ -8,8 +8,8 @@
 
 - **Backend: 구현 완료.** `GET /api/v1/news`와 `GET /api/v1/news/{articleId}/{slug}`는 route, scraper, parser, mapper, response 및 fixture/route 테스트로 구현되어 있다.
 - **App 데이터 계층: 구현 완료.** News remote DTO, Domain model/mapper, remote datasource와 `NewsRepository`가 구현되어 있으며 목록과 상세 조회의 성공·실패·cancellation 계약을 테스트한다.
-- **App News List: 구현 완료.** `NewsListViewModel`과 Compose Screen/Content를 연결하고 initial loading, empty, content, initial error, pagination error, pull-to-refresh 상태를 구분한다. 추가 페이지 동시 요청과 중복 기사 삽입을 막고, refresh 시 진행 중인 pagination을 취소해 늦은 결과가 새 목록에 반영되지 않게 한다. News 행 선택은 기존 `NewsDetail` placeholder로 이동한다.
-- **App News Detail: 미구현.** 상세 조회 데이터 계층은 준비되어 있지만 본문 Compose UI, article block 렌더링과 Team/Player 내부 링크 navigation은 후속 News Detail 작업 범위다.
+- **App News List: 구현 완료.** `NewsListViewModel`과 Compose Screen/Content를 연결하고 initial loading, empty, content, initial error, pagination error, pull-to-refresh 상태를 구분한다. 추가 페이지 동시 요청과 중복 기사 삽입을 막고, refresh 시 진행 중인 pagination을 취소해 늦은 결과가 새 목록에 반영되지 않게 한다. News 행 선택은 실제 `NewsDetail` 화면으로 이동한다.
+- **App News Detail: 1차 UI 범위 완료.** Loading, Populated, Empty, Error Compose UI와 구조화된 article block의 원순서 표시, Team/Player 내부 링크 Navigation callback 연결, 실제 `NewsArticle` 데이터 경로 UI 렌더링은 완료이며, `Partial` 상태와 실제 기기 시각·접근성 확인은 후속 범위다.
 
 ## 목적과 사용자 가치
 
@@ -217,11 +217,11 @@ VLR.GG DOM은 불안정한 외부 contract다. selector나 보정 규칙은 pars
 - [x] News 탭에서 thumbnail/card 없이 divider full-row로 제목, 작성자, 게시 시각이 포함된 최신 뉴스 목록을 확인할 수 있다.
 - [x] 목록 끝에 도달하면 다음 페이지가 중복 없이 기존 항목 뒤에 추가된다.
 - [x] 다음 페이지 로딩만 실패하면 기존 목록이 남고 실패한 페이지를 재시도할 수 있다.
-- [ ] 뉴스 항목을 누르면 제목, 작성자, 작성 시각과 순서가 보존된 본문이 표시된다.
-- [ ] 문단, 이미지/캡션, bullet/numbered list가 서로 섞이지 않고 원문의 읽기 순서대로 렌더링된다.
-- [ ] hover card, reference card, script, style, sidebar, comments의 텍스트가 기사 본문에 포함되지 않는다.
-- [ ] Team 링크는 Team Detail로, Player 링크는 Player Detail로 이동한다.
-- [x] News Detail placeholder에서 Back으로 News List에 돌아오며 기존 목록 상태와 이미 로드한 항목을 유지한다.
+- [x] 뉴스 항목을 누르면 제목, 작성자, 작성 시각과 순서가 보존된 본문이 표시된다.
+- [x] 문단, 이미지/캡션, bullet/numbered list가 서로 섞이지 않고 원문의 읽기 순서대로 렌더링된다.
+- [x] hover card, reference card, script, style, sidebar, comments의 텍스트가 기사 본문에 포함되지 않는다.
+- [x] Team 링크는 Team Detail로, Player 링크는 Player Detail로 이동한다.
+- [x] News Detail 화면에서 Back으로 News List에 돌아오며 기존 목록 상태와 이미 로드한 항목을 유지한다.
 - [x] initial loading, empty, initial error, pagination error가 서로 구분되고 initial은 전체 화면 Retry, pagination은 하단 Retry를 제공한다.
 - [x] Pull-to-refresh는 기존 목록을 즉시 초기화한 뒤 `page=1`만 요청하고, 진행 중 pagination 요청을 취소하거나 응답을 무시해 stale 삽입을 막는다. 실패 시 Initial Error 전체 화면 Retry를, 성공 시 page 1 결과를 표시한다.
 - [x] 서버 response와 앱 모델에 raw HTML, Jsoup type, CSS selector가 노출되지 않는다.

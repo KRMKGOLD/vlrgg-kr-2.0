@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AndroidLayouts">
+    <shared>
+      <config />
+    </shared>
+  </component>
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="389f2f93-756c-43fe-b617-ac8c248a43d2" name="Changes" comment="docs: AGENTS.md 초안 작성">
+    <list default="true" id="389f2f93-756c-43fe-b617-ac8c248a43d2" name="Changes" comment="feat: 뉴스 상세 정보 조회 로직 구현&#10;&#10;- `NewsDetailViewModel` 초기화 시 `fetchNewsDetail`을 호출하여 뉴스 기사 데이터 요청&#10;- 데이터 로드 성공, 실패 및 데이터 부재 상황에 따른 `NewsDetailContentState` 업데이트 로직 추가&#10;- `viewModelScope`를 활용한 비동기 Repository 호출 및 상태 관리 구현">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/app-arch/app-arch.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/app-arch/app-arch.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/app-arch/ui-layer.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/app-arch/ui-layer.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/navigation/NavigationContent.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/navigation/NavigationContent.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/feature/news/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/feature/news/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -41,6 +46,11 @@
     </system>
   </component>
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="feature/issue-35-news-detail" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
@@ -66,6 +76,8 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Android App.app.androidApp.executor": "Run",
+    "Gradle.vlrgg-kr-2.0 [:server:kr.co.cotton.vlrgg_mobile.ApplicationKt.main()].executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
@@ -75,13 +87,13 @@
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "external.system.has.shared.sources": "true",
-    "git-widget-placeholder": "codex/server-runtime-error-contract",
+    "git-widget-placeholder": "feature/issue-35-news-detail",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "/Users/seongha/Desktop/vlrgg-kr-2.0",
     "settings.editor.selected.configurable": "preferences.pluginManager"
   }
 }]]></component>
-  <component name="RunManager" selected="Android App.app.androidApp">
+  <component name="RunManager" selected="Kotlin.ApplicationKt">
     <configuration name="app.androidApp" type="AndroidRunConfigurationType" factoryName="Android App" activateToolWindowBeforeRun="false">
       <module name="Vlrggmobile.app.androidApp" />
       <option name="ANDROID_RUN_CONFIGURATION_SCHEMA_VERSION" value="1" />
@@ -160,10 +172,28 @@
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
     </configuration>
+    <configuration default="true" type="Application" factoryName="Application">
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="ApplicationKt" type="JetRunConfigurationType" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="kr.co.cotton.vlrgg_mobile.ApplicationKt" />
+      <module name="Vlrggmobile.server.main" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <list>
       <item itemvalue="Android App.app.androidApp" />
+      <item itemvalue="Kotlin.ApplicationKt" />
       <item itemvalue="Xcode Application.iosApp" />
     </list>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Kotlin.ApplicationKt" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -189,7 +219,31 @@
       <option name="project" value="LOCAL" />
       <updated>1783602118140</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="feat: 뉴스 상세 화면 UI 상태 정의&#10;&#10;- 뉴스 상세 화면의 UI 상태를 관리하기 위한 `NewsDetailUiState` 및 `NewsDetailContentState` 정의&#10;- 로딩(`Loading`), 비어 있음(`Empty`), 콘텐츠(`Content`), 에러(`Error`)의 4가지 상태를 포함하는 sealed interface 구현&#10;- `NewsArticle` 도메인 모델을 포함하는 상태 구조 설계 및 기본값(Loading) 설정">
+      <option name="closed" value="true" />
+      <created>1786683054251</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1786683054251</updated>
+    </task>
+    <task id="LOCAL-00004" summary="feat: 뉴스 상세 화면 ViewModel(NewsDetailViewModel) 1차 구현&#10;&#10;- 뉴스 상세 정보를 관리하는 `NewsDetailViewModel` 클래스 추가&#10;- `articleId`와 `slug` 전달을 위한 `AssistedInject` 및 `@AssistedFactory` 정의&#10;- `NewsRepository` 의존성 주입 및 `NewsDetailUiState` 기반 상태 관리 구조 설계&#10;- Metro DI 프레임워크를 통한 `ManualViewModelAssistedFactory` 설정 추가">
+      <option name="closed" value="true" />
+      <created>1786685036260</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1786685036260</updated>
+    </task>
+    <task id="LOCAL-00005" summary="feat: 뉴스 상세 정보 조회 로직 구현&#10;&#10;- `NewsDetailViewModel` 초기화 시 `fetchNewsDetail`을 호출하여 뉴스 기사 데이터 요청&#10;- 데이터 로드 성공, 실패 및 데이터 부재 상황에 따른 `NewsDetailContentState` 업데이트 로직 추가&#10;- `viewModelScope`를 활용한 비동기 Repository 호출 및 상태 관리 구현">
+      <option name="closed" value="true" />
+      <created>1786688463014</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1786688463014</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -206,6 +260,10 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="chore: Initialize Kotlin Multiplatform project with Android, iOS, and Server targets&#10;&#10;- Set up project structure with `app`, `core`, and `server` modules.&#10;- Implement shared UI using Compose Multiplatform.&#10;- Configure Ktor server for the backend.&#10;- Set up Android and iOS entry points.&#10;- Configure build logic using Gradle Version Catalog and Kotlin DSL." />
     <MESSAGE value="docs: AGENTS.md 초안 작성" />
-    <option name="LAST_COMMIT_MESSAGE" value="docs: AGENTS.md 초안 작성" />
+    <MESSAGE value="feat: 뉴스 상세 화면 UI 상태 정의&#10;&#10;- 뉴스 상세 화면의 UI 상태를 관리하기 위한 `NewsDetailUiState` 및 `NewsDetailContentState` 정의&#10;- 로딩(`Loading`), 비어 있음(`Empty`), 콘텐츠(`Content`), 에러(`Error`)의 4가지 상태를 포함하는 sealed interface 구현&#10;- `NewsArticle` 도메인 모델을 포함하는 상태 구조 설계 및 기본값(Loading) 설정" />
+    <MESSAGE value="feat: 뉴스 상세 화면 ViewModel(NewsDetailViewModel) 구현&#10;&#10;- 뉴스 상세 정보를 관리하는 `NewsDetailViewModel` 클래스 추가&#10;- `articleId`와 `slug` 전달을 위한 `AssistedInject` 및 `@AssistedFactory` 정의&#10;- `NewsRepository` 의존성 주입 및 `NewsDetailUiState` 기반 상태 관리 구조 설계&#10;- Metro DI 프레임워크를 통한 `ManualViewModelAssistedFactory` 설정 추가" />
+    <MESSAGE value="feat: 뉴스 상세 화면 ViewModel(NewsDetailViewModel) 1차 구현&#10;&#10;- 뉴스 상세 정보를 관리하는 `NewsDetailViewModel` 클래스 추가&#10;- `articleId`와 `slug` 전달을 위한 `AssistedInject` 및 `@AssistedFactory` 정의&#10;- `NewsRepository` 의존성 주입 및 `NewsDetailUiState` 기반 상태 관리 구조 설계&#10;- Metro DI 프레임워크를 통한 `ManualViewModelAssistedFactory` 설정 추가" />
+    <MESSAGE value="feat: 뉴스 상세 정보 조회 로직 구현&#10;&#10;- `NewsDetailViewModel` 초기화 시 `fetchNewsDetail`을 호출하여 뉴스 기사 데이터 요청&#10;- 데이터 로드 성공, 실패 및 데이터 부재 상황에 따른 `NewsDetailContentState` 업데이트 로직 추가&#10;- `viewModelScope`를 활용한 비동기 Repository 호출 및 상태 관리 구현" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: 뉴스 상세 정보 조회 로직 구현&#10;&#10;- `NewsDetailViewModel` 초기화 시 `fetchNewsDetail`을 호출하여 뉴스 기사 데이터 요청&#10;- 데이터 로드 성공, 실패 및 데이터 부재 상황에 따른 `NewsDetailContentState` 업데이트 로직 추가&#10;- `viewModelScope`를 활용한 비동기 Repository 호출 및 상태 관리 구현" />
   </component>
 </project>
