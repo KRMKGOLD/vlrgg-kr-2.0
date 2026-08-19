@@ -192,7 +192,7 @@ class NewsParserTest {
     }
 
     @Test
-    fun `article parser treats missing optional image data as a partial article instead of a failure`() {
+    fun `article parser ignores missing optional image data and preserves readable content`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-without-optional-image.html"),
             reference = newsReference("103", "text-only-article"),

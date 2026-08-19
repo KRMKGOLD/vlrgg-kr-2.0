@@ -74,6 +74,7 @@ HTTP cache header 준수, cache size 조정, authenticated image request 또는 
 - article의 제목, metadata, 문단과 목록은 계속 표시한다.
 - caption이 있으면 image 실패와 관계없이 원래 block 위치에 유지한다.
 - image failure를 `NewsDetailUiState.Error` 또는 article-wide failure로 변환하지 않는다.
+- image failure를 별도 `Partial` 상태나 전역 경고로 승격하지 않고 기존 `Content` 상태를 유지한다.
 - loading/error UI는 image renderer 내부에 제한하며 주변 block의 순서와 layout 의미를 보존한다.
 - null 또는 지원 불가능한 image data가 있더라도 내부 navigation이나 외부 embed로 추정하지 않는다.
 
@@ -89,6 +90,7 @@ H4의 image 관련 최소 assertion은 다음과 같다.
 - image loading success가 해당 block과 caption 순서를 보존한다.
 - image failure에도 앞뒤 문단, 목록, caption과 article content가 남는다.
 - image failure가 article-wide Error나 내부 navigation을 발생시키지 않는다.
+- image failure가 별도 `Partial` 상태나 전역 경고를 발생시키지 않는다.
 - composition에서 image renderer가 제거되면 진행 중 request가 lifecycle에 따라 취소된다.
 
 현재 UI test infrastructure로 직접 검증하기 어려운 항목은 fake engine을 사용한 가장 좁은 Compose test와 Android/iOS compile 및 manual smoke evidence로 나눈다. 이를 위해 범용 UI test framework를 새로 만들지 않는다.

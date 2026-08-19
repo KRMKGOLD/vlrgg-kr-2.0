@@ -4,12 +4,12 @@
 
 이 문서는 News List와 News Detail의 제품 요구사항을 정의한다. 공통 시각 언어와 접근성은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 기능 관계와 내비게이션은 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
-## 구현 상태 (2026-08-11)
+## 구현 상태 (2026-08-19)
 
 - **Backend: 구현 완료.** `GET /api/v1/news`와 `GET /api/v1/news/{articleId}/{slug}`는 route, scraper, parser, mapper, response 및 fixture/route 테스트로 구현되어 있다.
 - **App 데이터 계층: 구현 완료.** News remote DTO, Domain model/mapper, remote datasource와 `NewsRepository`가 구현되어 있으며 목록과 상세 조회의 성공·실패·cancellation 계약을 테스트한다.
 - **App News List: 구현 완료.** `NewsListViewModel`과 Compose Screen/Content를 연결하고 initial loading, empty, content, initial error, pagination error, pull-to-refresh 상태를 구분한다. 추가 페이지 동시 요청과 중복 기사 삽입을 막고, refresh 시 진행 중인 pagination을 취소해 늦은 결과가 새 목록에 반영되지 않게 한다. News 행 선택은 실제 `NewsDetail` 화면으로 이동한다.
-- **App News Detail: 1차 UI 범위 완료.** Loading, Populated, Empty, Error Compose UI와 구조화된 article block의 원순서 표시, Team/Player 내부 링크 Navigation callback 연결, 실제 `NewsArticle` 데이터 경로 UI 렌더링은 완료이며, `Partial` 상태와 실제 기기 시각·접근성 확인은 후속 범위다.
+- **App News Detail: 1차 UI 범위 완료.** Loading, Populated, Empty, Error Compose UI와 구조화된 article block의 원순서 표시, Team/Player 내부 링크 Navigation callback 연결, 실제 `NewsArticle` 데이터 경로 UI 렌더링과 실기기 렌더 검수를 완료했다. 선택 콘텐츠의 누락이나 로딩 실패는 유효한 본문을 유지한 채 해당 block 내부에서 무시하며 별도 `Partial` 상태를 만들지 않는다.
 
 ## 목적과 사용자 가치
 
@@ -114,8 +114,7 @@ News Detail은 bottom-navigation 목적지가 아니다. Event 및 Match 내부 
 ### News Detail
 
 - `Loading`: 제목/본문의 안정적인 skeleton을 표시한다.
-- `Populated`: 필수 기사 정보와 해석된 본문을 순서대로 표시한다.
-- `Partial`: 필수 본문은 읽을 수 있으나 선택적 이미지, 캡션 또는 지원하지 않는 embed가 누락된 상태다. 누락된 block 때문에 주변 본문 순서가 깨지지 않아야 한다.
+- `Populated`: 필수 기사 정보와 해석된 본문을 순서대로 표시한다. 선택적 이미지, 캡션 또는 지원하지 않는 embed가 누락되거나 로딩에 실패해도 유효한 본문을 유지하며 별도 상태나 전역 경고로 승격하지 않는다.
 - `Empty`: 유효한 기사 응답이지만 본문이 비어 있다. 정상 기사처럼 표시하지 않는다.
 - `Error`: 네트워크 또는 필수 본문 parsing 실패로 기사를 표시할 수 없다.
 - `Stale`: News List와 동일하게 MVP의 서버 stale fallback은 없다.
@@ -229,4 +228,4 @@ VLR.GG DOM은 불안정한 외부 contract다. selector나 보정 규칙은 pars
 
 ## 열린 결정
 
-현재 News MVP 구현을 막는 제품 결정은 없다. 구현 착수 시 대표 기사 canonical URL fixture와 이미지 로딩 실패 표현을 확정하되, 이는 위 범위를 변경하지 않는다.
+현재 News MVP 구현을 막는 제품 결정은 없다. 선택 콘텐츠의 누락이나 로딩 실패는 `Populated`를 유지하고 해당 block 내부에서 무시하며, 별도 `Partial` 상태·전역 경고·자동 재시도를 제공하지 않는다.
