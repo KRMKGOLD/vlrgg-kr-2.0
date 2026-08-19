@@ -72,6 +72,9 @@ kotlin {
             implementation(libs.ktor.clientMockKmp)
             implementation(libs.turbine)
         }
+        iosTest.dependencies {
+            implementation(libs.compose.uiTest)
+        }
     }
 }
 
