@@ -50,6 +50,8 @@ kotlin {
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
+            implementation(libs.coil.compose)
+            implementation(libs.coil.networkKtor3)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.metrox.viewmodelCompose)
@@ -64,10 +66,14 @@ kotlin {
             implementation(libs.ktor.clientDarwin)
         }
         commonTest.dependencies {
+            implementation(libs.coil.test)
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.clientMockKmp)
             implementation(libs.turbine)
+        }
+        iosTest.dependencies {
+            implementation(libs.compose.uiTest)
         }
     }
 }
