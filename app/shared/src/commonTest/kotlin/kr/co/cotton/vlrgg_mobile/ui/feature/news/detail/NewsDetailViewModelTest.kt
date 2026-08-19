@@ -136,6 +136,109 @@ class NewsDetailViewModelTest {
         )
     }
 
+    @Test
+    fun retryAfterErrorWithNoBlocksExposesEmpty() = runViewModelTest {
+        val article = newsArticle(articleId = "retry-id", slug = "retry-slug", blocks = emptyList())
+        val repository = FakeNewsRepository(
+            articleResults = listOf(
+                AppResult.Failure,
+                AppResult.Success(article),
+            ),
+        )
+        val viewModel = NewsDetailViewModel(
+            newsRepository = repository,
+            articleId = article.articleId,
+            slug = article.slug,
+        )
+        advanceUntilIdle()
+
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(
+            NewsDetailUiState(NewsDetailContentState.Empty(article)),
+            viewModel.uiState.value,
+        )
+    }
+
+    @Test
+    fun retryAfterErrorFailureExposesError() = runViewModelTest {
+        val repository = FakeNewsRepository(
+            articleResults = listOf(AppResult.Failure, AppResult.Failure),
+        )
+        val viewModel = NewsDetailViewModel(
+            newsRepository = repository,
+            articleId = "failed-id",
+            slug = "failed-slug",
+        )
+        advanceUntilIdle()
+
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(
+            NewsDetailUiState(NewsDetailContentState.Error),
+            viewModel.uiState.value,
+        )
+    }
+
+    @Test
+    fun retryOutsideErrorDoesNotRequestRepository() = runViewModelTest {
+        val contentArticle = newsArticle()
+        val emptyArticle = newsArticle(blocks = emptyList())
+        listOf(
+            FakeNewsRepository(listOf(AppResult.Success(contentArticle))),
+            FakeNewsRepository(listOf(AppResult.Success(emptyArticle))),
+        ).forEach { repository ->
+            val viewModel = NewsDetailViewModel(
+                newsRepository = repository,
+                articleId = "article-id",
+                slug = "article-slug",
+            )
+            advanceUntilIdle()
+
+            viewModel.retry()
+
+            assertEquals(1, repository.requestedArticles.size)
+        }
+    }
+
+    @Test
+    fun retryWhileLoadingOrRepeatedInSameTickDoesNotRequestRepositoryAgain() = runViewModelTest {
+        val loadingRepository = FakeNewsRepository(
+            articleResults = listOf(AppResult.Success(newsArticle())),
+        )
+        val loadingViewModel = NewsDetailViewModel(
+            newsRepository = loadingRepository,
+            articleId = "article-id",
+            slug = "article-slug",
+        )
+
+        loadingViewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(1, loadingRepository.requestedArticles.size)
+
+        val errorRepository = FakeNewsRepository(
+            articleResults = listOf(
+                AppResult.Failure,
+                AppResult.Success(newsArticle()),
+            ),
+        )
+        val errorViewModel = NewsDetailViewModel(
+            newsRepository = errorRepository,
+            articleId = "article-id",
+            slug = "article-slug",
+        )
+        advanceUntilIdle()
+
+        errorViewModel.retry()
+        errorViewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(2, errorRepository.requestedArticles.size)
+    }
+
     private fun runViewModelTest(
         testBody: suspend TestScope.() -> Unit,
     ) = runTest {

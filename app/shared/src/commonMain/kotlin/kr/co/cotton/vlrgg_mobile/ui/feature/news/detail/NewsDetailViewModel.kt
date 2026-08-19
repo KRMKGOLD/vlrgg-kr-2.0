@@ -30,6 +30,13 @@ class NewsDetailViewModel(
         fetchNewsDetail()
     }
 
+    fun retry() {
+        if (_uiState.value.contentState != NewsDetailContentState.Error) return
+
+        _uiState.value = NewsDetailUiState()
+        fetchNewsDetail()
+    }
+
     private fun fetchNewsDetail() = viewModelScope.launch {
         newsRepository.getNewsArticle(articleId, slug).onSuccess { article ->
             _uiState.value = NewsDetailUiState(
