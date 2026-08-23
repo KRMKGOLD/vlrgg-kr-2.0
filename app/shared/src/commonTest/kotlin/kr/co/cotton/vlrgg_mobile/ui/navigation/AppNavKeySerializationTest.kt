@@ -128,6 +128,41 @@ class AppNavKeySerializationTest {
         )
     }
 
+    @Test
+    fun everyRootBackStackAndTheSelectedRootRoundTripForProcessRestoration() {
+        val originalStacks = rootNavKeys.associateWith { root ->
+            NavBackStack<NavKey>(root)
+        }.apply {
+            getValue(NewsRoot).addAll(
+                listOf(Search, NewsDetail(articleId = "12345", slug = "grand-final")),
+            )
+            getValue(MatchesRoot).add(MatchDetail(matchId = "2002"))
+            getValue(EventsRoot).add(EventDetail(eventId = "3003"))
+        }
+        val selectedRoot: RootNavKey = NewsRoot
+        val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))
+
+        val restoredStacks = originalStacks.mapValues { (_, stack) ->
+            backStackJson.decodeFromString(
+                serializer,
+                backStackJson.encodeToString(serializer, stack),
+            )
+        }
+        val restoredSelectedRoot = assertIs<RootNavKey>(roundTrip(selectedRoot))
+        val restoredState = AppNavigationState(
+            rootBackStacks = restoredStacks,
+            initialSelectedRoot = restoredSelectedRoot,
+        )
+
+        assertEquals(selectedRoot, restoredState.selectedRoot)
+        rootNavKeys.forEach { root ->
+            assertEquals(
+                originalStacks.getValue(root).toList(),
+                restoredState.backStackFor(root),
+            )
+        }
+    }
+
     private fun roundTrip(key: AppNavKey): AppNavKey = json.decodeFromString(
         AppNavKey.serializer(),
         json.encodeToString(AppNavKey.serializer(), key),
