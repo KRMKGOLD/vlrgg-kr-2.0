@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -80,14 +81,20 @@ internal fun AppNavigationRuntime(
     val selectedRoot = navigationState.selectedRoot
     SideEffect { onNavigationStateAvailable(navigationState) }
 
-    val push: (AppNavKey) -> Unit = navigationState::push
-    val popOverlay: () -> Unit = navigationState::popOverlay
-    val entryProvider = appNavigationEntryProvider(
-        onSearch = { push(Search) },
-        onPush = push,
-        onBack = popOverlay,
-        entryContent = entryContent,
-    )
+    val push: (AppNavKey) -> Unit = remember(navigationState) { navigationState::push }
+    val popOverlay: () -> Unit = remember(navigationState) { { navigationState.popOverlay() } }
+    val onSearch: () -> Unit = remember(push) { { push(Search) } }
+    val currentEntryContent = rememberUpdatedState(entryContent)
+    val entryProvider = remember(onSearch, push, popOverlay) {
+        appNavigationEntryProvider(
+            onSearch = onSearch,
+            onPush = push,
+            onBack = popOverlay,
+            entryContent = { destination, search, pushDestination, back ->
+                currentEntryContent.value(destination, search, pushDestination, back)
+            },
+        )
+    }
 
     // Navigation 3 requires a separate rememberDecoratedNavEntries call and decorator instances
     // per back stack. The content keys include their owner root to keep overlays' saveable and
@@ -207,11 +214,26 @@ private fun NavigationEntryContent(
 }
 
 private val selectedRootSaver = Saver<RootNavKey, String>(
-    save = { selectedRoot -> rootNavKeys.indexOf(selectedRoot).toString() },
-    restore = { index ->
-        rootNavKeys.getOrNull(index.toIntOrNull() ?: -1)
-    },
+    save = { selectedRoot -> selectedRoot.savedStateId() },
+    restore = ::rootNavKeyFromSavedStateId,
 )
+
+internal fun RootNavKey.savedStateId(): String = when (this) {
+    NewsRoot -> "news"
+    MatchesRoot -> "matches"
+    MyPageRoot -> "my-page"
+    EventsRoot -> "events"
+    AboutRoot -> "about"
+}
+
+internal fun rootNavKeyFromSavedStateId(savedRootId: String): RootNavKey? = when (savedRootId) {
+    "news" -> NewsRoot
+    "matches" -> MatchesRoot
+    "my-page" -> MyPageRoot
+    "events" -> EventsRoot
+    "about" -> AboutRoot
+    else -> null
+}
 
 @Composable
 private fun RootNavigationBar(

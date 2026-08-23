@@ -146,6 +146,40 @@ class AppNavigationStateTest {
         }
     }
 
+    @Test
+    fun rootSavedStateIdsAreStableAndRestoreEachRoot() {
+        val expectedIds: Map<RootNavKey, String> = mapOf(
+            NewsRoot to "news",
+            MatchesRoot to "matches",
+            MyPageRoot to "my-page",
+            EventsRoot to "events",
+            AboutRoot to "about",
+        )
+
+        expectedIds.forEach { (root, expectedId) ->
+            assertEquals(expectedId, root.savedStateId())
+            assertEquals(root, rootNavKeyFromSavedStateId(root.savedStateId()))
+        }
+    }
+
+    @Test
+    fun rootSavedStateIdsDoNotDependOnRootNavigationOrder() {
+        val expectedIds: Map<RootNavKey, String> = mapOf(
+            NewsRoot to "news",
+            MatchesRoot to "matches",
+            MyPageRoot to "my-page",
+            EventsRoot to "events",
+            AboutRoot to "about",
+        )
+
+        assertEquals(expectedIds, rootNavKeys.reversed().associateWith(RootNavKey::savedStateId))
+    }
+
+    @Test
+    fun unknownRootSavedStateIdRestoresAsNull() {
+        assertEquals(null, rootNavKeyFromSavedStateId("unknown-root"))
+    }
+
     private fun createRootBackStacks(): MutableMap<RootNavKey, MutableList<NavKey>> =
         rootNavKeys.associateWithTo(mutableMapOf()) { root -> mutableListOf(root) }
 }

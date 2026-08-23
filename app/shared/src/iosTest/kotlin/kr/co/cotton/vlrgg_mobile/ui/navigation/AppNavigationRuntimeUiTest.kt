@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,6 +40,25 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class AppNavigationRuntimeUiTest {
+
+    @Test
+    fun recompositionUsesUpdatedEntryContent() {
+        var contentVersion by mutableIntStateOf(0)
+
+        runComposeUiTest {
+            setContent {
+                AppNavigationRuntime(
+                    entryContent = { _, _, _, _ ->
+                        Text("entry-content-version:$contentVersion")
+                    },
+                )
+            }
+
+            onNodeWithText("entry-content-version:0").assertExists()
+            runOnIdle { contentVersion = 1 }
+            onNodeWithText("entry-content-version:1").assertExists()
+        }
+    }
 
     @Test
     fun rootRoundTripRetainsEntryViewModelAndSaveableStateAndPoppingDetailClearsOnlyDetail() {
@@ -203,10 +223,12 @@ private fun TestRootEntry(
     val viewModel = remember(owner) {
         ViewModelProvider.create(owner, factory)[TestRootViewModel::class]
     }
-    factory.tracker.recordRoot(root, viewModel)
     var counter by rememberSaveable { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
-    factory.tracker.recordListState(root, listState)
+    SideEffect {
+        factory.tracker.recordRoot(root, viewModel)
+        factory.tracker.recordListState(root, listState)
+    }
 
     Column {
         Text("root:${root.destinationDescriptor.title}")
