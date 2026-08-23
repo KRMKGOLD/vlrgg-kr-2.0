@@ -61,7 +61,7 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 
 - root key 순서는 News, Matches, MyPage, Events, About이며 기본 destination은 `MyPageRoot`다.
 - Search와 News/Match/Event/Team/Player/Series detail은 진입한 root의 stack 위에 push되는 transient overlay다. root를 바꿔도 그 overlay는 원래 root에 남고, 해당 root로 돌아온 뒤 Back을 누르면 그 root의 이전 entry로 복귀한다.
-- runtime은 root마다 별도 `rememberNavBackStack`과 app 전용 `SavedStateConfiguration`을 사용한다. 선택 root도 `rememberSaveable`로 보존하며, 모든 key는 직렬화 가능하고 detail key에는 복원에 필요한 안정적인 식별자만 둔다.
+- runtime은 root마다 별도 `rememberNavBackStack`과 app 전용 `SavedStateConfiguration`을 사용한다. root 목록을 순회해 stack/decorator map을 만들며, 선택 root는 `rememberSaveable`의 단일 mutable state로 보존한다. `AppNavigationState`는 그 state를 직접 갱신하므로 별도의 Compose selected-root state나 수동 동기화가 없다. 모든 key는 직렬화 가능하고 detail key에는 복원에 필요한 안정적인 식별자만 둔다.
 - root마다 별도 `rememberDecoratedNavEntries`, `SaveableStateHolderNavEntryDecorator`, `ViewModelStoreNavEntryDecorator`를 생성한다. 선택 root의 entries만 `NavDisplay`에 전달하되 선택되지 않은 root의 stack과 decorator state는 composition 안에 남아 ViewModel, loaded page/selected tab, scroll과 `rememberSaveable` state가 유지된다.
 - root 전환은 각 stack을 보존한다. 현재 root를 다시 선택하면 그 root의 overlay만 root entry까지 pop한다. Back은 선택 root에 overlay가 있을 때 마지막 entry만 pop하며 root에서는 stack을 변경하지 않는다.
 - overlay가 두 root에서 같은 destination key를 가져도 decorator state가 공유되지 않도록 entry content key는 owning root를 포함한다.
@@ -84,7 +84,7 @@ Pagination은 여러 feature에서 사용될 가능성이 있지만 아직 100% 
 
 - `AppNavKeySerializationTest`: root/Search/detail key, 모든 root stack과 selected root의 직렬화·복원
 - `AppNavigationStateTest`: root별 overlay push/pop, root 전환/reselection, 동일 stack instance 유지, 잘못 복원된 map/stack 거부
-- `AppNavigationRuntimeUiTest` (iOS): 실제 `AppNavigationRuntime` seam에 test entry content를 주입해 entry `LocalViewModelStoreOwner`와 test-local `ViewModelProvider.Factory`를 검증한다. root 왕복 후 loaded page/selected tab·동일 ViewModel instance·`rememberSaveable` counter·`LazyListState.firstVisibleItemIndex`가 유지되고, detail pop은 detail ViewModel만 clear하며 initiating root state를 보존한다.
+- `AppNavigationRuntimeUiTest` (iOS): 실제 `AppNavigationRuntime` seam에 test entry content를 주입해 entry `LocalViewModelStoreOwner`와 test-local `ViewModelProvider.Factory`를 검증한다. root 왕복 후 loaded page/selected tab·동일 ViewModel instance·`rememberSaveable` counter·`LazyListState.firstVisibleItemIndex`가 유지되고, detail pop은 detail ViewModel만 clear하며 initiating root state를 보존한다. 두 root의 동일 `Search` key는 saveable state/ViewModel을 공유하지 않고, 한 root Search pop은 다른 root Search ViewModel을 clear하지 않는다.
 - `DestinationDescriptorTest`: root 순서와 destination metadata
 - `MyPageViewModelTest`: MyPage skeleton state
 - `AppGraphAndroidHostTest`: MetroX known/missing provider lookup과 entry별 `ViewModelStoreOwner` scope

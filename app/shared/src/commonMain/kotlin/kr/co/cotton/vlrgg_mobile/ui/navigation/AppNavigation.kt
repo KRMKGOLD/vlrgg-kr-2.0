@@ -7,12 +7,11 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
@@ -56,6 +55,7 @@ fun AppNavigation(
 internal fun AppNavigationRuntime(
     modifier: Modifier = Modifier,
     initialSelectedRoot: RootNavKey = MyPageRoot,
+    onNavigationStateAvailable: (AppNavigationState) -> Unit = {},
     entryContent: @Composable (
         destination: AppNavKey,
         onSearch: () -> Unit,
@@ -63,42 +63,22 @@ internal fun AppNavigationRuntime(
         onBack: () -> Unit,
     ) -> Unit,
 ) {
-    // Each root owns a saveable Navigation 3 stack. Keep all five calls in composition so their
-    // decorated entry state is retained while another root is displayed.
-    val newsBackStack = rememberNavBackStack(appNavKeySavedStateConfiguration, NewsRoot)
-    val matchesBackStack = rememberNavBackStack(appNavKeySavedStateConfiguration, MatchesRoot)
-    val myPageBackStack = rememberNavBackStack(appNavKeySavedStateConfiguration, MyPageRoot)
-    val eventsBackStack = rememberNavBackStack(appNavKeySavedStateConfiguration, EventsRoot)
-    val aboutBackStack = rememberNavBackStack(appNavKeySavedStateConfiguration, AboutRoot)
-    val rootBackStacks: Map<RootNavKey, MutableList<NavKey>> = remember(
-        newsBackStack,
-        matchesBackStack,
-        myPageBackStack,
-        eventsBackStack,
-        aboutBackStack,
-    ) {
-        mapOf<RootNavKey, MutableList<NavKey>>(
-            NewsRoot to newsBackStack,
-            MatchesRoot to matchesBackStack,
-            MyPageRoot to myPageBackStack,
-            EventsRoot to eventsBackStack,
-            AboutRoot to aboutBackStack,
-        )
+    // Navigation 3 has no multiple-stack holder: every root stack and its decorator graph must
+    // stay in composition, even though NavDisplay receives only the selected root's entries.
+    val rootBackStacks: Map<RootNavKey, MutableList<NavKey>> = rootNavKeys.associateWith { root ->
+        rememberNavBackStack(appNavKeySavedStateConfiguration, root)
     }
-    var selectedRoot by rememberSaveable(stateSaver = selectedRootSaver) {
+    val selectedRootState = rememberSaveable(stateSaver = selectedRootSaver) {
         mutableStateOf(initialSelectedRoot)
     }
-    val navigationState = remember(rootBackStacks) {
-        AppNavigationState(
-            rootBackStacks = rootBackStacks,
-            initialSelectedRoot = selectedRoot,
-        )
+    val navigationState = remember(
+        selectedRootState,
+        *rootBackStacks.values.toTypedArray(),
+    ) {
+        AppNavigationState(rootBackStacks, selectedRootState)
     }
-
-    fun selectRoot(root: RootNavKey) {
-        navigationState.selectRoot(root)
-        selectedRoot = navigationState.selectedRoot
-    }
+    val selectedRoot = navigationState.selectedRoot
+    SideEffect { onNavigationStateAvailable(navigationState) }
 
     val push: (AppNavKey) -> Unit = navigationState::push
     val popOverlay: () -> Unit = navigationState::popOverlay
@@ -112,13 +92,9 @@ internal fun AppNavigationRuntime(
     // Navigation 3 requires a separate rememberDecoratedNavEntries call and decorator instances
     // per back stack. The content keys include their owner root to keep overlays' saveable and
     // ViewModel state independent even when two roots contain the same destination key.
-    val rootEntries: Map<RootNavKey, List<NavEntry<NavKey>>> = mapOf(
-        NewsRoot to rememberRootDecoratedEntries(NewsRoot, newsBackStack, entryProvider),
-        MatchesRoot to rememberRootDecoratedEntries(MatchesRoot, matchesBackStack, entryProvider),
-        MyPageRoot to rememberRootDecoratedEntries(MyPageRoot, myPageBackStack, entryProvider),
-        EventsRoot to rememberRootDecoratedEntries(EventsRoot, eventsBackStack, entryProvider),
-        AboutRoot to rememberRootDecoratedEntries(AboutRoot, aboutBackStack, entryProvider),
-    )
+    val rootEntries: Map<RootNavKey, List<NavEntry<NavKey>>> = rootBackStacks.mapValues { (root, backStack) ->
+        rememberRootDecoratedEntries(root, backStack, entryProvider)
+    }
     val currentDestination = navigationState.currentBackStack.last() as AppNavKey
 
     Scaffold(
@@ -127,7 +103,7 @@ internal fun AppNavigationRuntime(
             if (currentDestination.destinationDescriptor.showBottomBar) {
                 RootNavigationBar(
                     selectedRoot = selectedRoot,
-                    onSelectRoot = ::selectRoot,
+                    onSelectRoot = navigationState::selectRoot,
                 )
             }
         },

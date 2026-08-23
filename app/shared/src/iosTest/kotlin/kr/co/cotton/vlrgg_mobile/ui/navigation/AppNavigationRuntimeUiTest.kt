@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import kotlin.reflect.KClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -49,9 +50,10 @@ class AppNavigationRuntimeUiTest {
             setContent {
                 CompositionLocalProvider(LocalViewModelStoreOwner provides hostOwner) {
                     AppNavigationRuntime(
-                        entryContent = { destination, _, onPush, onBack ->
+                        entryContent = { destination, onSearch, onPush, onBack ->
                             TestNavigationEntry(
                                 destination = destination,
+                                onSearch = onSearch,
                                 onPush = onPush,
                                 onBack = onBack,
                                 factory = factory,
@@ -105,17 +107,86 @@ class AppNavigationRuntimeUiTest {
             assertEquals(1, tracker.clearedDetailCount)
         }
     }
+
+    @Test
+    fun sameSearchKeyInDifferentRootsKeepsEntryStateIsolatedAndClearsOnlyThePoppedRoot() {
+        val tracker = TestViewModelTracker()
+        val factory = TestViewModelFactory(tracker)
+        val hostOwner = TestHostViewModelStoreOwner()
+        var navigationState: AppNavigationState? = null
+
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalViewModelStoreOwner provides hostOwner) {
+                    AppNavigationRuntime(
+                        onNavigationStateAvailable = { navigationState = it },
+                        entryContent = { destination, onSearch, onPush, onBack ->
+                            TestNavigationEntry(
+                                destination = destination,
+                                onSearch = onSearch,
+                                onPush = onPush,
+                                onBack = onBack,
+                                factory = factory,
+                            )
+                        },
+                    )
+                }
+            }
+
+            onNodeWithText("push-search").performClick()
+            onNodeWithText("search-view-model:1").assertExists()
+            onNodeWithText("increment-search-counter").performClick()
+            onNodeWithText("search-saveable-counter:1").assertExists()
+            val myPageSearchViewModel = tracker.searchFor(1)
+
+            runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
+            onNodeWithText("root:News").assertExists()
+            onNodeWithText("push-search").performClick()
+            onNodeWithText("search-view-model:2").assertExists()
+            onNodeWithText("search-saveable-counter:0").assertExists()
+            onNodeWithText("increment-search-counter").performClick()
+            onNodeWithText("search-saveable-counter:1").assertExists()
+            val newsSearchViewModel = tracker.searchFor(2)
+
+            runOnIdle { requireNotNull(navigationState).selectRoot(MyPageRoot) }
+            onNodeWithText("search-view-model:1").assertExists()
+            onNodeWithText("search-saveable-counter:1").assertExists()
+            assertSame(myPageSearchViewModel, tracker.searchFor(1))
+            assertFalse(myPageSearchViewModel.cleared)
+            assertFalse(newsSearchViewModel.cleared)
+
+            onNodeWithText("pop-search").performClick()
+            waitForIdle()
+            onNodeWithText("root:My Page").assertExists()
+            assertTrue(myPageSearchViewModel.cleared)
+            assertFalse(newsSearchViewModel.cleared)
+            assertEquals(1, tracker.clearedSearchCount)
+
+            runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
+            onNodeWithText("search-view-model:2").assertExists()
+            onNodeWithText("search-saveable-counter:1").assertExists()
+            assertSame(newsSearchViewModel, tracker.searchFor(2))
+
+            onNodeWithText("pop-search").performClick()
+            waitForIdle()
+            onNodeWithText("root:News").assertExists()
+            assertTrue(newsSearchViewModel.cleared)
+            assertEquals(2, tracker.clearedSearchCount)
+        }
+    }
 }
 
 @Composable
 private fun TestNavigationEntry(
     destination: AppNavKey,
+    onSearch: () -> Unit,
     onPush: (AppNavKey) -> Unit,
     onBack: () -> Unit,
     factory: TestViewModelFactory,
 ) {
     when (destination) {
-        is RootNavKey -> TestRootEntry(destination, onPush, factory)
+        is RootNavKey -> TestRootEntry(destination, onSearch, onPush, factory)
+        Search -> TestSearchEntry(onBack, factory)
         is MatchDetail -> TestDetailEntry(destination, onBack, factory)
         else -> error("Unexpected navigation fixture destination: $destination")
     }
@@ -124,6 +195,7 @@ private fun TestNavigationEntry(
 @Composable
 private fun TestRootEntry(
     root: RootNavKey,
+    onSearch: () -> Unit,
     onPush: (AppNavKey) -> Unit,
     factory: TestViewModelFactory,
 ) {
@@ -145,6 +217,7 @@ private fun TestRootEntry(
         Button(onClick = viewModel::loadPage) { Text("set-loaded-page") }
         Button(onClick = viewModel::selectResultsTab) { Text("set-selected-tab") }
         Button(onClick = { counter += 1 }) { Text("increment-counter") }
+        Button(onClick = onSearch) { Text("push-search") }
         Button(onClick = { onPush(MatchDetail(matchId = "fixture-detail")) }) {
             Text("push-detail")
         }
@@ -154,6 +227,25 @@ private fun TestRootEntry(
         ) {
             items(30) { index -> Text("item:$index") }
         }
+    }
+}
+
+@Composable
+private fun TestSearchEntry(
+    onBack: () -> Unit,
+    factory: TestViewModelFactory,
+) {
+    val owner = requireNotNull(LocalViewModelStoreOwner.current)
+    val viewModel = remember(owner) {
+        ViewModelProvider.create(owner, factory)[TestSearchViewModel::class]
+    }
+    var counter by rememberSaveable { mutableIntStateOf(0) }
+
+    Column {
+        Text("search-view-model:${viewModel.id}")
+        Text("search-saveable-counter:$counter")
+        Button(onClick = { counter += 1 }) { Text("increment-search-counter") }
+        Button(onClick = onBack) { Text("pop-search") }
     }
 }
 
@@ -201,6 +293,19 @@ private class TestDetailViewModel(
     }
 }
 
+private class TestSearchViewModel(
+    private val tracker: TestViewModelTracker,
+) : ViewModel() {
+    val id = tracker.nextSearchId()
+    var cleared = false
+        private set
+
+    override fun onCleared() {
+        cleared = true
+        tracker.clearedSearchCount += 1
+    }
+}
+
 private class TestViewModelFactory(
     val tracker: TestViewModelTracker,
 ) : ViewModelProvider.Factory {
@@ -215,6 +320,8 @@ private class TestViewModelFactory(
             tracker.detailViewModel = it
         } as T
 
+        TestSearchViewModel::class -> TestSearchViewModel(tracker).also(tracker::recordSearch) as T
+
         else -> error("Unknown test ViewModel: $modelClass")
     }
 }
@@ -224,6 +331,9 @@ private class TestViewModelTracker {
     private val listStates = mutableMapOf<RootNavKey, LazyListState>()
     lateinit var detailViewModel: TestDetailViewModel
     var clearedDetailCount = 0
+    private val searchViewModels = mutableMapOf<Int, TestSearchViewModel>()
+    private var searchId = 0
+    var clearedSearchCount = 0
 
     fun rootFor(root: RootNavKey): TestRootViewModel = rootViewModels.getValue(root)
 
@@ -236,6 +346,14 @@ private class TestViewModelTracker {
     fun recordListState(root: RootNavKey, listState: LazyListState) {
         listStates[root] = listState
     }
+
+    fun nextSearchId(): Int = ++searchId
+
+    fun recordSearch(viewModel: TestSearchViewModel) {
+        searchViewModels[viewModel.id] = viewModel
+    }
+
+    fun searchFor(id: Int): TestSearchViewModel = searchViewModels.getValue(id)
 }
 
 private class TestHostViewModelStoreOwner : ViewModelStoreOwner {

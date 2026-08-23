@@ -1,5 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.navigation
 
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.navigation3.runtime.NavKey
 
 /**
@@ -9,14 +11,22 @@ import androidx.navigation3.runtime.NavKey
  * selects one of those stacks and applies app navigation transitions to that exact instance.
  */
 class AppNavigationState(
-    val rootBackStacks: Map<RootNavKey, MutableList<NavKey>>,
-    initialSelectedRoot: RootNavKey = MyPageRoot,
+    private val rootBackStacks: Map<RootNavKey, MutableList<NavKey>>,
+    private val selectedRootState: MutableState<RootNavKey>,
 ) {
+    constructor(
+        rootBackStacks: Map<RootNavKey, MutableList<NavKey>>,
+        initialSelectedRoot: RootNavKey = MyPageRoot,
+    ) : this(
+        rootBackStacks = rootBackStacks,
+        selectedRootState = mutableStateOf(initialSelectedRoot),
+    )
+
     init {
         require(rootBackStacks.keys == rootNavKeys.toSet()) {
             "Root navigation stacks must contain exactly every app root."
         }
-        require(initialSelectedRoot in rootBackStacks) {
+        require(selectedRootState.value in rootBackStacks) {
             "The selected root must have a navigation back stack."
         }
         rootBackStacks.forEach { (root, backStack) ->
@@ -35,8 +45,8 @@ class AppNavigationState(
         }
     }
 
-    var selectedRoot: RootNavKey = initialSelectedRoot
-        private set
+    val selectedRoot: RootNavKey
+        get() = selectedRootState.value
 
     val currentBackStack: MutableList<NavKey>
         get() = backStackFor(selectedRoot)
@@ -68,6 +78,6 @@ class AppNavigationState(
         if (root == selectedRoot) {
             currentBackStack.subList(1, currentBackStack.size).clear()
         }
-        selectedRoot = root
+        selectedRootState.value = root
     }
 }
