@@ -3,7 +3,7 @@ package kr.co.cotton.vlrgg_mobile.data.remote.impl
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.http.ContentType
@@ -75,7 +75,7 @@ class RemoteMatchDataSourceImplTest {
         )
 
         try {
-            assertFailsWith<ClientRequestException> {
+            assertFailsWith<ResponseException> {
                 RemoteMatchDataSourceImpl(client).getUpcomingMatches(page = 1)
             }
         } finally {
