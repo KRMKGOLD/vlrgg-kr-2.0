@@ -47,7 +47,7 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | KMP 기반 의존성 | 구현 — Navigation 3, Metro DI, Kotlinx Serialization 등 현재 runtime에 필요한 의존성 반영 |
 | Runtime composition | 구현 — Android/iOS platform owner가 `AppGraph`를 생성하고 공통 `App(graph)`가 theme와 navigation을 연결 |
 | DI | 구현 — Metro `AppGraph`와 `AppViewModelFactory`; News List와 MyPage ViewModel binding 포함 |
-| Navigation | 기반 구현 — 직렬화 가능한 root/Search/detail key, MyPage 기본 root, 단일 root + transient overlay back stack, 저장·복원, entry별 saveable state와 ViewModelStore scope. News root는 실제 News List를 표시하고 News Detail placeholder로 이동 |
+| Navigation | 기반 구현 — 직렬화 가능한 root/Search/detail key, MyPage 기본 root, root별 saved back stack과 transient overlay, selected root/stack 저장·복원, root별 entry saveable state와 ViewModelStore scope. News root는 실제 News List를 표시하고 News Detail placeholder로 이동 |
 | Runtime 회귀 테스트 | 구현 — navigation key 직렬화·상태·descriptor, MyPage/News List ViewModel, Android AppGraph host 테스트 |
 | 실제 feature/data | 일부 구현 — News remote DTO/Domain/Data 계층과 News List UI 구현. News Detail 본문 및 Matches/Events/Search/Team/Player/Series/About 화면, 로컬 즐겨찾기, Match 알림 App/Firebase 연동은 미구현 |
 | 기기 검증 | 미완료 — physical Android/iOS 시각·접근성 검증 |
@@ -94,7 +94,7 @@ Bottom navigation은 다음 순서로 고정한다.
 4. Events
 5. About
 
-시각적 순서와 관계없이 앱의 기본 진입 destination은 `MyPage`다. 현재 runtime은 하나의 back stack에서 root 하나와 그 위의 transient Search/Detail overlay를 관리한다. root를 선택하면 overlay를 비우고 root를 교체하며, Back은 overlay만 pop한다. 탭별 독립 multi-back-stack은 아직 구현하지 않았다.
+시각적 순서와 관계없이 앱의 기본 진입 destination은 `MyPage`다. 현재 runtime은 각 root의 독립 back stack에서 transient Search/Detail overlay를 관리한다. 다른 root를 선택해도 기존 root의 overlay와 entry state는 남으며, 해당 root로 복귀한 뒤 Back은 그 overlay만 pop한다. 현재 root를 다시 선택하면 그 root의 overlay를 비우고 root entry로 돌아간다.
 
 ### Shared Top App Bar와 Search
 

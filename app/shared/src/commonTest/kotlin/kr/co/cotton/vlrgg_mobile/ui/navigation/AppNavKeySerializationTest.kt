@@ -121,10 +121,17 @@ class AppNavKeySerializationTest {
         )
 
         assertEquals(original.toList(), restored.toList())
-        assertEquals(EventsRoot, AppNavigationState(restored).selectedRoot)
+        val state = AppNavigationState(
+            rootBackStacks = rootNavKeys.associateWith { root ->
+                if (root == EventsRoot) restored else NavBackStack<NavKey>(root)
+            },
+            initialSelectedRoot = EventsRoot,
+        )
+
+        assertEquals(EventsRoot, state.selectedRoot)
         assertEquals(
             listOf(Search, TeamDetail(teamId = "1001")),
-            AppNavigationState(restored).overlay,
+            state.overlay,
         )
     }
 
@@ -158,7 +165,7 @@ class AppNavKeySerializationTest {
         rootNavKeys.forEach { root ->
             assertEquals(
                 originalStacks.getValue(root).toList(),
-                restoredState.backStackFor(root),
+                restoredState.backStackFor(root).toList(),
             )
         }
     }
