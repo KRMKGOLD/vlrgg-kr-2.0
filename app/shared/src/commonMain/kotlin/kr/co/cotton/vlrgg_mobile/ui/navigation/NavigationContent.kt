@@ -45,13 +45,13 @@ fun NavigationContent(
                     )
                 )
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize(),
         )
 
         MatchesRoot -> MatchesScreen(
             onSearch = onSearch,
             onMatchClick = { matchId -> onPush(MatchDetail(matchId = matchId)) },
-            modifier = Modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize(),
         )
 
         EventsRoot,

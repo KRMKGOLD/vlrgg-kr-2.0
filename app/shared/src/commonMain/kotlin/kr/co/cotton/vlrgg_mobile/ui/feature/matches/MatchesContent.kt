@@ -25,6 +25,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -351,6 +352,8 @@ private fun MatchesLoadMoreEffect(
     enabled: Boolean,
     onLoadMore: () -> Unit,
 ) {
+    val latestOnLoadMore = rememberUpdatedState(onLoadMore)
+
     LaunchedEffect(listState, enabled) {
         if (!enabled) return@LaunchedEffect
         snapshotFlow {
@@ -364,7 +367,7 @@ private fun MatchesLoadMoreEffect(
                     lastVisibleIndex != null &&
                     lastVisibleIndex >= totalItemsCount - 3
                 ) {
-                    onLoadMore()
+                    latestOnLoadMore.value()
                 }
             }
     }
