@@ -37,6 +37,7 @@ val AppNavKey.destinationDescriptor: DestinationDescriptor
             marker = "events",
             title = "Events",
             rootOrder = 3,
+            requiresEntryScope = true,
         )
 
         AboutRoot -> rootDescriptor(
