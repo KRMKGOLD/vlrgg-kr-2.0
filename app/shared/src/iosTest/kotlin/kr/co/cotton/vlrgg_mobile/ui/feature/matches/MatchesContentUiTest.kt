@@ -6,17 +6,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.semantics.SemanticsProperties
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.TeamSide
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.matchScoreTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.matchTeamPlaceholderTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -87,13 +94,21 @@ class MatchesContentUiTest {
 
         onNodeWithText("TODAY, AUG 23").assertIsDisplayed()
         onNodeWithText("LIVE").assertIsDisplayed()
-        onNodeWithText("10:30 AM").assertIsDisplayed()
         onNodeWithText("IN 2 HOURS").assertIsDisplayed()
         onNodeWithText("Paper Rex").assertIsDisplayed()
         onNodeWithText("Gen.G").assertIsDisplayed()
         onNodeWithText("Valorant Champions 2026").assertIsDisplayed()
         onNodeWithText("Playoffs · Upper Final").assertIsDisplayed()
         onNodeWithText("VS").assertIsDisplayed()
+        onNodeWithTag(matchScoreTag(upcomingMatch.id), useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithTag(
+            matchTeamPlaceholderTag(upcomingMatch.id, TeamSide.HOME),
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
+        onNodeWithTag(
+            matchTeamPlaceholderTag(upcomingMatch.id, TeamSide.AWAY),
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
 
         onNodeWithTag(matchCardTag(upcomingMatch.id)).performClick()
         assertEquals(upcomingMatch.id, clickedMatchId)
@@ -252,9 +267,68 @@ class MatchesContentUiTest {
 
         onNodeWithText("Paper Rex").assertIsDisplayed()
         onNodeWithText("Fnatic").assertDoesNotExist()
+        onNodeWithTag(MATCHES_TABS_TAG).assertIsDisplayed()
+        onNodeWithTag(matchTabTag(MatchesTab.UPCOMING_LIVE)).assertIsSelected()
         onNodeWithText("결과").performClick()
+        onNodeWithTag(matchTabTag(MatchesTab.RESULTS)).assertIsSelected()
         onNodeWithText("Fnatic").assertIsDisplayed()
         onNodeWithText("Paper Rex").assertDoesNotExist()
+    }
+
+    @Test
+    fun exceptionalStatusesRemainExplicitAndAccessibleInCompactCards() = runComposeUiTest {
+        val postponedMatch = upcomingMatch.copy(
+            id = "match-postponed-303",
+            status = MatchStatus.POSTPONED,
+            relativeTimeLabel = "2시간 후",
+        )
+        val cancelledMatch = upcomingMatch.copy(
+            id = "match-cancelled-404",
+            status = MatchStatus.CANCELLED,
+        )
+        val unavailableMatch = upcomingMatch.copy(
+            id = "match-unavailable-505",
+            status = MatchStatus.UNAVAILABLE,
+        )
+        setContent {
+            MatchesContentFixture(
+                uiState = MatchesUiState(
+                    upcomingLive = MatchesFeedUiState(
+                        contentState = MatchesFeedContentState.Content(
+                            listOf(
+                                MatchDateGroup(
+                                    "TODAY",
+                                    listOf(postponedMatch, cancelledMatch, unavailableMatch),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithText("연기").assertIsDisplayed()
+        onNodeWithText("취소").assertIsDisplayed()
+        onNodeWithText("정보 없음").assertIsDisplayed()
+        onNodeWithText("2시간 후").assertIsDisplayed()
+        onNodeWithTag(matchCardTag(postponedMatch.id)).assert(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.StateDescription,
+                "경기가 연기되었습니다",
+            ),
+        )
+        onNodeWithTag(matchCardTag(cancelledMatch.id)).assert(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.StateDescription,
+                "경기가 취소되었습니다",
+            ),
+        )
+        onNodeWithTag(matchCardTag(unavailableMatch.id)).assert(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.StateDescription,
+                "경기 정보가 없습니다",
+            ),
+        )
     }
 
     @Test
