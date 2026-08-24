@@ -10,11 +10,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.stateDescription
@@ -96,7 +95,8 @@ private fun SkeletonDateTitle() {
 private fun SkeletonTeamsRow(shape: RoundedCornerShape) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         SkeletonTeam(shape, Modifier.weight(1f))
         Box(
@@ -115,33 +115,15 @@ private fun SkeletonTeam(
     modifier: Modifier,
     reversed: Boolean = false,
 ) {
-    Row(
+    Box(
         modifier = modifier,
-        horizontalArrangement = if (reversed) Arrangement.End else Arrangement.Start,
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        contentAlignment = if (reversed) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
-        if (reversed) {
-            Box(
-                modifier = Modifier
-                    .width(40.dp)
-                    .height(16.dp)
-                    .background(VlrTheme.colors.skeleton, shape),
-            )
-            Spacer(Modifier.width(VlrDimensions.Space2))
-        }
         Box(
             modifier = Modifier
-                .size(32.dp)
-                .background(VlrTheme.colors.surfaceSubtle, CircleShape),
+                .width(40.dp)
+                .height(16.dp)
+                .background(VlrTheme.colors.skeleton, shape),
         )
-        if (!reversed) {
-            Spacer(Modifier.width(VlrDimensions.Space2))
-            Box(
-                modifier = Modifier
-                    .width(40.dp)
-                    .height(16.dp)
-                    .background(VlrTheme.colors.skeleton, shape),
-            )
-        }
     }
 }

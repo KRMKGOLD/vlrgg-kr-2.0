@@ -1,18 +1,14 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.matches.components
 
 import androidx.compose.foundation.border
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,7 +20,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
@@ -56,7 +51,9 @@ fun MatchCard(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top,
         ) {
-            Column {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
+            ) {
                 if (match.status == MatchStatus.UPCOMING) {
                     Text(
                         text = match.timeLabel,
@@ -81,6 +78,7 @@ fun MatchCard(
             Column(
                 modifier = Modifier.weight(1f, fill = false),
                 horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
             ) {
                 Text(
                     text = match.event.name,
@@ -107,9 +105,8 @@ fun MatchCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val hasScore = match.homeScore != null && match.awayScore != null
-            TeamIdentity(
+            TeamName(
                 name = match.homeTeam.name,
-                placeholderTag = matchTeamPlaceholderTag(match.id, TeamSide.HOME),
                 modifier = Modifier.weight(1f),
             )
             Text(
@@ -119,52 +116,13 @@ fun MatchCard(
                 color = VlrTheme.colors.textPrimary,
                 textAlign = TextAlign.Center,
             )
-            TeamIdentity(
-                name = match.awayTeam.name,
-                placeholderTag = matchTeamPlaceholderTag(match.id, TeamSide.AWAY),
-                modifier = Modifier.weight(1f),
-                reversed = true,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TeamIdentity(
-    name: String,
-    placeholderTag: String,
-    modifier: Modifier = Modifier,
-    reversed: Boolean = false,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = if (reversed) Arrangement.End else Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (reversed) {
             TeamName(
-                name = name,
+                name = match.awayTeam.name,
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.End,
             )
-            Spacer(Modifier.size(VlrDimensions.Space2))
-            TeamIdentityPlaceholder(placeholderTag)
-        } else {
-            TeamIdentityPlaceholder(placeholderTag)
-            Spacer(Modifier.size(VlrDimensions.Space2))
-            TeamName(name = name, modifier = Modifier.weight(1f))
         }
     }
-}
-
-@Composable
-private fun TeamIdentityPlaceholder(tag: String) {
-    Box(
-        modifier = Modifier
-            .size(32.dp)
-            .testTag(tag)
-            .background(VlrTheme.colors.surfaceSubtle, CircleShape),
-    )
 }
 
 @Composable
@@ -225,11 +183,3 @@ private fun MatchStatus.statusOrTimeDescription(): String = when (this) {
 }
 
 internal fun matchScoreTag(matchId: String): String = "match-score-$matchId"
-
-internal fun matchTeamPlaceholderTag(matchId: String, side: TeamSide): String =
-    "match-team-placeholder-$matchId-${side.name.lowercase()}"
-
-internal enum class TeamSide {
-    HOME,
-    AWAY,
-}

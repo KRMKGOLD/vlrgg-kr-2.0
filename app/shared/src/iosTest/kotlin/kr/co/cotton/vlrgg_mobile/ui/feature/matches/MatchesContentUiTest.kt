@@ -21,9 +21,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
-import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.TeamSide
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.matchScoreTag
-import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.matchTeamPlaceholderTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,14 +99,10 @@ class MatchesContentUiTest {
         onNodeWithText("Playoffs · Upper Final").assertIsDisplayed()
         onNodeWithText("VS").assertIsDisplayed()
         onNodeWithTag(matchScoreTag(upcomingMatch.id), useUnmergedTree = true).assertIsDisplayed()
-        onNodeWithTag(
-            matchTeamPlaceholderTag(upcomingMatch.id, TeamSide.HOME),
-            useUnmergedTree = true,
-        ).assertIsDisplayed()
-        onNodeWithTag(
-            matchTeamPlaceholderTag(upcomingMatch.id, TeamSide.AWAY),
-            useUnmergedTree = true,
-        ).assertIsDisplayed()
+        onNodeWithTag("match-team-placeholder-${upcomingMatch.id}-home", useUnmergedTree = true)
+            .assertDoesNotExist()
+        onNodeWithTag("match-team-placeholder-${upcomingMatch.id}-away", useUnmergedTree = true)
+            .assertDoesNotExist()
 
         onNodeWithTag(matchCardTag(upcomingMatch.id)).performClick()
         assertEquals(upcomingMatch.id, clickedMatchId)

@@ -96,7 +96,7 @@ Match Detail과 관련 상세 화면은 bottom-navigation 목적지가 아니다
 4. Match row/card
    - Live 또는 예정/완료 상태
    - 경기 시각 또는 완료 시각
-   - 양 팀 이름과 식별 이미지
+   - 양 팀 이름 (현재 목록 DTO/domain 계약에는 이미지 URL이 없어 목록 card는 팀 이름만 표시)
    - 예정 경기의 남은 시간 또는 완료 경기의 스코어
    - Event 이름
 5. 다음 페이지 로딩 또는 페이지 로딩 실패 표시
@@ -155,7 +155,7 @@ FCM registration token, Target Secret, scheduler 내부 delivery marker와 다�
 - `Initial loading`: 최초 목록 skeleton을 표시한다.
 - `Populated`: 선택한 목록의 경기가 날짜별로 표시된다.
 - `Empty`: 정상 응답이지만 선택한 Upcoming/Live 또는 Results에 경기가 없다.
-- `Pagination error`: 기존 페이지는 유지하지만 다음 페이지 요청이 실패했다. footer Retry를 제공한다. Team image failure는 same-size placeholder로 처리한다.
+- `Pagination error`: 기존 페이지는 유지하지만 다음 페이지 요청이 실패했다. footer Retry를 제공한다.
 - `Initial error`: 최초 목록 요청 실패로 표시할 경기가 없다. 전체 화면 Retry를 제공한다.
 - `Stale`: 서버는 이전 scraping 결과를 fallback으로 반환하지 않는다. 향후 앱이 기존 목록을 유지한다면 마지막 확인 시각과 갱신 실패를 명시해야 한다.
 
