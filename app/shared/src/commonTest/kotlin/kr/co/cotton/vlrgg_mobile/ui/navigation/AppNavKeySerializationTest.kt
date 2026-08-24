@@ -180,7 +180,7 @@ class AppNavKeySerializationTest {
             getValue(MatchesRoot).add(OverlayNavEntry(MatchDetail(matchId = "2002"), entryId = 1))
             getValue(EventsRoot).add(OverlayNavEntry(EventDetail(eventId = "3003"), entryId = 1))
         }
-        val selectedRoot: RootNavKey = NewsRoot
+        val selectedRoot: RootNavKey = MatchesRoot
         val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))
 
         val restoredStacks = originalStacks.mapValues { (_, stack) ->
@@ -196,6 +196,10 @@ class AppNavKeySerializationTest {
         )
 
         assertEquals(selectedRoot, restoredState.selectedRoot)
+        assertEquals(
+            listOf(MatchDetail(matchId = "2002")),
+            restoredState.overlay,
+        )
         rootNavKeys.forEach { root ->
             assertEquals(
                 originalStacks.getValue(root).toList(),

@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MatchesScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.mypage.MyPageScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.detail.NewsDetailScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.NewsScreen
@@ -44,10 +45,15 @@ fun NavigationContent(
                     )
                 )
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize(),
         )
 
-        MatchesRoot,
+        MatchesRoot -> MatchesScreen(
+            onSearch = onSearch,
+            onMatchClick = { matchId -> onPush(MatchDetail(matchId = matchId)) },
+            modifier = modifier.fillMaxSize(),
+        )
+
         EventsRoot,
         AboutRoot,
             -> RootContent(

@@ -4,11 +4,12 @@
 
 이 문서는 Upcoming/Live, Results, Match Detail과 경기 시작 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
-## 구현 상태 (2026-08-03)
+## 구현 상태 (2026-08-24)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
 - **Backend Match 알림/구독: Stage 1.1 server offline GREEN.** Firestore Emulator, 익명 Target ID/Secret, START-only, request-bound scheduler로 Stage 1 runtime을 교체했고 credential-free contract/emulator/package evidence가 GREEN이다. 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md), [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](../../architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
-- **App: 미구현/Stage 2.** 목록·상세 UI, 내비게이션, Match notification UI, Target credential, App Check/FCM, 권한과 전역 알림 흐름은 Stage 1.1 범위가 아니다.
+- **App Matches 목록: 구현 완료.** Upcoming/Live와 Results의 독립 상태·페이지네이션·스크롤, 최초 로딩/빈 상태/오류/새로고침/추가 로딩 상태, 날짜 그룹과 공통 Match card, Match Detail placeholder 진입 및 root/detail 왕복 복원이 구현되어 있다.
+- **App Match Detail·알림: 미구현/Stage 2.** 실제 Match Detail 콘텐츠, Match notification UI, Target credential, App Check/FCM, 권한과 전역 알림 흐름은 Issue #38 범위가 아니다.
 
 ## 목적과 사용자 가치
 
@@ -95,7 +96,7 @@ Match Detail과 관련 상세 화면은 bottom-navigation 목적지가 아니다
 4. Match row/card
    - Live 또는 예정/완료 상태
    - 경기 시각 또는 완료 시각
-   - 양 팀 이름과 식별 이미지
+   - 양 팀 이름 (현재 목록 DTO/domain 계약에는 이미지 URL이 없어 목록 card는 팀 이름만 표시)
    - 예정 경기의 남은 시간 또는 완료 경기의 스코어
    - Event 이름
 5. 다음 페이지 로딩 또는 페이지 로딩 실패 표시
@@ -154,7 +155,7 @@ FCM registration token, Target Secret, scheduler 내부 delivery marker와 다�
 - `Initial loading`: 최초 목록 skeleton을 표시한다.
 - `Populated`: 선택한 목록의 경기가 날짜별로 표시된다.
 - `Empty`: 정상 응답이지만 선택한 Upcoming/Live 또는 Results에 경기가 없다.
-- `Pagination error`: 기존 페이지는 유지하지만 다음 페이지 요청이 실패했다. footer Retry를 제공한다. Team image failure는 same-size placeholder로 처리한다.
+- `Pagination error`: 기존 페이지는 유지하지만 다음 페이지 요청이 실패했다. footer Retry를 제공한다.
 - `Initial error`: 최초 목록 요청 실패로 표시할 경기가 없다. 전체 화면 Retry를 제공한다.
 - `Stale`: 서버는 이전 scraping 결과를 fallback으로 반환하지 않는다. 향후 앱이 기존 목록을 유지한다면 마지막 확인 시각과 갱신 실패를 명시해야 한다.
 
