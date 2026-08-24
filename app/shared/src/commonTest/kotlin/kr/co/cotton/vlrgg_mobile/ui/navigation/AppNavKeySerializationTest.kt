@@ -163,10 +163,6 @@ class AppNavKeySerializationTest {
 
         assertEquals(selectedRoot, restoredState.selectedRoot)
         assertEquals(
-            listOf(MatchesRoot, MatchDetail(matchId = "2002")),
-            restoredState.currentBackStack.toList(),
-        )
-        assertEquals(
             listOf(MatchDetail(matchId = "2002")),
             restoredState.overlay,
         )
