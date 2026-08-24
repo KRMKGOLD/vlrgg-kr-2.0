@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.events
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -10,6 +11,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventList
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
@@ -90,7 +92,7 @@ class EventsViewModelTest {
     }
 
     @Test
-    fun refreshReplacesContentAndStopsRefreshing() = runViewModelTest {
+    fun refreshKeepsContentUntilItIsReplacedAndStopsRefreshing() = runViewModelTest {
         val initial = EventList(listOf(event(id = "initial")), emptyList(), emptyList())
         val refreshed = EventList(emptyList(), listOf(event(id = "upcoming", status = EventStatus.UPCOMING)), emptyList())
         val repository = FakeEventRepository(
@@ -103,7 +105,7 @@ class EventsViewModelTest {
 
         assertEquals(
             EventsUiState(
-                contentState = EventsContentState.Loading,
+                contentState = EventsContentState.Content(initial),
                 isRefreshing = true,
             ),
             viewModel.uiState.value,
@@ -139,6 +141,31 @@ class EventsViewModelTest {
         pendingRefresh.complete(AppResult.Success(emptyEventList()))
         advanceUntilIdle()
         assertEquals(EventsUiState(EventsContentState.Empty), viewModel.uiState.value)
+    }
+
+    @Test
+    fun refreshIgnoresResultFromCancelledNonCooperativeRequest() = runViewModelTest {
+        val staleResult = CompletableDeferred<AppResult<EventList>>()
+        val fresh = EventList(listOf(event(id = "fresh")), emptyList(), emptyList())
+        val repository = FakeEventRepository { callIndex ->
+            when (callIndex) {
+                0 -> withContext(NonCancellable) { staleResult.await() }
+                1 -> AppResult.Success(fresh)
+                else -> error("Unexpected event list request")
+            }
+        }
+        val viewModel = EventsViewModel(repository)
+        runCurrent()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(EventsUiState(EventsContentState.Content(fresh)), viewModel.uiState.value)
+
+        staleResult.complete(AppResult.Success(emptyEventList()))
+        advanceUntilIdle()
+
+        assertEquals(EventsUiState(EventsContentState.Content(fresh)), viewModel.uiState.value)
     }
 
     private fun emptyEventList() = EventList(

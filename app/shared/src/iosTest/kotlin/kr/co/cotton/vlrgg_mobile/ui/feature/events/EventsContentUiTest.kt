@@ -141,19 +141,18 @@ class EventsContentUiTest {
     }
 
     @Test
-    fun activeRefreshShowsSkeletonAndRefreshProgressState() = runComposeUiTest {
+    fun activeRefreshKeepsEventsAndShowsRefreshProgressState() = runComposeUiTest {
         setContent {
             EventsContentFixture(
                 uiState = EventsUiState(
-                    contentState = EventsContentState.Loading,
+                    contentState = populatedState.contentState,
                     isRefreshing = true,
                 ),
             )
         }
 
-        onNodeWithTag(EVENTS_LOADING_TAG).assertExists()
         onNodeWithTag(EVENTS_REFRESHING_TAG).assertExists()
-        onNodeWithText(longEventName).assertDoesNotExist()
+        onNodeWithText(longEventName).assertIsDisplayed()
     }
 
     @androidx.compose.runtime.Composable

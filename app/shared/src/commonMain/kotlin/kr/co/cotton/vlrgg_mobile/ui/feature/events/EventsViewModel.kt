@@ -25,6 +25,7 @@ class EventsViewModel(
     val uiState: StateFlow<EventsUiState> = _uiState.asStateFlow()
 
     private var requestJob: Job? = null
+    private var requestGeneration = 0
 
     init {
         requestEvents()
@@ -41,20 +42,27 @@ class EventsViewModel(
         if (_uiState.value.isRefreshing) return
 
         requestJob?.cancel()
-        _uiState.value = EventsUiState(isRefreshing = true)
+        _uiState.value = _uiState.value.copy(isRefreshing = true)
         requestEvents()
     }
 
     private fun requestEvents() {
+        val generation = ++requestGeneration
         requestJob = viewModelScope.launch {
             when (val result = eventRepository.getEvents()) {
-                is AppResult.Success -> _uiState.value = EventsUiState(
-                    contentState = result.data.toContentState(),
-                )
+                is AppResult.Success -> {
+                    if (requestGeneration != generation) return@launch
+                    _uiState.value = EventsUiState(
+                        contentState = result.data.toContentState(),
+                    )
+                }
 
-                AppResult.Failure -> _uiState.value = EventsUiState(
-                    contentState = EventsContentState.Error,
-                )
+                AppResult.Failure -> {
+                    if (requestGeneration != generation) return@launch
+                    _uiState.value = EventsUiState(
+                        contentState = EventsContentState.Error,
+                    )
+                }
             }
         }
     }

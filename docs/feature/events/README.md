@@ -49,9 +49,10 @@ Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 
 ### 진입
 
-- 기본 진입: 하단 `Events` 탭
-- 문맥 진입: Matches의 Event 참조
-- 탐색 진입: Search의 Event 결과
+- 현재 E1 기본 진입: 하단 `Events` 탭
+- 현재 E1 상세 진입: Event List row 선택 시 placeholder `EventDetail` push
+- 후속/미구현 문맥 진입: Matches의 Event 참조
+- 후속/미구현 탐색 진입: Search의 Event 결과
 
 Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않는다.
 

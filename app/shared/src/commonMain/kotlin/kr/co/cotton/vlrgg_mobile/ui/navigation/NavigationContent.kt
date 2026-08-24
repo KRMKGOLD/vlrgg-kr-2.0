@@ -58,7 +58,7 @@ fun NavigationContent(
         EventsRoot -> EventsScreen(
             onSearch = onSearch,
             onEventClick = { eventId -> onPush(EventDetail(eventId = eventId)) },
-            modifier = Modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize(),
         )
 
         AboutRoot,
