@@ -4,11 +4,12 @@
 
 이 문서는 Upcoming/Live, Results, Match Detail과 경기 시작 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
-## 구현 상태 (2026-08-03)
+## 구현 상태 (2026-08-24)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
 - **Backend Match 알림/구독: Stage 1.1 server offline GREEN.** Firestore Emulator, 익명 Target ID/Secret, START-only, request-bound scheduler로 Stage 1 runtime을 교체했고 credential-free contract/emulator/package evidence가 GREEN이다. 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md), [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](../../architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
-- **App: 미구현/Stage 2.** 목록·상세 UI, 내비게이션, Match notification UI, Target credential, App Check/FCM, 권한과 전역 알림 흐름은 Stage 1.1 범위가 아니다.
+- **App Matches 목록: 구현 완료.** Upcoming/Live와 Results의 독립 상태·페이지네이션·스크롤, 최초 로딩/빈 상태/오류/새로고침/추가 로딩 상태, 날짜 그룹과 공통 Match card, Match Detail placeholder 진입 및 root/detail 왕복 복원이 구현되어 있다.
+- **App Match Detail·알림: 미구현/Stage 2.** 실제 Match Detail 콘텐츠, Match notification UI, Target credential, App Check/FCM, 권한과 전역 알림 흐름은 Issue #38 범위가 아니다.
 
 ## 목적과 사용자 가치
 

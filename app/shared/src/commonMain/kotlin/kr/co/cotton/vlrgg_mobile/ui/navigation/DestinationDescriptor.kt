@@ -23,6 +23,7 @@ val AppNavKey.destinationDescriptor: DestinationDescriptor
             marker = "matches",
             title = "Matches",
             rootOrder = 1,
+            requiresEntryScope = true,
         )
 
         MyPageRoot -> rootDescriptor(
