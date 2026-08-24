@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,6 +48,7 @@ fun MatchCard(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
             verticalAlignment = Alignment.Top,
         ) {
             Column(
@@ -74,9 +74,8 @@ fun MatchCard(
                     )
                 }
             }
-            Spacer(Modifier.weight(1f))
             Column(
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
             ) {
