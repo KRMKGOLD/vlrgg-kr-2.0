@@ -42,13 +42,12 @@ import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.RootTopBar
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_search
 
 internal const val EVENTS_LOADING_TAG = "events-loading"
 internal const val EVENTS_REFRESHING_TAG = "events-refreshing"
@@ -174,42 +173,10 @@ private fun LazyListScope.sectionHeading(
 }
 
 @Composable
-private fun EventsTopBar(onSearch: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = VlrDimensions.Space4),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Events",
-                modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
-            )
-            VlrIconButton(
-                contentDescription = "검색",
-                onClick = onSearch,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_search),
-                        contentDescription = null,
-                    )
-                },
-            )
-        }
-        HorizontalDivider(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
-        )
-    }
-}
+private fun EventsTopBar(onSearch: () -> Unit) = RootTopBar(
+    title = "Events",
+    onSearch = onSearch,
+)
 
 @Composable
 private fun EventListItem(

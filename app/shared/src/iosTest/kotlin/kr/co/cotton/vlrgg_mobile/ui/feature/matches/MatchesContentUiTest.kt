@@ -21,6 +21,8 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
+import kr.co.cotton.vlrgg_mobile.ui.component.ROOT_TOP_BAR_TAG
+import kr.co.cotton.vlrgg_mobile.ui.component.ROOT_TOP_BAR_TITLE_TAG
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.matchScoreTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
@@ -40,6 +42,9 @@ class MatchesContentUiTest {
         }
 
         onNodeWithTag(MATCHES_LOADING_TAG).assertIsDisplayed()
+        onNodeWithTag(ROOT_TOP_BAR_TAG).assertIsDisplayed()
+        onNodeWithTag(ROOT_TOP_BAR_TITLE_TAG).assertIsDisplayed()
+        onNodeWithText("Matches").assertIsDisplayed()
         onNodeWithContentDescription("검색").performClick()
         assertEquals(1, searchClicks)
         onNodeWithContentDescription("알림").assertDoesNotExist()

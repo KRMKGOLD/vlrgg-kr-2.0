@@ -14,6 +14,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventList
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
+import kr.co.cotton.vlrgg_mobile.ui.component.ROOT_TOP_BAR_TAG
+import kr.co.cotton.vlrgg_mobile.ui.component.ROOT_TOP_BAR_TITLE_TAG
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,6 +36,9 @@ class EventsContentUiTest {
 
         val loadingNode = onNodeWithTag(EVENTS_LOADING_TAG).assertIsDisplayed().fetchSemanticsNode()
         assertEquals("이벤트를 불러오는 중", loadingNode.config[SemanticsProperties.StateDescription])
+        onNodeWithTag(ROOT_TOP_BAR_TAG).assertIsDisplayed()
+        onNodeWithTag(ROOT_TOP_BAR_TITLE_TAG).assertIsDisplayed()
+        onNodeWithText("Events").assertIsDisplayed()
         val ongoingTop = onNodeWithText("Ongoing").assertIsDisplayed().fetchSemanticsNode().boundsInRoot.top
         val upcomingTop = onNodeWithText("Upcoming").assertIsDisplayed().fetchSemanticsNode().boundsInRoot.top
         val completedTop = onNodeWithText("Completed / Paused")

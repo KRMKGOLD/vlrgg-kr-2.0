@@ -1,8 +1,11 @@
 package kr.co.cotton.vlrgg_mobile.ui.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -11,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kr.co.cotton.vlrgg_mobile.ui.component.RootTopBar
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.EventsScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MatchesScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.mypage.MyPageScreen
@@ -99,27 +103,27 @@ fun NavigationContent(
 }
 
 @Composable
-private fun RootContent(
+internal fun RootContent(
     destination: AppNavKey,
     onSearch: () -> Unit,
     modifier: Modifier,
-    content: @Composable () -> Unit,
+    content: @Composable BoxScope.() -> Unit,
 ) {
     Column(
         modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .fillMaxSize(),
     ) {
-        Text(
-            text = destination.destinationDescriptor.title,
-            style = MaterialTheme.typography.headlineMedium,
+        RootTopBar(
+            title = destination.destinationDescriptor.title,
+            onSearch = onSearch,
         )
-        Button(onClick = onSearch) {
-            Text("Search")
-        }
-        content()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center,
+            content = content,
+        )
     }
 }
 

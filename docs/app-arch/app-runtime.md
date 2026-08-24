@@ -63,6 +63,8 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 - Search와 News/Match/Event/Team/Player/Series detail은 진입한 root의 stack 위에 push되는 transient overlay다. root를 바꿔도 그 overlay는 원래 root에 남고, 해당 root로 돌아온 뒤 Back을 누르면 그 root의 이전 entry로 복귀한다.
 - runtime은 root마다 별도 `rememberNavBackStack`과 app 전용 `SavedStateConfiguration`을 사용한다. root 목록을 순회해 stack/decorator map을 만들며, 선택 root는 `rememberSaveable`의 단일 mutable state로 보존한다. `AppNavigationState`는 그 state를 직접 갱신하므로 별도의 Compose selected-root state나 수동 동기화가 없다. 모든 key는 직렬화 가능하고 detail key에는 복원에 필요한 안정적인 식별자만 둔다.
 - root마다 별도 `rememberDecoratedNavEntries`, `SaveableStateHolderNavEntryDecorator`, `ViewModelStoreNavEntryDecorator`를 생성한다. 선택 root의 entries만 `NavDisplay`에 전달하되 선택되지 않은 root의 stack과 decorator state는 composition 안에 남아 ViewModel, loaded page/selected tab, scroll과 `rememberSaveable` state가 유지된다.
+- 선택 root를 key로 하는 `AnimatedContent` 안에 `NavDisplay` host를 둔다. 따라서 bottom tab 전환은 새 peer root host의 짧은 순수 fade-in/fade-out으로 처리되어 iOS가 이를 Navigation 3 forward push/slide로 해석하지 않는다. fade 중에는 outgoing root host가 남지만 animation idle 뒤 dispose된다. animation/key 바깥의 root stack과 decorator graph는 재생성하지 않으므로 root별 상태 보존 계약은 변하지 않는다. 같은 root 안의 overlay push/pop은 기존 `NavDisplay` host에서 platform 기본 전환을 유지한다.
+- `AppNavigation`의 outer `Scaffold`가 `NavDisplay`에 전달하는 top safe-area padding은 bottom-navigation root의 유일한 status-bar inset owner다. News, Matches, My Page, Events, About의 `RootTopBar`는 그 padding 안에서 동일한 56dp content row와 divider만 렌더링하며 status-bar inset을 다시 적용하지 않는다. 따라서 title과 Search action은 Android/iOS 모두에서 같은 56dp row 안에 수직 중앙 정렬되고, detail/Search overlay는 이 root-bar contract를 적용하지 않는다.
 - root 전환은 각 stack을 보존한다. 현재 root를 다시 선택하면 그 root의 overlay만 root entry까지 pop한다. Back은 선택 root에 overlay가 있을 때 마지막 entry만 pop하며 root에서는 stack을 변경하지 않는다.
 - overlay가 두 root에서 같은 destination key를 가져도 decorator state가 공유되지 않도록 entry content key는 owning root를 포함한다.
 - navigation owner가 모든 root back stack과 selected root를 소유하고 `AppNavigationState`는 정확히 그 stack instances에서 현재 root와 overlay를 파생해 상태 전이를 수행한다. 복원 map은 정확히 다섯 root를 포함하고 각 stack은 자신이 소유한 root entry로 시작해야 한다.
@@ -84,11 +86,12 @@ Pagination은 여러 feature에서 사용될 가능성이 있지만 아직 100% 
 
 - `AppNavKeySerializationTest`: root/Search/detail key, 모든 root stack과 selected root의 직렬화·복원
 - `AppNavigationStateTest`: root별 overlay push/pop, root 전환/reselection, 동일 stack instance 유지, 잘못 복원된 map/stack 거부
-- `AppNavigationRuntimeUiTest` (iOS): 실제 `AppNavigationRuntime` seam에 test entry content를 주입해 entry `LocalViewModelStoreOwner`와 test-local `ViewModelProvider.Factory`를 검증한다. root 왕복 후 loaded page/selected tab·동일 ViewModel instance·`rememberSaveable` counter·`LazyListState.firstVisibleItemIndex`가 유지되고, detail pop은 detail ViewModel만 clear하며 initiating root state를 보존한다. 두 root의 동일 `Search` key는 saveable state/ViewModel을 공유하지 않고, 한 root Search pop은 다른 root Search ViewModel을 clear하지 않는다.
+- `AppNavigationRuntimeUiTest` (iOS): 실제 `AppNavigationRuntime` seam에 test entry content를 주입해 entry `LocalViewModelStoreOwner`와 test-local `ViewModelProvider.Factory`를 검증한다. root 왕복 후 loaded page/selected tab·동일 ViewModel instance·`rememberSaveable` counter·`LazyListState.firstVisibleItemIndex`가 유지되고, detail pop은 detail ViewModel만 clear하며 initiating root state를 보존한다. 두 root의 동일 `Search` key는 saveable state/ViewModel을 공유하지 않고, 한 root Search pop은 다른 root Search ViewModel을 clear하지 않는다. 또한 root 전환 중 outgoing root entry가 fade 동안 retain되고 animation idle 뒤 dispose되는 것을 검증한다.
 - `DestinationDescriptorTest`: root 순서와 destination metadata
 - `MyPageViewModelTest`: MyPage skeleton state
 - `MatchesViewModelTest`: 두 feed의 독립 최초 로딩·새로고침·페이지네이션·중복 제거·취소와 선택 탭 `SavedStateHandle` 복원
 - `MatchesContentUiTest` (iOS): Matches 상태별 rendering, card 필드와 click, refresh/pagination retry, 알림 UI 부재
+- `NewsContentUiTest`, `MatchesContentUiTest`, `EventsContentUiTest`, `RootContentUiTest` (iOS): 다섯 bottom-navigation root가 같은 `RootTopBar`와 기존 Search callback을 사용함을 검증한다. `RootTopBarUiTest`는 host inset boundary에서 즉시 시작하는 고정 56dp content row와 title/Search의 수직 중앙 정렬을 검증해 duplicate status-bar inset 회귀를 막는다.
 - `MatchesNavigationRuntimeUiTest` (iOS): 실제 Matches root의 두 feed·선택 탭·탭별 scroll·loaded data를 root/detail 왕복에서 보존하고 Match Detail key를 검증
 - `AppGraphAndroidHostTest`: MetroX known/missing provider lookup과 entry별 `ViewModelStoreOwner` scope
 - `NetworkBindingTest`: graph 내부 client singleton, graph 간 client 독립성과 요청 base URL 적용

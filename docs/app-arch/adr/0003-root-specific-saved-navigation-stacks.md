@@ -13,7 +13,7 @@
 
 News, Matches, MyPage, Events, About는 각각 자기 root key로 초기화한 `rememberNavBackStack`을 소유한다. root 목록을 순회해 stack/decorator map을 구성하되, root별 호출과 composition 유지 계약은 그대로 둔다. 선택한 root는 `rememberSaveable`의 단일 mutable state로 보존하고 `AppNavigationState`가 그 state를 직접 갱신한다. 따라서 Compose runtime과 정책 객체 사이에 별도의 selected-root 값이나 수동 동기화는 없다. 복원한 map에 root가 누락되거나 추가된 경우, 첫 root가 일치하지 않는 경우, overlay에 root key가 포함된 경우, 앱 key가 아닌 값이 포함된 경우는 거부한다.
 
-각 root는 독립적인 `rememberDecoratedNavEntries` 호출과 자체 saveable-state 및 ViewModelStore decorator를 가진다. 다섯 호출은 모두 composition에 유지하되, 선택한 root의 decorated entry만 `NavDisplay`에 제공한다. `Search`처럼 같은 overlay key가 root 사이에서 decorator 상태를 공유하지 않도록 entry content key에는 소유 root를 포함한다.
+각 root는 독립적인 `rememberDecoratedNavEntries` 호출과 자체 saveable-state 및 ViewModelStore decorator를 가진다. 다섯 호출은 모두 composition에 유지하되, 선택한 root의 decorated entry만 `NavDisplay`에 제공한다. 선택 root를 key로 하는 `AnimatedContent` 안에 `NavDisplay` host를 두어 tab 선택을 새 peer host의 짧은 순수 fade-in/fade-out으로 표현한다. 이 animation layer 바깥에 root stack과 decorator graph를 두므로 state 보존을 해치지 않으며, iOS에서 root 변경을 Navigation 3 forward push/slide로 해석하지 않는다. 같은 root 안의 overlay push/pop은 기존 `NavDisplay` host와 platform 기본 전환을 그대로 사용한다. `Search`처럼 같은 overlay key가 root 사이에서 decorator 상태를 공유하지 않도록 entry content key에는 소유 root를 포함한다.
 
 다른 root를 선택해도 이전 root와 새 root의 stack은 모두 보존한다. 현재 root를 다시 선택하면 그 root의 overlay만 root entry까지 pop하여 기존 하단 navigation의 기대 동작을 유지한다. 시스템 Back은 선택한 root의 마지막 overlay entry만 pop하며, root entry에 도달한 root stack은 변경하지 않는다.
 
@@ -33,7 +33,7 @@ News, Matches, MyPage, Events, About는 각각 자기 root key로 초기화한 `
 
 ## 검증
 
-`AppNavigationStateTest`는 root 전환, root 재선택, 선택한 stack에만 적용되는 Back, 동일 stack identity와 잘못된 복원 map 거부를 고정한다. `AppNavKeySerializationTest`는 모든 root stack과 선택한 root의 round-trip을 검증한다. iOS의 `AppNavigationRuntimeUiTest`는 production runtime seam을 통해 fixture entry content를 주입하고, 실제 entry의 `LocalViewModelStoreOwner`/`ViewModelProvider` 수명, root 왕복 시 ViewModel·페이지/탭·`rememberSaveable`·lazy list 위치 보존, pop 시 detail에만 적용되는 `onCleared`를 검증한다. 또한 두 root에 같은 `Search` key를 push해 saveable state/ViewModel이 root별로 분리되고, 한 root의 pop이 다른 root entry를 clear하지 않는지 검증한다.
+`AppNavigationStateTest`는 root 전환, root 재선택, 선택한 stack에만 적용되는 Back, 동일 stack identity와 잘못된 복원 map 거부를 고정한다. `AppNavKeySerializationTest`는 모든 root stack과 선택한 root의 round-trip을 검증한다. iOS의 `AppNavigationRuntimeUiTest`는 production runtime seam을 통해 fixture entry content를 주입하고, 실제 entry의 `LocalViewModelStoreOwner`/`ViewModelProvider` 수명, root 왕복 시 ViewModel·페이지/탭·`rememberSaveable`·lazy list 위치 보존, pop 시 detail에만 적용되는 `onCleared`를 검증한다. 또한 root 전환 중 outgoing root entry가 fade가 끝날 때까지만 compose에 남고 animation idle 뒤 dispose되는지, 두 root에 같은 `Search` key를 push해 saveable state/ViewModel이 root별로 분리되고 한 root의 pop이 다른 root entry를 clear하지 않는지 검증한다.
 
 ## 참고 자료
 
