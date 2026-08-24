@@ -38,7 +38,9 @@ class DestinationDescriptorTest {
     fun rootsWithViewModelsRequireAnEntryScope() {
         declaredKeys.forEach { destination ->
             assertEquals(
-                destination === NewsRoot || destination === MyPageRoot,
+                destination === NewsRoot ||
+                    destination === MatchesRoot ||
+                    destination === MyPageRoot,
                 destination.destinationDescriptor.requiresEntryScope,
                 "Unexpected entry scope policy for ${destination::class}",
             )
@@ -58,12 +60,12 @@ class DestinationDescriptorTest {
     }
 
     private fun contentPolicy(destination: AppNavKey): ContentPolicy = when (destination) {
-        MatchesRoot,
         EventsRoot,
         AboutRoot,
         -> ContentPolicy.ROOT_PLACEHOLDER
 
         NewsRoot -> ContentPolicy.NEWS
+        MatchesRoot -> ContentPolicy.MATCHES
         MyPageRoot -> ContentPolicy.MY_PAGE
         Search -> ContentPolicy.SEARCH
         is NewsDetail,
@@ -78,6 +80,7 @@ class DestinationDescriptorTest {
     private enum class ContentPolicy {
         ROOT_PLACEHOLDER,
         NEWS,
+        MATCHES,
         MY_PAGE,
         SEARCH,
         DETAIL,
