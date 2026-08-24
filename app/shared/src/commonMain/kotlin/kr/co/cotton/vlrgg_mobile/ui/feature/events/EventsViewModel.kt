@@ -43,10 +43,10 @@ class EventsViewModel(
 
         requestJob?.cancel()
         _uiState.value = _uiState.value.copy(isRefreshing = true)
-        requestEvents()
+        requestEvents(isRefresh = true)
     }
 
-    private fun requestEvents() {
+    private fun requestEvents(isRefresh: Boolean = false) {
         val generation = ++requestGeneration
         requestJob = viewModelScope.launch {
             when (val result = eventRepository.getEvents()) {
@@ -59,9 +59,11 @@ class EventsViewModel(
 
                 AppResult.Failure -> {
                     if (requestGeneration != generation) return@launch
-                    _uiState.value = EventsUiState(
-                        contentState = EventsContentState.Error,
-                    )
+                    _uiState.value = if (isRefresh) {
+                        _uiState.value.copy(isRefreshing = false)
+                    } else {
+                        EventsUiState(contentState = EventsContentState.Error)
+                    }
                 }
             }
         }

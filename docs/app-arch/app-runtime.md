@@ -52,7 +52,7 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 ### Failure와 cancellation
 
 - Repository boundary는 `AppResult.Success<T>`와 단일 `AppResult.Failure`를 유지한다.
-- `AppResult` contract는 `commonMain/domain/AppResult.kt`에 두고, non-cancellation 예외 변환은 `data/repository`의 internal repository boundary helper로 제한한다. News, Matches, Events repository와 remote data source는 이 경계를 사용하며, 다른 feature의 repository/data source 구현은 각 feature 범위에서 추가한다.
+- `AppResult` contract는 `commonMain/domain/AppResult.kt`에 두고, 예외 변환은 `data/repository`의 internal repository boundary helper `wrapAsAppResult`로 제한한다. News, Matches, Events repository가 이 helper를 사용하며, remote data source는 DTO를 직접 반환하고 예외를 변환하지 않는다. `wrapAsAppResult`는 `CancellationException`을 다시 던지고, 그 외 `Exception`만 `AppResult.Failure`로 변환한다. 다른 feature의 repository/data source 구현은 각 feature 범위에서 추가한다.
 - non-cancellation network/HTTP/serialization 실패는 repository implementation에서 failure로 변환한다.
 - `CancellationException`은 failure로 삼키지 않고 전파한다.
 - raw exception, HTTP code, server 내부 메시지와 parser 세부사항은 ViewModel/UI에 노출하지 않는다.

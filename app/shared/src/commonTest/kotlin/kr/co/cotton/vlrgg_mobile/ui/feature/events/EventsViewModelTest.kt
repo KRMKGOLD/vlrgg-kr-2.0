@@ -117,6 +117,25 @@ class EventsViewModelTest {
     }
 
     @Test
+    fun refreshFailureKeepsExistingContentAndStopsRefreshing() = runViewModelTest {
+        val initial = EventList(listOf(event(id = "initial")), emptyList(), emptyList())
+        val repository = FakeEventRepository(
+            results = listOf(AppResult.Success(initial), AppResult.Failure),
+        )
+        val viewModel = EventsViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.requestCount)
+        assertEquals(
+            EventsUiState(EventsContentState.Content(initial)),
+            viewModel.uiState.value,
+        )
+    }
+
+    @Test
     fun concurrentRefreshRequestsRepositoryOnlyOnce() = runViewModelTest {
         val initial = EventList(listOf(event(id = "initial")), emptyList(), emptyList())
         val pendingRefresh = CompletableDeferred<AppResult<EventList>>()
