@@ -5,107 +5,294 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class AppNavigationStateTest {
     @Test
-    fun freshStateStartsAtMyPageWithoutAnOverlay() {
-        val backStack = mutableListOf<NavKey>(MyPageRoot)
-        val state = AppNavigationState(backStack)
+    fun freshStateStartsAtMyPageAndCreatesOneEmptyStackForEveryRoot() {
+        val state = AppNavigationState(createRootBackStacks())
 
         assertEquals(MyPageRoot, state.selectedRoot)
         assertTrue(state.overlay.isEmpty())
-        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
+        rootNavKeys.forEach { root ->
+            assertEquals(listOf<NavKey>(root), state.backStackFor(root))
+        }
     }
 
     @Test
-    fun searchIsPushedAboveEveryRootWithoutChangingSelection() {
+    fun searchIsPushedAboveTheSelectedRootWithoutChangingSelection() {
         rootNavKeys.forEach { root ->
-            val backStack = mutableListOf<NavKey>(root)
-            val state = AppNavigationState(backStack)
+            val state = AppNavigationState(createRootBackStacks(), initialSelectedRoot = root)
 
             state.push(Search)
 
             assertEquals(root, state.selectedRoot)
-            assertEquals(listOf<NavKey>(root, Search), backStack)
+            assertEquals(listOf<NavKey>(root, OverlayNavEntry(Search, entryId = 1)), state.currentBackStack)
         }
     }
 
     @Test
-    fun backPopsDetailThenSearch() {
-        val backStack = mutableListOf<NavKey>(MyPageRoot)
-        val state = AppNavigationState(backStack)
+    fun backPopsDetailThenSearchFromTheInitiatingRoot() {
+        val state = AppNavigationState(createRootBackStacks())
         state.push(Search)
         state.push(TeamDetail(teamId = "1"))
 
         assertTrue(state.popOverlay())
-        assertEquals(listOf<NavKey>(MyPageRoot, Search), backStack)
+        assertEquals(
+            listOf<NavKey>(MyPageRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.currentBackStack,
+        )
         assertTrue(state.popOverlay())
-        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
+        assertEquals(listOf<NavKey>(MyPageRoot), state.currentBackStack)
+        assertFalse(state.popOverlay())
     }
 
     @Test
-    fun selectingAnotherRootClearsTheWholeOverlay() {
-        val backStack = mutableListOf<NavKey>(MyPageRoot)
-        val state = AppNavigationState(backStack)
+    fun pushingAfterPoppingADuplicateOverlayAssignsANewEntryId() {
+        val state = AppNavigationState(createRootBackStacks())
+
         state.push(Search)
-        state.push(TeamDetail(teamId = "1"))
+        state.push(Search)
+
+        assertEquals(listOf(Search, Search), state.overlay)
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(Search, entryId = 2),
+            ),
+            state.currentBackStack,
+        )
+
+        assertTrue(state.popOverlay())
+        assertEquals(
+            listOf<NavKey>(MyPageRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.currentBackStack,
+        )
+
+        state.push(Search)
+
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(Search, entryId = 3),
+            ),
+            state.currentBackStack,
+        )
+    }
+
+    @Test
+    fun switchingRootsPreservesEachRootStackAndRestoresItsOverlayPath() {
+        val state = AppNavigationState(createRootBackStacks())
+        state.push(Search)
+        state.push(TeamDetail(teamId = "1001"))
+
+        state.selectRoot(NewsRoot)
+        state.push(NewsDetail(articleId = "12345", slug = "grand-final"))
+
+        assertEquals(
+            listOf<NavKey>(
+                NewsRoot,
+                OverlayNavEntry(NewsDetail(articleId = "12345", slug = "grand-final"), entryId = 1),
+            ),
+            state.currentBackStack,
+        )
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 2),
+            ),
+            state.backStackFor(MyPageRoot),
+        )
+
+        state.selectRoot(MyPageRoot)
+
+        assertEquals(MyPageRoot, state.selectedRoot)
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 2),
+            ),
+            state.currentBackStack,
+        )
+        assertTrue(state.popOverlay())
+        assertEquals(
+            listOf<NavKey>(MyPageRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.currentBackStack,
+        )
+    }
+
+    @Test
+    fun reselectingTheCurrentRootClearsOnlyItsOverlay() {
+        val state = AppNavigationState(createRootBackStacks())
+        state.push(Search)
+        state.selectRoot(NewsRoot)
+        state.push(NewsDetail(articleId = "12345", slug = "grand-final"))
 
         state.selectRoot(NewsRoot)
 
-        assertEquals(listOf<NavKey>(NewsRoot), backStack)
+        assertEquals(listOf<NavKey>(NewsRoot), state.currentBackStack)
+        assertEquals(
+            listOf<NavKey>(MyPageRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.backStackFor(MyPageRoot),
+        )
+    }
+
+    @Test
+    fun rootSwitchKeepsTheSameBackStackInstancesForEntryScopedState() {
+        val rootBackStacks = createRootBackStacks()
+        val myPageBackStack = rootBackStacks.getValue(MyPageRoot)
+        val newsBackStack = rootBackStacks.getValue(NewsRoot)
+        val state = AppNavigationState(rootBackStacks)
+
+        assertSame(myPageBackStack, state.currentBackStack)
+
+        state.selectRoot(NewsRoot)
+        assertSame(newsBackStack, state.currentBackStack)
+
         state.selectRoot(MyPageRoot)
-        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
+        assertSame(myPageBackStack, state.currentBackStack)
     }
 
     @Test
-    fun selectingTheCurrentRootStillClearsTheWholeOverlay() {
-        val backStack = mutableListOf<NavKey>(MyPageRoot)
-        val state = AppNavigationState(backStack)
-        state.push(Search)
-        state.push(TeamDetail(teamId = "1"))
+    fun poppingAnOverlayOnlyChangesTheSelectedRootStack() {
+        val rootBackStacks = createRootBackStacks().apply {
+            getValue(NewsRoot).addAll(
+                listOf(
+                    OverlayNavEntry(Search, entryId = 1),
+                    OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 2),
+                ),
+            )
+            getValue(MatchesRoot).addAll(
+                listOf(
+                    OverlayNavEntry(Search, entryId = 1),
+                    OverlayNavEntry(MatchDetail(matchId = "2002"), entryId = 2),
+                ),
+            )
+        }
+        val state = AppNavigationState(rootBackStacks, initialSelectedRoot = MatchesRoot)
 
-        state.selectRoot(MyPageRoot)
+        assertTrue(state.popOverlay())
 
-        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
-        assertTrue(state.overlay.isEmpty())
+        assertEquals(
+            listOf<NavKey>(MatchesRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.backStackFor(MatchesRoot),
+        )
+        assertEquals(
+            listOf<NavKey>(
+                NewsRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 2),
+            ),
+            state.backStackFor(NewsRoot),
+        )
     }
 
     @Test
-    fun backAtRootIsNotConsumedAndDoesNotCreateADestination() {
-        val backStack = mutableListOf<NavKey>(MyPageRoot)
-        val state = AppNavigationState(backStack)
+    fun rootsCannotEnterAnOverlay() {
+        val state = AppNavigationState(createRootBackStacks())
 
-        assertFalse(state.popOverlay())
-        assertEquals(listOf<NavKey>(MyPageRoot), backStack)
-    }
-
-    @Test
-    fun rootsCannotEnterTheOverlay() {
         rootNavKeys.forEach { root ->
-            val backStack = mutableListOf<NavKey>(MyPageRoot)
-            val state = AppNavigationState(backStack)
-
-            assertFailsWith<IllegalArgumentException> {
-                state.push(root)
-            }
-            assertEquals(listOf<NavKey>(MyPageRoot), backStack)
-        }
-
-        assertFailsWith<IllegalArgumentException> {
-            AppNavigationState(mutableListOf<NavKey>(MyPageRoot, Search, NewsRoot))
+            assertFailsWith<IllegalArgumentException> { state.push(root) }
         }
     }
 
     @Test
-    fun navigationStateOnlyMutatesTheNavigation3BackStackItReceives() {
-        val backStack = mutableListOf<NavKey>(EventsRoot, Search)
-        val state = AppNavigationState(backStack)
-
-        state.push(TeamDetail(teamId = "1001"))
-        state.popOverlay()
-        state.selectRoot(AboutRoot)
-
-        assertEquals(listOf<NavKey>(AboutRoot), backStack)
+    fun restoredStateRejectsMissingExtraAndMismatchedRootStacks() {
+        assertFailsWith<IllegalArgumentException> {
+            AppNavigationState(createRootBackStacks().minus(NewsRoot))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            AppNavigationState(createRootBackStacks().apply {
+                this[NewsRoot] = mutableListOf(MatchesRoot)
+            })
+        }
+        assertFailsWith<IllegalArgumentException> {
+            AppNavigationState(createRootBackStacks().apply {
+                getValue(NewsRoot) += MatchesRoot
+            })
+        }
     }
+
+    @Test
+    fun legacyRestoredOverlayKeysUpgradeToPersistedEntryIds() {
+        val state = AppNavigationState(createRootBackStacks().apply {
+            getValue(MyPageRoot).addAll(listOf(Search, Search))
+        })
+
+        assertEquals(listOf(Search, Search), state.overlay)
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(Search, entryId = 2),
+            ),
+            state.currentBackStack,
+        )
+    }
+
+    @Test
+    fun restoredOverlayEntriesContinueFromTheirLargestPersistedEntryId() {
+        val state = AppNavigationState(createRootBackStacks().apply {
+            getValue(MyPageRoot).addAll(
+                listOf(
+                    OverlayNavEntry(Search, entryId = 2),
+                    OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 5),
+                ),
+            )
+        })
+
+        state.push(Search)
+
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 2),
+                OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 5),
+                OverlayNavEntry(Search, entryId = 6),
+            ),
+            state.currentBackStack,
+        )
+    }
+
+    @Test
+    fun rootSavedStateIdsAreStableAndRestoreEachRoot() {
+        val expectedIds: Map<RootNavKey, String> = mapOf(
+            NewsRoot to "news",
+            MatchesRoot to "matches",
+            MyPageRoot to "my-page",
+            EventsRoot to "events",
+            AboutRoot to "about",
+        )
+
+        expectedIds.forEach { (root, expectedId) ->
+            assertEquals(expectedId, root.savedStateId())
+            assertEquals(root, rootNavKeyFromSavedStateId(root.savedStateId()))
+        }
+    }
+
+    @Test
+    fun rootSavedStateIdsDoNotDependOnRootNavigationOrder() {
+        val expectedIds: Map<RootNavKey, String> = mapOf(
+            NewsRoot to "news",
+            MatchesRoot to "matches",
+            MyPageRoot to "my-page",
+            EventsRoot to "events",
+            AboutRoot to "about",
+        )
+
+        assertEquals(expectedIds, rootNavKeys.reversed().associateWith(RootNavKey::savedStateId))
+    }
+
+    @Test
+    fun unknownRootSavedStateIdRestoresAsNull() {
+        assertEquals(null, rootNavKeyFromSavedStateId("unknown-root"))
+    }
+
+    private fun createRootBackStacks(): MutableMap<RootNavKey, MutableList<NavKey>> =
+        rootNavKeys.associateWithTo(mutableMapOf()) { root -> mutableListOf(root) }
 }

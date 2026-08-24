@@ -62,6 +62,36 @@ data class SeriesDetail(
     val seriesId: String,
 ) : AppNavKey
 
+/**
+ * A persisted overlay instance in a root stack.
+ *
+ * A destination can appear more than once in the same stack, so the destination alone cannot
+ * identify the Navigation 3 entry that owns saveable state and a ViewModelStore.
+ */
+@Serializable
+internal data class OverlayNavEntry(
+    val destination: AppNavKey,
+    val entryId: Long,
+) : NavKey {
+    init {
+        require(destination !is RootNavKey) {
+            "An overlay entry cannot contain a root destination."
+        }
+        require(entryId > 0) {
+            "An overlay entry ID must be positive."
+        }
+    }
+}
+
+/**
+ * The stable Navigation 3 state owner key for one entry in one root stack.
+ */
+@Serializable
+internal data class NavigationEntryContentKey(
+    val root: RootNavKey,
+    val entryId: Long,
+)
+
 val rootNavKeys: List<RootNavKey> = listOf(
     NewsRoot,
     MatchesRoot,
@@ -85,6 +115,7 @@ internal val appNavKeySavedStateConfiguration = SavedStateConfiguration {
             subclass(TeamDetail.serializer())
             subclass(PlayerDetail.serializer())
             subclass(SeriesDetail.serializer())
+            subclass(OverlayNavEntry.serializer())
         }
     }
 }

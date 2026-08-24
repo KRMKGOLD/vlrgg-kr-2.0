@@ -4,7 +4,7 @@
 
 이 문서는 Android와 iOS가 공유하는 앱 runtime의 composition, lifecycle, configuration, navigation 정책을 기록한다. feature 화면의 제품 요구사항은 `docs/feature/`가 소유한다.
 
-현재 공통 앱에는 Metro DI와 Compose Multiplatform Navigation 3 기반 runtime이 구현되어 있다. MyPage의 entry-scoped ViewModel skeleton을 제외한 root/Search/detail content는 marker와 sample navigation button 단계이며 실제 feature UI와 data 연동이 구현되었다는 의미는 아니다.
+현재 공통 앱에는 Metro DI와 Compose Multiplatform Navigation 3 기반 runtime이 구현되어 있다. Issue #37 N1부터 News, Matches, MyPage, Events, About은 독립 saved back stack과 독립 entry decorator state를 가진다. MyPage의 entry-scoped ViewModel skeleton을 제외한 root/Search/detail content는 marker와 sample navigation button 단계이며 실제 feature UI와 data 연동이 구현되었다는 의미는 아니다.
 
 이 문서에서 runtime은 앱 composition과 lifetime 정책을 의미하며 별도 `AppRuntime` wrapper 타입을 뜻하지 않는다.
 
@@ -60,16 +60,16 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 ## Navigation 3 정책
 
 - root key 순서는 News, Matches, MyPage, Events, About이며 기본 destination은 `MyPageRoot`다.
-- Search와 News/Match/Event/Team/Player/Series detail은 현재 root 위에 push되는 transient overlay다.
-- runtime은 `rememberNavBackStack`과 app 전용 `SavedStateConfiguration`을 사용한다. 모든 key는 직렬화 가능하며 detail key에는 복원에 필요한 안정적인 식별자만 둔다.
-- root 선택은 기존 overlay를 모두 비우고 선택한 root로 교체한다. Back은 overlay가 있을 때 마지막 entry만 pop하며 root에서는 stack을 변경하지 않는다.
-- `NavDisplay`는 entry provider, saveable-state entry decorator, ViewModelStore entry decorator를 연결한다.
-- navigation owner가 back stack을 소유하고 `AppNavigationState`는 같은 stack에서 선택 root와 overlay를 파생해 상태 전이를 수행한다. 별도의 두 번째 navigation state를 유지하지 않는다.
+- Search와 News/Match/Event/Team/Player/Series detail은 진입한 root의 stack 위에 push되는 transient overlay다. root를 바꿔도 그 overlay는 원래 root에 남고, 해당 root로 돌아온 뒤 Back을 누르면 그 root의 이전 entry로 복귀한다.
+- runtime은 root마다 별도 `rememberNavBackStack`과 app 전용 `SavedStateConfiguration`을 사용한다. root 목록을 순회해 stack/decorator map을 만들며, 선택 root는 `rememberSaveable`의 단일 mutable state로 보존한다. `AppNavigationState`는 그 state를 직접 갱신하므로 별도의 Compose selected-root state나 수동 동기화가 없다. 모든 key는 직렬화 가능하고 detail key에는 복원에 필요한 안정적인 식별자만 둔다.
+- root마다 별도 `rememberDecoratedNavEntries`, `SaveableStateHolderNavEntryDecorator`, `ViewModelStoreNavEntryDecorator`를 생성한다. 선택 root의 entries만 `NavDisplay`에 전달하되 선택되지 않은 root의 stack과 decorator state는 composition 안에 남아 ViewModel, loaded page/selected tab, scroll과 `rememberSaveable` state가 유지된다.
+- root 전환은 각 stack을 보존한다. 현재 root를 다시 선택하면 그 root의 overlay만 root entry까지 pop한다. Back은 선택 root에 overlay가 있을 때 마지막 entry만 pop하며 root에서는 stack을 변경하지 않는다.
+- overlay가 두 root에서 같은 destination key를 가져도 decorator state가 공유되지 않도록 entry content key는 owning root를 포함한다.
+- navigation owner가 모든 root back stack과 selected root를 소유하고 `AppNavigationState`는 정확히 그 stack instances에서 현재 root와 overlay를 파생해 상태 전이를 수행한다. 복원 map은 정확히 다섯 root를 포함하고 각 stack은 자신이 소유한 root entry로 시작해야 한다.
 - feature composable은 별도의 app graph나 전역 service locator를 만들지 않는다. Screen은 callback으로 navigation 의도를 전달하고 ViewModel은 back stack을 직접 조작하지 않는다.
 
 ## 제외 및 후속 결정
 
-- 탭별 독립 multi-back-stack
 - deep link와 제품 route 문자열 binding
 - adaptive scene, 인증 흐름
 - 실제 News/Matches/Events/Search/Team/Player/Series/About UI와 data loading
@@ -82,8 +82,9 @@ Pagination은 여러 feature에서 사용될 가능성이 있지만 아직 100% 
 
 현재 구현의 회귀 근거:
 
-- `AppNavKeySerializationTest`: root/Search/detail key 직렬화와 복원
-- `AppNavigationStateTest`: root 선택, overlay push/pop, 복원된 stack 정책
+- `AppNavKeySerializationTest`: root/Search/detail key, 모든 root stack과 selected root의 직렬화·복원
+- `AppNavigationStateTest`: root별 overlay push/pop, root 전환/reselection, 동일 stack instance 유지, 잘못 복원된 map/stack 거부
+- `AppNavigationRuntimeUiTest` (iOS): 실제 `AppNavigationRuntime` seam에 test entry content를 주입해 entry `LocalViewModelStoreOwner`와 test-local `ViewModelProvider.Factory`를 검증한다. root 왕복 후 loaded page/selected tab·동일 ViewModel instance·`rememberSaveable` counter·`LazyListState.firstVisibleItemIndex`가 유지되고, detail pop은 detail ViewModel만 clear하며 initiating root state를 보존한다. 두 root의 동일 `Search` key는 saveable state/ViewModel을 공유하지 않고, 한 root Search pop은 다른 root Search ViewModel을 clear하지 않는다.
 - `DestinationDescriptorTest`: root 순서와 destination metadata
 - `MyPageViewModelTest`: MyPage skeleton state
 - `AppGraphAndroidHostTest`: MetroX known/missing provider lookup과 entry별 `ViewModelStoreOwner` scope
@@ -103,6 +104,7 @@ H1-K1 완료까지 추가할 검증:
 ## 관련 문서
 
 - [ADR-0001: Thin App Runtime Kernel](adr/0001-thin-app-runtime-kernel.md): H1-K0의 확정 decision과 재검토 조건
+- [ADR-0003: Root-specific saved Navigation stacks](adr/0003-root-specific-saved-navigation-stacks.md): Issue #37 N1의 multi-back-stack decision
 - [App Architecture](app-arch.md): module 책임과 공통 package 방향
 - [UI Layer](ui-layer.md): Screen callback, ViewModel, feature UI 규칙
 - [Data Layer](data-layer.md): data binding과 repository 경계
@@ -111,6 +113,7 @@ H1-K1 완료까지 추가할 검증:
 
 - [Compose Multiplatform Navigation 3](https://kotlinlang.org/docs/multiplatform/compose-navigation-3.html)
 - [Navigation 3 overview](https://developer.android.com/guide/navigation/navigation-3)
+- [Navigation 3 multiple back stacks](https://developer.android.com/guide/navigation/navigation-3/save-state)
 - [Compose Multiplatform ViewModel](https://kotlinlang.org/docs/multiplatform/compose-viewmodel.html)
 - [Metro dependency graph](https://zacsweers.github.io/metro/latest/dependency-graphs/)
 - [MetroX ViewModel](https://zacsweers.github.io/metro/latest/metrox-viewmodel/)

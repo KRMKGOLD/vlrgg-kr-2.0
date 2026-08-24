@@ -64,12 +64,12 @@ Android와 iOS는 가능한 동일한 화면 흐름을 가진다. Compose Multip
 `AppNavigation.kt`는 앱 navigation 상태와 entry mapping을 정의한다.
 
 - Screen callback을 기준으로 화면 이동을 처리한다.
-- 현재 단일 root와 transient overlay back stack을 관리한다.
-- 직렬화 가능한 key와 `SavedStateConfiguration`으로 back stack을 저장·복원한다.
-- saveable-state와 ViewModelStore entry decorator를 사용하고 MyPage ViewModel을 entry scope에 둔다.
+- News, Matches, MyPage, Events, About마다 독립 root back stack과 transient overlay를 관리한다. root 전환은 stack을 보존하고, 같은 root 재선택만 그 root의 overlay를 pop한다.
+- 직렬화 가능한 key와 `SavedStateConfiguration`으로 모든 root stack을, `rememberSaveable`로 selected root를 저장·복원한다.
+- root별 `rememberDecoratedNavEntries`, saveable-state와 ViewModelStore entry decorator를 사용한다. 선택되지 않은 root도 decorator state가 유지되므로 entry ViewModel과 loaded page/selected tab, scroll·`rememberSaveable` UI state를 유지한다.
 - ViewModel이 `NavBackStack` 또는 동등한 navigation state를 직접 다루지 않게 한다.
 
-전체 runtime 구성, state restoration, deep link와 product-flow의 결정 경계는 `app-runtime.md`에서 관리한다. Deep link와 독립 multi-back-stack 등 미구현 범위는 후속 기능에서 당시 호환 API를 기준으로 결정한다.
+전체 runtime 구성, state restoration, deep link와 product-flow의 결정 경계는 `app-runtime.md`에서 관리한다. Deep link, adaptive scene, 인증 navigation은 후속 기능에서 당시 호환 API를 기준으로 결정한다.
 
 ## Feature Package Rules
 

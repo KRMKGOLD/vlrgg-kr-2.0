@@ -7,10 +7,18 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
@@ -26,117 +34,186 @@ import vlrggmobile.app.shared.generated.resources.ic_person
 fun AppNavigation(
     modifier: Modifier = Modifier,
 ) {
-    val backStack = rememberNavBackStack(
-        appNavKeySavedStateConfiguration,
-        MyPageRoot,
+    AppNavigationRuntime(
+        modifier = modifier,
+        entryContent = { destination, onSearch, onPush, onBack ->
+            NavigationEntryContent(
+                destination = destination,
+                onSearch = onSearch,
+                onPush = onPush,
+                onBack = onBack,
+            )
+        },
     )
-    val navigationState = remember(backStack) { AppNavigationState(backStack) }
+}
 
-    val push: (AppNavKey) -> Unit = { destination ->
-        navigationState.push(destination)
+/**
+ * Owns the app's Navigation 3 root stacks and entry decorators.
+ *
+ * Destination rendering is supplied separately so every app entry uses this runtime owner.
+ */
+@Composable
+internal fun AppNavigationRuntime(
+    modifier: Modifier = Modifier,
+    initialSelectedRoot: RootNavKey = MyPageRoot,
+    onNavigationStateAvailable: (AppNavigationState) -> Unit = {},
+    entryContent: @Composable (
+        destination: AppNavKey,
+        onSearch: () -> Unit,
+        onPush: (AppNavKey) -> Unit,
+        onBack: () -> Unit,
+    ) -> Unit,
+) {
+    // Navigation 3 has no multiple-stack holder: every root stack and its decorator graph must
+    // stay in composition, even though NavDisplay receives only the selected root's entries.
+    val rootBackStacks: Map<RootNavKey, MutableList<NavKey>> = rootNavKeys.associateWith { root ->
+        rememberNavBackStack(appNavKeySavedStateConfiguration, root)
     }
-    val popOverlay: () -> Unit = {
-        navigationState.popOverlay()
+    val selectedRootState = rememberSaveable(stateSaver = selectedRootSaver) {
+        mutableStateOf(initialSelectedRoot)
     }
-    val selectRoot: (RootNavKey) -> Unit = { root ->
-        navigationState.selectRoot(root)
+    val navigationState = remember(
+        selectedRootState,
+        *rootBackStacks.values.toTypedArray(),
+    ) {
+        AppNavigationState(rootBackStacks, selectedRootState)
     }
-    val currentDestination = backStack.last() as AppNavKey
+    val selectedRoot = navigationState.selectedRoot
+    SideEffect { onNavigationStateAvailable(navigationState) }
+
+    val push: (AppNavKey) -> Unit = remember(navigationState) { navigationState::push }
+    val popOverlay: () -> Unit = remember(navigationState) { { navigationState.popOverlay() } }
+    val onSearch: () -> Unit = remember(push) { { push(Search) } }
+    val currentEntryContent = rememberUpdatedState(entryContent)
+    val entryProvider = remember(onSearch, push, popOverlay) {
+        appNavigationEntryProvider(
+            onSearch = onSearch,
+            onPush = push,
+            onBack = popOverlay,
+            entryContent = { destination, search, pushDestination, back ->
+                currentEntryContent.value(destination, search, pushDestination, back)
+            },
+        )
+    }
+
+    // Navigation 3 requires a separate rememberDecoratedNavEntries call and decorator instances
+    // per back stack. The content keys include their owner root to keep overlays' saveable and
+    // ViewModel state independent even when two roots contain the same destination key.
+    val rootEntries: Map<RootNavKey, List<NavEntry<NavKey>>> = rootBackStacks.mapValues { (root, backStack) ->
+        rememberRootDecoratedEntries(root, backStack, entryProvider)
+    }
+    val currentDestination = navigationState.currentBackStack.last().destination
 
     Scaffold(
         modifier = modifier,
         bottomBar = {
             if (currentDestination.destinationDescriptor.showBottomBar) {
                 RootNavigationBar(
-                    selectedRoot = navigationState.selectedRoot,
-                    onSelectRoot = selectRoot,
+                    selectedRoot = selectedRoot,
+                    onSelectRoot = navigationState::selectRoot,
                 )
             }
         },
     ) { contentPadding ->
         NavDisplay(
-            backStack = backStack,
+            entries = rootEntries.getValue(selectedRoot),
             modifier = Modifier.padding(contentPadding),
-            onBack = {
-                if (navigationState.overlay.isNotEmpty()) {
-                    popOverlay()
-                }
-            },
-            entryDecorators = listOf(
-                rememberSaveableStateHolderNavEntryDecorator(),
-                rememberViewModelStoreNavEntryDecorator(),
-            ),
-            entryProvider = entryProvider {
-                entry(NewsRoot) { destination ->
-                    NavigationEntryContent(
-                        destination = destination,
-                        onSearch = { push(Search) },
-                        onPush = push,
-                        onBack = popOverlay,
-                    )
-                }
-                entry(MatchesRoot) { destination ->
-                    NavigationEntryContent(
-                        destination = destination,
-                        onSearch = { push(Search) },
-                        onPush = push,
-                        onBack = popOverlay,
-                    )
-                }
-                entry(MyPageRoot) { destination ->
-                    NavigationEntryContent(
-                        destination = destination,
-                        onSearch = { push(Search) },
-                        onPush = push,
-                        onBack = popOverlay,
-                    )
-                }
-                entry(EventsRoot) { destination ->
-                    NavigationEntryContent(
-                        destination = destination,
-                        onSearch = { push(Search) },
-                        onPush = push,
-                        onBack = popOverlay,
-                    )
-                }
-                entry(AboutRoot) { destination ->
-                    NavigationEntryContent(
-                        destination = destination,
-                        onSearch = { push(Search) },
-                        onPush = push,
-                        onBack = popOverlay,
-                    )
-                }
-                entry(Search) { destination ->
-                    NavigationEntryContent(
-                        destination = destination,
-                        onSearch = { push(Search) },
-                        onPush = push,
-                        onBack = popOverlay,
-                    )
-                }
-                entry<NewsDetail> { destination ->
-                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
-                }
-                entry<MatchDetail> { destination ->
-                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
-                }
-                entry<EventDetail> { destination ->
-                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
-                }
-                entry<TeamDetail> { destination ->
-                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
-                }
-                entry<PlayerDetail> { destination ->
-                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
-                }
-                entry<SeriesDetail> { destination ->
-                    NavigationEntryContent(destination, { push(Search) }, push, popOverlay)
-                }
-            },
+            onBack = popOverlay,
         )
     }
 }
+
+@Composable
+private fun rememberRootDecoratedEntries(
+    root: RootNavKey,
+    backStack: List<NavKey>,
+    entryProvider: (RootNavKey, NavKey) -> NavEntry<NavKey>,
+): List<NavEntry<NavKey>> = rememberDecoratedNavEntries(
+    backStack = backStack,
+    entryDecorators = listOf(
+        rememberSaveableStateHolderNavEntryDecorator(),
+        rememberViewModelStoreNavEntryDecorator(),
+    ),
+    entryProvider = { destination -> entryProvider(root, destination) },
+)
+
+private fun appNavigationEntryProvider(
+    onSearch: () -> Unit,
+    onPush: (AppNavKey) -> Unit,
+    onBack: () -> Unit,
+    entryContent: @Composable (
+        destination: AppNavKey,
+        onSearch: () -> Unit,
+        onPush: (AppNavKey) -> Unit,
+        onBack: () -> Unit,
+    ) -> Unit,
+): (RootNavKey, NavKey) -> NavEntry<NavKey> {
+    val entries = entryProvider {
+        entry(NewsRoot) { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry(MatchesRoot) { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry(MyPageRoot) { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry(EventsRoot) { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry(AboutRoot) { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry(Search) { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry<NewsDetail> { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry<MatchDetail> { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry<EventDetail> { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry<TeamDetail> { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry<PlayerDetail> { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+        entry<SeriesDetail> { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
+    }
+    return { root, destination ->
+        val appDestination = destination.destination
+        val entry = entries(appDestination)
+        NavEntry(
+            key = destination,
+            contentKey = destination.contentKeyFor(root),
+        ) {
+            entry.Content()
+        }
+    }
+}
+
+private val NavKey.destination: AppNavKey
+    get() = when (this) {
+        is AppNavKey -> this
+        is OverlayNavEntry -> destination
+        else -> error("Unexpected navigation key: $this")
+    }
+
+private fun NavKey.contentKeyFor(root: RootNavKey): NavigationEntryContentKey =
+    NavigationEntryContentKey(
+        root = root,
+        entryId = when (this) {
+            is RootNavKey -> 0
+            is OverlayNavEntry -> entryId
+            else -> error("Unexpected navigation key: $this")
+        },
+    )
 
 @Composable
 private fun NavigationEntryContent(
@@ -145,13 +222,34 @@ private fun NavigationEntryContent(
     onPush: (AppNavKey) -> Unit,
     onBack: () -> Unit,
 ) {
-
     NavigationContent(
         destination = destination,
         onSearch = onSearch,
         onPush = onPush,
         onBack = onBack,
     )
+}
+
+private val selectedRootSaver = Saver<RootNavKey, String>(
+    save = { selectedRoot -> selectedRoot.savedStateId() },
+    restore = ::rootNavKeyFromSavedStateId,
+)
+
+internal fun RootNavKey.savedStateId(): String = when (this) {
+    NewsRoot -> "news"
+    MatchesRoot -> "matches"
+    MyPageRoot -> "my-page"
+    EventsRoot -> "events"
+    AboutRoot -> "about"
+}
+
+internal fun rootNavKeyFromSavedStateId(savedRootId: String): RootNavKey? = when (savedRootId) {
+    "news" -> NewsRoot
+    "matches" -> MatchesRoot
+    "my-page" -> MyPageRoot
+    "events" -> EventsRoot
+    "about" -> AboutRoot
+    else -> null
 }
 
 @Composable

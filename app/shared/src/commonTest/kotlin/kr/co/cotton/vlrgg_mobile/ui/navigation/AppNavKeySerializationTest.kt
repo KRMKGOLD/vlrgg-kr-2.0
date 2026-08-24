@@ -4,6 +4,7 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.serialization.NavBackStackSerializer
 import kotlinx.serialization.PolymorphicSerializer
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
@@ -121,11 +122,86 @@ class AppNavKeySerializationTest {
         )
 
         assertEquals(original.toList(), restored.toList())
-        assertEquals(EventsRoot, AppNavigationState(restored).selectedRoot)
+        val state = AppNavigationState(
+            rootBackStacks = rootNavKeys.associateWith { root ->
+                if (root == EventsRoot) restored else NavBackStack<NavKey>(root)
+            },
+            initialSelectedRoot = EventsRoot,
+        )
+
+        assertEquals(EventsRoot, state.selectedRoot)
         assertEquals(
             listOf(Search, TeamDetail(teamId = "1001")),
-            AppNavigationState(restored).overlay,
+            state.overlay,
         )
+    }
+
+    @Test
+    fun duplicateOverlayEntriesAndTheirContentKeysRoundTripWithDistinctIds() {
+        val entries = listOf(
+            OverlayNavEntry(Search, entryId = 1),
+            OverlayNavEntry(Search, entryId = 2),
+        )
+        val contentKeys = entries.map { entry ->
+            NavigationEntryContentKey(root = MyPageRoot, entryId = entry.entryId)
+        }
+        val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))
+        val original = NavBackStack<NavKey>(MyPageRoot, *entries.toTypedArray())
+
+        val restored = backStackJson.decodeFromString(
+            serializer,
+            backStackJson.encodeToString(serializer, original),
+        )
+
+        assertEquals(original.toList(), restored.toList())
+        assertEquals(2, contentKeys.distinct().size)
+        contentKeys.forEach { contentKey ->
+            assertEquals(
+                contentKey,
+                json.decodeFromString(
+                    NavigationEntryContentKey.serializer(),
+                    json.encodeToString(contentKey),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun everyRootBackStackAndTheSelectedRootRoundTripForProcessRestoration() {
+        val originalStacks = rootNavKeys.associateWith { root ->
+            NavBackStack<NavKey>(root)
+        }.apply {
+            getValue(NewsRoot).addAll(
+                listOf(
+                    OverlayNavEntry(Search, entryId = 1),
+                    OverlayNavEntry(NewsDetail(articleId = "12345", slug = "grand-final"), entryId = 2),
+                ),
+            )
+            getValue(MatchesRoot).add(OverlayNavEntry(MatchDetail(matchId = "2002"), entryId = 1))
+            getValue(EventsRoot).add(OverlayNavEntry(EventDetail(eventId = "3003"), entryId = 1))
+        }
+        val selectedRoot: RootNavKey = NewsRoot
+        val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))
+
+        val restoredStacks = originalStacks.mapValues { (_, stack) ->
+            backStackJson.decodeFromString(
+                serializer,
+                backStackJson.encodeToString(serializer, stack),
+            )
+        }
+        val restoredSelectedRoot = assertIs<RootNavKey>(roundTrip(selectedRoot))
+        val restoredState = AppNavigationState(
+            rootBackStacks = restoredStacks,
+            initialSelectedRoot = restoredSelectedRoot,
+        )
+
+        assertEquals(selectedRoot, restoredState.selectedRoot)
+        rootNavKeys.forEach { root ->
+            assertEquals(
+                originalStacks.getValue(root).toList(),
+                restoredState.backStackFor(root).toList(),
+            )
+        }
     }
 
     private fun roundTrip(key: AppNavKey): AppNavKey = json.decodeFromString(
