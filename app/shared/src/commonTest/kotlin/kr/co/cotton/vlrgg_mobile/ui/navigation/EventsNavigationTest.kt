@@ -13,12 +13,10 @@ class EventsNavigationTest {
 
         state.push(EventDetail(eventId = "event-39"))
 
-        assertEquals(
-            listOf<NavKey>(EventsRoot, EventDetail(eventId = "event-39")),
-            state.currentBackStack,
-        )
+        assertEquals(EventsRoot, state.selectedRoot)
+        assertEquals(listOf(EventDetail(eventId = "event-39")), state.overlay)
         assertTrue(state.popOverlay())
-        assertEquals(listOf<NavKey>(EventsRoot), state.currentBackStack)
+        assertTrue(state.overlay.isEmpty())
     }
 
     @Test
@@ -27,12 +25,11 @@ class EventsNavigationTest {
         state.push(EventDetail(eventId = "event-39"))
 
         state.selectRoot(NewsRoot)
+        assertTrue(state.overlay.isEmpty())
         state.selectRoot(EventsRoot)
 
-        assertEquals(
-            listOf<NavKey>(EventsRoot, EventDetail(eventId = "event-39")),
-            state.currentBackStack,
-        )
+        assertEquals(EventsRoot, state.selectedRoot)
+        assertEquals(listOf(EventDetail(eventId = "event-39")), state.overlay)
     }
 
     private fun createRootBackStacks(): MutableMap<RootNavKey, MutableList<NavKey>> =
