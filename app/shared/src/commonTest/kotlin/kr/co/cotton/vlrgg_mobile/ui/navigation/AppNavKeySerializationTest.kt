@@ -4,6 +4,7 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.serialization.NavBackStackSerializer
 import kotlinx.serialization.PolymorphicSerializer
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
@@ -136,15 +137,48 @@ class AppNavKeySerializationTest {
     }
 
     @Test
+    fun duplicateOverlayEntriesAndTheirContentKeysRoundTripWithDistinctIds() {
+        val entries = listOf(
+            OverlayNavEntry(Search, entryId = 1),
+            OverlayNavEntry(Search, entryId = 2),
+        )
+        val contentKeys = entries.map { entry ->
+            NavigationEntryContentKey(root = MyPageRoot, entryId = entry.entryId)
+        }
+        val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))
+        val original = NavBackStack<NavKey>(MyPageRoot, *entries.toTypedArray())
+
+        val restored = backStackJson.decodeFromString(
+            serializer,
+            backStackJson.encodeToString(serializer, original),
+        )
+
+        assertEquals(original.toList(), restored.toList())
+        assertEquals(2, contentKeys.distinct().size)
+        contentKeys.forEach { contentKey ->
+            assertEquals(
+                contentKey,
+                json.decodeFromString(
+                    NavigationEntryContentKey.serializer(),
+                    json.encodeToString(contentKey),
+                ),
+            )
+        }
+    }
+
+    @Test
     fun everyRootBackStackAndTheSelectedRootRoundTripForProcessRestoration() {
         val originalStacks = rootNavKeys.associateWith { root ->
             NavBackStack<NavKey>(root)
         }.apply {
             getValue(NewsRoot).addAll(
-                listOf(Search, NewsDetail(articleId = "12345", slug = "grand-final")),
+                listOf(
+                    OverlayNavEntry(Search, entryId = 1),
+                    OverlayNavEntry(NewsDetail(articleId = "12345", slug = "grand-final"), entryId = 2),
+                ),
             )
-            getValue(MatchesRoot).add(MatchDetail(matchId = "2002"))
-            getValue(EventsRoot).add(EventDetail(eventId = "3003"))
+            getValue(MatchesRoot).add(OverlayNavEntry(MatchDetail(matchId = "2002"), entryId = 1))
+            getValue(EventsRoot).add(OverlayNavEntry(EventDetail(eventId = "3003"), entryId = 1))
         }
         val selectedRoot: RootNavKey = NewsRoot
         val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))

@@ -28,7 +28,7 @@ class AppNavigationStateTest {
             state.push(Search)
 
             assertEquals(root, state.selectedRoot)
-            assertEquals(listOf<NavKey>(root, Search), state.currentBackStack)
+            assertEquals(listOf<NavKey>(root, OverlayNavEntry(Search, entryId = 1)), state.currentBackStack)
         }
     }
 
@@ -39,10 +39,48 @@ class AppNavigationStateTest {
         state.push(TeamDetail(teamId = "1"))
 
         assertTrue(state.popOverlay())
-        assertEquals(listOf<NavKey>(MyPageRoot, Search), state.currentBackStack)
+        assertEquals(
+            listOf<NavKey>(MyPageRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.currentBackStack,
+        )
         assertTrue(state.popOverlay())
         assertEquals(listOf<NavKey>(MyPageRoot), state.currentBackStack)
         assertFalse(state.popOverlay())
+    }
+
+    @Test
+    fun pushingAfterPoppingADuplicateOverlayAssignsANewEntryId() {
+        val state = AppNavigationState(createRootBackStacks())
+
+        state.push(Search)
+        state.push(Search)
+
+        assertEquals(listOf(Search, Search), state.overlay)
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(Search, entryId = 2),
+            ),
+            state.currentBackStack,
+        )
+
+        assertTrue(state.popOverlay())
+        assertEquals(
+            listOf<NavKey>(MyPageRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.currentBackStack,
+        )
+
+        state.push(Search)
+
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(Search, entryId = 3),
+            ),
+            state.currentBackStack,
+        )
     }
 
     @Test
@@ -55,11 +93,18 @@ class AppNavigationStateTest {
         state.push(NewsDetail(articleId = "12345", slug = "grand-final"))
 
         assertEquals(
-            listOf<NavKey>(NewsRoot, NewsDetail(articleId = "12345", slug = "grand-final")),
+            listOf<NavKey>(
+                NewsRoot,
+                OverlayNavEntry(NewsDetail(articleId = "12345", slug = "grand-final"), entryId = 1),
+            ),
             state.currentBackStack,
         )
         assertEquals(
-            listOf<NavKey>(MyPageRoot, Search, TeamDetail(teamId = "1001")),
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 2),
+            ),
             state.backStackFor(MyPageRoot),
         )
 
@@ -67,11 +112,18 @@ class AppNavigationStateTest {
 
         assertEquals(MyPageRoot, state.selectedRoot)
         assertEquals(
-            listOf<NavKey>(MyPageRoot, Search, TeamDetail(teamId = "1001")),
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 2),
+            ),
             state.currentBackStack,
         )
         assertTrue(state.popOverlay())
-        assertEquals(listOf<NavKey>(MyPageRoot, Search), state.currentBackStack)
+        assertEquals(
+            listOf<NavKey>(MyPageRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.currentBackStack,
+        )
     }
 
     @Test
@@ -84,7 +136,10 @@ class AppNavigationStateTest {
         state.selectRoot(NewsRoot)
 
         assertEquals(listOf<NavKey>(NewsRoot), state.currentBackStack)
-        assertEquals(listOf<NavKey>(MyPageRoot, Search), state.backStackFor(MyPageRoot))
+        assertEquals(
+            listOf<NavKey>(MyPageRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.backStackFor(MyPageRoot),
+        )
     }
 
     @Test
@@ -106,16 +161,33 @@ class AppNavigationStateTest {
     @Test
     fun poppingAnOverlayOnlyChangesTheSelectedRootStack() {
         val rootBackStacks = createRootBackStacks().apply {
-            getValue(NewsRoot).addAll(listOf(Search, TeamDetail(teamId = "1001")))
-            getValue(MatchesRoot).addAll(listOf(Search, MatchDetail(matchId = "2002")))
+            getValue(NewsRoot).addAll(
+                listOf(
+                    OverlayNavEntry(Search, entryId = 1),
+                    OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 2),
+                ),
+            )
+            getValue(MatchesRoot).addAll(
+                listOf(
+                    OverlayNavEntry(Search, entryId = 1),
+                    OverlayNavEntry(MatchDetail(matchId = "2002"), entryId = 2),
+                ),
+            )
         }
         val state = AppNavigationState(rootBackStacks, initialSelectedRoot = MatchesRoot)
 
         assertTrue(state.popOverlay())
 
-        assertEquals(listOf<NavKey>(MatchesRoot, Search), state.backStackFor(MatchesRoot))
         assertEquals(
-            listOf<NavKey>(NewsRoot, Search, TeamDetail(teamId = "1001")),
+            listOf<NavKey>(MatchesRoot, OverlayNavEntry(Search, entryId = 1)),
+            state.backStackFor(MatchesRoot),
+        )
+        assertEquals(
+            listOf<NavKey>(
+                NewsRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 2),
+            ),
             state.backStackFor(NewsRoot),
         )
     }
@@ -144,6 +216,47 @@ class AppNavigationStateTest {
                 getValue(NewsRoot) += MatchesRoot
             })
         }
+    }
+
+    @Test
+    fun legacyRestoredOverlayKeysUpgradeToPersistedEntryIds() {
+        val state = AppNavigationState(createRootBackStacks().apply {
+            getValue(MyPageRoot).addAll(listOf(Search, Search))
+        })
+
+        assertEquals(listOf(Search, Search), state.overlay)
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 1),
+                OverlayNavEntry(Search, entryId = 2),
+            ),
+            state.currentBackStack,
+        )
+    }
+
+    @Test
+    fun restoredOverlayEntriesContinueFromTheirLargestPersistedEntryId() {
+        val state = AppNavigationState(createRootBackStacks().apply {
+            getValue(MyPageRoot).addAll(
+                listOf(
+                    OverlayNavEntry(Search, entryId = 2),
+                    OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 5),
+                ),
+            )
+        })
+
+        state.push(Search)
+
+        assertEquals(
+            listOf<NavKey>(
+                MyPageRoot,
+                OverlayNavEntry(Search, entryId = 2),
+                OverlayNavEntry(TeamDetail(teamId = "1001"), entryId = 5),
+                OverlayNavEntry(Search, entryId = 6),
+            ),
+            state.currentBackStack,
+        )
     }
 
     @Test

@@ -14,6 +14,8 @@ class AppNavigationState(
     private val rootBackStacks: Map<RootNavKey, MutableList<NavKey>>,
     private val selectedRootState: MutableState<RootNavKey>,
 ) {
+    private val nextOverlayEntryIds: MutableMap<RootNavKey, Long>
+
     constructor(
         rootBackStacks: Map<RootNavKey, MutableList<NavKey>>,
         initialSelectedRoot: RootNavKey = MyPageRoot,
@@ -36,12 +38,17 @@ class AppNavigationState(
             require(backStack.first() == root) {
                 "The $root navigation back stack must start with its owning root destination."
             }
-            require(backStack.drop(1).none { it is RootNavKey }) {
-                "The $root navigation overlay cannot contain a root destination."
+            backStack.normalizePersistedOverlayEntries(root)
+            require(backStack.drop(1).all { it is OverlayNavEntry }) {
+                "The $root navigation overlay must contain persisted overlay entries."
             }
-            require(backStack.all { it is AppNavKey }) {
-                "The $root navigation back stack must only contain app destinations."
-            }
+        }
+        nextOverlayEntryIds = rootBackStacks.mapValuesTo(mutableMapOf()) { (_, backStack) ->
+            backStack
+                .filterIsInstance<OverlayNavEntry>()
+                .maxOfOrNull(OverlayNavEntry::entryId)
+                ?.plus(1)
+                ?: 1
         }
     }
 
@@ -52,7 +59,7 @@ class AppNavigationState(
         get() = backStackFor(selectedRoot)
 
     val overlay: List<AppNavKey>
-        get() = currentBackStack.drop(1).map { it as AppNavKey }
+        get() = currentBackStack.drop(1).map { (it as OverlayNavEntry).destination }
 
     fun backStackFor(root: RootNavKey): MutableList<NavKey> = rootBackStacks.getValue(root)
 
@@ -60,7 +67,9 @@ class AppNavigationState(
         require(destination !is RootNavKey) {
             "Root destinations must be selected with selectRoot()."
         }
-        currentBackStack += destination
+        val root = selectedRoot
+        currentBackStack += OverlayNavEntry(destination = destination, entryId = nextOverlayEntryIds.getValue(root))
+        nextOverlayEntryIds[root] = nextOverlayEntryIds.getValue(root) + 1
     }
 
     fun popOverlay(): Boolean {
@@ -79,5 +88,38 @@ class AppNavigationState(
             currentBackStack.subList(1, currentBackStack.size).clear()
         }
         selectedRootState.value = root
+    }
+}
+
+private fun MutableList<NavKey>.normalizePersistedOverlayEntries(root: RootNavKey) {
+    val persistedEntries = drop(1)
+    val entryIds = persistedEntries.filterIsInstance<OverlayNavEntry>().map(OverlayNavEntry::entryId)
+    require(entryIds.size == entryIds.distinct().size) {
+        "The $root navigation overlay entry IDs must be unique."
+    }
+
+    val usedEntryIds = entryIds.toMutableSet()
+    var nextEntryId = 1L
+    val normalizedEntries = persistedEntries.map { entry ->
+        when (entry) {
+            is OverlayNavEntry -> entry
+            is AppNavKey -> {
+                require(entry !is RootNavKey) {
+                    "The $root navigation overlay cannot contain a root destination."
+                }
+                while (nextEntryId in usedEntryIds) nextEntryId += 1
+                OverlayNavEntry(destination = entry, entryId = nextEntryId).also {
+                    usedEntryIds += nextEntryId
+                    nextEntryId += 1
+                }
+            }
+
+            else -> error("The $root navigation overlay contains an unsupported key: $entry")
+        }
+    }
+
+    if (persistedEntries != normalizedEntries) {
+        subList(1, size).clear()
+        addAll(normalizedEntries)
     }
 }

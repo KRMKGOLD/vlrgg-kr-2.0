@@ -102,7 +102,7 @@ internal fun AppNavigationRuntime(
     val rootEntries: Map<RootNavKey, List<NavEntry<NavKey>>> = rootBackStacks.mapValues { (root, backStack) ->
         rememberRootDecoratedEntries(root, backStack, entryProvider)
     }
-    val currentDestination = navigationState.currentBackStack.last() as AppNavKey
+    val currentDestination = navigationState.currentBackStack.last().destination
 
     Scaffold(
         modifier = modifier,
@@ -187,16 +187,33 @@ private fun appNavigationEntryProvider(
         }
     }
     return { root, destination ->
-        val appDestination = destination as AppNavKey
+        val appDestination = destination.destination
         val entry = entries(appDestination)
         NavEntry(
             key = destination,
-            contentKey = "$root:$destination",
+            contentKey = destination.contentKeyFor(root),
         ) {
             entry.Content()
         }
     }
 }
+
+private val NavKey.destination: AppNavKey
+    get() = when (this) {
+        is AppNavKey -> this
+        is OverlayNavEntry -> destination
+        else -> error("Unexpected navigation key: $this")
+    }
+
+private fun NavKey.contentKeyFor(root: RootNavKey): NavigationEntryContentKey =
+    NavigationEntryContentKey(
+        root = root,
+        entryId = when (this) {
+            is RootNavKey -> 0
+            is OverlayNavEntry -> entryId
+            else -> error("Unexpected navigation key: $this")
+        },
+    )
 
 @Composable
 private fun NavigationEntryContent(

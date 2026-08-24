@@ -194,6 +194,54 @@ class AppNavigationRuntimeUiTest {
             assertEquals(2, tracker.clearedSearchCount)
         }
     }
+
+    @Test
+    fun duplicateSearchEntriesKeepIndependentStateAndOnlyClearThePoppedTopEntry() {
+        val tracker = TestViewModelTracker()
+        val factory = TestViewModelFactory(tracker)
+        val hostOwner = TestHostViewModelStoreOwner()
+
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalViewModelStoreOwner provides hostOwner) {
+                    AppNavigationRuntime(
+                        entryContent = { destination, onSearch, onPush, onBack ->
+                            TestNavigationEntry(
+                                destination = destination,
+                                onSearch = onSearch,
+                                onPush = onPush,
+                                onBack = onBack,
+                                factory = factory,
+                            )
+                        },
+                    )
+                }
+            }
+
+            onNodeWithText("push-search").performClick()
+            onNodeWithText("search-view-model:1").assertExists()
+            onNodeWithText("increment-search-counter").performClick()
+            onNodeWithText("search-saveable-counter:1").assertExists()
+            val lowerSearchViewModel = tracker.searchFor(1)
+
+            onNodeWithText("push-search-again").performClick()
+            onNodeWithText("search-view-model:2").assertExists()
+            onNodeWithText("search-saveable-counter:0").assertExists()
+            onNodeWithText("increment-search-counter").performClick()
+            onNodeWithText("search-saveable-counter:1").assertExists()
+            val topSearchViewModel = tracker.searchFor(2)
+
+            onNodeWithText("pop-search").performClick()
+            waitForIdle()
+
+            onNodeWithText("search-view-model:1").assertExists()
+            onNodeWithText("search-saveable-counter:1").assertExists()
+            assertSame(lowerSearchViewModel, tracker.searchFor(1))
+            assertFalse(lowerSearchViewModel.cleared)
+            assertTrue(topSearchViewModel.cleared)
+            assertEquals(1, tracker.clearedSearchCount)
+        }
+    }
 }
 
 @Composable
@@ -206,7 +254,7 @@ private fun TestNavigationEntry(
 ) {
     when (destination) {
         is RootNavKey -> TestRootEntry(destination, onSearch, onPush, factory)
-        Search -> TestSearchEntry(onBack, factory)
+        Search -> TestSearchEntry(onPush, onBack, factory)
         is MatchDetail -> TestDetailEntry(destination, onBack, factory)
         else -> error("Unexpected navigation fixture destination: $destination")
     }
@@ -254,6 +302,7 @@ private fun TestRootEntry(
 
 @Composable
 private fun TestSearchEntry(
+    onPush: (AppNavKey) -> Unit,
     onBack: () -> Unit,
     factory: TestViewModelFactory,
 ) {
@@ -267,6 +316,7 @@ private fun TestSearchEntry(
         Text("search-view-model:${viewModel.id}")
         Text("search-saveable-counter:$counter")
         Button(onClick = { counter += 1 }) { Text("increment-search-counter") }
+        Button(onClick = { onPush(Search) }) { Text("push-search-again") }
         Button(onClick = onBack) { Text("pop-search") }
     }
 }
