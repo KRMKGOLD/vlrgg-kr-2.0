@@ -250,6 +250,27 @@ class MatchesViewModelTest {
     }
 
     @Test
+    fun duplicateOnlyPaginationPageStopsFurtherRequestsAndKeepsVisibleIdsDeduplicated() = runViewModelTest {
+        val first = matchSummary(id = "first")
+        val repository = FakeMatchRepository(
+            upcomingResults = listOf(
+                successPage(matches = listOf(first)),
+                successPage(page = 2, matches = listOf(first.copy(timeLabel = "duplicate"))),
+            ),
+        )
+        val viewModel = MatchesViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.loadMore()
+        advanceUntilIdle()
+        viewModel.loadMore()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2), repository.requestedUpcomingPages)
+        assertEquals(listOf("first"), viewModel.uiState.value.upcomingLive.matchIds())
+    }
+
+    @Test
     fun concurrentLoadMoreRequestsRepositoryOnce() = runViewModelTest {
         val pendingLoadMore = CompletableDeferred<AppResult<MatchPage>>()
         val repository = FakeMatchRepository { feed, page, callIndex ->
@@ -283,8 +304,9 @@ class MatchesViewModelTest {
             when (callIndex) {
                 0 -> try {
                     pendingInitial.await()
-                } finally {
+                } catch (error: CancellationException) {
                     initialWasCancelled = true
+                    throw error
                 }
                 1 -> successPage(matches = listOf(matchSummary(id = "fresh")))
                 else -> error("Unexpected request for page $page")
@@ -311,8 +333,9 @@ class MatchesViewModelTest {
                 0 -> successPage(matches = listOf(matchSummary(id = "existing")))
                 1 -> try {
                     pendingLoadMore.await()
-                } finally {
+                } catch (error: CancellationException) {
                     loadMoreWasCancelled = true
+                    throw error
                 }
                 2 -> successPage(matches = listOf(matchSummary(id = "fresh")))
                 else -> error("Unexpected request for page $page")

@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,8 +13,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
@@ -31,7 +33,7 @@ fun MatchCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(VlrDimensions.CardCornerRadius)
+    val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
 
     Column(
         modifier = modifier
@@ -40,29 +42,57 @@ fun MatchCard(
             .clip(shape)
             .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape)
             .clickable(role = Role.Button, onClick = onClick)
+            .semantics { stateDescription = match.status.accessibilityLabel() }
             .padding(VlrDimensions.Space3),
-        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
+        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
             verticalAlignment = Alignment.Top,
         ) {
-            StatusChip(
-                status = match.status.toChipStatus(),
-                label = match.status.displayLabel(),
-            )
-            Spacer(Modifier.weight(1f))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = match.timeLabel,
-                    style = VlrTheme.typography.bodyStrong,
-                    color = VlrTheme.colors.textPrimary,
-                )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
+            ) {
+                if (match.status == MatchStatus.UPCOMING) {
+                    Text(
+                        text = match.timeLabel,
+                        style = VlrTheme.typography.label,
+                        color = VlrTheme.colors.textSecondary,
+                    )
+                } else {
+                    StatusChip(
+                        status = match.status.toChipStatus(),
+                        label = match.status.displayLabel(),
+                    )
+                }
                 match.relativeTimeLabel?.let { relativeTimeLabel ->
                     Text(
                         text = relativeTimeLabel,
                         style = VlrTheme.typography.labelSmall,
                         color = VlrTheme.colors.textSecondary,
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
+            ) {
+                Text(
+                    text = match.event.name,
+                    style = VlrTheme.typography.labelSmall,
+                    color = VlrTheme.colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                match.event.series?.let { series ->
+                    Text(
+                        text = series,
+                        style = VlrTheme.typography.labelSmall,
+                        color = VlrTheme.colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -73,42 +103,42 @@ fun MatchCard(
             horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = match.homeTeam.name,
+            val hasScore = match.homeScore != null && match.awayScore != null
+            TeamName(
+                name = match.homeTeam.name,
                 modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
             )
             Text(
                 text = match.scoreOrScheduledLabel(),
-                style = VlrTheme.typography.sectionTitle,
+                modifier = Modifier.testTag(matchScoreTag(match.id)),
+                style = if (hasScore) VlrTheme.typography.display else VlrTheme.typography.label,
                 color = VlrTheme.colors.textPrimary,
                 textAlign = TextAlign.Center,
             )
-            Text(
-                text = match.awayTeam.name,
+            TeamName(
+                name = match.awayTeam.name,
                 modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
                 textAlign = TextAlign.End,
             )
         }
-
-        Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1)) {
-            Text(
-                text = match.event.name,
-                style = VlrTheme.typography.label,
-                color = VlrTheme.colors.textPrimary,
-            )
-            match.event.series?.let { series ->
-                Text(
-                    text = series,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
-                )
-            }
-        }
     }
+}
+
+@Composable
+private fun TeamName(
+    name: String,
+    modifier: Modifier,
+    textAlign: TextAlign = TextAlign.Start,
+) {
+    Text(
+        text = name,
+        modifier = modifier,
+        style = VlrTheme.typography.bodyStrong,
+        color = VlrTheme.colors.textPrimary,
+        textAlign = textAlign,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 private fun MatchSummary.scoreOrScheduledLabel(): String = when {
@@ -134,3 +164,21 @@ private fun MatchStatus.toChipStatus(): StatusChipStatus = when (this) {
     MatchStatus.CANCELLED -> StatusChipStatus.Cancelled
     MatchStatus.UNAVAILABLE -> StatusChipStatus.Unavailable
 }
+
+private fun MatchStatus.accessibilityLabel(): String = when (this) {
+    MatchStatus.POSTPONED -> "경기가 연기되었습니다"
+    MatchStatus.CANCELLED -> "경기가 취소되었습니다"
+    MatchStatus.UNAVAILABLE -> "경기 정보가 없습니다"
+    else -> statusOrTimeDescription()
+}
+
+private fun MatchStatus.statusOrTimeDescription(): String = when (this) {
+    MatchStatus.UPCOMING -> "예정 경기"
+    MatchStatus.LIVE -> "라이브 경기"
+    MatchStatus.COMPLETED -> "종료된 경기"
+    MatchStatus.POSTPONED -> "연기된 경기"
+    MatchStatus.CANCELLED -> "취소된 경기"
+    MatchStatus.UNAVAILABLE -> "경기 정보 없음"
+}
+
+internal fun matchScoreTag(matchId: String): String = "match-score-$matchId"

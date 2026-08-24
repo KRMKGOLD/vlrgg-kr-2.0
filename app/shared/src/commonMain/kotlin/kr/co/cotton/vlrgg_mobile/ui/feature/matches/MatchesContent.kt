@@ -1,22 +1,23 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.matches
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -25,10 +26,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.stateDescription
@@ -53,8 +54,10 @@ internal const val MATCHES_REFRESHING_TAG = "matches-refreshing"
 internal const val MATCHES_INITIAL_RETRY_TAG = "matches-initial-retry"
 internal const val MATCHES_PAGINATION_LOADING_TAG = "matches-pagination-loading"
 internal const val MATCHES_PAGINATION_RETRY_TAG = "matches-pagination-retry"
+internal const val MATCHES_TABS_TAG = "matches-tabs"
 
 internal fun matchCardTag(matchId: String): String = "match-card-$matchId"
+internal fun matchTabTag(tab: MatchesTab): String = "matches-tab-${tab.name.lowercase()}"
 
 @Composable
 fun MatchesContent(
@@ -180,11 +183,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
             modifier = Modifier.padding(
                 start = VlrDimensions.Space4,
                 end = VlrDimensions.Space4,
-                top = VlrDimensions.Space4,
+                top = VlrDimensions.Space2,
                 bottom = VlrDimensions.Space2,
             ),
-            style = VlrTheme.typography.label,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.sectionTitle,
+            color = VlrTheme.colors.textPrimary,
         )
     }
     items(
@@ -195,8 +198,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
             match = match,
             onClick = { onMatchClick(match.id) },
             modifier = Modifier.padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space1,
+                start = VlrDimensions.Space4,
+                end = VlrDimensions.Space4,
+                bottom = VlrDimensions.Space2,
             ),
         )
     }
@@ -235,18 +239,42 @@ private fun MatchesTabs(
     selectedTab: MatchesTab,
     onSelectTab: (MatchesTab) -> Unit,
 ) {
+    val controlShape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(VlrDimensions.MinimumTouchTarget),
+            .padding(
+                horizontal = VlrDimensions.Space4,
+                vertical = VlrDimensions.Space3,
+            )
+            .testTag(MATCHES_TABS_TAG)
+            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, controlShape)
+            .clip(controlShape)
+            .background(VlrTheme.colors.surfaceSubtle)
+            .padding(2.dp),
     ) {
         MatchesTab.entries.forEach { tab ->
             val selected = tab == selectedTab
+            val tabShape = RoundedCornerShape(VlrDimensions.Space1)
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
-                    .background(if (selected) VlrTheme.colors.surfaceSelected else Color.Transparent)
+                    .height(32.dp)
+                    .testTag(matchTabTag(tab))
+                    .clip(tabShape)
+                    .then(
+                        if (selected) {
+                            Modifier
+                                .background(VlrTheme.colors.surface)
+                                .border(
+                                    VlrDimensions.OutlineWidth,
+                                    VlrTheme.colors.outline,
+                                    tabShape,
+                                )
+                        } else {
+                            Modifier
+                        },
+                    )
                     .selectable(
                         selected = selected,
                         role = Role.Tab,
@@ -266,10 +294,6 @@ private fun MatchesTabs(
             }
         }
     }
-    HorizontalDivider(
-        thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.outline,
-    )
 }
 
 @Composable
@@ -351,6 +375,8 @@ private fun MatchesLoadMoreEffect(
     enabled: Boolean,
     onLoadMore: () -> Unit,
 ) {
+    val latestOnLoadMore = rememberUpdatedState(onLoadMore)
+
     LaunchedEffect(listState, enabled) {
         if (!enabled) return@LaunchedEffect
         snapshotFlow {
@@ -364,7 +390,7 @@ private fun MatchesLoadMoreEffect(
                     lastVisibleIndex != null &&
                     lastVisibleIndex >= totalItemsCount - 3
                 ) {
-                    onLoadMore()
+                    latestOnLoadMore.value()
                 }
             }
     }

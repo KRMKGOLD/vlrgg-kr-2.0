@@ -22,8 +22,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchPage
 import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
 
-@AssistedInject
-class MatchesViewModel(
+class MatchesViewModel @AssistedInject constructor(
     private val matchRepository: MatchRepository,
     @Assisted private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -180,7 +179,7 @@ class MatchesViewModel(
         val mergedGroups = mergeGroups(existingGroups, page.groups)
         val runtime = runtime(tab)
         runtime.currentPage = requestedPage
-        runtime.canLoadMore = page.groups.hasMatches()
+        runtime.canLoadMore = mergedGroups.matchCount() > existingGroups.matchCount()
 
         updateFeed(tab) {
             it.copy(
@@ -259,6 +258,8 @@ private fun List<MatchDateGroup>.toContentState(): MatchesFeedContentState =
     }
 
 private fun List<MatchDateGroup>.hasMatches(): Boolean = any { group -> group.matches.isNotEmpty() }
+
+private fun List<MatchDateGroup>.matchCount(): Int = sumOf { group -> group.matches.size }
 
 private fun mergeGroups(
     existing: List<MatchDateGroup>,

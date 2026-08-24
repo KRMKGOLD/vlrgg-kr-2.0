@@ -1,6 +1,8 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.matches.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.stateDescription
@@ -27,6 +30,7 @@ fun MatchesSkeleton(
             .fillMaxWidth()
             .clearAndSetSemantics { stateDescription = "경기 목록 불러오는 중" },
     ) {
+        SkeletonDateTitle()
         repeat(4) {
             SkeletonCard()
         }
@@ -39,36 +43,85 @@ private fun SkeletonCard() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space2)
-            .background(VlrTheme.colors.surfaceSubtle, RoundedCornerShape(VlrDimensions.CardCornerRadius))
+            .padding(
+                start = VlrDimensions.Space4,
+                end = VlrDimensions.Space4,
+                bottom = VlrDimensions.Space2,
+            )
+            .border(
+                VlrDimensions.OutlineWidth,
+                VlrTheme.colors.outline,
+                RoundedCornerShape(VlrDimensions.DefaultCornerRadius),
+            )
+            .background(VlrTheme.colors.surface, RoundedCornerShape(VlrDimensions.DefaultCornerRadius))
             .padding(VlrDimensions.Space3),
     ) {
-        Row {
+        Row(Modifier.fillMaxWidth()) {
             Box(
                 Modifier
-                    .width(56.dp)
-                    .height(24.dp)
+                    .width(52.dp)
+                    .height(16.dp)
                     .background(VlrTheme.colors.skeleton, shape),
             )
             Spacer(Modifier.weight(1f))
             Box(
                 Modifier
-                    .width(72.dp)
+                    .width(88.dp)
                     .height(16.dp)
                     .background(VlrTheme.colors.skeleton, shape),
             )
         }
-        Spacer(Modifier.height(VlrDimensions.Space4))
+        Spacer(Modifier.height(VlrDimensions.Space2))
+        SkeletonTeamsRow(shape)
+    }
+}
+
+@Composable
+private fun SkeletonDateTitle() {
+    Box(
+        modifier = Modifier
+            .padding(
+                start = VlrDimensions.Space4,
+                top = VlrDimensions.Space2,
+                bottom = VlrDimensions.Space2,
+            )
+            .width(48.dp)
+            .height(20.dp)
+            .background(VlrTheme.colors.skeleton, RoundedCornerShape(VlrDimensions.Space1)),
+    )
+}
+
+@Composable
+private fun SkeletonTeamsRow(shape: RoundedCornerShape) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SkeletonTeam(shape, Modifier.weight(1f))
         Box(
-            Modifier
-                .fillMaxWidth()
+            modifier = Modifier
+                .width(32.dp)
                 .height(20.dp)
                 .background(VlrTheme.colors.skeleton, shape),
         )
-        Spacer(Modifier.height(VlrDimensions.Space3))
+        SkeletonTeam(shape, Modifier.weight(1f), reversed = true)
+    }
+}
+
+@Composable
+private fun SkeletonTeam(
+    shape: RoundedCornerShape,
+    modifier: Modifier,
+    reversed: Boolean = false,
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = if (reversed) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
         Box(
-            Modifier
-                .fillMaxWidth(0.65f)
+            modifier = Modifier
+                .width(40.dp)
                 .height(16.dp)
                 .background(VlrTheme.colors.skeleton, shape),
         )
