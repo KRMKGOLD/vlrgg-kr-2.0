@@ -32,6 +32,7 @@ fun MatchCard(
     match: MatchSummary,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showEventName: Boolean = true,
 ) {
     val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
 
@@ -79,13 +80,15 @@ fun MatchCard(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
             ) {
-                Text(
-                    text = match.event.name,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (showEventName) {
+                    Text(
+                        text = match.event.name,
+                        style = VlrTheme.typography.labelSmall,
+                        color = VlrTheme.colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 match.event.series?.let { series ->
                     Text(
                         text = series,
