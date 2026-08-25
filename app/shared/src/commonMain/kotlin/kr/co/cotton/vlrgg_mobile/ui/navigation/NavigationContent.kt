@@ -92,7 +92,7 @@ fun NavigationContent(
             onMatchClick = { matchId -> onPush(MatchDetail(matchId)) },
             onNewsClick = { articleId, slug -> onPush(NewsDetail(articleId, slug)) },
             onPlayerClick = { playerId -> onPush(PlayerDetail(playerId)) },
-            modifier = Modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize(),
         )
 
         is MatchDetail,

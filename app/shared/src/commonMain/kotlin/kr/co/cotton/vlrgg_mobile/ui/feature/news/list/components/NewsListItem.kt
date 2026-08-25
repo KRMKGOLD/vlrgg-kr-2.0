@@ -32,7 +32,7 @@ fun NewsListItem(
             .fillMaxWidth(),
     ) {
         val desc = buildString {
-            news.author?.let { author ->
+            news.author?.takeIf(String::isNotBlank)?.let { author ->
                 append(author)
                 append(" · ")
             }

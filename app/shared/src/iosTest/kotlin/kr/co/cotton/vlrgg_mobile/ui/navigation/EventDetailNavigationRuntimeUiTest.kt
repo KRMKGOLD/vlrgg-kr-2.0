@@ -2,6 +2,8 @@ package kr.co.cotton.vlrgg_mobile.ui.navigation
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
@@ -64,7 +66,13 @@ class EventDetailNavigationRuntimeUiTest {
                             onNavigationStateAvailable = { navigationState = it },
                             entryContent = { destination, onSearch, onPush, onBack ->
                                 if (destination is EventDetail) {
-                                    NavigationContent(destination, onSearch, onPush, onBack)
+                                    NavigationContent(
+                                        destination = destination,
+                                        onSearch = onSearch,
+                                        onPush = onPush,
+                                        onBack = onBack,
+                                        modifier = Modifier.testTag(EVENT_DETAIL_ROUTE_TAG),
+                                    )
                                 } else {
                                     Text("fixture:${destination.destinationDescriptor.marker}")
                                 }
@@ -75,6 +83,7 @@ class EventDetailNavigationRuntimeUiTest {
             }
 
             runOnIdle { requireNotNull(navigationState).push(EventDetail(EVENT_ID)) }
+            onNodeWithTag(EVENT_DETAIL_ROUTE_TAG).assertExists()
             onNodeWithTag(eventDetailTabTag(EventDetailTab.NEWS)).performClick()
             onNode(hasScrollToNodeAction()).performScrollToNode(hasText("News 24"))
             onNodeWithText("News 24").assertExists()
@@ -158,5 +167,6 @@ class EventDetailNavigationRuntimeUiTest {
 
     private companion object {
         const val EVENT_ID = "100"
+        const val EVENT_DETAIL_ROUTE_TAG = "event-detail-route"
     }
 }
