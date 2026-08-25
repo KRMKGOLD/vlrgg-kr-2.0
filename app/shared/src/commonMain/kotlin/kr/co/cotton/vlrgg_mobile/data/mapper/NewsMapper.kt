@@ -78,7 +78,7 @@ private fun NewsLinkKindDto.toDomain(): NewsLinkKind = when (this) {
     NewsLinkKindDto.EXTERNAL -> NewsLinkKind.EXTERNAL
 }
 
-private fun String.toArticleReferenceSegments(): Pair<String, String> {
+internal fun String.toArticleReferenceSegments(): Pair<String, String> {
     val separatorIndex = indexOf('/')
     require(
         separatorIndex > 0 &&

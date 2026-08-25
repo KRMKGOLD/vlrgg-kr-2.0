@@ -26,7 +26,7 @@ private fun MatchDateGroupDto.toDomain(): MatchDateGroup = MatchDateGroup(
     matches = matches.map(MatchSummaryDto::toDomain),
 )
 
-private fun MatchSummaryDto.toDomain(): MatchSummary = MatchSummary(
+internal fun MatchSummaryDto.toDomain(): MatchSummary = MatchSummary(
     id = id,
     status = status.toDomain(),
     timeLabel = timeLabel,
