@@ -4,7 +4,7 @@
 
 이 문서는 Android와 iOS가 공유하는 앱 runtime의 composition, lifecycle, configuration, navigation 정책을 기록한다. feature 화면의 제품 요구사항은 `docs/feature/`가 소유한다.
 
-현재 공통 앱에는 Metro DI와 Compose Multiplatform Navigation 3 기반 runtime이 구현되어 있다. Issue #37 N1부터 News, Matches, MyPage, Events, About은 독립 saved back stack과 독립 entry decorator state를 가진다. News, Matches, Events root는 실제 feature UI와 data에 연결되어 있고, Match Detail은 상태 보존 검증을 위한 placeholder다. 나머지 marker 화면은 feature 구현 완료를 의미하지 않는다.
+현재 공통 앱에는 Metro DI와 Compose Multiplatform Navigation 3 기반 runtime이 구현되어 있다. Issue #37 N1부터 News, Matches, MyPage, Events, About은 독립 saved back stack과 독립 entry decorator state를 가진다. News, Matches, Events root와 News/Event Detail은 실제 feature UI와 data에 연결되어 있고, Match Detail은 상태 보존 검증을 위한 placeholder다. 나머지 marker 화면은 feature 구현 완료를 의미하지 않는다.
 
 이 문서에서 runtime은 앱 composition과 lifetime 정책을 의미하며 별도 `AppRuntime` wrapper 타입을 뜻하지 않는다.
 
@@ -14,7 +14,7 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 
 1. Android `Application`과 iOS SwiftUI `iOSApp`의 reference-type owner가 Compose recomposition 경로 밖에서 `AppGraph`를 생성한다. Android는 process-owned lazy graph, iOS는 `@StateObject`가 유지하는 app-owned graph를 사용한다.
 2. 플랫폼 host는 graph를 공통 `App(graph)`에 전달한다. 공통 `App`은 graph의 `metroViewModelFactory`를 `LocalMetroViewModelFactory`에 제공한 뒤 `VlrTheme`과 `AppNavigation()`을 연결하며 graph를 UI 하위 계층으로 전달하거나 새로 만들지 않는다.
-3. Metro `AppGraph`는 `ViewModelGraph`를 확장하고 app-scoped `AppViewModelFactory`는 공식 `MetroViewModelFactory`를 구현한다. News, Events, MyPage의 ViewModel과 Matches의 assisted ViewModel factory가 keyed map multibinding으로 provider를 기여하며 각 Screen의 `metroViewModel()`이 Navigation 3 entry의 `ViewModelStoreOwner`에 instance를 보관한다. Matches는 `CreationExtras`에서 만든 `SavedStateHandle`을 assisted factory로 받아 선택 탭을 복원한다.
+3. Metro `AppGraph`는 `ViewModelGraph`를 확장하고 app-scoped `AppViewModelFactory`는 공식 `MetroViewModelFactory`를 구현한다. News, Events, MyPage의 ViewModel과 Matches의 assisted ViewModel factory, News/Event Detail의 manual assisted factory가 keyed map multibinding으로 provider를 기여하며 각 Screen의 ViewModel 조회가 Navigation 3 entry의 `ViewModelStoreOwner`에 instance를 보관한다. Matches와 Event Detail은 `CreationExtras`에서 만든 `SavedStateHandle`로 선택 탭을 복원하고, Event Detail은 같은 manual assisted creation에서 runtime `eventId`도 전달한다.
 4. `NetworkConfig`와 app-scoped Ktor client provider는 graph에 연결되어 있고 News, Matches, Events repository가 이를 사용한다. 별도 `AppRuntime`이나 `shutdown()` API는 확정 계약에 포함하지 않는다.
 
 ## H1-K0 확정 Runtime kernel 계약
@@ -92,6 +92,9 @@ Pagination은 여러 feature에서 사용될 가능성이 있지만 아직 100% 
 - `EventsViewModelTest`: Events 최초 로딩·재시도·새로고침 중 콘텐츠 유지와 취소된 요청의 늦은 결과 무시
 - `EventsContentUiTest` (iOS): Events 상태별 rendering, event click, 새로고침 중 콘텐츠·progress 표시
 - `MatchesNavigationRuntimeUiTest` (iOS): 실제 Matches root의 두 feed·선택 탭·탭별 scroll·loaded data를 root/detail 왕복에서 보존하고 Match Detail key를 검증
+- `EventDetailViewModelTest`: identity failure와 tab-local failure 분리, Matches 기본·lazy tab load·중복 요청 방지·독립 retry·selected tab `SavedStateHandle` 복원
+- `EventDetailContentUiTest` (iOS): Matches/News/Stats 상태와 navigation callback, Stats metric 순서·null marker·Player identity target 검증
+- `EventDetailNavigationRuntimeUiTest` (iOS): Event Detail selected tab·loaded data·scroll을 root/News Detail 왕복에서 보존하고 News Detail key를 검증
 - `AppGraphAndroidHostTest`: MetroX known/missing provider lookup과 entry별 `ViewModelStoreOwner` scope
 - `NetworkBindingTest`: graph 내부 client singleton, graph 간 client 독립성과 요청 base URL 적용
 - `RepositoryResultTest`: success/failure 변환과 `CancellationException` 재전파
