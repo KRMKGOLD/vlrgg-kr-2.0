@@ -40,7 +40,8 @@ class DestinationDescriptorTest {
             assertEquals(
                 destination === NewsRoot ||
                     destination === MatchesRoot ||
-                    destination === MyPageRoot,
+                    destination === MyPageRoot ||
+                    destination === EventsRoot,
                 destination.destinationDescriptor.requiresEntryScope,
                 "Unexpected entry scope policy for ${destination::class}",
             )
@@ -60,13 +61,13 @@ class DestinationDescriptorTest {
     }
 
     private fun contentPolicy(destination: AppNavKey): ContentPolicy = when (destination) {
-        EventsRoot,
         AboutRoot,
         -> ContentPolicy.ROOT_PLACEHOLDER
 
         NewsRoot -> ContentPolicy.NEWS
         MatchesRoot -> ContentPolicy.MATCHES
         MyPageRoot -> ContentPolicy.MY_PAGE
+        EventsRoot -> ContentPolicy.EVENTS
         Search -> ContentPolicy.SEARCH
         is NewsDetail,
         is MatchDetail,
@@ -82,6 +83,7 @@ class DestinationDescriptorTest {
         NEWS,
         MATCHES,
         MY_PAGE,
+        EVENTS,
         SEARCH,
         DETAIL,
     }

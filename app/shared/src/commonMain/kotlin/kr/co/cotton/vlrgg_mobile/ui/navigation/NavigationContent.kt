@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kr.co.cotton.vlrgg_mobile.ui.feature.events.EventsScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MatchesScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.mypage.MyPageScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.detail.NewsDetailScreen
@@ -54,7 +55,12 @@ fun NavigationContent(
             modifier = modifier.fillMaxSize(),
         )
 
-        EventsRoot,
+        EventsRoot -> EventsScreen(
+            onSearch = onSearch,
+            onEventClick = { eventId -> onPush(EventDetail(eventId = eventId)) },
+            modifier = modifier.fillMaxSize(),
+        )
+
         AboutRoot,
             -> RootContent(
             destination = destination,

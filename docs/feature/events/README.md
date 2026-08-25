@@ -2,14 +2,16 @@
 
 ## 목적과 사용자 가치
 
-Events 기능은 사용자가 Valorant 대회의 현재 진행 상태를 훑고, 선택한 Event의 경기·뉴스·통계를 탭으로 탐색하게 한다. Event List는 진행 중·예정·종료/중단 Event를 구분해 발견하는 진입점이며, Event Detail은 `Matches`(기본), `News`, `Stats` 탭을 연결하는 허브다.
+Events 기능의 현재 E1 구현은 사용자가 Valorant 대회의 현재 진행 상태를 훑고 Event를 발견하는 목록이다. Event Detail은 장차 `Matches`(기본), `News`, `Stats` 탭을 연결하는 후속 허브로 확장한다.
 
 이 문서는 제품 동작을 정의한다. 색상, 타이포그래피, 공통 컴포넌트와 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
-## 구현 상태 (2026-07-22)
+## 구현 상태 (2026-08-24)
 
 - **Backend: 구현 완료.** Event 목록, 상세, Matches, News, Stats endpoint와 scraper/parser/mapper 및 fixture/route 테스트가 구현되어 있다.
-- **App: 미구현.** Event 목록·상세 Compose UI, 섹션별 상태/재시도, 관련 Detail navigation은 아직 구현되어 있지 않다.
+- **App E1 — Event List: 구현 완료.** `GET /api/v1/events` 응답을 Domain Model로 매핑해 `Ongoing`, `Upcoming`, `Completed / Paused` 세 그룹을 항상 표시한다. 각 Event row는 이름, 상태 chip과 원본에 있는 경우 이미지·일정/기간(`dateLabel`)·지역(`regionCode`)을 표시하며, 선택하면 Events root back stack에 Event Detail placeholder route를 push한다.
+- **E1 화면 상태: 구현 완료.** 최초 로딩 skeleton, 전체 empty, 전체 오류와 재시도, pull-to-refresh를 제공한다. 한 상태 그룹이 비어도 해당 그룹의 빈 안내를 표시하고 다른 그룹의 콘텐츠는 유지한다.
+- **App 후속 범위: 미구현.** Event Detail Compose UI와 Matches/News/Stats 탭, 탭별 loading·empty·error·재시도, Match/News Detail 이동, 탭별 내부 목록·scroll 복원, Matches의 Event 참조 및 Search의 Event 결과를 통한 문맥 진입은 후속 작업이다.
 
 ## MVP 범위
 
@@ -22,7 +24,7 @@ Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 - 각 항목은 Event를 식별하고 상태를 판단하는 데 필요한 요약 정보를 제공한다.
 - 항목 선택 시 Event Detail로 이동한다.
 
-### Event Detail
+### Event Detail (후속 요구사항)
 
 - Event 기본 정보
 - `Matches`, `News`, `Stats` 탭 (`Matches` 기본)
@@ -34,6 +36,8 @@ Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 
 - Event List 2페이지 이후의 페이지네이션
 - VCT, VCL, Game Changers, Americas, EMEA, Pacific, China 필터
+- E1 범위의 Event Detail 화면 및 Matches, News, Stats 탭 구현
+- E1 범위의 Matches Event 참조 및 Search Event 결과를 통한 Event Detail 진입
 - Overview 확장 콘텐츠
 - 브래킷
 - 참가 팀 전용 섹션
@@ -43,20 +47,23 @@ Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 
 ## 진입과 종료 내비게이션
 
-### 진입
+### 현재 E1 진입
 
-- 기본 진입: 하단 `Events` 탭
-- 문맥 진입: Matches의 Event 참조
-- 탐색 진입: Search의 Event 결과
+- 현재 E1 기본 진입: 하단 `Events` 탭
+- Event List row 선택 시 Event Detail placeholder route를 push
+
+### Event Detail 후속 진입
+
+- Matches의 Event 참조
+- Search의 Event 결과
 
 Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않는다.
 
-### 종료와 하위 이동
+### Event Detail 후속 종료와 하위 이동
 
-- Event List의 Event를 선택하면 Event Detail을 push한다.
 - Event Detail의 Match를 선택하면 Match Detail을 push한다.
 - Event Detail의 News를 선택하면 News Detail을 push한다.
-- 뒤로 가기는 직전 화면과 그 화면의 목록 위치·필터·탭 상태를 복원한다.
+- 뒤로 가기는 직전 화면과 Event Detail의 탭별 목록 위치·필터·탭 상태를 복원한다.
 - 공유 Top App Bar의 Search 액션은 하단 `Events` 탭에서 진입한 Event List/root에만 노출한다. Event Detail은 Back-only다.
 
 ## 화면과 콘텐츠 계층
@@ -69,7 +76,7 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 4. `Completed / Paused`
 5. 각 상태 그룹의 Event 요약 목록
 
-비어 있는 상태 그룹은 다른 그룹에 데이터가 있다면 화면 전체 오류로 취급하지 않는다. 상태 그룹 자체를 숨길지 빈 안내를 표시할지는 Stitch 화면 설계에서 일관된 한 방식으로 정하되, 전체 목록이 비었는지는 명확하게 구분한다.
+세 상태 그룹은 항상 표시한다. 비어 있는 상태 그룹은 빈 안내를 표시하고 다른 그룹에 데이터가 있다면 화면 전체 오류로 취급하지 않으며, 전체 목록이 비었는지는 명확하게 구분한다.
 
 ### Event Detail
 
