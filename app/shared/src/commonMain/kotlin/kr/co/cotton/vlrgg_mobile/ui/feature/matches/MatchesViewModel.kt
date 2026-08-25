@@ -72,10 +72,9 @@ class MatchesViewModel @AssistedInject constructor(
         runtime.resetForFirstPage()
 
         updateFeed(tab) {
-            it.copy(
+            MatchesFeedUiState(
+                contentState = MatchesFeedContentState.Loading,
                 isRefreshing = true,
-                isLoadingMore = false,
-                hasPaginationError = false,
             )
         }
         requestFirstPage(tab)

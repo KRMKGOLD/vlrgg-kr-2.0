@@ -107,28 +107,18 @@ class MatchesViewModelTest {
         val repository = FakeMatchRepository(
             upcomingResults = listOf(
                 successPage(matches = listOf(matchSummary(id = "existing"))),
-                AppResult.Failure,
                 successPage(matches = listOf(matchSummary(id = "refreshed"))),
             ),
         )
         val viewModel = MatchesViewModel(repository)
         advanceUntilIdle()
 
-        viewModel.loadMore()
-        advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.upcomingLive.hasPaginationError)
-
         viewModel.refresh()
 
         assertTrue(viewModel.uiState.value.upcomingLive.isRefreshing)
-        assertEquals(
-            listOf("existing"),
-            viewModel.uiState.value.upcomingLive.matchIds(),
-        )
-        assertFalse(viewModel.uiState.value.upcomingLive.isLoadingMore)
-        assertFalse(viewModel.uiState.value.upcomingLive.hasPaginationError)
+        assertEquals(MatchesFeedContentState.Loading, viewModel.uiState.value.upcomingLive.contentState)
         advanceUntilIdle()
-        assertEquals(listOf(1, 2, 1), repository.requestedUpcomingPages)
+        assertEquals(listOf(1, 1), repository.requestedUpcomingPages)
         assertEquals(listOf("refreshed"), viewModel.uiState.value.upcomingLive.matchIds())
         assertFalse(viewModel.uiState.value.upcomingLive.isRefreshing)
     }

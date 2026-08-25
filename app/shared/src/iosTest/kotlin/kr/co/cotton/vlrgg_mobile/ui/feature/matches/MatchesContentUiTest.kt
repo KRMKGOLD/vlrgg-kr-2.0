@@ -178,21 +178,20 @@ class MatchesContentUiTest {
     }
 
     @Test
-    fun activeRefreshKeepsCardsAndExposesRefreshProgressState() = runComposeUiTest {
+    fun activeRefreshClearsCardsAndExposesLoadingProgressState() = runComposeUiTest {
         setContent {
             MatchesContentFixture(
                 uiState = MatchesUiState(
                     upcomingLive = MatchesFeedUiState(
-                        contentState = MatchesFeedContentState.Content(
-                            listOf(MatchDateGroup("TODAY, AUG 23", listOf(upcomingMatch))),
-                        ),
+                        contentState = MatchesFeedContentState.Loading,
                         isRefreshing = true,
                     ),
                 ),
             )
         }
 
-        onNodeWithText("Paper Rex").assertIsDisplayed()
+        onNodeWithText("Paper Rex").assertDoesNotExist()
+        onNodeWithTag(MATCHES_LOADING_TAG).assertExists()
         onNodeWithTag(MATCHES_REFRESHING_TAG).assertExists()
     }
 

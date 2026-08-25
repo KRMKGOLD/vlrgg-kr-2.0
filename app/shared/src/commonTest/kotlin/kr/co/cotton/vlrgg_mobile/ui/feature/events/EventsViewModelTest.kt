@@ -136,6 +136,33 @@ class EventsViewModelTest {
     }
 
     @Test
+    fun refreshFailureWhileInitialLoadingExposesErrorAndCanRetry() = runViewModelTest {
+        val recovered = EventList(listOf(event(id = "recovered")), emptyList(), emptyList())
+        val initialRequest = CompletableDeferred<AppResult<EventList>>()
+        val repository = FakeEventRepository { callIndex ->
+            when (callIndex) {
+                0 -> initialRequest.await()
+                1 -> AppResult.Failure
+                2 -> AppResult.Success(recovered)
+                else -> error("Unexpected event list request")
+            }
+        }
+        val viewModel = EventsViewModel(repository)
+        runCurrent()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(EventsUiState(EventsContentState.Error), viewModel.uiState.value)
+
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(3, repository.requestCount)
+        assertEquals(EventsUiState(EventsContentState.Content(recovered)), viewModel.uiState.value)
+    }
+
+    @Test
     fun concurrentRefreshRequestsRepositoryOnlyOnce() = runViewModelTest {
         val initial = EventList(listOf(event(id = "initial")), emptyList(), emptyList())
         val pendingRefresh = CompletableDeferred<AppResult<EventList>>()

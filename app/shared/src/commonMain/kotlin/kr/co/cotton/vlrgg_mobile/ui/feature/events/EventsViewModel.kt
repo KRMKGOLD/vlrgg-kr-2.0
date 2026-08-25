@@ -59,8 +59,9 @@ class EventsViewModel(
 
                 AppResult.Failure -> {
                     if (requestGeneration != generation) return@launch
-                    _uiState.value = if (isRefresh) {
-                        _uiState.value.copy(isRefreshing = false)
+                    val state = _uiState.value
+                    _uiState.value = if (isRefresh && state.contentState is EventsContentState.Content) {
+                        state.copy(isRefreshing = false)
                     } else {
                         EventsUiState(contentState = EventsContentState.Error)
                     }
