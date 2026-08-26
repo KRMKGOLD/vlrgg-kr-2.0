@@ -57,7 +57,7 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | 목록 구현 완료 — remote DTO/Domain/Data 계층, 목록 상태·pagination·pull-to-refresh UI, News Detail placeholder 이동. 상세 본문 UI와 내부 링크 navigation은 미구현 |
 | Matches | 콘텐츠 조회 구현 완료 — Upcoming/Results 목록과 Match Detail API | Feature 미구현 — root/detail key와 marker만 있고 실제 목록·상세 UI와 data 연동 없음 |
 | Events | 구현 완료 — 목록, 상세, Matches, News, Stats API | Feature 미구현 |
-| Search | 구현 완료 — Series/Event/Team/Player 결과 API | Feature 미구현 |
+| Search | 구현 완료 — Series/Event/Team/Player 결과 API | 구현 완료 — 명시적 제출, 5개 상태, 지원 타입 Detail 이동 |
 | Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | Feature 미구현 |
 | Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | Feature 미구현 |
 | Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | Feature 미구현 |

@@ -6,10 +6,10 @@ Search는 사용자가 이름이나 키워드로 Series, Event, Team, Player를 
 
 이 문서는 제품 동작을 정의한다. 시각 언어와 공통 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
-## 구현 상태 (2026-07-22)
+## 구현 상태 (2026-08-26)
 
 - **Backend: 구현 완료.** `GET /api/v1/search?q={query}`의 입력 검증, Series/Event/Team/Player response 정규화, parser/route 테스트가 구현되어 있다.
-- **App: 미구현.** Search Screen, 입력·상태 관리, 타입별 결과 렌더링과 Detail navigation은 아직 구현되어 있지 않다.
+- **App: 구현 완료.** 명시적 제출 기반 Search Screen, 30자 입력 검증, 5개 화면 상태, 지원 타입별 결과 렌더링과 Detail navigation을 구현했다.
 
 ## MVP 범위
 
@@ -210,18 +210,18 @@ https://www.vlr.gg/search/?q=search_keyword
 
 ## 수용 기준
 
-- [ ] `News`, `Matches`, `MyPage`, `Events`, `About` 모든 최상위 Top App Bar에서 Search에 진입할 수 있다.
-- [ ] Search 진입이 하단 navigation의 선택 상태를 바꾸지 않는다.
-- [ ] 검색 결과가 Series, Event, Team, Player 타입으로 명확히 구분된다.
-- [ ] 각 결과가 타입에 맞는 Detail 화면으로 이동한다.
-- [ ] Search에서 뒤로 가면 진입 전 화면과 스크롤·선택·필터 상태가 복원된다.
-- [ ] Detail에서 Search로 돌아오면 검색어와 결과가 복원된다.
-- [ ] Search 독립 화면은 Initial, Loading, Populated, Empty, Error 5개뿐이다.
-- [ ] optional metadata 누락은 Populated 결과의 annotation으로 처리하고 별도 Partial/Stale 화면을 만들지 않는다.
-- [ ] 앱 입력은 30자를 넘지 않고, 빈 입력·기호만 입력된 경우 명시적 제출 action이 비활성화된다.
-- [ ] 검색은 keyboard Search 또는 visible Search action 제출 시에만 실행되며 debounce/per-keystroke 요청이 없다.
-- [ ] 결과는 이미지 없는 divider row와 text type label로 Series/Event/Team/Player 그룹을 구분하고 전체 row가 클릭된다.
-- [ ] 검색 실패가 검색 결과 없음으로 표시되지 않는다.
+- [x] `News`, `Matches`, `MyPage`, `Events`, `About` 모든 최상위 Top App Bar에서 Search에 진입할 수 있다.
+- [x] Search 진입이 하단 navigation의 선택 상태를 바꾸지 않는다.
+- [x] 검색 결과가 Series, Event, Team, Player 타입으로 명확히 구분된다.
+- [x] 각 결과가 타입에 맞는 Detail 화면으로 이동한다.
+- [x] Search에서 뒤로 가면 진입 전 화면과 스크롤·선택·필터 상태가 복원된다.
+- [x] Detail에서 Search로 돌아오면 검색어와 결과가 복원된다.
+- [x] Search 독립 화면은 Initial, Loading, Populated, Empty, Error 5개뿐이다.
+- [x] optional metadata 누락은 Populated 결과의 annotation으로 처리하고 별도 Partial/Stale 화면을 만들지 않는다.
+- [x] 앱 입력은 30자를 넘지 않고, 빈 입력·기호만 입력된 경우 명시적 제출 action이 비활성화된다.
+- [x] 검색은 keyboard Search 또는 visible Search action 제출 시에만 실행되며 debounce/per-keystroke 요청이 없다.
+- [x] 결과는 이미지 없는 divider row와 text type label로 Series/Event/Team/Player 그룹을 구분하고 전체 row가 클릭된다.
+- [x] 검색 실패가 검색 결과 없음으로 표시되지 않는다.
 - [x] parser fixture가 네 지원 타입, 결과 없음, 누락 보조 정보, 예상하지 못한 타입을 검증한다.
 - [x] 서버 오류가 raw HTML, selector 또는 내부 예외 정보를 노출하지 않는다.
 
