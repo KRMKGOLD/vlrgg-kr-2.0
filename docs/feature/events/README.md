@@ -234,8 +234,10 @@ https://www.vlr.gg/event/stats/2955/esports-world-cup-2026-pacific-qualifier
 
 ## 수용 기준
 
-- [ ] Event List가 `All` 첫 페이지의 Event를 `Ongoing`, `Upcoming`, `Completed / Paused`로 구분해 표시한다.
-- [ ] 하단 `Events` 탭, Matches의 Event 참조, Search의 Event 결과에서 Event Detail에 진입할 수 있다.
+- [x] Event List가 `All` 첫 페이지의 Event를 `Ongoing`, `Upcoming`, `Completed / Paused`로 구분해 표시한다.
+- [x] 하단 `Events` 탭의 Event List row에서 Event Detail에 진입할 수 있다.
+- [ ] Matches의 Event 참조에서 Event Detail에 진입할 수 있다.
+- [ ] Search의 Event 결과에서 Event Detail에 진입할 수 있다.
 - [ ] Team Detail과 Player Detail에는 Event 직접 이동 요소가 없다.
 - [x] Event Detail이 `Matches`, `News`, `Stats` 탭을 제공하고 `Matches`가 기본이며 탭별 상태·스크롤을 보존한다.
 - [x] Event Stats가 `No stats available`을 반환하면 정상 empty state를 표시한다.
