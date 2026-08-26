@@ -1,9 +1,11 @@
 # Player 기능 기획
 
-## 구현 상태 (2026-07-22)
+## 구현 상태 (2026-08-26)
 
 - **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 전체 기간 Player 정보, 현재 팀, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
-- **App: 미구현.** Player Detail UI, 로컬 즐겨찾기, MyPage 연동과 Team/Match navigation은 아직 구현되어 있지 않다.
+- **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있다.
+- **App UI: P1 예정.** Player Detail UI와 Team/Match navigation은 후속 P1 PR에서 구현한다.
+- **Favorite: #43 예정.** 로컬 즐겨찾기와 MyPage 연동은 Issue #43 범위다.
 
 ## 목적과 사용자 가치
 
