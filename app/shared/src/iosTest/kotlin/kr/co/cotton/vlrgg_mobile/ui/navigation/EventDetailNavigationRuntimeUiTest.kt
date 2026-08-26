@@ -33,6 +33,7 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.eventDetailTabTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 
 @OptIn(ExperimentalTestApi::class)
 class EventDetailNavigationRuntimeUiTest {
@@ -99,9 +100,12 @@ class EventDetailNavigationRuntimeUiTest {
             assertEquals(1, repository.newsRequests)
 
             onNodeWithText("News 24").performClick()
+            val newsDetailEntry = assertIs<OverlayNavEntry>(
+                runOnIdle { requireNotNull(navigationState).currentBackStack.last() },
+            )
             assertEquals(
                 NewsDetail(articleId = "124", slug = "news-24"),
-                runOnIdle { requireNotNull(navigationState).currentBackStack.last() },
+                newsDetailEntry.destination,
             )
             runOnIdle { requireNotNull(navigationState).popOverlay() }
             onNodeWithText("News 24").assertExists()
