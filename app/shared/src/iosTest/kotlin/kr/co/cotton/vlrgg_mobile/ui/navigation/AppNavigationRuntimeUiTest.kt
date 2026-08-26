@@ -9,6 +9,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +58,47 @@ class AppNavigationRuntimeUiTest {
             onNodeWithText("entry-content-version:0").assertExists()
             runOnIdle { contentVersion = 1 }
             onNodeWithText("entry-content-version:1").assertExists()
+        }
+    }
+
+    @Test
+    fun selectingAnotherRootRetainsTheOutgoingHostOnlyForTheRootFade() {
+        var navigationState: AppNavigationState? = null
+        val composedDestinations = mutableListOf<String>()
+        val disposedDestinations = mutableListOf<String>()
+
+        runComposeUiTest {
+            setContent {
+                AppNavigationRuntime(
+                    onNavigationStateAvailable = { navigationState = it },
+                    entryContent = { destination, _, _, _ ->
+                        DisposableEffect(destination) {
+                            composedDestinations += destination.destinationDescriptor.title
+                            onDispose {
+                                disposedDestinations += destination.destinationDescriptor.title
+                            }
+                        }
+                        Text("root:${destination.destinationDescriptor.title}")
+                    },
+                )
+            }
+
+            onNodeWithText("root:My Page").assertExists()
+            mainClock.autoAdvance = false
+            runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
+            mainClock.advanceTimeByFrame()
+
+            onNodeWithText("root:News").assertExists()
+            runOnIdle {
+                assertEquals(listOf("My Page", "News"), composedDestinations)
+                assertFalse("My Page" in disposedDestinations)
+            }
+
+            mainClock.advanceTimeBy(RootSelectionFadeDurationMillis.toLong() + 100)
+            waitForIdle()
+
+            onNodeWithText("root:News").assertExists()
+            assertTrue("My Page" in disposedDestinations)
         }
     }
 

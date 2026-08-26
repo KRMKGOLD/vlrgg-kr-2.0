@@ -1,5 +1,10 @@
 package kr.co.cotton.vlrgg_mobile.ui.navigation
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -8,6 +13,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -97,8 +103,8 @@ internal fun AppNavigationRuntime(
     }
 
     // Navigation 3 requires a separate rememberDecoratedNavEntries call and decorator instances
-    // per back stack. The content keys include their owner root to keep overlays' saveable and
-    // ViewModel state independent even when two roots contain the same destination key.
+    // per back stack. The content keys include their owner root and entry instance to keep
+    // overlays' saveable and ViewModel state independent even when destinations are repeated.
     val rootEntries: Map<RootNavKey, List<NavEntry<NavKey>>> = rootBackStacks.mapValues { (root, backStack) ->
         rememberRootDecoratedEntries(root, backStack, entryProvider)
     }
@@ -115,13 +121,29 @@ internal fun AppNavigationRuntime(
             }
         },
     ) { contentPadding ->
-        NavDisplay(
-            entries = rootEntries.getValue(selectedRoot),
-            modifier = Modifier.padding(contentPadding),
-            onBack = popOverlay,
-        )
+        // A bottom-navigation selection changes peer roots rather than pushing a Navigation 3
+        // scene. The keyed display host uses only a short fade, while the root stacks and their
+        // decorators remain outside this layer to preserve root-specific state.
+        AnimatedContent(
+            targetState = selectedRoot,
+            transitionSpec = {
+                fadeIn(animationSpec = tween(RootSelectionFadeDurationMillis)) togetherWith
+                    fadeOut(animationSpec = tween(RootSelectionFadeDurationMillis)) using null
+            },
+            label = "rootSelection",
+        ) { displayedRoot ->
+            key(displayedRoot) {
+                NavDisplay(
+                    entries = rootEntries.getValue(displayedRoot),
+                    modifier = Modifier.padding(contentPadding),
+                    onBack = popOverlay,
+                )
+            }
+        }
     }
 }
+
+internal const val RootSelectionFadeDurationMillis = 200
 
 @Composable
 private fun rememberRootDecoratedEntries(
@@ -205,15 +227,19 @@ private val NavKey.destination: AppNavKey
         else -> error("Unexpected navigation key: $this")
     }
 
-private fun NavKey.contentKeyFor(root: RootNavKey): NavigationEntryContentKey =
-    NavigationEntryContentKey(
-        root = root,
-        entryId = when (this) {
+/**
+ * Android Navigation entry state is saved in a Bundle, so the content key must use a Bundle-safe
+ * value. The root's saved-state ID scopes an entry to its root stack and the entry ID distinguishes
+ * multiple instances of the same destination in that stack.
+ */
+internal fun NavKey.contentKeyFor(root: RootNavKey): String =
+    "${root.savedStateId()}:${
+        when (this) {
             is RootNavKey -> 0
             is OverlayNavEntry -> entryId
             else -> error("Unexpected navigation key: $this")
-        },
-    )
+        }
+    }"
 
 @Composable
 private fun NavigationEntryContent(
