@@ -139,34 +139,36 @@ private fun RootContent(
         modifier = modifier.fillMaxSize(),
         containerColor = VlrTheme.colors.surface,
         topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = VlrDimensions.Space4),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = destination.destinationDescriptor.title,
-                    modifier = Modifier.weight(1f),
-                    style = VlrTheme.typography.pageTitle,
-                    color = VlrTheme.colors.textPrimary,
-                )
-                VlrIconButton(
-                    contentDescription = "검색",
-                    onClick = onSearch,
-                    icon = {
-                        Icon(
-                            imageVector = vectorResource(Res.drawable.ic_search),
-                            contentDescription = null,
-                        )
-                    },
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .padding(horizontal = VlrDimensions.Space4),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = destination.destinationDescriptor.title,
+                        modifier = Modifier.weight(1f),
+                        style = VlrTheme.typography.pageTitle,
+                        color = VlrTheme.colors.textPrimary,
+                    )
+                    VlrIconButton(
+                        contentDescription = "검색",
+                        onClick = onSearch,
+                        icon = {
+                            Icon(
+                                imageVector = vectorResource(Res.drawable.ic_search),
+                                contentDescription = null,
+                            )
+                        },
+                    )
+                }
+                HorizontalDivider(
+                    thickness = VlrDimensions.OutlineWidth,
+                    color = VlrTheme.colors.outline,
                 )
             }
-            HorizontalDivider(
-                thickness = VlrDimensions.OutlineWidth,
-                color = VlrTheme.colors.outline,
-            )
         },
     ) { contentPadding ->
         Box(

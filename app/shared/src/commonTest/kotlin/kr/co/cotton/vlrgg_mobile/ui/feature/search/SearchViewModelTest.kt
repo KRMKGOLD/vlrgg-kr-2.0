@@ -18,9 +18,17 @@ import kr.co.cotton.vlrgg_mobile.domain.model.search.TeamSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.repository.SearchRepository
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelTest {
+    @Test
+    fun validationAcceptsAtMostThirtyCharactersAndRejectsLongerQueries() {
+        assertTrue(isSearchQueryValid("a".repeat(MAX_SEARCH_QUERY_LENGTH)))
+        assertFalse(isSearchQueryValid("a".repeat(MAX_SEARCH_QUERY_LENGTH + 1)))
+    }
+
     @Test
     fun typingLimitsInputAndNeverRequestsUntilExplicitSubmit() = runViewModelTest {
         val repository = FakeSearchRepository(listOf(AppResult.Success(results())))

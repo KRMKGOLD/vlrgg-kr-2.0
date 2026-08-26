@@ -26,8 +26,18 @@ class SearchResultOrderingTest {
     @Test
     fun listKeysKeepSameNumericIdsFromDifferentTypesDistinct() {
         assertNotEquals(
-            searchResultListKey(SeriesSearchResult("1", "Series", null)),
-            searchResultListKey(EventSearchResult("1", "Event", null)),
+            searchResultListKey(SeriesSearchResult("1", "Series", null), index = 0),
+            searchResultListKey(EventSearchResult("1", "Event", null), index = 0),
+        )
+    }
+
+    @Test
+    fun listKeysKeepDuplicateResultsFromTheSameTypeDistinct() {
+        val result = TeamSearchResult("1", "Team", null)
+
+        assertNotEquals(
+            searchResultListKey(result, index = 0),
+            searchResultListKey(result, index = 1),
         )
     }
 }

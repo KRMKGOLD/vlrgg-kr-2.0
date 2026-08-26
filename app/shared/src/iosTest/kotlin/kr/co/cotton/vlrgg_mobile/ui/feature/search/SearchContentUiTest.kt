@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.search
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -21,6 +22,7 @@ class SearchContentUiTest {
         setContent { SearchContentFixture(SearchUiState()) }
 
         onNodeWithText("검색어를 입력해 주세요").assertExists()
+        onNodeWithContentDescription("검색어").assertIsFocused()
         onNodeWithContentDescription("검색").assertIsNotEnabled()
         onNodeWithContentDescription("검색 화면 닫기").assertExists()
     }

@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -119,6 +121,7 @@ fun VlrSearchField(
     errorMessage: String? = null,
     placeholder: String = "팀, 선수, 대회 검색…",
     label: String = placeholder,
+    focusRequester: FocusRequester? = null,
     onSearch: (String) -> Unit = {},
 ) {
     val colors = LocalVlrColors.current
@@ -150,6 +153,13 @@ fun VlrSearchField(
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
+                .then(
+                    if (focusRequester != null) {
+                        Modifier.focusRequester(focusRequester)
+                    } else {
+                        Modifier
+                    },
+                )
                 .defaultMinSize(
                     minWidth = VlrDimensions.MinimumTouchTarget,
                     minHeight = maxOf(VlrDimensions.MinimumTouchTarget, variant.visualHeight),

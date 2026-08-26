@@ -26,6 +26,8 @@ data class SearchUiState(
 
 internal const val MAX_SEARCH_QUERY_LENGTH = 30
 
-internal fun isSearchQueryValid(query: String): Boolean = query
-    .trim()
-    .any(Char::isLetterOrDigit)
+internal fun isSearchQueryValid(query: String): Boolean {
+    val normalizedQuery = query.trim()
+    return normalizedQuery.length in 1..MAX_SEARCH_QUERY_LENGTH &&
+        normalizedQuery.any(Char::isLetterOrDigit)
+}

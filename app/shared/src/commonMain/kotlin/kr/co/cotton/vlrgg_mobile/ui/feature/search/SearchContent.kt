@@ -12,14 +12,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
@@ -57,6 +65,15 @@ fun SearchContent(
     onResultClick: (SearchResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val focusRequester = remember { FocusRequester() }
+    var hasRequestedInitialFocus by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(focusRequester) {
+        if (!hasRequestedInitialFocus) {
+            withFrameNanos { }
+            hasRequestedInitialFocus = focusRequester.requestFocus()
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = VlrTheme.colors.surface,
@@ -68,6 +85,7 @@ fun SearchContent(
                 onQueryChange = onQueryChange,
                 onSubmit = onSubmit,
                 onBack = onBack,
+                focusRequester = focusRequester,
             )
         },
     ) { contentPadding ->
@@ -93,6 +111,7 @@ private fun SearchTopBar(
     onQueryChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onBack: () -> Unit,
+    focusRequester: FocusRequester,
 ) {
     Column {
         Row(
@@ -117,6 +136,7 @@ private fun SearchTopBar(
                 variant = VlrSearchFieldVariant.Compact,
                 isLoading = isLoading,
                 label = "검색어",
+                focusRequester = focusRequester,
                 onSearch = { if (canSubmit) onSubmit() },
                 modifier = Modifier.weight(1f),
             )
@@ -242,11 +262,12 @@ private fun SearchResults(
     onResultClick: (SearchResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val orderedItems = orderedSearchResults(items)
     LazyColumn(modifier = modifier.fillMaxSize()) {
-        items(
-            items = orderedSearchResults(items),
-            key = SearchResult::stableListKey,
-        ) { result ->
+        itemsIndexed(
+            items = orderedItems,
+            key = { index, result -> searchResultListKey(result, index) },
+        ) { _, result ->
             SearchResultRow(result, onClick = { onResultClick(result) })
         }
     }
@@ -305,7 +326,8 @@ private val SearchResult.typeLabel: String
 internal fun orderedSearchResults(items: List<SearchResult>): List<SearchResult> =
     items.sortedBy(SearchResult::searchTypeOrder)
 
-internal fun searchResultListKey(result: SearchResult): String = result.stableListKey
+internal fun searchResultListKey(result: SearchResult, index: Int): String =
+    "${result.stableListKey}:$index"
 
 private val SearchResult.searchTypeOrder: Int
     get() = when (this) {
