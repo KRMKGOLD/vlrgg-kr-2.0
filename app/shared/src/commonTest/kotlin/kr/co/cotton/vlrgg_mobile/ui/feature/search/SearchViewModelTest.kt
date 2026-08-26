@@ -123,6 +123,27 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun changingQueryCancelsRequestAndReturnsToInitialWithoutAllowingStaleResponse() = runViewModelTest {
+        val stale = CompletableDeferred<AppResult<SearchResults>>()
+        val repository = FakeSearchRepository { withContext(NonCancellable) { stale.await() } }
+        val viewModel = SearchViewModel(repository)
+
+        viewModel.onQueryChange("T1")
+        viewModel.submit()
+        runCurrent()
+        viewModel.onQueryChange("GEN")
+
+        assertEquals("GEN", viewModel.uiState.value.query)
+        assertEquals(SearchContentState.Initial, viewModel.uiState.value.contentState)
+
+        stale.complete(AppResult.Success(results()))
+        advanceUntilIdle()
+
+        assertEquals("GEN", viewModel.uiState.value.query)
+        assertEquals(SearchContentState.Initial, viewModel.uiState.value.contentState)
+    }
+
+    @Test
     fun newerSubmissionWinsOverCancelledNonCooperativeResponse() = runViewModelTest {
         val stale = CompletableDeferred<AppResult<SearchResults>>()
         val fresh = SearchResults("GEN", listOf(TeamSearchResult("4", "GEN", null)))

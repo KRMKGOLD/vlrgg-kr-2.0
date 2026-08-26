@@ -32,7 +32,14 @@ class SearchViewModel(
             clear()
             return
         }
-        _uiState.value = _uiState.value.copy(query = query.take(MAX_SEARCH_QUERY_LENGTH))
+
+        val limitedQuery = query.take(MAX_SEARCH_QUERY_LENGTH)
+        if (limitedQuery == _uiState.value.query) return
+
+        requestJob?.cancel()
+        requestGeneration += 1
+        submittedQuery = null
+        _uiState.value = SearchUiState(query = limitedQuery)
     }
 
     fun submit() {
