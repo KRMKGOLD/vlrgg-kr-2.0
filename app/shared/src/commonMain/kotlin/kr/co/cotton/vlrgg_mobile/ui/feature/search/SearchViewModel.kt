@@ -28,6 +28,10 @@ class SearchViewModel(
     private var submittedQuery: String? = null
 
     fun onQueryChange(query: String) {
+        if (query.isEmpty()) {
+            clear()
+            return
+        }
         _uiState.value = _uiState.value.copy(query = query.take(MAX_SEARCH_QUERY_LENGTH))
     }
 
