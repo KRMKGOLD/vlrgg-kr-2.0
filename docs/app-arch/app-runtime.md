@@ -63,8 +63,11 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 - Search와 News/Match/Event/Team/Player/Series detail은 진입한 root의 stack 위에 push되는 transient overlay다. root를 바꿔도 그 overlay는 원래 root에 남고, 해당 root로 돌아온 뒤 Back을 누르면 그 root의 이전 entry로 복귀한다.
 - runtime은 root마다 별도 `rememberNavBackStack`과 app 전용 `SavedStateConfiguration`을 사용한다. root 목록을 순회해 stack/decorator map을 만들며, 선택 root는 `rememberSaveable`의 단일 mutable state로 보존한다. `AppNavigationState`는 그 state를 직접 갱신하므로 별도의 Compose selected-root state나 수동 동기화가 없다. 모든 key는 직렬화 가능하고 detail key에는 복원에 필요한 안정적인 식별자만 둔다.
 - root마다 별도 `rememberDecoratedNavEntries`, `SaveableStateHolderNavEntryDecorator`, `ViewModelStoreNavEntryDecorator`를 생성한다. 선택 root의 entries만 `NavDisplay`에 전달하되 선택되지 않은 root의 stack과 decorator state는 composition 안에 남아 ViewModel, loaded page/selected tab, scroll과 `rememberSaveable` state가 유지된다.
+- root 전환은 200 ms fade-in/fade-out으로 표시한다. transition은 root stack이나 decorator 소유권 바깥의 keyed display host에만 적용하므로, 전환 중 이전·새 root의 화면을 함께 표시해도 각각의 entry state는 그대로 유지된다.
 - root 전환은 각 stack을 보존한다. 현재 root를 다시 선택하면 그 root의 overlay만 root entry까지 pop한다. Back은 선택 root에 overlay가 있을 때 마지막 entry만 pop하며 root에서는 stack을 변경하지 않는다.
-- overlay가 두 root에서 같은 destination key를 가져도 decorator state가 공유되지 않도록 entry content key는 owning root를 포함한다.
+- Bottom navigation과 root 전환은 `commonMain`의 단일 runtime 로직으로 Android와 CMP iOS에 동일하게 적용한다. 관련 로직을 변경할 때는 현재의 200 ms fade, root별 stack/decorator 보존, root 재선택과 Back 동작을 기준선으로 유지하고 두 플랫폼에서 같은 상태 전이와 화면 동작을 보장해야 한다.
+- 제안한 Bottom navigation 변경이 기존 CMP iOS 동작과 동일함을 현재 runtime 회귀 테스트와 필요한 simulator/device 확인으로 증명하지 못하거나, 기존 동작과 다르게 동작한다면 해당 변경은 적용하지 않는다. 동작 계약 자체를 바꿔야 하는 제품·아키텍처 요구가 생기면 코드 변경보다 ADR과 플랫폼별 검증 계약 갱신을 먼저 진행한다.
+- overlay가 두 root에서 같은 destination key를 가져도 decorator state가 공유되지 않도록 entry content key는 owning root와 entry instance ID를 포함한 안정적인 `String`을 사용한다. `String`은 Android `Bundle`에 저장할 수 있어 entry decorator state 복원에서 custom Kotlin object를 전달하지 않는다.
 - navigation owner가 모든 root back stack과 selected root를 소유하고 `AppNavigationState`는 정확히 그 stack instances에서 현재 root와 overlay를 파생해 상태 전이를 수행한다. 복원 map은 정확히 다섯 root를 포함하고 각 stack은 자신이 소유한 root entry로 시작해야 한다.
 - feature composable은 별도의 app graph나 전역 service locator를 만들지 않는다. Screen은 callback으로 navigation 의도를 전달하고 ViewModel은 back stack을 직접 조작하지 않는다.
 
@@ -82,9 +85,10 @@ Pagination은 여러 feature에서 사용될 가능성이 있지만 아직 100% 
 
 현재 구현의 회귀 근거:
 
-- `AppNavKeySerializationTest`: root/Search/detail key, 모든 root stack과 selected root의 직렬화·복원
+- `AppNavKeySerializationTest`: root/Search/detail key, 모든 root stack과 selected root의 직렬화·복원, root·entry-instance별 content key 고유성
 - `AppNavigationStateTest`: root별 overlay push/pop, root 전환/reselection, 동일 stack instance 유지, 잘못 복원된 map/stack 거부
 - `AppNavigationRuntimeUiTest` (iOS): 실제 `AppNavigationRuntime` seam에 test entry content를 주입해 entry `LocalViewModelStoreOwner`와 test-local `ViewModelProvider.Factory`를 검증한다. root 왕복 후 loaded page/selected tab·동일 ViewModel instance·`rememberSaveable` counter·`LazyListState.firstVisibleItemIndex`가 유지되고, detail pop은 detail ViewModel만 clear하며 initiating root state를 보존한다. 두 root의 동일 `Search` key는 saveable state/ViewModel을 공유하지 않고, 한 root Search pop은 다른 root Search ViewModel을 clear하지 않는다.
+- `SharedLogicAndroidHostTest`: Navigation entry content key가 Android `Bundle` 호환 `String`임을 검증한다.
 - `DestinationDescriptorTest`: root 순서와 destination metadata
 - `MyPageViewModelTest`: MyPage skeleton state
 - `MatchesViewModelTest`: 두 feed의 독립 최초 로딩·새로고침·페이지네이션·중복 제거·취소와 선택 탭 `SavedStateHandle` 복원

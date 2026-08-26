@@ -9,6 +9,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -18,8 +19,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -31,6 +35,12 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import kr.co.cotton.vlrgg_mobile.domain.model.search.TeamSearchResult
+import kr.co.cotton.vlrgg_mobile.ui.feature.search.SearchContent
+import kr.co.cotton.vlrgg_mobile.ui.feature.search.SearchContentState
+import kr.co.cotton.vlrgg_mobile.ui.feature.search.SearchUiState
+import kr.co.cotton.vlrgg_mobile.ui.feature.search.searchRowTag
+import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.reflect.KClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,6 +50,62 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class AppNavigationRuntimeUiTest {
+
+    @Test
+    fun searchInitialAndPopulatedContentFillTheRuntimeHostBelowTheTopBar() {
+        var navigationState: AppNavigationState? = null
+        var searchUiState by mutableStateOf(SearchUiState())
+        val team = TeamSearchResult("3", "T1", "Pacific")
+
+        runComposeUiTest {
+            setContent {
+                VlrTheme {
+                    AppNavigationRuntime(
+                        onNavigationStateAvailable = { navigationState = it },
+                        entryContent = { destination, _, _, onBack ->
+                            when (destination) {
+                                is RootNavKey -> Text("root:${destination.destinationDescriptor.title}")
+                                Search -> SearchContent(
+                                    uiState = searchUiState,
+                                    onQueryChange = {},
+                                    onSubmit = {},
+                                    onRetry = {},
+                                    onBack = onBack,
+                                    onResultClick = {},
+                                )
+                                else -> error("Unexpected navigation fixture destination: $destination")
+                            }
+                        },
+                    )
+                }
+            }
+
+            runOnIdle { requireNotNull(navigationState).push(Search) }
+            onNodeWithContentDescription("검색어", useUnmergedTree = true).assertExists()
+            onNodeWithText("검색어를 입력해 주세요").assertIsDisplayed()
+
+            runOnIdle {
+                requireNotNull(navigationState).popOverlay()
+                searchUiState = SearchUiState(
+                    query = "T1",
+                    contentState = SearchContentState.Populated(listOf(team)),
+                )
+                requireNotNull(navigationState).push(Search)
+            }
+
+            val searchFieldBottom = onNodeWithContentDescription("검색어", useUnmergedTree = true)
+                .assertExists()
+                .fetchSemanticsNode()
+                .boundsInRoot
+                .bottom
+            val rowTop = onNodeWithTag(searchRowTag(team), useUnmergedTree = true)
+                .assertIsDisplayed()
+                .fetchSemanticsNode()
+                .boundsInRoot
+                .top
+            assertTrue(rowTop > searchFieldBottom)
+        }
+    }
 
     @Test
     fun recompositionUsesUpdatedEntryContent() {
@@ -57,6 +123,47 @@ class AppNavigationRuntimeUiTest {
             onNodeWithText("entry-content-version:0").assertExists()
             runOnIdle { contentVersion = 1 }
             onNodeWithText("entry-content-version:1").assertExists()
+        }
+    }
+
+    @Test
+    fun selectingAnotherRootRetainsTheOutgoingHostOnlyForTheRootFade() {
+        var navigationState: AppNavigationState? = null
+        val composedDestinations = mutableListOf<String>()
+        val disposedDestinations = mutableListOf<String>()
+
+        runComposeUiTest {
+            setContent {
+                AppNavigationRuntime(
+                    onNavigationStateAvailable = { navigationState = it },
+                    entryContent = { destination, _, _, _ ->
+                        DisposableEffect(destination) {
+                            composedDestinations += destination.destinationDescriptor.title
+                            onDispose {
+                                disposedDestinations += destination.destinationDescriptor.title
+                            }
+                        }
+                        Text("root:${destination.destinationDescriptor.title}")
+                    },
+                )
+            }
+
+            onNodeWithText("root:My Page").assertExists()
+            mainClock.autoAdvance = false
+            runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
+            mainClock.advanceTimeByFrame()
+
+            onNodeWithText("root:News").assertExists()
+            runOnIdle {
+                assertEquals(listOf("My Page", "News"), composedDestinations)
+                assertFalse("My Page" in disposedDestinations)
+            }
+
+            mainClock.advanceTimeBy(RootSelectionFadeDurationMillis.toLong() + 100)
+            waitForIdle()
+
+            onNodeWithText("root:News").assertExists()
+            assertTrue("My Page" in disposedDestinations)
         }
     }
 

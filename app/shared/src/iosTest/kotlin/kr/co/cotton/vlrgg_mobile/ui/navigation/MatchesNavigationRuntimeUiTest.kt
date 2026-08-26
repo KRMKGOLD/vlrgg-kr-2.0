@@ -30,6 +30,7 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.matches.matchCardTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 
 @OptIn(ExperimentalTestApi::class)
 class MatchesNavigationRuntimeUiTest {
@@ -101,10 +102,10 @@ class MatchesNavigationRuntimeUiTest {
             assertEquals(1, repository.resultsRequests)
 
             onNodeWithTag(matchCardTag("result-10")).performClick()
-            val detailKey = runOnIdle {
+            val detailEntry = assertIs<OverlayNavEntry>(runOnIdle {
                 requireNotNull(navigationState).currentBackStack.last()
-            }
-            assertEquals(MatchDetail(matchId = "result-10"), detailKey)
+            })
+            assertEquals(MatchDetail(matchId = "result-10"), detailEntry.destination)
 
             onNodeWithText("Back").performClick()
             onNodeWithTag(matchCardTag("result-10")).assertIsDisplayed()

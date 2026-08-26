@@ -83,15 +83,6 @@ internal data class OverlayNavEntry(
     }
 }
 
-/**
- * The stable Navigation 3 state owner key for one entry in one root stack.
- */
-@Serializable
-internal data class NavigationEntryContentKey(
-    val root: RootNavKey,
-    val entryId: Long,
-)
-
 val rootNavKeys: List<RootNavKey> = listOf(
     NewsRoot,
     MatchesRoot,

@@ -137,14 +137,12 @@ class AppNavKeySerializationTest {
     }
 
     @Test
-    fun duplicateOverlayEntriesAndTheirContentKeysRoundTripWithDistinctIds() {
+    fun duplicateOverlayEntriesHaveDistinctStableContentKeys() {
         val entries = listOf(
             OverlayNavEntry(Search, entryId = 1),
             OverlayNavEntry(Search, entryId = 2),
         )
-        val contentKeys = entries.map { entry ->
-            NavigationEntryContentKey(root = MyPageRoot, entryId = entry.entryId)
-        }
+        val contentKeys = entries.map { entry -> entry.contentKeyFor(MyPageRoot) }
         val serializer = NavBackStackSerializer(PolymorphicSerializer(NavKey::class))
         val original = NavBackStack<NavKey>(MyPageRoot, *entries.toTypedArray())
 
@@ -154,16 +152,17 @@ class AppNavKeySerializationTest {
         )
 
         assertEquals(original.toList(), restored.toList())
+        assertEquals(listOf("my-page:1", "my-page:2"), contentKeys)
         assertEquals(2, contentKeys.distinct().size)
-        contentKeys.forEach { contentKey ->
-            assertEquals(
-                contentKey,
-                json.decodeFromString(
-                    NavigationEntryContentKey.serializer(),
-                    json.encodeToString(contentKey),
-                ),
-            )
-        }
+    }
+
+    @Test
+    fun contentKeysScopeTheSameEntryInstanceToItsOwningRoot() {
+        val entry = OverlayNavEntry(Search, entryId = 1)
+
+        assertEquals("my-page:1", entry.contentKeyFor(MyPageRoot))
+        assertEquals("news:1", entry.contentKeyFor(NewsRoot))
+        assertEquals(2, setOf(entry.contentKeyFor(MyPageRoot), entry.contentKeyFor(NewsRoot)).size)
     }
 
     @Test
