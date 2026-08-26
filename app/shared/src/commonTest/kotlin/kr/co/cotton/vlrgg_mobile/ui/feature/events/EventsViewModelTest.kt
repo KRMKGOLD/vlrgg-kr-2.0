@@ -261,5 +261,13 @@ class EventsViewModelTest {
             val callIndex = requestCount++
             return resultProvider(callIndex)
         }
+
+        override suspend fun getEventDetail(eventId: String) = error("Event detail is not used")
+
+        override suspend fun getEventMatches(eventId: String) = error("Event matches are not used")
+
+        override suspend fun getEventNews(eventId: String) = error("Event news is not used")
+
+        override suspend fun getEventStats(eventId: String) = error("Event stats are not used")
     }
 }

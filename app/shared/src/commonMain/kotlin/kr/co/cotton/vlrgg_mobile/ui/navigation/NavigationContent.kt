@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.EventsScreen
+import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MatchesScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.mypage.MyPageScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.detail.NewsDetailScreen
@@ -85,8 +86,16 @@ fun NavigationContent(
             modifier = Modifier.fillMaxSize(),
         )
 
+        is EventDetail -> EventDetailScreen(
+            eventId = destination.eventId,
+            onBack = onBack,
+            onMatchClick = { matchId -> onPush(MatchDetail(matchId)) },
+            onNewsClick = { articleId, slug -> onPush(NewsDetail(articleId, slug)) },
+            onPlayerClick = { playerId -> onPush(PlayerDetail(playerId)) },
+            modifier = modifier.fillMaxSize(),
+        )
+
         is MatchDetail,
-        is EventDetail,
         is TeamDetail,
         is PlayerDetail,
         is SeriesDetail,

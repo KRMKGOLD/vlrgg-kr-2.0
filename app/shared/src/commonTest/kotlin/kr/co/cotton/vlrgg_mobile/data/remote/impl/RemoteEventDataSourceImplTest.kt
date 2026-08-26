@@ -14,6 +14,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kr.co.cotton.vlrgg_mobile.data.remote.model.events.EventStatusDto
+import kr.co.cotton.vlrgg_mobile.data.remote.model.events.EventStatsAvailabilityDto
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -59,6 +60,52 @@ class RemoteEventDataSourceImplTest {
             assertFailsWith<ResponseException> {
                 RemoteEventDataSourceImpl(client).getEvents()
             }
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun detailTabsRequestFourIndependentEndpointsAndDeserializeOptionalValues() = runTest {
+        val requestedPaths = mutableListOf<String>()
+        val client = createClient(
+            MockEngine { request ->
+                requestedPaths += request.url.encodedPath
+                assertEquals(emptySet(), request.url.parameters.names())
+                respondJson(
+                    when (request.url.encodedPath) {
+                        "/api/v1/events/100" -> EVENT_DETAIL_JSON
+                        "/api/v1/events/100/matches" -> EVENT_MATCHES_JSON
+                        "/api/v1/events/100/news" -> EVENT_NEWS_JSON
+                        "/api/v1/events/100/stats" -> EVENT_STATS_JSON
+                        else -> error("Unexpected path: ${request.url.encodedPath}")
+                    },
+                )
+            },
+        )
+
+        try {
+            val dataSource = RemoteEventDataSourceImpl(client)
+
+            val detail = dataSource.getEventDetail("100")
+            val matches = dataSource.getEventMatches("100")
+            val news = dataSource.getEventNews("100")
+            val stats = dataSource.getEventStats("100")
+
+            assertEquals(
+                listOf(
+                    "/api/v1/events/100",
+                    "/api/v1/events/100/matches",
+                    "/api/v1/events/100/news",
+                    "/api/v1/events/100/stats",
+                ),
+                requestedPaths,
+            )
+            assertEquals(null, detail.status)
+            assertEquals("Playoffs", matches.items.single().event.series)
+            assertEquals(null, news.items.single().author)
+            assertEquals(EventStatsAvailabilityDto.AVAILABLE, stats.availability)
+            assertEquals(null, stats.players.single().rating)
         } finally {
             client.close()
         }
@@ -115,6 +162,64 @@ class RemoteEventDataSourceImplTest {
                 { "id": "300", "name": "Kickoff", "status": "completed" },
                 { "id": "400", "name": "Break", "status": "paused" }
               ]
+            }
+            """.trimIndent()
+
+        val EVENT_DETAIL_JSON =
+            """
+            {
+              "id": "100",
+              "name": "Masters Seoul",
+              "status": null,
+              "dateLabel": "Aug 20—Sep 4",
+              "location": "Seoul",
+              "series": "VCT 2026",
+              "description": null,
+              "imageUrl": null
+            }
+            """.trimIndent()
+
+        val EVENT_MATCHES_JSON =
+            """
+            {
+              "items": [{
+                "id": "match-1",
+                "status": "upcoming",
+                "timeLabel": "18:00",
+                "homeTeam": {"name": "Alpha"},
+                "awayTeam": {"name": "Beta"},
+                "event": {"name": "Masters Seoul", "series": "Playoffs", "id": "100"}
+              }]
+            }
+            """.trimIndent()
+
+        val EVENT_NEWS_JSON =
+            """
+            {
+              "items": [{
+                "reference": "101/masters-seoul",
+                "title": "Masters Seoul begins",
+                "author": null,
+                "publishedAt": "2026-08-25"
+              }]
+            }
+            """.trimIndent()
+
+        val EVENT_STATS_JSON =
+            """
+            {
+              "availability": "available",
+              "players": [{
+                "playerId": "player-1",
+                "playerName": "Meteor",
+                "teamAbbreviation": null,
+                "roundsPlayed": 120,
+                "rating": null,
+                "averageCombatScore": 240,
+                "killDeathRatio": 1.3,
+                "averageDamagePerRound": 155.5,
+                "killAssistSurvivedTradedPercentage": 78.0
+              }]
             }
             """.trimIndent()
     }
