@@ -5,19 +5,27 @@ import dev.zacsweers.metro.Binds
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteEventDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteMatchDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteNewsDataSource
+import kr.co.cotton.vlrgg_mobile.data.remote.RemotePlayerDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteSearchDataSource
+import kr.co.cotton.vlrgg_mobile.data.remote.RemoteTeamDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteEventDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteMatchDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteNewsDataSourceImpl
+import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemotePlayerDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteSearchDataSourceImpl
+import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteTeamDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.EventRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.MatchRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.NewsRepositoryImpl
+import kr.co.cotton.vlrgg_mobile.data.repository.PlayerRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.SearchRepositoryImpl
+import kr.co.cotton.vlrgg_mobile.data.repository.TeamRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.NewsRepository
+import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.SearchRepository
+import kr.co.cotton.vlrgg_mobile.domain.repository.TeamRepository
 
 @BindingContainer
 internal interface DataBinding {
@@ -55,6 +63,17 @@ internal interface DataBinding {
         impl: NewsRepositoryImpl,
     ): NewsRepository
 
+    // Players
+    @Binds
+    fun bindRemotePlayerDataSource(
+        impl: RemotePlayerDataSourceImpl,
+    ): RemotePlayerDataSource
+
+    @Binds
+    fun bindPlayerRepository(
+        impl: PlayerRepositoryImpl,
+    ): PlayerRepository
+
     // Search
     @Binds
     fun bindRemoteSearchDataSource(
@@ -65,4 +84,15 @@ internal interface DataBinding {
     fun bindSearchRepository(
         impl: SearchRepositoryImpl,
     ): SearchRepository
+
+    // Teams
+    @Binds
+    fun bindRemoteTeamDataSource(
+        impl: RemoteTeamDataSourceImpl,
+    ): RemoteTeamDataSource
+
+    @Binds
+    fun bindTeamRepository(
+        impl: TeamRepositoryImpl,
+    ): TeamRepository
 }

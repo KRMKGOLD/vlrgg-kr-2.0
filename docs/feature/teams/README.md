@@ -1,9 +1,11 @@
 # Team 기능 기획
 
-## 구현 상태 (2026-07-22)
+## 구현 상태 (2026-08-26)
 
 - **Backend: 구현 완료.** `GET /api/v1/teams/{teamId}`가 Team overview와 news를 요청 시점에 수집해 app-facing response로 반환하며 parser/route 테스트가 있다.
-- **App: 미구현.** Team Detail UI, 로컬 즐겨찾기, MyPage 연동과 관련 Detail navigation은 아직 구현되어 있지 않다.
+- **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있다.
+- **App UI: T1 예정.** Team Detail UI와 관련 Detail navigation은 후속 T1 PR에서 구현한다.
+- **Favorite: #43 예정.** 로컬 즐겨찾기와 MyPage 연동은 Issue #43 범위다.
 
 ## 목적과 사용자 가치
 
