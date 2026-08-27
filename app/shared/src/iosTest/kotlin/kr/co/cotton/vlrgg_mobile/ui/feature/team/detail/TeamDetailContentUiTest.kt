@@ -8,6 +8,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -55,12 +56,23 @@ class TeamDetailContentUiTest {
         val upcomingTop = onNodeWithTag(TEAM_DETAIL_UPCOMING_SECTION_TAG).fetchSemanticsNode().boundsInRoot.top
         assertTrue(headerTop < upcomingTop)
 
-        assertTextNodeCount(TEAM_NAME, expectedCount = 3)
-        assertTextNodeCount("KRX · South Korea", expectedCount = 1)
-        assertTextNodeCount("VCT Pacific", expectedCount = 2)
-        assertTextNodeCount("Stage 2", expectedCount = 1)
-        assertTextNodeCount("in 2d", expectedCount = 1)
-        assertTextNodeCount("2026-08-28 17:00", expectedCount = 1)
+        assertTextInTaggedSection(TEAM_NAME, TEAM_DETAIL_HEADER_TAG)
+        assertTextInTaggedSection("KRX · South Korea", TEAM_DETAIL_HEADER_TAG)
+
+        scrollToTag(teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection(TEAM_NAME, teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection("Sentinels", teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection("VCT Pacific", teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection("Stage 2", teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection("in 2d", teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection("2026-08-28 17:00", teamMatchCardTag(UPCOMING_MATCH_ID))
+
+        scrollToTag(teamMatchCardTag(RECENT_MATCH_ID))
+        assertTextInTaggedSection(TEAM_NAME, teamMatchCardTag(RECENT_MATCH_ID))
+        assertTextInTaggedSection("Gen.G", teamMatchCardTag(RECENT_MATCH_ID))
+        assertTextInTaggedSection("VCT Pacific", teamMatchCardTag(RECENT_MATCH_ID))
+        assertTextInTaggedSection("final", teamMatchCardTag(RECENT_MATCH_ID))
+        assertTextInTaggedSection("2026-08-25", teamMatchCardTag(RECENT_MATCH_ID))
         scrollToTag(teamPlayerRowTag(PLAYER_ID))
         assertTextNodeCount("MaKo", expectedCount = 1)
         assertTextNodeCount("Kim Myeong-kwan", expectedCount = 1)
@@ -310,6 +322,13 @@ class TeamDetailContentUiTest {
             onAllNodesWithText(text, useUnmergedTree = true).fetchSemanticsNodes().size,
             "Expected $expectedCount rendered text node(s) for '$text'",
         )
+    }
+
+    private fun ComposeUiTest.assertTextInTaggedSection(text: String, tag: String) {
+        onNode(
+            hasText(text) and hasAnyAncestor(hasTestTag(tag)),
+            useUnmergedTree = true,
+        ).assertExists()
     }
 
     private fun ComposeUiTest.scrollTo(matcher: SemanticsMatcher) {

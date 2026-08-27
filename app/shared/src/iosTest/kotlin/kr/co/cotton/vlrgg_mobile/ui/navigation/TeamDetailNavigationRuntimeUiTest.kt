@@ -51,11 +51,12 @@ class TeamDetailNavigationRuntimeUiTest {
         var navigationState: AppNavigationState? = null
         val teamRepository = FakeTeamRepository()
         val viewModelFactory = teamViewModelFactory(teamRepository)
+        val hostOwner = TestHostViewModelStoreOwner()
 
         setContent {
             CompositionLocalProvider(
                 LocalMetroViewModelFactory provides viewModelFactory,
-                LocalViewModelStoreOwner provides TestHostViewModelStoreOwner(),
+                LocalViewModelStoreOwner provides hostOwner,
             ) {
                 VlrTheme {
                     AppNavigationRuntime(
