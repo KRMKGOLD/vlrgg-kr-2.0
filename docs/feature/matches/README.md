@@ -337,6 +337,8 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 
 ### 목록과 상세
 
+기존 Matches 목록 구현 항목은 이번 Match Detail D1의 완료 판정 범위가 아니므로 기존 체크 상태를 유지한다.
+
 - [ ] Matches 탭에서 Upcoming/Live와 Results를 명확히 전환할 수 있다.
 - [ ] Upcoming/Live는 날짜, 경기 시각, 남은 시간, 양 팀, Event, 상태를 표시한다.
 - [ ] Results는 날짜, 완료 시각, 양 팀, 스코어, Event를 표시한다.

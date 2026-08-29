@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.navigation
 
 import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
@@ -17,12 +18,14 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel
 /**
  * D1's real screen contract, shared by every pre-existing MatchDetail navigation source.
  */
-@OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
+@OptIn(ExperimentalTestApi::class)
 internal fun ComposeUiTest.assertRealMatchDetailDestination() {
-    onNodeWithText("match_detail").assertDoesNotExist()
-    onNodeWithTag("match_detail").assertDoesNotExist()
+    onNodeWithText(matchDetailMarker).assertDoesNotExist()
+    onNodeWithTag(matchDetailMarker).assertDoesNotExist()
     onNodeWithTag(MATCH_DETAIL_HERO_TAG).assertExists()
 }
+
+private val matchDetailMarker = MatchDetail(matchId = "fixture").destinationDescriptor.marker
 
 internal fun fixtureMatchDetailFactory(
     repository: MatchRepository,

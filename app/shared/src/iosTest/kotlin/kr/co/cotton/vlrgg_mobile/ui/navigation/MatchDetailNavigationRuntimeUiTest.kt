@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -32,6 +33,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.RelatedMatch
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MATCH_DETAIL_EVENT_TAG
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.matchDetailHeadToHeadTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.matchDetailTeamTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
@@ -48,7 +50,7 @@ class MatchDetailNavigationRuntimeUiTest {
             viewModelProviders = emptyMap(),
             assistedFactoryProviders = emptyMap(),
             manualAssistedFactoryProviders = mapOf(
-                kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel.Factory::class to {
+                MatchDetailViewModel.Factory::class to {
                     fixtureMatchDetailFactory(repository)
                 },
             ),
@@ -143,7 +145,7 @@ class MatchDetailNavigationRuntimeUiTest {
         )
     }
 
-    @androidx.compose.runtime.Composable
+    @Composable
     private fun MatchRootFixture(onPush: (AppNavKey) -> Unit) {
         val listState = rememberLazyListState()
         Column {
@@ -163,7 +165,7 @@ class MatchDetailNavigationRuntimeUiTest {
         }
     }
 
-    @androidx.compose.runtime.Composable
+    @Composable
     private fun ChildDestinationFixture(
         destination: AppNavKey,
         onBack: () -> Unit,

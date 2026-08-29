@@ -634,7 +634,8 @@ class MatchesViewModelTest {
             return resultProvider(Feed.RESULTS, page, callIndex)
         }
 
-        override suspend fun getMatchDetail(matchId: String): AppResult<MatchDetail> = AppResult.Failure
+        override suspend fun getMatchDetail(matchId: String): AppResult<MatchDetail> =
+            error("Match detail is not used")
     }
 
     private companion object {
