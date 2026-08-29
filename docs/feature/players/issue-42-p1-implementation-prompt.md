@@ -177,7 +177,7 @@ Agent metric column 순서는 다음으로 고정한다.
 
 Agent identity column은 고정하고 metrics는 수평 스크롤 가능하게 한다. nullable metric은 `0`이나 가짜 값이 아니라 `—`를 표시한다. percentage 값은 값이 있을 때만 `%`를 붙인다.
 
-Recent Matches는 server source 순서대로 표시하고 검색, 더보기, pagination, infinite scroll을 제공하지 않는다. Domain contract가 최대 5개를 보장하므로 UI에서 새로운 데이터 변환이나 fake timestamp를 만들지 않는다.
+Recent Matches는 server source 순서대로 표시하고 검색, 더보기, pagination, infinite scroll을 제공하지 않는다. 최대 5개 보장은 app DTO/Domain/mapper가 자체 cap을 강제하는 계약이 아니라 server `PlayerDetailParser`의 distinct 후 `take(5)`와 `PlayerDetailMapper`의 defensive `take(5)`가 public response에서 보장한다. app remote DTO/mapper/domain은 그 response를 순서대로 보존하며, UI에서 별도 fake cap·데이터 변환·fake timestamp를 만들지 않는다.
 
 #### Sparse / Section Empty
 
@@ -311,10 +311,11 @@ Section empty는 Content 내부 nullable/list에서 파생한다. generic Partia
 - lifecycle-aware state collect
 - `LazyListState` 소유
 - navigation callback을 Content에 전달
+- `viewModel::retry`를 `PlayerDetailContent`의 명시적 `onRetry` callback으로 전달
 
 ViewModel은 navigation stack, callback, Compose scroll state를 소유하지 않는다.
 
-`PlayerDetailContent`는 stateless rendering과 callback 전달을 담당한다.
+`PlayerDetailContent`는 stateless rendering과 callback 전달을 담당하며, Error dialog의 Retry에서 `onRetry`를 호출한다.
 
 ### Existing components
 
@@ -402,7 +403,7 @@ Search, News, Event, Team이 이미 생성하는 `PlayerDetail(playerId)` key �
 
 - Player face 또는 Team/Agent logo URL
 - 새로운 metric, score, date/time parsing 계약
-- Current Team 외 navigation
+- Current Team/Recent Match 외의 새로운 navigation
 - Player API/Domain 계약 변경
 - favorite UI를 P1에 포함
 - stale content/cache
