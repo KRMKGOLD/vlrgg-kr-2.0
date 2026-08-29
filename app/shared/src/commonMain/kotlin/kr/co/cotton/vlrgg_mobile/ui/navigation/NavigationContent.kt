@@ -22,6 +22,7 @@ import org.jetbrains.compose.resources.vectorResource
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.EventsScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MatchesScreen
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.mypage.MyPageScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.detail.NewsDetailScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.NewsScreen
@@ -136,11 +137,13 @@ fun NavigationContent(
             modifier = modifier.fillMaxSize(),
         )
 
-        is MatchDetail,
-            -> PushedContent(
-            destination = destination,
+        is MatchDetail -> MatchDetailScreen(
+            matchId = destination.matchId,
             onBack = onBack,
-            modifier = modifier,
+            onEventClick = { eventId -> onPush(EventDetail(eventId)) },
+            onTeamClick = { teamId -> onPush(TeamDetail(teamId)) },
+            onMatchClick = { matchId -> onPush(MatchDetail(matchId)) },
+            modifier = modifier.fillMaxSize(),
         )
     }
 }
