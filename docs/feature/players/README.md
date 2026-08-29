@@ -1,11 +1,12 @@
 # Player 기능 기획
 
-## 구현 상태 (2026-08-26)
+## 구현 상태 (2026-08-29)
 
 - **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 전체 기간 Player 정보, 현재 팀, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
 - **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있다.
-- **App UI: P1 예정.** Player Detail UI와 Team/Match navigation은 후속 P1 PR에서 구현한다.
+- **App UI P1 sections/navigation: 구현 완료.** Player Detail의 loading/content/error, Current Team·Agent Stats·Recent Matches의 독립 empty state, Team/Match navigation과 state restoration 회귀 테스트가 구현되어 있다. Android/iOS 실기기 screenshot 및 접근성 검증은 아직 수행하지 않았다.
 - **Favorite: #43 예정.** 로컬 즐겨찾기와 MyPage 연동은 Issue #43 범위다.
+- **이미지 계약 경계.** Player endpoint에는 face와 Agent icon URL이 없으므로 P1은 안정적인 text placeholder와 text-only Agent identity를 사용한다. Issue #68은 Team logo·roster image 서버 계약, Issue #70은 해당 Team 이미지의 앱 적용만 다루며 Player face와 Agent icon은 포함하지 않는다.
 
 ## 목적과 사용자 가치
 
@@ -52,8 +53,8 @@ Player Detail에서는 Event Detail로 직접 이동하지 않는다.
 ## 화면과 콘텐츠 계층
 
 1. Top App Bar
-   - Back
-   - Player favorite star
+   - P1: Back
+   - #43: Player favorite star 예정
 2. Player header
    - Player 이미지 또는 안정적인 placeholder
    - handle
@@ -176,17 +177,17 @@ https://www.vlr.gg/player/488/rb/?timespan=all
 
 ## 테스트 가능한 수용 기준
 
-- [ ] Player Detail은 기본 정보, 현재 팀, Agent Stats, 최근 경기 영역을 구분해 표시한다.
-- [ ] Agent Stats가 없는 상태와 Player Detail 조회 실패를 구분한다.
-- [ ] 누락된 Stats 값은 `0` 또는 임의 값으로 표시되지 않는다.
-- [ ] Recent Matches는 최대 5개만 표시되고 전체 목록 더보기는 제공하지 않는다.
-- [ ] Recent Matches에는 검색, 더보기, pagination, infinite scroll이 모두 없다.
-- [ ] Current Team과 Recent Match는 각각 Team Detail과 Match Detail로 이동한다.
-- [ ] Player Detail에는 Event로 직접 이동하는 인터랙션이 없다.
+- [x] Player Detail은 기본 정보, 현재 팀, Agent Stats, 최근 경기 영역을 구분해 표시한다.
+- [x] Agent Stats가 없는 상태와 Player Detail 조회 실패를 구분한다.
+- [x] 누락된 Stats 값은 `0` 또는 임의 값으로 표시되지 않는다.
+- [x] Recent Matches는 최대 5개를 source 순서로 표시하고 전체 목록 더보기는 제공하지 않는다.
+- [x] Recent Matches에는 검색, 더보기, pagination, infinite scroll이 모두 없다.
+- [x] Current Team과 Recent Match는 각각 Team Detail과 Match Detail로 이동한다.
+- [x] Player Detail에는 Event로 직접 이동하는 인터랙션이 없다.
 - [ ] 즐겨찾기 등록 후 Player가 MyPage의 Player 그룹에 나타나고, 제거 후 사라진다.
 - [ ] Player favorite Add 실패는 star OFF와 actionable Retry Snackbar를 표시한다.
 - [ ] Player favorite Remove 실패는 star ON을 유지하고 actionable Retry Snackbar를 표시한다.
 - [ ] Player favorite mutation은 전체 화면을 block하지 않는다.
 - [ ] Player 즐겨찾기 등록·해제는 서버 notification subscription을 생성하거나 변경하지 않는다.
-- [ ] 현재 팀, Stats 또는 최근 경기가 없어도 나머지 Player 정보는 정상 표시된다.
+- [x] 현재 팀, Stats 또는 최근 경기가 없어도 나머지 Player 정보는 정상 표시된다.
 - [ ] loading, empty section, error dialog, stale 상태가 유효 콘텐츠와 시각적으로 구분되고 generic Partial screen은 없다.
