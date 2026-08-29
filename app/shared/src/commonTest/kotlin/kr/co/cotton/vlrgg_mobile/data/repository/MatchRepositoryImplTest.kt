@@ -4,14 +4,20 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteMatchDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchListCategoryDto
+import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDetailResponseDto
+import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchEventDto
+import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchStatusDto
+import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchTeamDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchesPageResponseDto
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchListCategory
+import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchPage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
+import kotlin.test.assertIs
 
 class MatchRepositoryImplTest {
 
@@ -124,6 +130,53 @@ class MatchRepositoryImplTest {
         assertSame(cancellation, thrown)
     }
 
+    @Test
+    fun detailFailureIsConvertedAndCancellationIsRethrown() = runTest {
+        val failureRepository = MatchRepositoryImpl(
+            FakeRemoteMatchDataSource(detailHandler = { throw IllegalStateException("detail failure") }),
+        )
+        assertSame(AppResult.Failure, failureRepository.getMatchDetail("7000"))
+
+        val cancellation = CancellationException("cancelled")
+        val cancellingRepository = MatchRepositoryImpl(
+            FakeRemoteMatchDataSource(detailHandler = { throw cancellation }),
+        )
+        assertSame(
+            cancellation,
+            assertFailsWith<CancellationException> { cancellingRepository.getMatchDetail("7000") },
+        )
+    }
+
+    @Test
+    fun detailReturnsMappedSuccessWithoutReplacingMissingScores() = runTest {
+        val repository = MatchRepositoryImpl(
+            FakeRemoteMatchDataSource(
+                detailHandler = {
+                    MatchDetailResponseDto(
+                        id = it,
+                        status = MatchStatusDto.LIVE,
+                        timeLabel = "LIVE",
+                        homeTeam = MatchTeamDto("Alpha"),
+                        awayTeam = MatchTeamDto("Beta"),
+                        homeScore = null,
+                        awayScore = 0,
+                        event = MatchEventDto("Champions"),
+                        maps = emptyList(),
+                        headToHead = emptyList(),
+                        pastMatches = emptyList(),
+                    )
+                },
+            ),
+        )
+
+        val result = repository.getMatchDetail("7000")
+
+        val match = assertIs<AppResult.Success<MatchDetail>>(result).data
+        assertEquals("7000", match.id)
+        assertEquals(null, match.homeScore)
+        assertEquals(0, match.awayScore)
+    }
+
     private fun pageDto(
         category: MatchListCategoryDto,
         page: Int,
@@ -141,10 +194,15 @@ private class FakeRemoteMatchDataSource(
     private val resultsHandler: suspend (Int) -> MatchesPageResponseDto = {
         error("Unexpected getResults call")
     },
+    private val detailHandler: suspend (String) -> MatchDetailResponseDto = {
+        error("Unexpected getMatchDetail call")
+    },
 ) : RemoteMatchDataSource {
     var requestedUpcomingPage: Int? = null
         private set
     var requestedResultsPage: Int? = null
+        private set
+    var requestedMatchId: String? = null
         private set
 
     override suspend fun getUpcomingMatches(page: Int): MatchesPageResponseDto {
@@ -155,5 +213,10 @@ private class FakeRemoteMatchDataSource(
     override suspend fun getResults(page: Int): MatchesPageResponseDto {
         requestedResultsPage = page
         return resultsHandler(page)
+    }
+
+    override suspend fun getMatchDetail(matchId: String): MatchDetailResponseDto {
+        requestedMatchId = matchId
+        return detailHandler(matchId)
     }
 }

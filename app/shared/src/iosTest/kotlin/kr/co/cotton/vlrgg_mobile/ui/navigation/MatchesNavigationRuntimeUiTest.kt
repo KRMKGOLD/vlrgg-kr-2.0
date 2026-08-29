@@ -18,6 +18,7 @@ import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 import kr.co.cotton.vlrgg_mobile.di.AppViewModelFactory
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
+import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDetail as MatchDetailModel
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchListCategory
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchPage
@@ -146,6 +147,8 @@ class MatchesNavigationRuntimeUiTest {
                 status = MatchStatus.COMPLETED,
             )
         }
+
+        override suspend fun getMatchDetail(matchId: String): AppResult<MatchDetailModel> = AppResult.Failure
 
         private fun page(
             category: MatchListCategory,
