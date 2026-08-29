@@ -428,7 +428,7 @@ Search, News, Event, Team이 이미 생성하는 `PlayerDetail(playerId)` key �
 코드·테스트·문서 커밋과 push가 끝나면 다음 CodeRabbit CLI review를 실행한다.
 
 ```bash
-coderabbit review --prompt-only --type committed --base main
+coderabbit review --committed --base main --agent
 ```
 
 - 각 finding의 파일/라인, severity, 근거를 직접 재검증한다.
