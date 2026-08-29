@@ -74,7 +74,7 @@ private fun EventPlayerStatsDto.toDomain(): EventPlayerStats = EventPlayerStats(
     killAssistSurvivedTradedPercentage = killAssistSurvivedTradedPercentage,
 )
 
-private fun EventSummaryDto.toDomain(): EventSummary = EventSummary(
+internal fun EventSummaryDto.toDomain(): EventSummary = EventSummary(
     id = id,
     name = name,
     status = status.toDomain(),
