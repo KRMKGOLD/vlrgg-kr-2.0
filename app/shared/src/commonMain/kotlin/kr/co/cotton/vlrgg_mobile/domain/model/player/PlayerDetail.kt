@@ -19,6 +19,7 @@ data class PlayerProfile(
 data class PlayerCurrentTeam(
     val id: String,
     val name: String,
+    val imageUrl: String? = null,
 )
 
 data class PlayerAgentStat(

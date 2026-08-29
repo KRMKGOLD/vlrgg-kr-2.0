@@ -34,6 +34,7 @@ private fun PlayerProfileDto.toDomain(): PlayerProfile = PlayerProfile(
 private fun PlayerCurrentTeamDto.toDomain(): PlayerCurrentTeam = PlayerCurrentTeam(
     id = id,
     name = name,
+    imageUrl = imageUrl,
 )
 
 private fun PlayerAgentStatDto.toDomain(): PlayerAgentStat = PlayerAgentStat(

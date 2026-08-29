@@ -13,7 +13,10 @@ class PlayerDetailParserTest {
         val source = parser.parse(content("player-detail.html"))
 
         assertEquals(PlayerProfileSource("Rb", "Goo Sang-min", listOf("ClokingRb"), "kr", "SOUTH KOREA"), source.profile)
-        assertEquals(PlayerTeamSource("11060", "Nongshim RedForce"), source.currentTeam)
+        assertEquals(
+            PlayerTeamSource("11060", "Nongshim RedForce", "https://owcdn.net/img/6399bb707aacb.png"),
+            source.currentTeam,
+        )
         assertEquals(2, source.agentStats.size)
         assertEquals("jett", source.agentStats.first().agentName)
         assertEquals(134, source.agentStats.first().mapsPlayed)
@@ -96,6 +99,7 @@ class PlayerDetailParserTest {
         val source = parser.parse(content("player-detail-polluted.html"))
 
         assertEquals(PlayerTeamSource("101", "Clean Team"), source.currentTeam)
+        assertNull(source.currentTeam?.imageUrl)
         assertEquals(listOf("sage"), source.agentStats.map(AgentStatSource::agentName))
         assertEquals(listOf("700001"), source.recentMatches.map(PlayerRecentMatchSource::id))
     }

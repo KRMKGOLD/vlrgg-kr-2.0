@@ -11,7 +11,7 @@ internal class PlayerDetailMapper {
             countryCode = source.profile.countryCode,
             countryName = source.profile.countryName,
         ),
-        currentTeam = source.currentTeam?.let { PlayerTeamResponse(it.id, it.name) },
+        currentTeam = source.currentTeam?.let { PlayerTeamResponse(it.id, it.name, it.imageUrl) },
         agentStats = source.agentStats.map { stat ->
             PlayerAgentStatResponse(
                 agentName = stat.agentName,

@@ -42,6 +42,25 @@ class PlayerDetailMapperServiceTest {
     }
 
     @Test
+    fun `mapper preserves nullable current team image URL`() {
+        val response = PlayerDetailMapper().map(
+            PlayerId.fromPath("488"),
+            PlayerDetailSource(
+                profile = PlayerProfileSource("solo", null, emptyList(), null, null),
+                currentTeam = PlayerTeamSource(
+                    id = "11060",
+                    name = "Nongshim RedForce",
+                    imageUrl = "https://owcdn.net/img/6399bb707aacb.png",
+                ),
+                agentStats = emptyList(),
+                recentMatches = emptyList(),
+            ),
+        )
+
+        assertEquals("https://owcdn.net/img/6399bb707aacb.png", response.currentTeam?.imageUrl)
+    }
+
+    @Test
     fun `service fetches current all-time data each time without stale fallback and preserves cancellation`() {
         runBlocking {
         val transport = RecordingTransport()

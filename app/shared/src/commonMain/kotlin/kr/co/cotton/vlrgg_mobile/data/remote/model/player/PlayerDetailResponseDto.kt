@@ -25,6 +25,7 @@ internal data class PlayerProfileDto(
 internal data class PlayerCurrentTeamDto(
     val id: String,
     val name: String,
+    val imageUrl: String? = null,
 )
 
 @Serializable

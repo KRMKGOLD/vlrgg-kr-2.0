@@ -24,7 +24,11 @@ internal data class PlayerProfileSource(
     val countryName: String?,
 )
 
-internal data class PlayerTeamSource(val id: String, val name: String)
+internal data class PlayerTeamSource(
+    val id: String,
+    val name: String,
+    val imageUrl: String? = null,
+)
 
 internal data class AgentStatSource(
     val agentName: String,

@@ -40,6 +40,7 @@ class RemotePlayerDataSourceImplTest {
             assertEquals("488", response.id)
             assertEquals("Rb", response.profile.handle)
             assertEquals("11060", response.currentTeam?.id)
+            assertEquals("https://owcdn.net/img/6399bb707aacb.png", response.currentTeam?.imageUrl)
             assertEquals(1.07, response.agentStats.single().rating)
             assertNull(response.agentStats.single().kills)
             assertEquals(listOf("708427", "708426"), response.recentMatches.map { it.id })
@@ -140,7 +141,11 @@ class RemotePlayerDataSourceImplTest {
                 "countryCode": "kr",
                 "countryName": "SOUTH KOREA"
               },
-              "currentTeam": {"id": "11060", "name": "Nongshim RedForce"},
+              "currentTeam": {
+                "id": "11060",
+                "name": "Nongshim RedForce",
+                "imageUrl": "https://owcdn.net/img/6399bb707aacb.png"
+              },
               "agentStats": [{
                 "agentName": "jett",
                 "mapsPlayed": 134,
