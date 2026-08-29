@@ -22,7 +22,7 @@ class MatchDetailViewModel(
     private val matchRepository: MatchRepository,
     @Assisted private val matchId: String,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow<MatchDetailUiState>(MatchDetailUiState.Loading)
+    private val _uiState = MutableStateFlow(MatchDetailUiState())
     val uiState: StateFlow<MatchDetailUiState> = _uiState.asStateFlow()
 
     init {
@@ -30,19 +30,23 @@ class MatchDetailViewModel(
     }
 
     fun retry() {
-        if (_uiState.value != MatchDetailUiState.Error) return
+        if (_uiState.value.contentState != MatchDetailContentState.Error) return
 
-        _uiState.value = MatchDetailUiState.Loading
+        _uiState.value = MatchDetailUiState()
         loadMatchDetail()
     }
 
     private fun loadMatchDetail() = viewModelScope.launch {
         matchRepository.getMatchDetail(matchId)
             .onSuccess { match ->
-                _uiState.value = MatchDetailUiState.Content(match)
+                _uiState.value = MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(match),
+                )
             }
             .onFailure {
-                _uiState.value = MatchDetailUiState.Error
+                _uiState.value = MatchDetailUiState(
+                    contentState = MatchDetailContentState.Error,
+                )
             }
     }
 

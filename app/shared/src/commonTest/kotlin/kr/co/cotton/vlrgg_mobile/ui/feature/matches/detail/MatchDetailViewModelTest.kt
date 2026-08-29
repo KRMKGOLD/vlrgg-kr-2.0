@@ -28,7 +28,7 @@ class MatchDetailViewModelTest {
         val repository = FakeMatchRepository(listOf(AppResult.Success(matchDetail())))
         val viewModel = MatchDetailViewModel(repository, MATCH_ID)
 
-        assertEquals(MatchDetailUiState.Loading, viewModel.uiState.value)
+        assertEquals(MatchDetailUiState(), viewModel.uiState.value)
 
         advanceUntilIdle()
 
@@ -46,7 +46,9 @@ class MatchDetailViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            MatchDetailUiState.Content(match),
+            MatchDetailUiState(
+                contentState = MatchDetailContentState.Content(match),
+            ),
             viewModel.uiState.value,
         )
     }
@@ -72,7 +74,9 @@ class MatchDetailViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            MatchDetailUiState.Content(sparseMatch),
+            MatchDetailUiState(
+                contentState = MatchDetailContentState.Content(sparseMatch),
+            ),
             viewModel.uiState.value,
         )
     }
@@ -87,7 +91,7 @@ class MatchDetailViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            MatchDetailUiState.Error,
+            MatchDetailUiState(contentState = MatchDetailContentState.Error),
             viewModel.uiState.value,
         )
         assertFalse(viewModel.uiState.value.toString().contains("exception", ignoreCase = true))
@@ -106,11 +110,13 @@ class MatchDetailViewModelTest {
 
         viewModel.retry()
 
-        assertEquals(MatchDetailUiState.Loading, viewModel.uiState.value)
+        assertEquals(MatchDetailUiState(), viewModel.uiState.value)
         advanceUntilIdle()
         assertEquals(listOf(MATCH_ID, MATCH_ID), repository.requestedMatchIds)
         assertEquals(
-            MatchDetailUiState.Content(match),
+            MatchDetailUiState(
+                contentState = MatchDetailContentState.Content(match),
+            ),
             viewModel.uiState.value,
         )
     }

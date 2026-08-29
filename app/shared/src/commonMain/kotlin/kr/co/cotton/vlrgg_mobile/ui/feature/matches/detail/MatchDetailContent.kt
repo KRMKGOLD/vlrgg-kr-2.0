@@ -77,15 +77,15 @@ fun MatchDetailContent(
         containerColor = VlrTheme.colors.surface,
         topBar = { MatchDetailTopBar(onBack) },
     ) { contentPadding ->
-        when (uiState) {
-            MatchDetailUiState.Loading -> MatchDetailLoading(
+        when (val state = uiState.contentState) {
+            MatchDetailContentState.Loading -> MatchDetailLoading(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(contentPadding),
             )
 
-            is MatchDetailUiState.Content -> MatchDetailBody(
-                match = uiState.match,
+            is MatchDetailContentState.Content -> MatchDetailBody(
+                match = state.match,
                 listState = listState,
                 onEventClick = onEventClick,
                 onTeamClick = onTeamClick,
@@ -95,7 +95,7 @@ fun MatchDetailContent(
                     .padding(contentPadding),
             )
 
-            MatchDetailUiState.Error -> MatchDetailError(
+            MatchDetailContentState.Error -> MatchDetailError(
                 onRetry = onRetry,
                 modifier = Modifier
                     .fillMaxSize()

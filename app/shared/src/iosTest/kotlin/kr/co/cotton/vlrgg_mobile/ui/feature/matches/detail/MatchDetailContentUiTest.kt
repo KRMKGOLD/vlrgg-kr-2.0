@@ -33,7 +33,7 @@ class MatchDetailContentUiTest {
 
     @Test
     fun loadingKeepsBackAndSkeletonGeometryWithoutSampleMatchData() = runComposeUiTest {
-        setContent { Fixture(MatchDetailUiState.Loading) }
+        setContent { Fixture(MatchDetailUiState()) }
 
         onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
         onNodeWithTag(MATCH_DETAIL_LOADING_TAG).assertExists()
@@ -45,7 +45,13 @@ class MatchDetailContentUiTest {
 
     @Test
     fun contentKeepsHeroThenMapsThenHeadToHeadWithNullableScoreMarkers() = runComposeUiTest {
-        setContent { Fixture(MatchDetailUiState.Content(completedMatch)) }
+        setContent {
+            Fixture(
+                MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(completedMatch),
+                ),
+            )
+        }
 
         val heroTop = onNodeWithTag(MATCH_DETAIL_HERO_TAG).fetchSemanticsNode().boundsInRoot.top
         val mapsTop = onNodeWithTag(MATCH_DETAIL_MAPS_SECTION_TAG).fetchSemanticsNode().boundsInRoot.top
@@ -68,7 +74,11 @@ class MatchDetailContentUiTest {
     fun emptySectionsRemainIndependentFromSuccessfulHero() = runComposeUiTest {
         setContent {
             Fixture(
-                MatchDetailUiState.Content(completedMatch.copy(maps = emptyList())),
+                MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(
+                        completedMatch.copy(maps = emptyList()),
+                    ),
+                ),
             )
         }
 
@@ -79,7 +89,11 @@ class MatchDetailContentUiTest {
 
         setContent {
             Fixture(
-                MatchDetailUiState.Content(completedMatch.copy(headToHead = emptyList())),
+                MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(
+                        completedMatch.copy(headToHead = emptyList()),
+                    ),
+                ),
             )
         }
 
@@ -90,8 +104,10 @@ class MatchDetailContentUiTest {
 
         setContent {
             Fixture(
-                MatchDetailUiState.Content(
-                    completedMatch.copy(maps = emptyList(), headToHead = emptyList()),
+                MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(
+                        completedMatch.copy(maps = emptyList(), headToHead = emptyList()),
+                    ),
                 ),
             )
         }
@@ -114,7 +130,13 @@ class MatchDetailContentUiTest {
 
         expectations.forEach { (status, label) ->
             setContent {
-                Fixture(MatchDetailUiState.Content(completedMatch.copy(status = status)))
+                Fixture(
+                    MatchDetailUiState(
+                        contentState = MatchDetailContentState.Content(
+                            completedMatch.copy(status = status),
+                        ),
+                    ),
+                )
             }
             onNodeWithText(label).assertExists()
         }
@@ -132,7 +154,13 @@ class MatchDetailContentUiTest {
             maps = emptyList(),
             headToHead = emptyList(),
         )
-        setContent { Fixture(MatchDetailUiState.Content(terminalMatch)) }
+        setContent {
+            Fixture(
+                MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(terminalMatch),
+                ),
+            )
+        }
 
         onNodeWithText("이 경기는 제한된 정보만 제공됩니다").assertExists()
         onNodeWithTag(MATCH_DETAIL_EVENT_TAG).assert(!hasClickAction())
@@ -153,7 +181,9 @@ class MatchDetailContentUiTest {
         var backs = 0
         setContent {
             Fixture(
-                MatchDetailUiState.Content(completedMatch),
+                MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(completedMatch),
+                ),
                 onEventClick = { eventId = it },
                 onTeamClick = { teamId = it },
                 onMatchClick = { matchId = it },
@@ -173,7 +203,7 @@ class MatchDetailContentUiTest {
 
         setContent {
             Fixture(
-                MatchDetailUiState.Error,
+                MatchDetailUiState(contentState = MatchDetailContentState.Error),
                 onBack = { backs += 1 },
                 onRetry = { retries += 1 },
             )
@@ -199,7 +229,13 @@ class MatchDetailContentUiTest {
             description = longDescription,
         )
 
-        setContent { Fixture(MatchDetailUiState.Content(longMatch)) }
+        setContent {
+            Fixture(
+                MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(longMatch),
+                ),
+            )
+        }
 
         onNodeWithContentDescription("뒤로 가기").assertHeightIsAtLeast(48.dp)
         onNodeWithTag(MATCH_DETAIL_EVENT_TAG)
