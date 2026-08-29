@@ -8,6 +8,7 @@ import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import kr.co.cotton.vlrgg_mobile.data.di.DataBinding
 import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.TeamRepository
+import kr.co.cotton.vlrgg_mobile.domain.repository.SeriesRepository
 import kr.co.cotton.vlrgg_mobile.network.NetworkConfig
 import kr.co.cotton.vlrgg_mobile.network.di.NetworkBinding
 
@@ -22,6 +23,7 @@ interface AppGraph : ViewModelGraph {
 
     val teamRepository: TeamRepository
     val playerRepository: PlayerRepository
+    val seriesRepository: SeriesRepository
 
     @DependencyGraph.Factory
     fun interface Factory {

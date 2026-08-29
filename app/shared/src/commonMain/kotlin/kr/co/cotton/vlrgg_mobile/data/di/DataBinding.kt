@@ -7,24 +7,28 @@ import kr.co.cotton.vlrgg_mobile.data.remote.RemoteMatchDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteNewsDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemotePlayerDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteSearchDataSource
+import kr.co.cotton.vlrgg_mobile.data.remote.RemoteSeriesDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteTeamDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteEventDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteMatchDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteNewsDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemotePlayerDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteSearchDataSourceImpl
+import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteSeriesDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteTeamDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.EventRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.MatchRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.NewsRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.PlayerRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.SearchRepositoryImpl
+import kr.co.cotton.vlrgg_mobile.data.repository.SeriesRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.TeamRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.NewsRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.SearchRepository
+import kr.co.cotton.vlrgg_mobile.domain.repository.SeriesRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.TeamRepository
 
 @BindingContainer
@@ -84,6 +88,17 @@ internal interface DataBinding {
     fun bindSearchRepository(
         impl: SearchRepositoryImpl,
     ): SearchRepository
+
+    // Series
+    @Binds
+    fun bindRemoteSeriesDataSource(
+        impl: RemoteSeriesDataSourceImpl,
+    ): RemoteSeriesDataSource
+
+    @Binds
+    fun bindSeriesRepository(
+        impl: SeriesRepositoryImpl,
+    ): SeriesRepository
 
     // Teams
     @Binds

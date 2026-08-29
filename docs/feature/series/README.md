@@ -6,10 +6,11 @@ Series Detail은 같은 대회 체계에 속한 Event를 예정·완료 기준�
 
 이 문서는 제품 동작을 정의한다. 시각 언어와 공통 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
-## 구현 상태 (2026-07-22)
+## 구현 상태 (2026-08-29)
 
 - **Backend: 구현 완료.** `GET /api/v1/series/{seriesId}`가 Series와 Upcoming/Completed Event 그룹을 반환하며 parser/mapper/service/route 테스트가 있다.
-- **App: 미구현.** Series Detail UI, Search 결과 진입, Event navigation과 화면 상태 관리는 아직 구현되어 있지 않다.
+- **App D2: 구현 완료.** Series 응답 매핑과 repository/Metro binding, Loading/Content/Error 상태, Populated/Upcoming Only/Completed Only/전체 Empty 화면, Search → Series → Event 이동과 back/root 상태 복원을 구현했다.
+- **검증 범위:** Android host 및 iOS simulator 자동화 테스트와 양 플랫폼 compile, Android debug assemble을 통과했다. 실제 양 플랫폼 screenshot과 실기기 접근성 검증은 아직 수행하지 않았다.
 
 ## MVP 범위
 
@@ -98,15 +99,10 @@ Event row의 세부 표현은 Events 기능 문서와 같은 Event 요약 규칙
 - Back은 유지하고 같은 Series를 다시 요청하는 Retry action을 제공한다.
 - raw exception, HTTP status, selector 또는 upstream URL을 노출하지 않는다.
 
-### Stale
-
-- 서버는 이전 scraping 결과를 실패 fallback으로 반환하지 않는다.
-- 앱이 새로고침 중 기존 Series를 일시 유지하는 경우 마지막 갱신 상태를 표시하고 이전 Event 상태를 최신으로 오인하게 하지 않는다.
-
 ## 사용자 인터랙션
 
 - Event 항목 선택: Event Detail 이동
-- 재시도 또는 새로고침: 현재 Series 다시 요청
+- Error Screen 재시도: 현재 Series를 같은 `seriesId`로 다시 요청
 - 뒤로 가기: Event → Series → Search 순서와 각 화면 상태 복원
 
 Standings나 지원하지 않는 고급 기능은 비활성 탭 또는 placeholder로 노출하지 않는다.
@@ -117,7 +113,7 @@ Standings나 지원하지 않는 고급 기능은 비활성 탭 또는 placehold
 
 - app-facing Series Response를 app Domain Model로 매핑한다.
 - Event를 Upcoming과 Completed 섹션에 표시하고 날짜·상태를 화면용으로 포맷한다.
-- full-content loading, empty, populated, error, stale 화면 상태를 표현한다. generic Partial은 사용하지 않는다.
+- full-content loading, empty, populated, error 화면 상태를 표현한다. generic Partial은 사용하지 않는다.
 - Event 선택을 Navigation 3 Screen callback으로 전달한다.
 - VLR.GG HTML과 selector를 직접 해석하지 않는다.
 
@@ -182,15 +178,15 @@ https://www.vlr.gg/series/85/valorant-challengers-league-2026
 
 ## 수용 기준
 
-- [ ] Series Detail이 Phase 5 및 1차 MVP 범위로 문서와 구현 계획에 포함된다.
-- [ ] Search의 Series 결과에서 Series Detail에 진입할 수 있다.
-- [ ] Series Detail이 `Upcoming Events`와 `Completed Events`를 명확히 구분한다.
-- [ ] 두 섹션의 Event를 선택하면 Event Detail로 이동한다.
-- [ ] Event Detail에서 뒤로 가면 Series의 스크롤과 섹션 상태가 복원된다.
-- [ ] Series에서 뒤로 가면 Search 검색어와 결과가 복원된다.
-- [ ] 한 섹션만 비어 다른 섹션의 Event가 유지되는 section Empty와 두 섹션 모두 비는 전체 Empty를 구분한다.
-- [ ] Series response는 atomic이므로 section-specific transport failure는 제공하지 않으며, transport/parsing failure는 Series identity와 섹션을 대체하는 full-content Error Screen과 Retry로 처리한다.
-- [ ] full-content loading, empty, populated, error, stale 상태가 정상 콘텐츠와 구분되고 generic Partial screen은 없다.
-- [ ] Standings와 기타 제외 기능이 placeholder로 노출되지 않는다.
+- [x] Series Detail이 Phase 5 및 1차 MVP 범위로 문서와 구현 계획에 포함된다.
+- [x] Search의 Series 결과에서 Series Detail에 진입할 수 있다.
+- [x] Series Detail이 `Upcoming Events`와 `Completed Events`를 명확히 구분한다.
+- [x] 두 섹션의 Event를 선택하면 Event Detail로 이동한다.
+- [x] Event Detail에서 뒤로 가면 Series의 스크롤과 섹션 상태가 복원된다.
+- [x] Series에서 뒤로 가면 Search 검색어, 결과와 스크롤이 복원된다.
+- [x] 한 섹션만 비어 다른 섹션의 Event가 유지되는 section Empty와 두 섹션 모두 비는 전체 Empty를 구분한다.
+- [x] Series response는 atomic이므로 section-specific transport failure는 제공하지 않으며, transport/parsing failure는 Series identity와 섹션을 대체하는 full-content Error Screen과 Retry로 처리한다.
+- [x] full-content loading, empty, populated, error 상태가 정상 콘텐츠와 구분되고 generic Partial screen은 없다.
+- [x] Standings와 기타 제외 기능이 placeholder로 노출되지 않는다.
 - [x] parser fixture가 Upcoming/Completed Event 상태 그룹을 검증한다.
 - [x] 서버 오류가 raw HTML, selector 또는 내부 예외 정보를 노출하지 않는다.
