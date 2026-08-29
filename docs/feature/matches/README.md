@@ -4,12 +4,13 @@
 
 이 문서는 Upcoming/Live, Results, Match Detail과 경기 시작 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
-## 구현 상태 (2026-08-24)
+## 구현 상태 (2026-08-29)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
 - **Backend Match 알림/구독: Stage 1.1 server offline GREEN.** Firestore Emulator, 익명 Target ID/Secret, START-only, request-bound scheduler로 Stage 1 runtime을 교체했고 credential-free contract/emulator/package evidence가 GREEN이다. 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md), [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](../../architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
-- **App Matches 목록: 구현 완료.** Upcoming/Live와 Results의 독립 상태·페이지네이션·스크롤, 최초 로딩/빈 상태/오류/새로고침/추가 로딩 상태, 날짜 그룹과 공통 Match card, Match Detail placeholder 진입 및 root/detail 왕복 복원이 구현되어 있다.
-- **App Match Detail·알림: 미구현/Stage 2.** 실제 Match Detail 콘텐츠, Match notification UI, Target credential, App Check/FCM, 권한과 전역 알림 흐름은 Issue #38 범위가 아니다.
+- **App Matches 목록: 구현 완료.** Upcoming/Live와 Results의 독립 상태·페이지네이션·스크롤, 최초 로딩/빈 상태/오류/새로고침/추가 로딩 상태, 날짜 그룹과 공통 Match card, 실제 Match Detail 진입 및 root/detail 왕복 복원이 구현되어 있다.
+- **App Match Detail Basic D1: 구현 완료.** Loading/Content/Error, Upcoming/Postponed/Live/Completed/Cancelled/Unavailable, optional section Partial, `Match hero → Maps → Head to Head`, Team/Event/H2H 이동과 overlay/root 왕복 상태 복원을 구현했다. Android host 테스트·컴파일과 iOS simulator Compose UI 테스트로 검증했으며 실제 양 플랫폼 기기 screenshot·실기기 접근성 검증 완료를 주장하지 않는다.
+- **App Match 알림: Stage 2 후속 범위.** notification bell, 구독 mutation, Target credential, App Check/FCM, 권한·settings dialog와 전역 알림 흐름은 Match Detail Basic D1에 포함하지 않는다. Match favorite와 `pastMatches` UI도 구현하지 않았다.
 
 ## 목적과 사용자 가치
 
@@ -43,7 +44,6 @@
 - 스코어와 경기 상태
 - 맵 목록
 - Head to Head
-- Upcoming/Postponed Match 알림 설정 및 해제
 
 ### Match 알림
 
@@ -105,7 +105,7 @@ Live 상태는 색상만으로 전달하지 않고 텍스트 label을 함께 사
 
 ### Match Detail
 
-1. 뒤로가기, Upcoming/Postponed에서만 보이는 Match 알림 action
+1. D1에서는 뒤로가기만 제공한다. Upcoming/Postponed Match 알림 action은 후속 범위다.
 2. 경기 상태와 예정/시작 시각
 3. Event 이름과 경기 설명
 4. 양 팀과 스코어
@@ -114,7 +114,7 @@ Live 상태는 색상만으로 전달하지 않고 텍스트 label을 함께 사
 
 정보가 존재하지 않는 FFW 등의 terminal Match는 비어 있는 정상 스탯 화면처럼 보이지 않아야 한다. 확인 가능한 팀, 결과, 상태를 우선 표시하고 사용할 수 없는 section은 명시적으로 생략하거나 unavailable로 표현한다.
 Upcoming/Postponed pre-match에서는 Maps와 Head to Head를 section-level Empty로 표시할 수 있다. Match Detail의 Event identity와 Team identity는 각각 Event/Team Detail로 이동한다.
-Team hero는 양쪽 모두 로고를 위에, Team name을 아래에 쌓는 대칭 구조이며, score/result는 두 Team hero 사이의 수평 중앙에 배치한다. Team logo가 없어도 Team name과 중앙 score/result의 관계는 유지한다.
+Team hero는 양쪽 모두 로고 영역을 위에, Team name을 아래에 쌓는 대칭 구조이며, score/result는 두 Team hero 사이의 수평 중앙에 배치한다. 현재 public contract에는 Team logo URL이 없으므로 D1은 저강조 placeholder만 사용하고 remote image를 추정하지 않는다.
 
 ## 표시 데이터와 선택성
 
@@ -341,11 +341,23 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 - [ ] Upcoming/Live는 날짜, 경기 시각, 남은 시간, 양 팀, Event, 상태를 표시한다.
 - [ ] Results는 날짜, 완료 시각, 양 팀, 스코어, Event를 표시한다.
 - [ ] 목록 pagination이 중복 항목 없이 동작하고 추가 페이지 실패 시 기존 목록을 유지한다.
-- [ ] 경기 항목은 Match Detail로, Event reference는 Event Detail로 이동한다.
-- [ ] Match Detail은 Event, 경기 설명, 양 팀, 스코어, 상태, 맵, Head to Head를 사용 가능한 범위에서 표시하고 기존 서버 `pastMatches` field를 UI section으로 렌더링하지 않는다.
-- [ ] Match Detail의 양 Team hero는 각각 로고 위·이름 아래로 쌓이고 score/result는 두 Team 사이 중앙에 배치된다.
+- [x] 경기 항목은 실제 Match Detail로, Match Detail의 Event reference는 Event Detail로 이동한다.
+- [x] Match Detail은 Event, 경기 설명, 양 팀, 스코어, 상태, 맵, Head to Head를 사용 가능한 범위에서 표시하고 기존 서버 `pastMatches` field를 UI section으로 렌더링하지 않는다.
+- [x] Match Detail의 양 Team hero는 로고 영역 위·이름 아래의 대칭 구조를 유지하고 score/result를 두 Team 사이 중앙에 배치한다. 계약에 없는 remote logo는 추정하지 않는다.
 - [x] BO1/BO3/BO5와 FFW fixture에서 상태별 선택성이 parsing failure와 구분된다.
 - [ ] initial loading, empty, initial error, pagination error, stale/unavailable 표현이 정상 populated 상태와 구분된다.
+
+### Match Detail Basic D1
+
+- [x] 전체 요청은 `Loading`, `Content`, `Error`로 구분하고 Error에서 같은 Match ID 재시도와 Back을 제공한다.
+- [x] Upcoming/Postponed, Live, Completed, Cancelled/Unavailable을 색상 외 상태 text와 함께 구분한다.
+- [x] Content는 `Match hero/basic info → Maps → Head to Head` 순서를 유지하며 Maps/H2H의 한쪽 또는 양쪽이 비어도 기본 Match와 사용 가능한 section을 보존한다.
+- [x] map/H2H의 nullable score는 `—`, 실제 numeric zero는 `0`으로 구분한다.
+- [x] Team/Event ID가 있을 때만 전체 identity를 활성화하고 H2H 전체 surface는 관련 Match Detail로 이동한다.
+- [x] Matches Upcoming/Results, Event, Team, Player의 기존 Match route가 같은 실제 destination으로 해석되고 Back·root 전환 뒤 loaded/scroll overlay state를 보존한다.
+- [x] bottom navigation, notification bell·mutation·Snackbar, Match favorite, `pastMatches`, 추정 remote Team image를 Match Detail D1에 노출하지 않는다.
+- [x] Compose UI 테스트에서 48dp interactive target, 접근 가능한 label, 긴 한국어 Team/Event/description의 안전한 배치를 검증한다.
+- [ ] Android/iOS 실제 기기 screenshot 비교와 실기기 접근성 검증은 별도 수행이 필요하다.
 
 ### 즐겨찾기, 권한, 전역 설정
 
