@@ -6,6 +6,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -24,6 +25,13 @@ import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleBlock
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleInline
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsLinkKind
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsPage
+import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail as PlayerIdentity
+import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerCurrentTeam
+import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerProfile
+import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
+import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatchOutcome
+import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatchTeam
+import kr.co.cotton.vlrgg_mobile.domain.model.search.PlayerSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.SearchResults
 import kr.co.cotton.vlrgg_mobile.domain.model.search.TeamSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail as TeamIdentity
@@ -33,6 +41,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
 import kr.co.cotton.vlrgg_mobile.domain.repository.NewsRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.SearchRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.TeamRepository
+import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.detail.NewsDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.search.SearchViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.TEAM_DETAIL_HEADER_TAG
@@ -40,6 +49,10 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.teamMatchCardTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.teamNewsRowTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.teamPlayerRowTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.TeamDetailViewModel
+import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PLAYER_DETAIL_HEADER_TAG
+import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PlayerDetailViewModel
+import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.playerMatchCardTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.playerTeamRowTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 
@@ -50,7 +63,8 @@ class TeamDetailNavigationRuntimeUiTest {
     fun teamDetailUsesTheLiveScreenAndPreservesLoadedScrollAcrossNestedAndRootRoundTrips() = runComposeUiTest {
         var navigationState: AppNavigationState? = null
         val teamRepository = FakeTeamRepository()
-        val viewModelFactory = teamViewModelFactory(teamRepository)
+        val playerRepository = FakePlayerRepository()
+        val viewModelFactory = teamViewModelFactory(teamRepository, playerRepository)
         val hostOwner = TestHostViewModelStoreOwner()
 
         setContent {
@@ -101,8 +115,22 @@ class TeamDetailNavigationRuntimeUiTest {
 
         onNodeWithTag(teamPlayerRowTag(LAST_PLAYER_ID)).performClick()
         assertTopDestination(navigationState, PlayerDetail(LAST_PLAYER_ID))
-        onNodeWithText("player_detail").assertExists()
+        onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
+        onNodeWithTag(playerTeamRowTag(TEAM_ID)).performClick()
+        assertTopDestination(navigationState, TeamDetail(TEAM_ID))
+        onNodeWithContentDescription("뒤로 가기").performClick()
+        onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
+        scrollToTag(playerMatchCardTag(PLAYER_MATCH_ID))
+        onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).performClick()
+        assertTopDestination(navigationState, MatchDetail(PLAYER_MATCH_ID))
+        onNodeWithText("match_detail").assertExists()
         onNodeWithText("Back").performClick()
+        onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).assertIsDisplayed()
+        runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
+        onNodeWithText("fixture:news").assertExists()
+        runOnIdle { requireNotNull(navigationState).selectRoot(MyPageRoot) }
+        onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).assertIsDisplayed()
+        onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithTag(teamPlayerRowTag(LAST_PLAYER_ID)).assertIsDisplayed()
 
         scrollToTag(teamNewsRowTag(ARTICLE_ID, ARTICLE_SLUG))
@@ -112,7 +140,8 @@ class TeamDetailNavigationRuntimeUiTest {
         runOnIdle { requireNotNull(navigationState).popOverlay() }
         onNodeWithTag(teamNewsRowTag(ARTICLE_ID, ARTICLE_SLUG)).assertIsDisplayed()
 
-        kotlin.test.assertEquals(1, teamRepository.requestedIds.count { it == TEAM_ID })
+        kotlin.test.assertEquals(2, teamRepository.requestedIds.count { it == TEAM_ID })
+        kotlin.test.assertEquals(1, playerRepository.requestedIds.count { it == LAST_PLAYER_ID })
     }
 
     @Test
@@ -133,6 +162,11 @@ class TeamDetailNavigationRuntimeUiTest {
                         NewsDetailViewModel(FakeNewsRepository(), articleId, slug)
                     }
                 },
+                PlayerDetailViewModel.Factory::class to {
+                    PlayerDetailViewModel.Factory { playerId ->
+                        PlayerDetailViewModel(FakePlayerRepository(), playerId)
+                    }
+                },
             ),
         )
         var navigationState: AppNavigationState? = null
@@ -146,7 +180,7 @@ class TeamDetailNavigationRuntimeUiTest {
                     AppNavigationRuntime(
                         onNavigationStateAvailable = { navigationState = it },
                         entryContent = { destination, onSearch, onPush, onBack ->
-                            if (destination is Search || destination is TeamDetail || destination is NewsDetail) {
+                            if (destination is Search || destination is TeamDetail || destination is NewsDetail || destination is PlayerDetail) {
                                 NavigationContent(
                                     destination = destination,
                                     onSearch = onSearch,
@@ -172,11 +206,28 @@ class TeamDetailNavigationRuntimeUiTest {
         onNodeWithTag("search-row-Team:$TEAM_ID").assertExists()
         runOnIdle { requireNotNull(navigationState).popOverlay() }
 
+        runOnIdle { requireNotNull(navigationState).push(Search) }
+        onNodeWithContentDescription("검색어", useUnmergedTree = true).performTextInput("Player")
+        onNodeWithContentDescription("검색").performClick()
+        onNodeWithTag("search-row-Player:$SOURCE_PLAYER_ID").performClick()
+        assertTopDestination(navigationState, PlayerDetail(SOURCE_PLAYER_ID))
+        onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
+        onNodeWithContentDescription("뒤로 가기").performClick()
+        onNodeWithTag("search-row-Player:$SOURCE_PLAYER_ID").assertExists()
+        runOnIdle { requireNotNull(navigationState).popOverlay() }
+
         runOnIdle { requireNotNull(navigationState).push(NewsDetail(SOURCE_ARTICLE_ID, SOURCE_ARTICLE_SLUG)) }
         onNodeWithText(SOURCE_ARTICLE_TITLE).assertExists()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Open $NEWS_TEAM_LINK_LABEL"))
         onNodeWithText("Open $NEWS_TEAM_LINK_LABEL").performClick()
         assertTopDestination(navigationState, TeamDetail(TEAM_ID))
         onNodeWithTag(TEAM_DETAIL_HEADER_TAG).assertExists()
+        onNodeWithContentDescription("뒤로 가기").performClick()
+        onNodeWithText(SOURCE_ARTICLE_TITLE).assertExists()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Open $NEWS_PLAYER_LINK_LABEL"))
+        onNodeWithText("Open $NEWS_PLAYER_LINK_LABEL").performClick()
+        assertTopDestination(navigationState, PlayerDetail(SOURCE_PLAYER_ID))
+        onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
         onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithText(SOURCE_ARTICLE_TITLE).assertExists()
     }
@@ -195,12 +246,18 @@ class TeamDetailNavigationRuntimeUiTest {
         )
     }
 
-    private fun teamViewModelFactory(repository: TeamRepository) = AppViewModelFactory(
+    private fun teamViewModelFactory(
+        repository: TeamRepository,
+        playerRepository: PlayerRepository,
+    ) = AppViewModelFactory(
         viewModelProviders = emptyMap(),
         assistedFactoryProviders = emptyMap(),
         manualAssistedFactoryProviders = mapOf(
             TeamDetailViewModel.Factory::class to {
                 TeamDetailViewModel.Factory { teamId -> TeamDetailViewModel(repository, teamId) }
+            },
+            PlayerDetailViewModel.Factory::class to {
+                PlayerDetailViewModel.Factory { playerId -> PlayerDetailViewModel(playerRepository, playerId) }
             },
         ),
     )
@@ -243,11 +300,43 @@ class TeamDetailNavigationRuntimeUiTest {
         }
     }
 
+    private class FakePlayerRepository : PlayerRepository {
+        val requestedIds = mutableListOf<String>()
+
+        override suspend fun getPlayerDetail(playerId: String): AppResult<PlayerIdentity> {
+            requestedIds += playerId
+            return AppResult.Success(
+                PlayerIdentity(
+                    id = playerId,
+                    profile = PlayerProfile(handle = "Player $playerId", realName = null, aliases = emptyList(), countryCode = null, countryName = null),
+                    currentTeam = PlayerCurrentTeam(TEAM_ID, TEAM_NAME),
+                    agentStats = emptyList(),
+                    recentMatches = listOf(
+                        PlayerRecentMatch(
+                            id = PLAYER_MATCH_ID,
+                            eventName = "Player match",
+                            eventStage = null,
+                            teamA = PlayerRecentMatchTeam(TEAM_NAME, "T1"),
+                            teamB = PlayerRecentMatchTeam("GEN", "GEN"),
+                            teamAScore = 2,
+                            teamBScore = 0,
+                            outcome = PlayerRecentMatchOutcome.WIN,
+                            playedOn = null,
+                        ),
+                    ),
+                ),
+            )
+        }
+    }
+
     private class FakeSearchRepository : SearchRepository {
         override suspend fun getSearch(query: String): AppResult<SearchResults> = AppResult.Success(
             SearchResults(
                 query = query,
-                items = listOf(TeamSearchResult(TEAM_ID, TEAM_NAME, "Pacific")),
+                items = listOf(
+                    TeamSearchResult(TEAM_ID, TEAM_NAME, "Pacific"),
+                    PlayerSearchResult(SOURCE_PLAYER_ID, "Source Player", "Player Source"),
+                ),
             ),
         )
     }
@@ -274,6 +363,16 @@ class TeamDetailNavigationRuntimeUiTest {
                                 ),
                             ),
                         ),
+                        NewsArticleBlock.Paragraph(
+                            listOf(
+                                NewsArticleInline.Text("Open "),
+                                NewsArticleInline.Link(
+                                    NEWS_PLAYER_LINK_LABEL,
+                                    NewsLinkKind.PLAYER,
+                                    "$SOURCE_PLAYER_ID/source-player",
+                                ),
+                            ),
+                        ),
                     ),
                 ),
             )
@@ -294,5 +393,8 @@ class TeamDetailNavigationRuntimeUiTest {
         const val SOURCE_ARTICLE_SLUG = "team-source"
         const val SOURCE_ARTICLE_TITLE = "T1 source article"
         const val NEWS_TEAM_LINK_LABEL = "T1 link"
+        const val NEWS_PLAYER_LINK_LABEL = "Player link"
+        const val SOURCE_PLAYER_ID = "2001"
+        const val PLAYER_MATCH_ID = "4001"
     }
 }

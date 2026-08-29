@@ -27,6 +27,7 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.news.detail.NewsDetailScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.NewsScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.search.SearchScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.TeamDetailScreen
+import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PlayerDetailScreen
 import kr.co.cotton.vlrgg_mobile.domain.model.search.EventSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.PlayerSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.SearchResult
@@ -119,8 +120,15 @@ fun NavigationContent(
             modifier = modifier.fillMaxSize(),
         )
 
+        is PlayerDetail -> PlayerDetailScreen(
+            playerId = destination.playerId,
+            onBack = onBack,
+            onTeamClick = { teamId -> onPush(TeamDetail(teamId)) },
+            onMatchClick = { matchId -> onPush(MatchDetail(matchId)) },
+            modifier = modifier.fillMaxSize(),
+        )
+
         is MatchDetail,
-        is PlayerDetail,
         is SeriesDetail,
             -> PushedContent(
             destination = destination,
