@@ -13,7 +13,10 @@ class PlayerDetailParserTest {
         val source = parser.parse(content("player-detail.html"))
 
         assertEquals(PlayerProfileSource("Rb", "Goo Sang-min", listOf("ClokingRb"), "kr", "SOUTH KOREA"), source.profile)
-        assertEquals(PlayerTeamSource("11060", "Nongshim RedForce"), source.currentTeam)
+        assertEquals(
+            PlayerTeamSource("11060", "Nongshim RedForce", "https://owcdn.net/img/6399bb707aacb.png"),
+            source.currentTeam,
+        )
         assertEquals(2, source.agentStats.size)
         assertEquals("jett", source.agentStats.first().agentName)
         assertEquals(134, source.agentStats.first().mapsPlayed)
@@ -96,8 +99,27 @@ class PlayerDetailParserTest {
         val source = parser.parse(content("player-detail-polluted.html"))
 
         assertEquals(PlayerTeamSource("101", "Clean Team"), source.currentTeam)
+        assertNull(source.currentTeam?.imageUrl)
         assertEquals(listOf("sage"), source.agentStats.map(AgentStatSource::agentName))
         assertEquals(listOf("700001"), source.recentMatches.map(PlayerRecentMatchSource::id))
+    }
+
+    @Test
+    fun `parser normalizes only supported HTTPS team image sources`() {
+        val imageSources = mapOf(
+            "//owcdn.net/img/team.png" to "https://owcdn.net/img/team.png",
+            "/img/team.png" to "https://www.vlr.gg/img/team.png",
+            "http://owcdn.net/img/team.png" to null,
+            "" to null,
+        )
+
+        imageSources.forEach { (source, expected) ->
+            val html = fixture("player-detail.html").replace(
+                "//owcdn.net/img/6399bb707aacb.png",
+                source,
+            )
+            assertEquals(expected, parser.parse(content("player-detail.html").copy(html = html)).currentTeam?.imageUrl, source)
+        }
     }
 
     private fun content(name: String) = PlayerDetailUpstreamContent(fixture(name), upstreamUrl)

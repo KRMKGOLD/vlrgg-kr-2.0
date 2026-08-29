@@ -7,6 +7,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -21,16 +22,23 @@ import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventDetail as EventIdentity
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStats
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatsAvailability
+import kr.co.cotton.vlrgg_mobile.domain.model.events.EventPlayerStats
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
+import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
+import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail as PlayerIdentity
+import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerProfile
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailTab
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.eventDetailTabTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.eventStatsPlayerTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PLAYER_DETAIL_HEADER_TAG
+import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PlayerDetailViewModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -50,6 +58,11 @@ class EventDetailNavigationRuntimeUiTest {
                         EventDetailViewModel(repository, eventId, savedStateHandle)
                     }
                 },
+                PlayerDetailViewModel.Factory::class to {
+                    PlayerDetailViewModel.Factory { playerId ->
+                        PlayerDetailViewModel(FakePlayerRepository(), playerId)
+                    }
+                },
             ),
         )
         val hostOwner = TestHostViewModelStoreOwner()
@@ -66,7 +79,7 @@ class EventDetailNavigationRuntimeUiTest {
                             initialSelectedRoot = EventsRoot,
                             onNavigationStateAvailable = { navigationState = it },
                             entryContent = { destination, onSearch, onPush, onBack ->
-                                if (destination is EventDetail) {
+                                if (destination is EventDetail || destination is PlayerDetail) {
                                     NavigationContent(
                                         destination = destination,
                                         onSearch = onSearch,
@@ -110,6 +123,16 @@ class EventDetailNavigationRuntimeUiTest {
             runOnIdle { requireNotNull(navigationState).popOverlay() }
             onNodeWithText("News 24").assertExists()
             assertEquals(1, repository.newsRequests)
+
+            onNodeWithTag(eventDetailTabTag(EventDetailTab.STATS)).performClick()
+            onNodeWithTag(eventStatsPlayerTag(EVENT_PLAYER_ID)).performClick()
+            val playerEntry = assertIs<OverlayNavEntry>(
+                runOnIdle { requireNotNull(navigationState).currentBackStack.last() },
+            )
+            assertEquals(PlayerDetail(EVENT_PLAYER_ID), playerEntry.destination)
+            onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
+            onNodeWithContentDescription("뒤로 가기").performClick()
+            onNodeWithTag(eventStatsPlayerTag(EVENT_PLAYER_ID)).assertExists()
         }
     }
 
@@ -162,7 +185,18 @@ class EventDetailNavigationRuntimeUiTest {
         }
 
         override suspend fun getEventStats(eventId: String): AppResult<EventStats> =
-            AppResult.Success(EventStats(EventStatsAvailability.NOT_AVAILABLE, emptyList()))
+            AppResult.Success(
+                EventStats(
+                    EventStatsAvailability.AVAILABLE,
+                    listOf(EventPlayerStats(EVENT_PLAYER_ID, "Event Player", "T1", 12, 1.2, 220, 1.3, 145.0, 72.0)),
+                ),
+            )
+    }
+
+    private class FakePlayerRepository : PlayerRepository {
+        override suspend fun getPlayerDetail(playerId: String): AppResult<PlayerIdentity> = AppResult.Success(
+            PlayerIdentity(playerId, PlayerProfile("Event Player", null, emptyList(), null, null), null, emptyList(), emptyList()),
+        )
     }
 
     private class TestHostViewModelStoreOwner : ViewModelStoreOwner {
@@ -172,5 +206,6 @@ class EventDetailNavigationRuntimeUiTest {
     private companion object {
         const val EVENT_ID = "100"
         const val EVENT_DETAIL_ROUTE_TAG = "event-detail-route"
+        const val EVENT_PLAYER_ID = "2002"
     }
 }

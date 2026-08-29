@@ -24,8 +24,9 @@ class PlayerMapperTest {
         assertEquals(listOf("ClokingRb", "Rb"), detail.profile.aliases)
         assertEquals("kr", detail.profile.countryCode)
         assertEquals("SOUTH KOREA", detail.profile.countryName)
-        assertEquals(PlayerCurrentTeamDto("11060", "Nongshim RedForce").id, detail.currentTeam?.id)
+        assertEquals(PlayerCurrentTeamDto("11060", "Nongshim RedForce", "https://owcdn.net/img/6399bb707aacb.png").id, detail.currentTeam?.id)
         assertEquals("Nongshim RedForce", detail.currentTeam?.name)
+        assertEquals("https://owcdn.net/img/6399bb707aacb.png", detail.currentTeam?.imageUrl)
 
         val stat = detail.agentStats.single()
         assertEquals("jett", stat.agentName)
@@ -119,6 +120,19 @@ class PlayerMapperTest {
     }
 
     @Test
+    fun currentTeamImageUrlIsNullableAndMissingValueStaysNull() {
+        val detail = PlayerDetailResponseDto(
+            id = "488",
+            profile = PlayerProfileDto("Rb", null, emptyList(), null, null),
+            currentTeam = PlayerCurrentTeamDto("11060", "Nongshim RedForce"),
+            agentStats = emptyList(),
+            recentMatches = emptyList(),
+        ).toDomain()
+
+        assertNull(detail.currentTeam?.imageUrl)
+    }
+
+    @Test
     fun everyRecentMatchOutcomeMapsExactly() {
         val outcomes = PlayerRecentMatchOutcomeDto.entries.map { outcome ->
             PlayerDetailResponseDto(
@@ -149,7 +163,11 @@ class PlayerMapperTest {
             countryCode = "kr",
             countryName = "SOUTH KOREA",
         ),
-        currentTeam = PlayerCurrentTeamDto("11060", "Nongshim RedForce"),
+        currentTeam = PlayerCurrentTeamDto(
+            "11060",
+            "Nongshim RedForce",
+            "https://owcdn.net/img/6399bb707aacb.png",
+        ),
         agentStats = listOf(
             PlayerAgentStatDto(
                 agentName = "jett",

@@ -33,8 +33,23 @@ class PlayerDetailRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals("488", body["id"]?.jsonPrimitive?.content)
         assertEquals("11060", body["currentTeam"]?.jsonObject?.get("id")?.jsonPrimitive?.content)
+        assertEquals(
+            "https://owcdn.net/img/6399bb707aacb.png",
+            body["currentTeam"]?.jsonObject?.get("imageUrl")?.jsonPrimitive?.content,
+        )
         assertEquals("708427", body["recentMatches"]?.jsonArray?.first()?.jsonObject?.get("id")?.jsonPrimitive?.content)
         assertEquals(5, body["recentMatches"]?.jsonArray?.size)
+    }
+
+    @Test
+    fun `route preserves a missing current team image as JSON null`() = withPlayerApplication(
+        FixtureTransport(html = fixture("player-detail-polluted.html")),
+    ) {
+        val currentTeam = Json.parseToJsonElement(client.get("/api/v1/players/488").bodyAsText())
+            .jsonObject["currentTeam"]
+            ?.jsonObject
+
+        assertEquals(JsonNull, currentTeam?.get("imageUrl"))
     }
 
     @Test

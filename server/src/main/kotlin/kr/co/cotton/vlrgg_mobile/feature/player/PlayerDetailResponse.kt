@@ -22,7 +22,11 @@ internal data class PlayerProfileResponse(
 )
 
 @Serializable
-internal data class PlayerTeamResponse(val id: String, val name: String)
+internal data class PlayerTeamResponse(
+    val id: String,
+    val name: String,
+    val imageUrl: String? = null,
+)
 
 @Serializable
 internal data class PlayerAgentStatResponse(

@@ -57,6 +57,7 @@ internal class PlayerDetailParser {
             name = link.selectFirst(CURRENT_TEAM_NAME_SELECTOR)?.normalizedTextOrNull()
                 ?: link.selectFirst("img[alt]")?.attr("alt")?.normalizedStringOrNull()
                 ?: sourceStructureError("Current Team name is missing."),
+            imageUrl = link.selectFirst("img[src]")?.attr("src")?.toPublicImageUrl(),
         )
     }
 
@@ -173,6 +174,15 @@ internal class PlayerDetailParser {
     private fun Element.normalizedTextOrNull(): String? = text().normalizedStringOrNull()
     private fun Element.ownNormalizedTextOrNull(): String? = ownText().normalizedStringOrNull()
     private fun String.normalizedStringOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
+    // Player team images are HTTPS-only: normalize protocol/root-relative sources to HTTPS and discard HTTP, empty, or other schemes.
+    private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
+        when {
+            source.startsWith("//") -> "https:$source"
+            source.startsWith("https://") -> source
+            source.startsWith("/") -> "https://www.vlr.gg$source"
+            else -> null
+        }
+    }
     private fun String.matchedId(pattern: Regex): String? = pattern.matchEntire(this)?.groups?.get(1)?.value
     private fun Element.nonNegativeIntOrNull(): Int? =
         normalizedText().replace(",", "").toIntOrNull()?.takeIf { it >= 0 }
