@@ -2,11 +2,11 @@
 
 ## 구현 상태 (2026-08-29)
 
-- **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 전체 기간 Player 정보, 현재 팀, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
-- **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있다.
-- **App UI P1 sections/navigation: 구현 완료.** Player Detail의 loading/content/error, Current Team·Agent Stats·Recent Matches의 독립 empty state, Team/Match navigation과 state restoration 회귀 테스트가 구현되어 있다. Android/iOS 실기기 screenshot 및 접근성 검증은 아직 수행하지 않았다.
+- **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 전체 기간 Player 정보, `currentTeam.imageUrl`을 포함한 현재 팀, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
+- **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있으며 `currentTeam.imageUrl`을 서버 Response에서 앱 Domain Model까지 전달한다.
+- **App UI P1 sections/navigation: 구현 완료.** Player Detail의 loading/content/error, Current Team·Agent Stats·Recent Matches의 독립 empty state, `currentTeam.imageUrl`을 사용하는 Current Team logo card, outlined Recent Match card, 고정 Agent identity column과 수평 스크롤 metric table, UI Agent 이름 첫 글자 대문자 표시, Agent icon 미사용, Team/Match navigation과 state restoration 회귀 테스트가 구현되어 있다. Android/iOS 실기기 screenshot 및 접근성 검증은 아직 수행하지 않았다.
 - **Favorite: #43 예정.** 로컬 즐겨찾기와 MyPage 연동은 Issue #43 범위다.
-- **이미지 계약 경계.** Player endpoint에는 face와 Agent icon URL이 없으므로 P1은 안정적인 text placeholder와 text-only Agent identity를 사용한다. Issue #68은 Team logo·roster image 서버 계약, Issue #70은 해당 Team 이미지의 앱 적용만 다루며 Player face와 Agent icon은 포함하지 않는다.
+- **이미지 계약 경계.** `currentTeam.imageUrl`은 서버→앱 계약에 포함되며, 값이 있으면 Current Team logo card에 사용하고 `null`이면 안정적인 text placeholder를 표시한다. Player face와 Agent icon URL은 계속 지원하지 않으므로 P1은 Player face placeholder와 text-only Agent identity를 사용하며 Agent icon은 표시하지 않는다. Issue #68은 Team logo·roster image 서버 계약, Issue #70은 해당 Team 이미지의 앱 적용만 다루며, 두 이슈 모두 이 문서에서 완료로 표시하지 않는다.
 
 ## 목적과 사용자 가치
 
@@ -56,21 +56,21 @@ Player Detail에서는 Event Detail로 직접 이동하지 않는다.
    - P1: Back
    - #43: Player favorite star 예정
 2. Player header
-   - Player 이미지 또는 안정적인 placeholder
+   - Player face: 안정적인 text placeholder (face image 미지원)
    - handle
    - 제공 가능한 기본 정보
-3. Current Team
+3. Current Team logo card
 4. Agent Stats
-5. Recent Matches
+5. Recent Matches outlined card
 
-기본 정보와 현재 팀을 먼저 보여주고, 표 형태의 Agent Stats는 고정 Agent identity column과 수평 metric table로 구성한다. metric 순서는 `Maps`, `Pick Rate`, `Rating`, `ACS`, `K/D`, `KAST`, `ADR`이며 Recent Matches는 최대 5개만 표시한다.
+기본 정보와 현재 팀을 먼저 보여주고, Current Team은 `imageUrl` 기반 logo card로 표시한다. 표 형태의 Agent Stats는 Agent identity column을 고정하고 metric table만 수평 스크롤한다. Agent icon은 사용하지 않으며, API의 `agentName`은 유지하되 UI 표시명은 첫 글자를 대문자로 변환한다. metric 순서는 `Maps`, `Pick Rate`, `Rating`, `ACS`, `K/D`, `KAST`, `ADR`이며 Recent Matches는 outlined card로 최대 5개만 표시한다.
 
 ## 표시 데이터
 
 | 영역 | 표시 데이터 |
 | --- | --- |
 | Player header | Player를 식별하고 이해하는 데 필요한 기본 정보 |
-| Current Team | 현재 Team을 식별하고 상세로 이동하는 데 필요한 요약 정보 |
+| Current Team | `id`, `name`, nullable `imageUrl`과 함께 현재 Team을 식별하고 상세로 이동하는 데 필요한 요약 정보 |
 | Agent Stats | Agent별 기본 성과를 비교하는 데 필요한 요약 정보 |
 | Recent Match | Match 요약 계약을 따르는 최근 경기 정보 |
 | Favorite | 현재 Player의 로컬 즐겨찾기 여부 |
@@ -140,7 +140,7 @@ Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표
     "countryCode": "kr",
     "countryName": "SOUTH KOREA"
   },
-  "currentTeam": { "id": "11060", "name": "Nongshim RedForce" },
+  "currentTeam": { "id": "11060", "name": "Nongshim RedForce", "imageUrl": "https://owcdn.net/img/6399bb707aacb.png" },
   "agentStats": [{
     "agentName": "jett", "mapsPlayed": 134, "pickRatePercent": 25,
     "roundsPlayed": 2680, "rating": 1.07, "averageCombatScore": 235.1,
@@ -157,7 +157,7 @@ Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표
 }
 ```
 
-- `currentTeam`은 없을 수 있고, `agentStats`와 `recentMatches`는 빈 배열일 수 있다.
+- `currentTeam`은 없을 수 있고, `agentStats`와 `recentMatches`는 빈 배열일 수 있다. `currentTeam`이 존재해도 `imageUrl`은 nullable이며, `null`은 upstream에서 사용할 수 있는 Team logo URL이 없다는 뜻이다. 이 경우 앱은 현재 팀이 없다고 처리하지 않고 logo card의 안정적인 text placeholder를 표시한다.
 - agentStats의 optional numeric metric과 Recent Match score/date/stage는 source에 없거나 유효하게 해석할 수 없으면 `null`이다. 값 0을 임의로 만들지 않는다.
 - recentMatches는 source 순서의 최대 5개다. source에서 제공하지 않는 ID나 timestamp는 만들지 않는다.
 - upstream network failure는 `502 UPSTREAM_NETWORK_FAILURE`, DOM parsing failure는 `502 SOURCE_PARSING_FAILURE` 공통 envelope로만 노출한다. URL, slug, selector, raw HTML, 내부 exception text는 public response에 포함하지 않는다.
