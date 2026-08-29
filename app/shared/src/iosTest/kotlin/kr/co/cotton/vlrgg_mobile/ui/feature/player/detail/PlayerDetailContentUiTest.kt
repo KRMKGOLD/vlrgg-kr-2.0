@@ -15,6 +15,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.platform.LocalDensity
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
+import coil3.intercept.Interceptor
+import coil3.request.ErrorResult
+import coil3.test.FakeImageLoaderEngine
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerAgentStat
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerCurrentTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
@@ -27,7 +33,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@OptIn(ExperimentalTestApi::class)
+@OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class PlayerDetailContentUiTest {
     @Test
     fun loadingHasCenteredCircularHeaderAndSectionSkeletonsWithoutSampleContent() = runComposeUiTest {
@@ -43,7 +49,7 @@ class PlayerDetailContentUiTest {
     }
 
     @Test
-    fun contentRetainsAllSectionsAndExactTeamAndMatchTargets() = runComposeUiTest {
+    fun populatedCardsPreserveProvidedDataAndEmitExactTeamAndMatchIds() = runComposeUiTest {
         var teamId: String? = null
         var matchId: String? = null
         setContent { Fixture(PlayerDetailContentState.Content(player), { teamId = it }, { matchId = it }) }
@@ -52,13 +58,96 @@ class PlayerDetailContentUiTest {
         onNodeWithText("현재 소속 팀").assertExists()
         onNodeWithText("에이전트 통계").assertExists()
         onNodeWithText("최근 경기").assertExists()
-        assertEquals(3, onAllNodesWithText("—").fetchSemanticsNodes().size)
+        onNodeWithTag(playerCurrentTeamCardTag(TEAM_ID)).assertExists()
+        onNodeWithTag(playerRecentMatchCardTag(MATCH_ID)).assertExists()
+        onNodeWithTag(playerMatchScoreTag(MATCH_ID), useUnmergedTree = true).assertExists()
+        onNodeWithText("VCT Pacific").assertExists()
         onNodeWithText("0%").assertExists()
         onNodeWithTag(playerTeamRowTag(TEAM_ID)).performClick()
         onNodeWithTag(playerMatchCardTag(MATCH_ID)).performClick()
 
         assertEquals(TEAM_ID, teamId)
         assertEquals(MATCH_ID, matchId)
+    }
+
+    @Test
+    fun currentTeamUsesProvidedImageUrlAndStablePlaceholderForNullableUrl() {
+        var imageRequestCount = 0
+        var requestedImageData: Any? = null
+        var imageLoader: ImageLoader? = null
+        val fakeEngine = FakeImageLoaderEngine.Builder()
+            .default(
+                Interceptor { chain ->
+                    imageRequestCount += 1
+                    requestedImageData = chain.request.data
+                    ErrorResult(null, chain.request, IllegalStateException("Team logo fixture failure"))
+                },
+            )
+            .build()
+
+        SingletonImageLoader.setUnsafe(
+            SingletonImageLoader.Factory { context ->
+                ImageLoader.Builder(context)
+                    .components { add(fakeEngine) }
+                    .build()
+                    .also { imageLoader = it }
+            },
+        )
+        try {
+            runComposeUiTest {
+                setContent {
+                    Fixture(
+                        PlayerDetailContentState.Content(
+                            player.copy(currentTeam = PlayerCurrentTeam(TEAM_ID, "T1", TEAM_IMAGE_URL)),
+                        ),
+                    )
+                }
+                onNodeWithTag(playerTeamLogoTag(TEAM_ID), useUnmergedTree = true).assertExists()
+
+                setContent {
+                    Fixture(
+                        PlayerDetailContentState.Content(
+                            player.copy(currentTeam = PlayerCurrentTeam(TEAM_ID, "T1", null)),
+                        ),
+                    )
+                }
+                onNodeWithTag(playerTeamLogoPlaceholderTag(TEAM_ID), useUnmergedTree = true).assertExists()
+            }
+            assertTrue(imageRequestCount > 0, "AsyncImage did not request the provided team image URL")
+            assertEquals(TEAM_IMAGE_URL, requestedImageData)
+        } finally {
+            try {
+                SingletonImageLoader.reset()
+            } finally {
+                imageLoader?.shutdown()
+            }
+        }
+    }
+
+    @Test
+    fun agentTableCapitalizesOnlyTheUiLabelKeepsNullableMarkersAndRightAlignsMetrics() = runComposeUiTest {
+        setContent {
+            Fixture(
+                PlayerDetailContentState.Content(
+                    player.copy(
+                        agentStats = listOf(
+                            player.agentStats.single().copy(agentName = "jett", rating = null, averageDamagePerRound = null),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithTag(PLAYER_AGENT_STATS_TABLE_TAG).assertExists()
+        onNodeWithText("Jett").assertExists()
+        onNodeWithText("jett").assertDoesNotExist()
+        assertEquals(3, onAllNodesWithText("—").fetchSemanticsNodes().size)
+        onNodeWithContentDescription("에이전트 통계: Jett, Maps: 0, Pick Rate: 0%, Rating: —, ACS: 0.0, K/D: 0.0, KAST: —, ADR: —").assertExists()
+        onNodeWithContentDescription("에이전트 이미지").assertDoesNotExist()
+
+        val mapsHeader = onNodeWithTag(playerAgentMetricHeaderTag("Maps")).fetchSemanticsNode().boundsInRoot
+        val mapsValue = onNodeWithTag(playerAgentMetricValueTag("jett", "Maps")).fetchSemanticsNode().boundsInRoot
+        assertEquals(mapsHeader.right, mapsValue.right)
     }
 
     @Test
@@ -166,6 +255,7 @@ class PlayerDetailContentUiTest {
     private companion object {
         const val TEAM_ID = "1001"
         const val MATCH_ID = "3001"
+        const val TEAM_IMAGE_URL = "https://example.test/t1-logo.png"
         val player = PlayerDetail(
             id = "123", profile = PlayerProfile("stax", "Kim Gu-taek", listOf("alias"), "kr", "Korea"),
             currentTeam = PlayerCurrentTeam(TEAM_ID, "T1"),
