@@ -104,6 +104,24 @@ class PlayerDetailParserTest {
         assertEquals(listOf("700001"), source.recentMatches.map(PlayerRecentMatchSource::id))
     }
 
+    @Test
+    fun `parser normalizes only supported HTTPS team image sources`() {
+        val imageSources = mapOf(
+            "//owcdn.net/img/team.png" to "https://owcdn.net/img/team.png",
+            "/img/team.png" to "https://www.vlr.gg/img/team.png",
+            "http://owcdn.net/img/team.png" to null,
+            "" to null,
+        )
+
+        imageSources.forEach { (source, expected) ->
+            val html = fixture("player-detail.html").replace(
+                "//owcdn.net/img/6399bb707aacb.png",
+                source,
+            )
+            assertEquals(expected, parser.parse(content("player-detail.html").copy(html = html)).currentTeam?.imageUrl, source)
+        }
+    }
+
     private fun content(name: String) = PlayerDetailUpstreamContent(fixture(name), upstreamUrl)
     private fun fixture(name: String): String = checkNotNull(
         javaClass.classLoader.getResource("fixtures/players/$name"),

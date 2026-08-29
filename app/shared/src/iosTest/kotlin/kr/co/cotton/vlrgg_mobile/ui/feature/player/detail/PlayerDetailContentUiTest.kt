@@ -103,6 +103,8 @@ class PlayerDetailContentUiTest {
                     )
                 }
                 onNodeWithTag(playerTeamLogoTag(TEAM_ID), useUnmergedTree = true).assertExists()
+                assertTrue(imageRequestCount > 0, "AsyncImage did not request the provided team image URL")
+                assertEquals(TEAM_IMAGE_URL, requestedImageData)
 
                 setContent {
                     Fixture(
@@ -113,8 +115,6 @@ class PlayerDetailContentUiTest {
                 }
                 onNodeWithTag(playerTeamLogoPlaceholderTag(TEAM_ID), useUnmergedTree = true).assertExists()
             }
-            assertTrue(imageRequestCount > 0, "AsyncImage did not request the provided team image URL")
-            assertEquals(TEAM_IMAGE_URL, requestedImageData)
         } finally {
             try {
                 SingletonImageLoader.reset()

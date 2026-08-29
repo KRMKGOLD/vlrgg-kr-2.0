@@ -174,6 +174,7 @@ internal class PlayerDetailParser {
     private fun Element.normalizedTextOrNull(): String? = text().normalizedStringOrNull()
     private fun Element.ownNormalizedTextOrNull(): String? = ownText().normalizedStringOrNull()
     private fun String.normalizedStringOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
+    // Player team images are HTTPS-only: normalize protocol/root-relative sources to HTTPS and discard HTTP, empty, or other schemes.
     private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
         when {
             source.startsWith("//") -> "https:$source"

@@ -61,6 +61,25 @@ class PlayerDetailMapperServiceTest {
     }
 
     @Test
+    fun `mapper preserves current team when its image URL is null`() {
+        val response = PlayerDetailMapper().map(
+            PlayerId.fromPath("488"),
+            PlayerDetailSource(
+                profile = PlayerProfileSource("solo", null, emptyList(), null, null),
+                currentTeam = PlayerTeamSource(
+                    id = "11060",
+                    name = "Nongshim RedForce",
+                    imageUrl = null,
+                ),
+                agentStats = emptyList(),
+                recentMatches = emptyList(),
+            ),
+        )
+
+        assertEquals(PlayerTeamResponse("11060", "Nongshim RedForce", null), response.currentTeam)
+    }
+
+    @Test
     fun `service fetches current all-time data each time without stale fallback and preserves cancellation`() {
         runBlocking {
         val transport = RecordingTransport()
