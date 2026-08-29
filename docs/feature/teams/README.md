@@ -20,10 +20,10 @@ Team Detail은 사용자가 팀의 정체성, 예정·최근 경기, 현재 로�
 - Recent Matches
 - Current Roster의 Players와 Staff
 - 관련 News
-- Team 즐겨찾기 등록 및 해제
+- Team 즐겨찾기 등록 및 해제 (#43 예정)
 - 각 콘텐츠에서 Match Detail, Player Detail, News Detail로 이동
 
-Team 즐겨찾기는 기기 로컬에만 저장하며 알림 구독을 만들지 않는다.
+Team 즐겨찾기는 #43에서 구현하며 기기 로컬에만 저장하고 알림 구독을 만들지 않는다.
 
 ## 명시적 제외 범위
 
@@ -69,7 +69,7 @@ Team Detail에서는 Event Detail로 직접 이동하지 않는다.
    - Staff
 6. News
 
-섹션이 비어 있으면 화면 전체를 실패로 처리하지 않고 해당 섹션의 빈 상태를 표시한다. 팀 이름과 즐겨찾기 동작은 화면의 가장 중요한 식별·개인화 요소다.
+섹션이 비어 있으면 화면 전체를 실패로 처리하지 않고 해당 섹션의 빈 상태를 표시한다. 팀 이름은 현재 화면의 핵심 식별 요소이며, 즐겨찾기 개인화는 #43에서 추가한다.
 
 ## 표시 데이터
 
@@ -80,7 +80,7 @@ Team Detail에서는 Event Detail로 직접 이동하지 않는다.
 | Player | Current Roster의 Player를 식별하는 요약 정보 |
 | Staff | Staff를 식별하는 요약 정보 |
 | News | News 목록 계약을 따르는 요약 정보 |
-| Favorite | 현재 Team의 로컬 즐겨찾기 여부 |
+| Favorite (#43 예정) | 현재 Team의 로컬 즐겨찾기 여부 |
 
 source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만들어 표시하지 않는다.
 
@@ -93,18 +93,18 @@ source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만
 | Sparse / Empty section | 현재 server response는 atomic이므로 generic Partial 화면을 만들지 않는다. Match, Roster, News의 누락은 section-level Empty로 표시하고 missing value는 marker로 표시한다. |
 | Empty section | Match, Roster, News가 없으면 섹션별 명시적 빈 상태를 표시한다. |
 | Error | Team Detail 자체를 불러오지 못하면 일반화된 오류와 재시도 동작을 표시한다. raw exception이나 파서 정보를 노출하지 않는다. |
-| Add favorite error | star를 OFF로 되돌리고 actionable Retry Snackbar를 표시한다. |
-| Remove favorite error | star를 ON으로 유지하고 actionable Retry Snackbar를 표시한다. |
+| Add favorite error (#43 예정) | star를 OFF로 되돌리고 actionable Retry Snackbar를 표시한다. |
+| Remove favorite error (#43 예정) | star를 ON으로 유지하고 actionable Retry Snackbar를 표시한다. |
 | Stale | 앱이 이전 데이터를 유지해 표시하도록 구현하는 경우 마지막 갱신 시각과 오래된 데이터임을 명시한다. silent stale fallback은 사용하지 않는다. |
 
 존재하는 정보가 적은 팀은 오류가 아니라 정상적인 부분/빈 콘텐츠로 처리한다.
 
 ## 사용자 인터랙션
 
-- 즐겨찾기 토글을 누르면 해당 Team을 로컬 즐겨찾기에 추가하거나 제거한다.
-- 즐겨찾기 변경은 즉시 화면과 MyPage에 일관되게 반영한다. mutation 중에는 화면 전체 action을 막지 않는다.
-- 즐겨찾기 Add 실패는 star를 OFF로 되돌리고 Retry Snackbar를, Remove 실패는 star를 ON으로 유지하고 Retry Snackbar를 표시한다.
-- 즐겨찾기 등록은 notification permission을 요구하거나 서버 알림 구독을 만들지 않는다.
+- #43에서 즐겨찾기 토글을 누르면 해당 Team을 로컬 즐겨찾기에 추가하거나 제거한다.
+- #43의 즐겨찾기 변경은 즉시 화면과 MyPage에 일관되게 반영한다. mutation 중에는 화면 전체 action을 막지 않는다.
+- #43의 즐겨찾기 Add 실패는 star를 OFF로 되돌리고 Retry Snackbar를, Remove 실패는 star를 ON으로 유지하고 Retry Snackbar를 표시한다.
+- #43의 즐겨찾기 등록은 notification permission을 요구하거나 서버 알림 구독을 만들지 않는다.
 - Match, Player, News 항목을 누르면 대응하는 Detail로 이동한다.
 - 오류 상태는 Retry/Back만 제공하는 modal error dialog로 표시하며 generic Partial screen은 만들지 않는다.
 
@@ -113,9 +113,9 @@ source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만
 ### 앱
 
 - 서버 Response를 app remote DTO로 역직렬화하고 Domain Model로 매핑한다.
-- Team 즐겨찾기를 로컬 persistence에 저장하고 MyPage와 상태를 공유한다.
+- #43에서 Team 즐겨찾기를 로컬 persistence에 저장하고 MyPage와 상태를 공유한다.
 - 화면 상태, 날짜/시간 표시, 섹션 구성, navigation callback을 관리한다.
-- Team 즐겨찾기와 notification 상태를 연결하지 않는다.
+- #43의 Team 즐겨찾기와 notification 상태를 연결하지 않는다.
 
 ### 서버
 
@@ -168,10 +168,10 @@ https://www.vlr.gg/team/19296/team-korea
 - [x] 정보가 적은 일회성 팀이 전체 오류로 잘못 처리되지 않는다.
 - [x] Match, Player, News 항목은 각각 올바른 Detail로 이동한다.
 - [x] Team Detail에는 Event로 직접 이동하는 인터랙션이 없다.
-- [ ] 즐겨찾기 등록 후 Team이 MyPage의 Team 그룹에 나타나고, 제거 후 사라진다.
-- [ ] Team favorite Add 실패는 star OFF와 actionable Retry Snackbar를 표시한다.
-- [ ] Team favorite Remove 실패는 star ON을 유지하고 actionable Retry Snackbar를 표시한다.
-- [ ] Team favorite mutation은 전체 화면을 block하지 않는다.
-- [ ] Team 즐겨찾기 등록·해제는 서버 notification subscription을 생성하거나 변경하지 않는다.
+- [ ] #43: 즐겨찾기 등록 후 Team이 MyPage의 Team 그룹에 나타나고, 제거 후 사라진다.
+- [ ] #43: Team favorite Add 실패는 star OFF와 actionable Retry Snackbar를 표시한다.
+- [ ] #43: Team favorite Remove 실패는 star ON을 유지하고 actionable Retry Snackbar를 표시한다.
+- [ ] #43: Team favorite mutation은 전체 화면을 block하지 않는다.
+- [ ] #43: Team 즐겨찾기 등록·해제는 서버 notification subscription을 생성하거나 변경하지 않는다.
 - [x] loading, empty section, error dialog가 유효 콘텐츠와 시각적으로 구분되고 generic Partial screen은 없다. stale 화면은 현재 범위에 없다.
 - [x] 서버 parser test는 일반 팀과 이력이 적은 팀 fixture를 모두 검증한다.
