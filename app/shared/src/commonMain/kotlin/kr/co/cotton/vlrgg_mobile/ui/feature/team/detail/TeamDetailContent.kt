@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -23,8 +24,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +59,8 @@ import vlrggmobile.app.shared.generated.resources.ic_error
 import vlrggmobile.app.shared.generated.resources.ic_match
 import vlrggmobile.app.shared.generated.resources.ic_news
 import vlrggmobile.app.shared.generated.resources.ic_person
+import vlrggmobile.app.shared.generated.resources.ic_star_filled
+import vlrggmobile.app.shared.generated.resources.ic_star_outline
 
 internal const val TEAM_DETAIL_LOADING_TAG = "team-detail-loading"
 internal const val TEAM_DETAIL_HEADER_TAG = "team-detail-header"
@@ -62,6 +68,9 @@ internal const val TEAM_DETAIL_UPCOMING_SECTION_TAG = "team-detail-upcoming-sect
 internal const val TEAM_DETAIL_RECENT_SECTION_TAG = "team-detail-recent-section"
 internal const val TEAM_DETAIL_ROSTER_SECTION_TAG = "team-detail-roster-section"
 internal const val TEAM_DETAIL_NEWS_SECTION_TAG = "team-detail-news-section"
+internal const val TEAM_DETAIL_FAVORITE_OUTLINE_TAG = "team-detail-favorite-outline"
+internal const val TEAM_DETAIL_FAVORITE_FILLED_TAG = "team-detail-favorite-filled"
+internal const val TEAM_DETAIL_FAVORITE_SNACKBAR_TAG = "team-detail-favorite-snackbar"
 
 internal fun teamMatchCardTag(matchId: String): String = "team-match-$matchId"
 internal fun teamPlayerRowTag(playerId: String): String = "team-player-$playerId"
@@ -79,12 +88,33 @@ fun TeamDetailContent(
     onPlayerClick: (playerId: String) -> Unit,
     onNewsClick: (articleId: String, slug: String) -> Unit,
     onRetry: () -> Unit,
+    onFavoriteToggle: () -> Unit,
+    onFavoriteRetry: () -> Unit,
+    onFavoriteErrorDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    DisposableEffect(Unit) {
+        onDispose { onFavoriteErrorDismiss() }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { TeamDetailTopBar(onBack = onBack) },
+        topBar = {
+            TeamDetailTopBar(
+                favorite = uiState.favorite,
+                onBack = onBack,
+                onFavoriteToggle = onFavoriteToggle,
+            )
+        },
+        snackbarHost = {
+            uiState.favorite.failedIntent?.let { intent ->
+                TeamFavoriteErrorSnackbar(
+                    intent = intent,
+                    onRetry = onFavoriteRetry,
+                )
+            }
+        },
     ) { contentPadding ->
         when (val contentState = uiState.contentState) {
             TeamDetailContentState.Loading -> TeamDetailLoading(
@@ -123,7 +153,9 @@ fun TeamDetailContent(
 
 @Composable
 private fun TeamDetailTopBar(
+    favorite: TeamFavoriteUiState,
     onBack: () -> Unit,
+    onFavoriteToggle: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -155,10 +187,89 @@ private fun TeamDetailTopBar(
                 style = VlrTheme.typography.pageTitle,
                 color = VlrTheme.colors.textPrimary,
             )
+            if (favorite.isRestored) {
+                VlrIconButton(
+                    contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
+                    onClick = onFavoriteToggle,
+                    enabled = !favorite.isMutationInProgress,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = VlrDimensions.Space1)
+                        .testTag(
+                            if (favorite.isFavorite) {
+                                TEAM_DETAIL_FAVORITE_FILLED_TAG
+                            } else {
+                                TEAM_DETAIL_FAVORITE_OUTLINE_TAG
+                            },
+                        ),
+                    icon = {
+                        Icon(
+                            imageVector = vectorResource(
+                                if (favorite.isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star_outline,
+                            ),
+                            contentDescription = null,
+                            tint = if (favorite.isFavorite) {
+                                VlrTheme.colors.actionPrimary
+                            } else {
+                                VlrTheme.colors.textPrimary
+                            },
+                        )
+                    },
+                )
+            }
         }
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
             color = VlrTheme.colors.outline,
+        )
+    }
+}
+
+@Composable
+private fun TeamFavoriteErrorSnackbar(
+    intent: TeamFavoriteMutationIntent,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val message = when (intent) {
+        TeamFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
+        TeamFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = VlrDimensions.Space4,
+                vertical = VlrDimensions.Space4,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Snackbar(
+            modifier = Modifier
+                .widthIn(max = 328.dp)
+                .fillMaxWidth()
+                .testTag(TEAM_DETAIL_FAVORITE_SNACKBAR_TAG),
+            containerColor = MaterialTheme.colorScheme.inverseSurface,
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            actionContentColor = MaterialTheme.colorScheme.inversePrimary,
+            action = {
+                Box(
+                    modifier = Modifier
+                        .height(VlrDimensions.MinimumTouchTarget + 1.dp)
+                        .widthIn(min = 64.dp)
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "재시도"
+                        }
+                        .clickable(role = Role.Button, onClick = onRetry),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("재시도")
+                }
+            },
+            content = {
+                Text(message)
+            },
         )
     }
 }

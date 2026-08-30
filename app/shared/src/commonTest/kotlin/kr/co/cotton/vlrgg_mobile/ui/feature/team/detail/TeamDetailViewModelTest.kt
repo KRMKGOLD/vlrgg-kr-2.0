@@ -9,14 +9,20 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
+import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoritePlayer
+import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamMatch
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
+import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.TeamRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TeamDetailViewModelTest {
@@ -24,7 +30,7 @@ class TeamDetailViewModelTest {
     @Test
     fun initialStateIsLoadingAndRequestsTeamIdentityExactlyOnce() = runViewModelTest {
         val repository = FakeTeamRepository(listOf(AppResult.Success(teamDetail())))
-        val viewModel = TeamDetailViewModel(repository, TEAM_ID)
+        val viewModel = newViewModel(repository)
 
         assertEquals(TeamDetailUiState(), viewModel.uiState.value)
 
@@ -38,13 +44,17 @@ class TeamDetailViewModelTest {
         val team = teamDetail()
         val viewModel = TeamDetailViewModel(
             teamRepository = FakeTeamRepository(listOf(AppResult.Success(team))),
+            favoriteRepository = FakeFavoriteRepository(),
             teamId = TEAM_ID,
         )
 
         advanceUntilIdle()
 
         assertEquals(
-            TeamDetailUiState(TeamDetailContentState.Content(team)),
+            TeamDetailUiState(
+                TeamDetailContentState.Content(team),
+                TeamFavoriteUiState(isRestored = true),
+            ),
             viewModel.uiState.value,
         )
     }
@@ -60,13 +70,17 @@ class TeamDetailViewModelTest {
         )
         val viewModel = TeamDetailViewModel(
             teamRepository = FakeTeamRepository(listOf(AppResult.Success(sparseTeam))),
+            favoriteRepository = FakeFavoriteRepository(),
             teamId = TEAM_ID,
         )
 
         advanceUntilIdle()
 
         assertEquals(
-            TeamDetailUiState(TeamDetailContentState.Content(sparseTeam)),
+            TeamDetailUiState(
+                TeamDetailContentState.Content(sparseTeam),
+                TeamFavoriteUiState(isRestored = true),
+            ),
             viewModel.uiState.value,
         )
     }
@@ -75,13 +89,17 @@ class TeamDetailViewModelTest {
     fun failureBecomesOverallErrorWithoutExposingRawFailureDetails() = runViewModelTest {
         val viewModel = TeamDetailViewModel(
             teamRepository = FakeTeamRepository(listOf(AppResult.Failure)),
+            favoriteRepository = FakeFavoriteRepository(),
             teamId = TEAM_ID,
         )
 
         advanceUntilIdle()
 
         assertEquals(
-            TeamDetailUiState(TeamDetailContentState.Error),
+            TeamDetailUiState(
+                TeamDetailContentState.Error,
+                TeamFavoriteUiState(isRestored = true),
+            ),
             viewModel.uiState.value,
         )
         assertFalse(viewModel.uiState.value.toString().contains("exception", ignoreCase = true))
@@ -94,16 +112,22 @@ class TeamDetailViewModelTest {
         val repository = FakeTeamRepository(
             listOf(AppResult.Failure, AppResult.Success(team)),
         )
-        val viewModel = TeamDetailViewModel(repository, TEAM_ID)
+        val viewModel = newViewModel(repository)
         advanceUntilIdle()
 
         viewModel.retry()
 
-        assertEquals(TeamDetailUiState(), viewModel.uiState.value)
+        assertEquals(
+            TeamDetailUiState(favorite = TeamFavoriteUiState(isRestored = true)),
+            viewModel.uiState.value,
+        )
         advanceUntilIdle()
         assertEquals(listOf(TEAM_ID, TEAM_ID), repository.requestedTeamIds)
         assertEquals(
-            TeamDetailUiState(TeamDetailContentState.Content(team)),
+            TeamDetailUiState(
+                TeamDetailContentState.Content(team),
+                TeamFavoriteUiState(isRestored = true),
+            ),
             viewModel.uiState.value,
         )
     }
@@ -111,7 +135,7 @@ class TeamDetailViewModelTest {
     @Test
     fun retryOutsideErrorDoesNotCreateDuplicateRequests() = runViewModelTest {
         val loadingRepository = FakeTeamRepository(listOf(AppResult.Success(teamDetail())))
-        val loadingViewModel = TeamDetailViewModel(loadingRepository, TEAM_ID)
+        val loadingViewModel = newViewModel(loadingRepository)
 
         loadingViewModel.retry()
         advanceUntilIdle()
@@ -119,7 +143,7 @@ class TeamDetailViewModelTest {
         assertEquals(listOf(TEAM_ID), loadingRepository.requestedTeamIds)
 
         val contentRepository = FakeTeamRepository(listOf(AppResult.Success(teamDetail())))
-        val contentViewModel = TeamDetailViewModel(contentRepository, TEAM_ID)
+        val contentViewModel = newViewModel(contentRepository)
         advanceUntilIdle()
 
         contentViewModel.retry()
@@ -133,7 +157,7 @@ class TeamDetailViewModelTest {
         val repository = FakeTeamRepository(
             listOf(AppResult.Failure, AppResult.Success(teamDetail())),
         )
-        val viewModel = TeamDetailViewModel(repository, TEAM_ID)
+        val viewModel = newViewModel(repository)
         advanceUntilIdle()
 
         viewModel.retry()
@@ -141,6 +165,148 @@ class TeamDetailViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(TEAM_ID, TEAM_ID), repository.requestedTeamIds)
+    }
+
+    @Test
+    fun restoresStoredFavoriteAndLeavesUnregisteredTeamOff() = runViewModelTest {
+        val storedViewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(teamDetail()))),
+            favoriteRepository = FakeFavoriteRepository(
+                favoriteTeamsResult = AppResult.Success(listOf(teamDetail().toFavoriteTeam())),
+            ),
+            teamId = TEAM_ID,
+        )
+        advanceUntilIdle()
+        assertTrue(storedViewModel.uiState.value.favorite.isFavorite)
+        assertTrue(storedViewModel.uiState.value.favorite.isRestored)
+
+        val unregisteredViewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(teamDetail()))),
+            favoriteRepository = FakeFavoriteRepository(),
+            teamId = TEAM_ID,
+        )
+        advanceUntilIdle()
+        assertFalse(unregisteredViewModel.uiState.value.favorite.isFavorite)
+        assertTrue(unregisteredViewModel.uiState.value.favorite.isRestored)
+    }
+
+    @Test
+    fun optimisticAddAndRemovePreserveContentAndCallTheExactFavoriteRepositoryMethod() = runViewModelTest {
+        val team = teamDetail()
+        val favorites = FakeFavoriteRepository(addResults = listOf(AppResult.Success(Unit)))
+        val addViewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(team))),
+            favoriteRepository = favorites,
+            teamId = TEAM_ID,
+        )
+        advanceUntilIdle()
+
+        addViewModel.toggleFavorite()
+        assertTrue(addViewModel.uiState.value.favorite.isFavorite)
+        assertTrue(addViewModel.uiState.value.favorite.isMutationInProgress)
+        assertEquals(TeamDetailContentState.Content(team), addViewModel.uiState.value.contentState)
+        advanceUntilIdle()
+        assertEquals(listOf(team.toFavoriteTeam()), favorites.addedTeams)
+
+        val removeFavorites = FakeFavoriteRepository(
+            favoriteTeamsResult = AppResult.Success(listOf(team.toFavoriteTeam())),
+            removeResults = listOf(AppResult.Success(Unit)),
+        )
+        val removeViewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(team))),
+            favoriteRepository = removeFavorites,
+            teamId = TEAM_ID,
+        )
+        advanceUntilIdle()
+        removeViewModel.toggleFavorite()
+        assertFalse(removeViewModel.uiState.value.favorite.isFavorite)
+        assertEquals(TeamDetailContentState.Content(team), removeViewModel.uiState.value.contentState)
+        advanceUntilIdle()
+        assertEquals(listOf(TEAM_ID), removeFavorites.removedTeamIds)
+    }
+
+    @Test
+    fun failedMutationsRollbackExposeOnlySafeIntentAndRetryExactSnapshotOnce() = runViewModelTest {
+        val team = teamDetail()
+        val favorites = FakeFavoriteRepository(
+            addResults = listOf(AppResult.Failure, AppResult.Success(Unit)),
+        )
+        val viewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(team))),
+            favoriteRepository = favorites,
+            teamId = TEAM_ID,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.favorite.isFavorite)
+        assertEquals(TeamFavoriteMutationIntent.Add, viewModel.uiState.value.favorite.failedIntent)
+        assertFalse(viewModel.uiState.value.toString().contains("exception", ignoreCase = true))
+        assertFalse(viewModel.uiState.value.toString().contains("http", ignoreCase = true))
+
+        viewModel.retryFavoriteMutation()
+        viewModel.retryFavoriteMutation()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.favorite.isFavorite)
+        assertEquals(listOf(team.toFavoriteTeam(), team.toFavoriteTeam()), favorites.addedTeams)
+        assertEquals(null, viewModel.uiState.value.favorite.failedIntent)
+    }
+
+    @Test
+    fun failedRemoveRollsBackToOnAndDismissPreventsStaleSnackbar() = runViewModelTest {
+        val team = teamDetail()
+        val favorites = FakeFavoriteRepository(
+            favoriteTeamsResult = AppResult.Success(listOf(team.toFavoriteTeam())),
+            removeResults = listOf(AppResult.Failure),
+        )
+        val viewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(team))),
+            favoriteRepository = favorites,
+            teamId = TEAM_ID,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.favorite.isFavorite)
+        assertEquals(TeamFavoriteMutationIntent.Remove, viewModel.uiState.value.favorite.failedIntent)
+        viewModel.dismissFavoriteError()
+        assertEquals(null, viewModel.uiState.value.favorite.failedIntent)
+    }
+
+    @Test
+    fun duplicateClickDuringInFlightMutationDoesNotAddDuplicateRepositoryRequest() = runViewModelTest {
+        val favorites = FakeFavoriteRepository(addResults = listOf(AppResult.Success(Unit)))
+        val viewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(teamDetail()))),
+            favoriteRepository = favorites,
+            teamId = TEAM_ID,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertEquals(1, favorites.addedTeams.size)
+    }
+
+    @Test
+    fun favoriteToggleDoesNotCreateASyntheticSnapshotBeforeContentExists() = runViewModelTest {
+        val favorites = FakeFavoriteRepository()
+        val viewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Failure)),
+            favoriteRepository = favorites,
+            teamId = TEAM_ID,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertTrue(favorites.addedTeams.isEmpty())
+        assertTrue(favorites.removedTeamIds.isEmpty())
     }
 
     private fun runViewModelTest(
@@ -198,6 +364,12 @@ class TeamDetailViewModelTest {
         news = news,
     )
 
+    private fun newViewModel(teamRepository: TeamRepository) = TeamDetailViewModel(
+        teamRepository = teamRepository,
+        favoriteRepository = FakeFavoriteRepository(),
+        teamId = TEAM_ID,
+    )
+
     private class FakeTeamRepository(
         private val results: List<AppResult<TeamDetail>>,
     ) : TeamRepository {
@@ -212,6 +384,44 @@ class TeamDetailViewModelTest {
             return results[requestIndex]
         }
     }
+
+    private class FakeFavoriteRepository(
+        private val favoriteTeamsResult: AppResult<List<FavoriteTeam>> = AppResult.Success(emptyList()),
+        private val addResults: List<AppResult<Unit>> = emptyList(),
+        private val removeResults: List<AppResult<Unit>> = emptyList(),
+    ) : FavoriteRepository {
+        val addedTeams = mutableListOf<FavoriteTeam>()
+        val removedTeamIds = mutableListOf<String>()
+
+        override fun observeFavoriteTeams(): Flow<AppResult<List<FavoriteTeam>>> = emptyFlow()
+
+        override fun observeFavoritePlayers(): Flow<AppResult<List<FavoritePlayer>>> = emptyFlow()
+
+        override suspend fun getFavoriteTeams(): AppResult<List<FavoriteTeam>> = favoriteTeamsResult
+
+        override suspend fun getFavoritePlayers(): AppResult<List<FavoritePlayer>> = AppResult.Success(emptyList())
+
+        override suspend fun addFavoriteTeam(favorite: FavoriteTeam): AppResult<Unit> {
+            addedTeams += favorite
+            return addResults[addedTeams.lastIndex]
+        }
+
+        override suspend fun addFavoritePlayer(favorite: FavoritePlayer): AppResult<Unit> = AppResult.Success(Unit)
+
+        override suspend fun removeFavoriteTeam(teamId: String): AppResult<Unit> {
+            removedTeamIds += teamId
+            return removeResults[removedTeamIds.lastIndex]
+        }
+
+        override suspend fun removeFavoritePlayer(playerId: String): AppResult<Unit> = AppResult.Success(Unit)
+    }
+
+    private fun TeamDetail.toFavoriteTeam() = FavoriteTeam(
+        id = id,
+        name = name,
+        tag = tag,
+        country = country,
+    )
 
     private companion object {
         const val TEAM_ID = "8185"

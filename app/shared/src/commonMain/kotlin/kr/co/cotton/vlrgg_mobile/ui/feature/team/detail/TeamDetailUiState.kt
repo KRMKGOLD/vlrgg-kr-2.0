@@ -12,6 +12,19 @@ sealed interface TeamDetailContentState {
     data object Error : TeamDetailContentState
 }
 
+enum class TeamFavoriteMutationIntent {
+    Add,
+    Remove,
+}
+
+data class TeamFavoriteUiState(
+    val isFavorite: Boolean = false,
+    val isRestored: Boolean = false,
+    val isMutationInProgress: Boolean = false,
+    val failedIntent: TeamFavoriteMutationIntent? = null,
+)
+
 data class TeamDetailUiState(
     val contentState: TeamDetailContentState = TeamDetailContentState.Loading,
+    val favorite: TeamFavoriteUiState = TeamFavoriteUiState(),
 )
