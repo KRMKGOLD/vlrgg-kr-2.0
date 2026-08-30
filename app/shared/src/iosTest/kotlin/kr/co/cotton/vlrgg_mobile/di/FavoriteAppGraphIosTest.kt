@@ -22,8 +22,9 @@ class FavoriteAppGraphIosTest {
     @Test
     fun graphResolvesFavoriteRepositoryAndRestoresExistingStorage() = runTest {
         val path = NSTemporaryDirectory() + "favorite-graph-" + NSUUID().UUIDString + ".preferences_pb"
+        val firstScope = CoroutineScope(SupervisorJob())
+        val recreatedScope = CoroutineScope(SupervisorJob())
         try {
-            val firstScope = CoroutineScope(SupervisorJob())
             val firstGraph = createAppGraph(
                 apiBaseUrl = TEST_API_BASE_URL,
                 favoriteDataStore = createFavoriteDataStore(path, firstScope),
@@ -35,13 +36,15 @@ class FavoriteAppGraphIosTest {
 
             val recreatedGraph = createAppGraph(
                 apiBaseUrl = TEST_API_BASE_URL,
-                favoriteDataStore = createFavoriteDataStore(path, CoroutineScope(SupervisorJob())),
+                favoriteDataStore = createFavoriteDataStore(path, recreatedScope),
             )
             assertEquals(
                 AppResult.Success(listOf(favorite)),
                 recreatedGraph.favoriteRepository.getFavoriteTeams(),
             )
         } finally {
+            firstScope.cancel()
+            recreatedScope.cancel()
             NSFileManager.defaultManager.removeItemAtPath(path, error = null)
         }
     }

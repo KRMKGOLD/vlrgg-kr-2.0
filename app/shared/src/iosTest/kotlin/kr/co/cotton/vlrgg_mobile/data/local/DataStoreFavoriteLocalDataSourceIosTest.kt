@@ -25,8 +25,9 @@ class DataStoreFavoriteLocalDataSourceIosTest {
     @Test
     fun malformedStoredValueBecomesRepositoryFailure() = runTest {
         val path = NSTemporaryDirectory() + "favorite-malformed-" + NSUUID().UUIDString + ".preferences_pb"
+        val scope = CoroutineScope(SupervisorJob())
         try {
-            val dataStore = createFavoriteDataStore(path, CoroutineScope(SupervisorJob()))
+            val dataStore = createFavoriteDataStore(path, scope)
             dataStore.edit { preferences ->
                 preferences[stringPreferencesKey("favorite_teams")] = "{malformed"
             }
@@ -34,6 +35,7 @@ class DataStoreFavoriteLocalDataSourceIosTest {
             val repository = FavoriteRepositoryImpl(DataStoreFavoriteLocalDataSource(dataStore))
             assertEquals(AppResult.Failure, repository.getFavoriteTeams())
         } finally {
+            scope.cancel()
             NSFileManager.defaultManager.removeItemAtPath(path, error = null)
         }
     }
@@ -41,15 +43,16 @@ class DataStoreFavoriteLocalDataSourceIosTest {
     @Test
     fun dataStoreRoundTripSurvivesRecreation() = runTest {
         val path = NSTemporaryDirectory() + "favorite-" + NSUUID().UUIDString + ".preferences_pb"
+        val firstScope = CoroutineScope(SupervisorJob())
+        val recreatedScope = CoroutineScope(SupervisorJob())
         try {
-            val firstScope = CoroutineScope(SupervisorJob())
             val first = DataStoreFavoriteLocalDataSource(createFavoriteDataStore(path, firstScope))
             first.upsertFavoriteTeam(FavoriteTeamStorage("2", "DRX", null, ""))
             first.upsertFavoritePlayer(FavoritePlayerStorage("100", "", null, "KR", null))
             firstScope.cancel()
 
             val recreated = DataStoreFavoriteLocalDataSource(
-                createFavoriteDataStore(path, CoroutineScope(SupervisorJob())),
+                createFavoriteDataStore(path, recreatedScope),
             )
             assertEquals(listOf(FavoriteTeamStorage("2", "DRX", null, "")), recreated.observeFavoriteTeams().first())
             assertEquals(
@@ -57,6 +60,8 @@ class DataStoreFavoriteLocalDataSourceIosTest {
                 recreated.observeFavoritePlayers().first(),
             )
         } finally {
+            firstScope.cancel()
+            recreatedScope.cancel()
             NSFileManager.defaultManager.removeItemAtPath(path, error = null)
         }
     }
