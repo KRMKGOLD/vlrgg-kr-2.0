@@ -1,12 +1,18 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -46,6 +52,23 @@ class PlayerDetailContentUiTest {
         onNodeWithText("stax").assertDoesNotExist()
         onNodeWithText("T1").assertDoesNotExist()
         onNodeWithText("Jett").assertDoesNotExist()
+        onNodeWithContentDescription("즐겨찾기 추가").assertDoesNotExist()
+        onNodeWithContentDescription("즐겨찾기 해제").assertDoesNotExist()
+    }
+
+    @Test
+    fun favoriteStarIsAbsentUntilLocalRestoreCompletes() = runComposeUiTest {
+        setContent {
+            Fixture(
+                PlayerDetailContentState.Content(player),
+                favorite = PlayerFavoriteUiState(),
+            )
+        }
+
+        onNodeWithTag(PLAYER_DETAIL_FAVORITE_OUTLINE_TAG).assertDoesNotExist()
+        onNodeWithTag(PLAYER_DETAIL_FAVORITE_FILLED_TAG).assertDoesNotExist()
+        onNodeWithContentDescription("즐겨찾기 추가").assertDoesNotExist()
+        onNodeWithContentDescription("즐겨찾기 해제").assertDoesNotExist()
     }
 
     @Test
@@ -196,6 +219,146 @@ class PlayerDetailContentUiTest {
     }
 
     @Test
+    fun favoriteStarUsesKoreanStateLabelsFilledAndOutlineVariantsWith48DpTargets() = runComposeUiTest {
+        var clicks = 0
+        var density = 1f
+        setContent {
+            density = LocalDensity.current.density
+            Fixture(
+                PlayerDetailContentState.Content(player),
+                favorite = PlayerFavoriteUiState(isRestored = true),
+                onFavoriteClick = { clicks++ },
+            )
+        }
+
+        assertEquals(
+            1,
+            onAllNodesWithContentDescription("즐겨찾기 추가", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .size,
+        )
+        assertEquals(
+            0,
+            onAllNodesWithContentDescription("즐겨찾기 해제", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .size,
+        )
+        val offStar = onNodeWithTag(PLAYER_DETAIL_FAVORITE_OUTLINE_TAG)
+        offStar.assertIsDisplayed()
+        val offBounds = offStar.fetchSemanticsNode().boundsInRoot
+        assertTrue(offBounds.width >= 48f * density)
+        assertTrue(offBounds.height >= 48f * density)
+        onNodeWithContentDescription("즐겨찾기 추가").performClick()
+        assertEquals(1, clicks)
+
+        setContent {
+            Fixture(
+                PlayerDetailContentState.Content(player),
+                favorite = PlayerFavoriteUiState(isFavorite = true, isRestored = true),
+            )
+        }
+        assertEquals(
+            0,
+            onAllNodesWithContentDescription("즐겨찾기 추가", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .size,
+        )
+        val onStar = onNodeWithTag(PLAYER_DETAIL_FAVORITE_FILLED_TAG)
+        onStar.assertIsDisplayed()
+        onNodeWithContentDescription("즐겨찾기 해제").assertIsDisplayed()
+        val onBounds = onStar.fetchSemanticsNode().boundsInRoot
+        assertTrue(onBounds.width >= 48f * density)
+        assertTrue(onBounds.height >= 48f * density)
+
+        setContent {
+            Fixture(
+                PlayerDetailContentState.Content(player),
+                favorite = PlayerFavoriteUiState(
+                    isFavorite = true,
+                    isRestored = true,
+                    isMutationInProgress = true,
+                ),
+            )
+        }
+        onNodeWithTag(PLAYER_DETAIL_FAVORITE_FILLED_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun favoriteFailureSnackbarUsesCanonicalGeometryMessageRetryAndNoCloseAction() = runComposeUiTest {
+        var retries = 0
+        var density = 1f
+        setContent {
+            density = LocalDensity.current.density
+            Fixture(
+                PlayerDetailContentState.Content(player),
+                favorite = PlayerFavoriteUiState(
+                    isRestored = true,
+                    failedIntent = PlayerFavoriteMutationIntent.Add,
+                ),
+                onFavoriteRetry = { retries++ },
+            )
+        }
+
+        val rootBounds = onNodeWithTag(TEST_ROOT_TAG).fetchSemanticsNode().boundsInRoot
+        val snackbarBounds = onNodeWithTag(PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG)
+            .assertIsDisplayed()
+            .fetchSemanticsNode()
+            .boundsInRoot
+        val inset = 16f * density
+        assertTrue(snackbarBounds.width <= 328f * density + 1f)
+        assertTrue(snackbarBounds.left >= rootBounds.left + inset - 1f)
+        assertTrue(snackbarBounds.right <= rootBounds.right - inset + 1f)
+        assertTrue(snackbarBounds.bottom <= rootBounds.bottom - inset + 1f)
+        assertTrue(snackbarBounds.height < rootBounds.height)
+        onNodeWithText("즐겨찾기 추가에 실패했습니다.").assertExists()
+        val retry = onNodeWithContentDescription("재시도").assertIsDisplayed()
+        val retryBounds = retry.fetchSemanticsNode().boundsInRoot
+        assertTrue(retryBounds.width >= 48f * density)
+        assertTrue(
+            retryBounds.height >= 48f * density,
+            "Retry target height=${retryBounds.height}, bounds=$retryBounds, density=$density, expected=${48f * density}",
+        )
+        onNodeWithContentDescription("즐겨찾기 오류 닫기").assertDoesNotExist()
+        onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
+        retry.performClick()
+        assertEquals(1, retries)
+
+        setContent {
+            Fixture(
+                PlayerDetailContentState.Content(player),
+                favorite = PlayerFavoriteUiState(
+                    isFavorite = true,
+                    isRestored = true,
+                    failedIntent = PlayerFavoriteMutationIntent.Remove,
+                ),
+            )
+        }
+        onNodeWithText("즐겨찾기 해제에 실패했습니다.").assertExists()
+    }
+
+    @Test
+    fun favoriteFailureIsClearedThroughLifecycleCallbackWithoutVisibleCloseAction() = runComposeUiTest {
+        var dismisses = 0
+        setContent {
+            Fixture(
+                PlayerDetailContentState.Content(player),
+                favorite = PlayerFavoriteUiState(
+                    isRestored = true,
+                    failedIntent = PlayerFavoriteMutationIntent.Add,
+                ),
+                onFavoriteErrorDismiss = { dismisses++ },
+            )
+        }
+
+        onNodeWithTag(PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG).assertIsDisplayed()
+        onNodeWithContentDescription("즐겨찾기 오류 닫기").assertDoesNotExist()
+        assertEquals(0, dismisses)
+
+        setContent { }
+        assertEquals(1, dismisses)
+    }
+
+    @Test
     fun populatedContentUsesKoreanOutcomeLongNamesAndAccessibleTargetsWithoutForbiddenUi() = runComposeUiTest {
         var density = 1f
         val longPlayer = player.copy(
@@ -245,17 +408,27 @@ class PlayerDetailContentUiTest {
         onMatchClick: (String) -> Unit = {},
         onRetry: () -> Unit = {},
         onBack: () -> Unit = {},
+        favorite: PlayerFavoriteUiState = PlayerFavoriteUiState(),
+        onFavoriteClick: () -> Unit = {},
+        onFavoriteRetry: () -> Unit = {},
+        onFavoriteErrorDismiss: () -> Unit = {},
     ) = VlrTheme {
-        PlayerDetailContent(
-            uiState = PlayerDetailUiState(state), listState = rememberLazyListState(),
-            onBack = onBack, onTeamClick = onTeamClick, onMatchClick = onMatchClick, onRetry = onRetry,
-        )
+        Box(Modifier.fillMaxSize().testTag(TEST_ROOT_TAG)) {
+            PlayerDetailContent(
+                uiState = PlayerDetailUiState(state, favorite), listState = rememberLazyListState(),
+                onBack = onBack, onTeamClick = onTeamClick, onMatchClick = onMatchClick, onRetry = onRetry,
+                onFavoriteClick = onFavoriteClick,
+                onFavoriteRetry = onFavoriteRetry,
+                onFavoriteErrorDismiss = onFavoriteErrorDismiss,
+            )
+        }
     }
 
     private companion object {
         const val TEAM_ID = "1001"
         const val MATCH_ID = "3001"
         const val TEAM_IMAGE_URL = "https://example.test/t1-logo.png"
+        const val TEST_ROOT_TAG = "player-detail-test-root"
         val player = PlayerDetail(
             id = "123", profile = PlayerProfile("stax", "Kim Gu-taek", listOf("alias"), "kr", "Korea"),
             currentTeam = PlayerCurrentTeam(TEAM_ID, "T1"),

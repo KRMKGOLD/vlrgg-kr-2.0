@@ -9,19 +9,22 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
+import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoritePlayer
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerProfile
+import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerDetailViewModelTest {
     @Test
     fun initialStateIsLoadingAndRequestsPlayerIdentityExactlyOnce() = runViewModelTest {
         val repository = FakePlayerRepository(listOf(AppResult.Success(playerDetail())))
-        val viewModel = PlayerDetailViewModel(repository, PLAYER_ID)
+        val viewModel = PlayerDetailViewModel(repository, FakeFavoriteRepository(), PLAYER_ID)
 
         assertEquals(PlayerDetailUiState(), viewModel.uiState.value)
         advanceUntilIdle()
@@ -31,11 +34,17 @@ class PlayerDetailViewModelTest {
     @Test
     fun successPreservesTheWholePlayerDetailAsContent() = runViewModelTest {
         val player = playerDetail()
-        val viewModel = PlayerDetailViewModel(FakePlayerRepository(listOf(AppResult.Success(player))), PLAYER_ID)
+        val viewModel = PlayerDetailViewModel(FakePlayerRepository(listOf(AppResult.Success(player))), FakeFavoriteRepository(), PLAYER_ID)
 
         advanceUntilIdle()
 
-        assertEquals(PlayerDetailUiState(PlayerDetailContentState.Content(player)), viewModel.uiState.value)
+        assertEquals(
+            PlayerDetailUiState(
+                PlayerDetailContentState.Content(player),
+                PlayerFavoriteUiState(isRestored = true),
+            ),
+            viewModel.uiState.value,
+        )
     }
 
     @Test
@@ -45,20 +54,32 @@ class PlayerDetailViewModelTest {
             agentStats = emptyList(),
             recentMatches = emptyList(),
         )
-        val viewModel = PlayerDetailViewModel(FakePlayerRepository(listOf(AppResult.Success(player))), PLAYER_ID)
+        val viewModel = PlayerDetailViewModel(FakePlayerRepository(listOf(AppResult.Success(player))), FakeFavoriteRepository(), PLAYER_ID)
 
         advanceUntilIdle()
 
-        assertEquals(PlayerDetailUiState(PlayerDetailContentState.Content(player)), viewModel.uiState.value)
+        assertEquals(
+            PlayerDetailUiState(
+                PlayerDetailContentState.Content(player),
+                PlayerFavoriteUiState(isRestored = true),
+            ),
+            viewModel.uiState.value,
+        )
     }
 
     @Test
     fun failureBecomesOverallErrorWithoutRawFailureDetails() = runViewModelTest {
-        val viewModel = PlayerDetailViewModel(FakePlayerRepository(listOf(AppResult.Failure)), PLAYER_ID)
+        val viewModel = PlayerDetailViewModel(FakePlayerRepository(listOf(AppResult.Failure)), FakeFavoriteRepository(), PLAYER_ID)
 
         advanceUntilIdle()
 
-        assertEquals(PlayerDetailUiState(PlayerDetailContentState.Error), viewModel.uiState.value)
+        assertEquals(
+            PlayerDetailUiState(
+                PlayerDetailContentState.Error,
+                PlayerFavoriteUiState(isRestored = true),
+            ),
+            viewModel.uiState.value,
+        )
         assertFalse(viewModel.uiState.value.toString().contains("exception", ignoreCase = true))
         assertFalse(viewModel.uiState.value.toString().contains("http", ignoreCase = true))
     }
@@ -66,11 +87,14 @@ class PlayerDetailViewModelTest {
     @Test
     fun retryUsesSameIdentityAndOnlyStartsFromError() = runViewModelTest {
         val repository = FakePlayerRepository(listOf(AppResult.Failure, AppResult.Success(playerDetail())))
-        val viewModel = PlayerDetailViewModel(repository, PLAYER_ID)
+        val viewModel = PlayerDetailViewModel(repository, FakeFavoriteRepository(), PLAYER_ID)
         advanceUntilIdle()
 
         viewModel.retry()
-        assertEquals(PlayerDetailUiState(), viewModel.uiState.value)
+        assertEquals(
+            PlayerDetailUiState(favorite = PlayerFavoriteUiState(isRestored = true)),
+            viewModel.uiState.value,
+        )
         viewModel.retry()
         advanceUntilIdle()
 
@@ -80,7 +104,7 @@ class PlayerDetailViewModelTest {
     @Test
     fun retryWhileLoadingOrAfterContentDoesNotStartADuplicateRequest() = runViewModelTest {
         val repository = FakePlayerRepository(listOf(AppResult.Success(playerDetail())))
-        val viewModel = PlayerDetailViewModel(repository, PLAYER_ID)
+        val viewModel = PlayerDetailViewModel(repository, FakeFavoriteRepository(), PLAYER_ID)
 
         viewModel.retry()
         advanceUntilIdle()
@@ -89,6 +113,133 @@ class PlayerDetailViewModelTest {
 
         assertEquals(listOf(PLAYER_ID), repository.requestedPlayerIds)
         assertEquals(PlayerDetailContentState.Content(playerDetail()), viewModel.uiState.value.contentState)
+    }
+
+    @Test
+    fun restoresFavoriteFromRepositoryWithoutChangingLoadedContent() = runViewModelTest {
+        val player = playerDetail()
+        val favoriteRepository = FakeFavoriteRepository(existing = listOf(player.favoriteSnapshot()))
+        val viewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(player))),
+            favoriteRepository,
+            PLAYER_ID,
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(PlayerDetailContentState.Content(player), viewModel.uiState.value.contentState)
+        assertTrue(viewModel.uiState.value.favorite.isFavorite)
+        assertTrue(viewModel.uiState.value.favorite.isRestored)
+        assertEquals(listOf(PLAYER_ID), favoriteRepository.restoreRequests)
+    }
+
+    @Test
+    fun addIsOptimisticThenRollsBackWithSafeRetryIntentOnFailure() = runViewModelTest {
+        val player = playerDetail()
+        val favorites = FakeFavoriteRepository(addResults = listOf(AppResult.Failure))
+        val viewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(player))),
+            favorites,
+            PLAYER_ID,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        assertTrue(viewModel.uiState.value.favorite.isFavorite)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.favorite.isFavorite)
+        assertEquals(PlayerFavoriteMutationIntent.Add, viewModel.uiState.value.favorite.failedIntent)
+        assertEquals(listOf(player.favoriteSnapshot()), favorites.added)
+        assertEquals(PlayerDetailContentState.Content(player), viewModel.uiState.value.contentState)
+    }
+
+    @Test
+    fun removeIsOptimisticThenRestoresOnFailure() = runViewModelTest {
+        val player = playerDetail()
+        val favorites = FakeFavoriteRepository(existing = listOf(player.favoriteSnapshot()), removeResults = listOf(AppResult.Failure))
+        val viewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(player))),
+            favorites,
+            PLAYER_ID,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        assertFalse(viewModel.uiState.value.favorite.isFavorite)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.favorite.isFavorite)
+        assertEquals(PlayerFavoriteMutationIntent.Remove, viewModel.uiState.value.favorite.failedIntent)
+        assertEquals(listOf(PLAYER_ID), favorites.removed)
+    }
+
+    @Test
+    fun retryReusesSamePlayerSnapshotExactlyOnceAndDismissClearsIntent() = runViewModelTest {
+        val player = playerDetail()
+        val favorites = FakeFavoriteRepository(addResults = listOf(AppResult.Failure, AppResult.Success(Unit)))
+        val viewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(player))),
+            favorites,
+            PLAYER_ID,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+        viewModel.retryFavoriteMutation()
+        viewModel.retryFavoriteMutation()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.favorite.isFavorite)
+        assertEquals(null, viewModel.uiState.value.favorite.failedIntent)
+        assertEquals(listOf(player.favoriteSnapshot(), player.favoriteSnapshot()), favorites.added)
+
+        viewModel.dismissFavoriteError()
+        assertEquals(null, viewModel.uiState.value.favorite.failedIntent)
+    }
+
+    @Test
+    fun noFavoriteMutationRunsWithoutLoadedContentOrWhileAnotherMutationIsRunning() = runViewModelTest {
+        val favorites = FakeFavoriteRepository()
+        val loadingViewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(playerDetail()))),
+            favorites,
+            PLAYER_ID,
+        )
+        loadingViewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertEquals(emptyList(), favorites.added)
+
+        val player = playerDetail()
+        val delayedFavorites = FakeFavoriteRepository(addResults = listOf(AppResult.Success(Unit)))
+        val contentViewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(player))),
+            delayedFavorites,
+            PLAYER_ID,
+        )
+        advanceUntilIdle()
+        contentViewModel.toggleFavorite()
+        contentViewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertEquals(listOf(player.favoriteSnapshot()), delayedFavorites.added)
+    }
+
+    @Test
+    fun recreatedViewModelRestoresPersistedFavoriteForSamePlayerId() = runViewModelTest {
+        val player = playerDetail()
+        val favorites = FakeFavoriteRepository(existing = listOf(player.favoriteSnapshot()))
+
+        val recreatedViewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(player))),
+            favorites,
+            PLAYER_ID,
+        )
+        advanceUntilIdle()
+
+        assertTrue(recreatedViewModel.uiState.value.favorite.isFavorite)
+        assertEquals(listOf(PLAYER_ID), favorites.restoreRequests)
     }
 
     private fun runViewModelTest(testBody: suspend TestScope.() -> Unit) = runTest {
@@ -122,6 +273,49 @@ class PlayerDetailViewModelTest {
             return results[requestedPlayerIds.lastIndex]
         }
     }
+
+    private class FakeFavoriteRepository(
+        private val existing: List<FavoritePlayer> = emptyList(),
+        private val addResults: List<AppResult<Unit>> = emptyList(),
+        private val removeResults: List<AppResult<Unit>> = emptyList(),
+    ) : FavoriteRepository {
+        val restoreRequests = mutableListOf<String>()
+        val added = mutableListOf<FavoritePlayer>()
+        val removed = mutableListOf<String>()
+
+        override fun observeFavoriteTeams() = error("unused")
+
+        override fun observeFavoritePlayers() = error("unused")
+
+        override suspend fun getFavoriteTeams() = error("unused")
+
+        override suspend fun getFavoritePlayers(): AppResult<List<FavoritePlayer>> {
+            restoreRequests += PLAYER_ID
+            return AppResult.Success(existing)
+        }
+
+        override suspend fun addFavoriteTeam(favorite: kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam) = error("unused")
+
+        override suspend fun addFavoritePlayer(favorite: FavoritePlayer): AppResult<Unit> {
+            added += favorite
+            return addResults.getOrElse(added.lastIndex) { AppResult.Success(Unit) }
+        }
+
+        override suspend fun removeFavoriteTeam(teamId: String) = error("unused")
+
+        override suspend fun removeFavoritePlayer(playerId: String): AppResult<Unit> {
+            removed += playerId
+            return removeResults.getOrElse(removed.lastIndex) { AppResult.Success(Unit) }
+        }
+    }
+
+    private fun PlayerDetail.favoriteSnapshot() = FavoritePlayer(
+        id = id,
+        handle = profile.handle,
+        realName = profile.realName,
+        countryCode = profile.countryCode,
+        countryName = profile.countryName,
+    )
 
     private companion object {
         const val PLAYER_ID = "123"

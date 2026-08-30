@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -20,15 +22,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -46,6 +52,8 @@ import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_match
 import vlrggmobile.app.shared.generated.resources.ic_person
+import vlrggmobile.app.shared.generated.resources.ic_star_filled
+import vlrggmobile.app.shared.generated.resources.ic_star_outline
 
 internal const val PLAYER_DETAIL_LOADING_TAG = "player-detail-loading"
 internal const val PLAYER_DETAIL_HEADER_TAG = "player-detail-header"
@@ -53,6 +61,9 @@ internal const val PLAYER_DETAIL_TEAM_SECTION_TAG = "player-detail-team-section"
 internal const val PLAYER_DETAIL_STATS_SECTION_TAG = "player-detail-stats-section"
 internal const val PLAYER_DETAIL_MATCHES_SECTION_TAG = "player-detail-matches-section"
 internal const val PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG = "player-detail-loading-header-avatar"
+internal const val PLAYER_DETAIL_FAVORITE_OUTLINE_TAG = "player-detail-favorite-outline"
+internal const val PLAYER_DETAIL_FAVORITE_FILLED_TAG = "player-detail-favorite-filled"
+internal const val PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG = "player-detail-favorite-snackbar"
 internal fun playerTeamRowTag(teamId: String) = "player-team-$teamId"
 internal fun playerMatchCardTag(matchId: String) = "player-match-$matchId"
 
@@ -64,12 +75,33 @@ fun PlayerDetailContent(
     onTeamClick: (String) -> Unit,
     onMatchClick: (String) -> Unit,
     onRetry: () -> Unit,
+    onFavoriteClick: () -> Unit = {},
+    onFavoriteRetry: () -> Unit = {},
+    onFavoriteErrorDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    DisposableEffect(Unit) {
+        onDispose { onFavoriteErrorDismiss() }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { PlayerDetailTopBar(onBack) },
+        topBar = {
+            PlayerDetailTopBar(
+                favorite = uiState.favorite,
+                onBack = onBack,
+                onFavoriteClick = onFavoriteClick,
+            )
+        },
+        snackbarHost = {
+            uiState.favorite.failedIntent?.let { intent ->
+                PlayerFavoriteFailureSnackbar(
+                    intent = intent,
+                    onRetry = onFavoriteRetry,
+                )
+            }
+        },
     ) { padding ->
         when (val state = uiState.contentState) {
             PlayerDetailContentState.Loading -> PlayerDetailLoading(
@@ -96,7 +128,11 @@ fun PlayerDetailContent(
 }
 
 @Composable
-private fun PlayerDetailTopBar(onBack: () -> Unit) {
+private fun PlayerDetailTopBar(
+    favorite: PlayerFavoriteUiState,
+    onBack: () -> Unit,
+    onFavoriteClick: () -> Unit,
+) {
     Column(Modifier.fillMaxWidth().height(56.dp).background(VlrTheme.colors.surface)) {
         Box(Modifier.fillMaxWidth().weight(1f)) {
             VlrIconButton(
@@ -104,9 +140,84 @@ private fun PlayerDetailTopBar(onBack: () -> Unit) {
                 modifier = Modifier.align(Alignment.CenterStart).padding(start = VlrDimensions.Space1),
                 icon = { Icon(vectorResource(Res.drawable.ic_arrow_back), null) },
             )
+            if (favorite.isRestored) {
+                VlrIconButton(
+                    contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
+                    onClick = onFavoriteClick,
+                    enabled = !favorite.isMutationInProgress,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = VlrDimensions.Space1)
+                        .testTag(
+                            if (favorite.isFavorite) {
+                                PLAYER_DETAIL_FAVORITE_FILLED_TAG
+                            } else {
+                                PLAYER_DETAIL_FAVORITE_OUTLINE_TAG
+                            },
+                        ),
+                    icon = {
+                        Icon(
+                            imageVector = vectorResource(
+                                if (favorite.isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star_outline,
+                            ),
+                            contentDescription = null,
+                            tint = if (favorite.isFavorite) VlrTheme.colors.actionPrimary else VlrTheme.colors.textSecondary,
+                        )
+                    },
+                )
+            }
             Text("Player Profile", Modifier.align(Alignment.Center), style = VlrTheme.typography.pageTitle, color = VlrTheme.colors.textPrimary)
         }
         HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
+    }
+}
+
+@Composable
+private fun PlayerFavoriteFailureSnackbar(
+    intent: PlayerFavoriteMutationIntent,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = VlrDimensions.Space4,
+                vertical = VlrDimensions.Space4,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+            Snackbar(
+                modifier = Modifier
+                .widthIn(max = 328.dp)
+                .fillMaxWidth()
+                .testTag(PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG),
+            containerColor = MaterialTheme.colorScheme.inverseSurface,
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            actionContentColor = MaterialTheme.colorScheme.inversePrimary,
+            action = {
+                Box(
+                    modifier = Modifier
+                        .height(VlrDimensions.MinimumTouchTarget + 1.dp)
+                        .widthIn(min = 64.dp)
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "재시도"
+                        }
+                        .clickable(role = Role.Button, onClick = onRetry),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("재시도")
+                }
+            },
+            content = {
+                Text(
+                    text = when (intent) {
+                        PlayerFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
+                        PlayerFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
+                    },
+                )
+            },
+        )
     }
 }
 

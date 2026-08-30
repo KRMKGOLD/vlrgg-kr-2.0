@@ -26,6 +26,9 @@ fun PlayerDetailScreen(
         onTeamClick = onTeamClick,
         onMatchClick = onMatchClick,
         onRetry = viewModel::retry,
+        onFavoriteClick = viewModel::toggleFavorite,
+        onFavoriteRetry = viewModel::retryFavoriteMutation,
+        onFavoriteErrorDismiss = viewModel::dismissFavoriteError,
         modifier = modifier,
     )
 }
