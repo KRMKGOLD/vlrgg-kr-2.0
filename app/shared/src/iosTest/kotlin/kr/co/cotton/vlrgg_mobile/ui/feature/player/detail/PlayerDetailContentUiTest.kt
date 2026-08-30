@@ -9,6 +9,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isDialog
@@ -21,6 +23,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
@@ -311,13 +314,10 @@ class PlayerDetailContentUiTest {
         assertTrue(snackbarBounds.bottom <= rootBounds.bottom - inset + 1f)
         assertTrue(snackbarBounds.height < rootBounds.height)
         onNodeWithText("즐겨찾기 추가에 실패했습니다.").assertExists()
-        val retry = onNodeWithContentDescription("재시도").assertIsDisplayed()
-        val retryBounds = retry.fetchSemanticsNode().boundsInRoot
-        assertTrue(retryBounds.width >= 48f * density)
-        assertTrue(
-            retryBounds.height >= 48f * density,
-            "Retry target height=${retryBounds.height}, bounds=$retryBounds, density=$density, expected=${48f * density}",
-        )
+        val retry = onNodeWithText("재시도")
+            .assertIsDisplayed()
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
         onNodeWithContentDescription("즐겨찾기 오류 닫기").assertDoesNotExist()
         onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
         retry.performClick()

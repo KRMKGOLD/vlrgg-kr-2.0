@@ -11,8 +11,10 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
@@ -26,6 +28,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamMatch
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
@@ -243,7 +246,6 @@ class TeamDetailContentUiTest {
     fun overallErrorIsModalAndOnlyRetryAndBackInvokeRecoveryCallbacks() = runComposeUiTest {
         var retries = 0
         var backs = 0
-        var dismisses = 0
         setContent {
             Fixture(
                 contentState = TeamDetailContentState.Error,
@@ -422,6 +424,7 @@ class TeamDetailContentUiTest {
                 uiState = TeamDetailUiState(
                     contentState = TeamDetailContentState.Content(populatedTeam),
                     favorite = TeamFavoriteUiState(
+                        isRestored = true,
                         failedIntent = TeamFavoriteMutationIntent.Add,
                     ),
                 ),
@@ -441,13 +444,10 @@ class TeamDetailContentUiTest {
         assertTrue(snackbarBounds.bottom <= rootBounds.bottom - inset + 1f)
         assertTrue(snackbarBounds.height < rootBounds.height)
         onNodeWithText("즐겨찾기 추가에 실패했습니다.").assertIsDisplayed()
-        val retry = onNodeWithContentDescription("재시도").assertIsDisplayed()
-        val retryBounds = retry.fetchSemanticsNode().boundsInRoot
-        assertTrue(retryBounds.width >= 48f * density)
-        assertTrue(
-            retryBounds.height >= 48f * density,
-            "Retry target height=${retryBounds.height}, bounds=$retryBounds, density=$density, expected=${48f * density}",
-        )
+        val retry = onNodeWithText("재시도")
+            .assertIsDisplayed()
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
         onNodeWithContentDescription("즐겨찾기 오류 닫기").assertDoesNotExist()
         onNodeWithTag(TEAM_DETAIL_HEADER_TAG).assertExists()
         retry.performClick()
@@ -459,6 +459,7 @@ class TeamDetailContentUiTest {
                     contentState = TeamDetailContentState.Content(populatedTeam),
                     favorite = TeamFavoriteUiState(
                         isFavorite = true,
+                        isRestored = true,
                         failedIntent = TeamFavoriteMutationIntent.Remove,
                     ),
                 ),

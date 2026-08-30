@@ -130,7 +130,7 @@ class PlayerDetailViewModelTest {
         assertEquals(PlayerDetailContentState.Content(player), viewModel.uiState.value.contentState)
         assertTrue(viewModel.uiState.value.favorite.isFavorite)
         assertTrue(viewModel.uiState.value.favorite.isRestored)
-        assertEquals(listOf(PLAYER_ID), favoriteRepository.restoreRequests)
+        assertEquals(1, favoriteRepository.restoreCallCount)
     }
 
     @Test
@@ -261,7 +261,7 @@ class PlayerDetailViewModelTest {
         advanceUntilIdle()
 
         assertTrue(recreatedViewModel.uiState.value.favorite.isFavorite)
-        assertEquals(listOf(PLAYER_ID), favorites.restoreRequests)
+        assertEquals(1, favorites.restoreCallCount)
     }
 
     private fun runViewModelTest(testBody: suspend TestScope.() -> Unit) = runTest {
@@ -302,7 +302,7 @@ class PlayerDetailViewModelTest {
         private val addResults: List<AppResult<Unit>> = emptyList(),
         private val removeResults: List<AppResult<Unit>> = emptyList(),
     ) : FavoriteRepository {
-        val restoreRequests = mutableListOf<String>()
+        var restoreCallCount = 0
         val added = mutableListOf<FavoritePlayer>()
         val removed = mutableListOf<String>()
 
@@ -313,7 +313,7 @@ class PlayerDetailViewModelTest {
         override suspend fun getFavoriteTeams() = error("unused")
 
         override suspend fun getFavoritePlayers(): AppResult<List<FavoritePlayer>> {
-            restoreRequests += PLAYER_ID
+            restoreCallCount += 1
             return favoritePlayersResult
         }
 

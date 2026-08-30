@@ -22,12 +22,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -254,18 +256,15 @@ private fun TeamFavoriteErrorSnackbar(
             contentColor = MaterialTheme.colorScheme.inverseOnSurface,
             actionContentColor = MaterialTheme.colorScheme.inversePrimary,
             action = {
-                Box(
+                TextButton(
+                    onClick = onRetry,
                     modifier = Modifier
-                        .height(VlrDimensions.MinimumTouchTarget + 1.dp)
-                        .widthIn(min = 64.dp)
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = "재시도"
-                        }
-                        .clickable(role = Role.Button, onClick = onRetry),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("재시도")
-                }
+                        .widthIn(min = VlrDimensions.MinimumTouchTarget)
+                        .heightIn(min = VlrDimensions.MinimumTouchTarget),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.inversePrimary,
+                    ),
+                ) { Text("재시도") }
             },
             content = {
                 Text(message)

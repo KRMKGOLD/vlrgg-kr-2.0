@@ -1,7 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,12 +19,14 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
@@ -34,7 +35,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -140,36 +140,48 @@ private fun PlayerDetailTopBar(
                 modifier = Modifier.align(Alignment.CenterStart).padding(start = VlrDimensions.Space1),
                 icon = { Icon(vectorResource(Res.drawable.ic_arrow_back), null) },
             )
-            if (favorite.isRestored) {
-                VlrIconButton(
-                    contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
-                    onClick = onFavoriteClick,
-                    enabled = !favorite.isMutationInProgress,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = VlrDimensions.Space1)
-                        .testTag(
-                            if (favorite.isFavorite) {
-                                PLAYER_DETAIL_FAVORITE_FILLED_TAG
-                            } else {
-                                PLAYER_DETAIL_FAVORITE_OUTLINE_TAG
-                            },
-                        ),
-                    icon = {
-                        Icon(
-                            imageVector = vectorResource(
-                                if (favorite.isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star_outline,
-                            ),
-                            contentDescription = null,
-                            tint = if (favorite.isFavorite) VlrTheme.colors.actionPrimary else VlrTheme.colors.textSecondary,
-                        )
-                    },
-                )
-            }
+            PlayerFavoriteButton(
+                favorite = favorite,
+                onClick = onFavoriteClick,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = VlrDimensions.Space1),
+            )
             Text("Player Profile", Modifier.align(Alignment.Center), style = VlrTheme.typography.pageTitle, color = VlrTheme.colors.textPrimary)
         }
         HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
     }
+}
+
+@Composable
+private fun PlayerFavoriteButton(
+    favorite: PlayerFavoriteUiState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!favorite.isRestored) return
+
+    VlrIconButton(
+        contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
+        onClick = onClick,
+        enabled = !favorite.isMutationInProgress,
+        modifier = modifier.testTag(
+            if (favorite.isFavorite) {
+                PLAYER_DETAIL_FAVORITE_FILLED_TAG
+            } else {
+                PLAYER_DETAIL_FAVORITE_OUTLINE_TAG
+            },
+        ),
+        icon = {
+            Icon(
+                imageVector = vectorResource(
+                    if (favorite.isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star_outline,
+                ),
+                contentDescription = null,
+                tint = if (favorite.isFavorite) VlrTheme.colors.actionPrimary else VlrTheme.colors.textSecondary,
+            )
+        },
+    )
 }
 
 @Composable
@@ -196,18 +208,15 @@ private fun PlayerFavoriteFailureSnackbar(
             contentColor = MaterialTheme.colorScheme.inverseOnSurface,
             actionContentColor = MaterialTheme.colorScheme.inversePrimary,
             action = {
-                Box(
+                TextButton(
+                    onClick = onRetry,
                     modifier = Modifier
-                        .height(VlrDimensions.MinimumTouchTarget + 1.dp)
-                        .widthIn(min = 64.dp)
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = "재시도"
-                        }
-                        .clickable(role = Role.Button, onClick = onRetry),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("재시도")
-                }
+                        .widthIn(min = VlrDimensions.MinimumTouchTarget)
+                        .heightIn(min = VlrDimensions.MinimumTouchTarget),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.inversePrimary,
+                    ),
+                ) { Text("재시도") }
             },
             content = {
                 Text(

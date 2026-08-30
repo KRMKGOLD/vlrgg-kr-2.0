@@ -1,6 +1,8 @@
 package kr.co.cotton.vlrgg_mobile.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ComposeMaterial3Flags
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -44,7 +46,9 @@ object VlrTheme {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun VlrTheme(content: @Composable () -> Unit) {
+    ComposeMaterial3Flags.isSnackbarStylingFixEnabled = true
     androidx.compose.runtime.CompositionLocalProvider(
         LocalVlrColors provides VlrLightColors,
         LocalVlrTypography provides VlrTypography,

@@ -17,8 +17,9 @@ class DataStoreFavoriteLocalDataSourceAndroidHostTest {
     @Test
     fun dataStoreRoundTripRecreationKeepsTypesKeysOrderAndExactRemoval() = runTest {
         val file = File.createTempFile("favorite-", ".preferences_pb").apply { delete() }
+        val firstScope = CoroutineScope(SupervisorJob())
+        val recreatedScope = CoroutineScope(SupervisorJob())
         try {
-            val firstScope = CoroutineScope(SupervisorJob())
             val first = DataStoreFavoriteLocalDataSource(
                 createFavoriteDataStore(file.absolutePath, firstScope),
             )
@@ -30,7 +31,7 @@ class DataStoreFavoriteLocalDataSourceAndroidHostTest {
 
             firstScope.cancel()
             val recreated = DataStoreFavoriteLocalDataSource(
-                createFavoriteDataStore(file.absolutePath, CoroutineScope(SupervisorJob())),
+                createFavoriteDataStore(file.absolutePath, recreatedScope),
             )
             assertEquals(
                 listOf(
@@ -47,6 +48,8 @@ class DataStoreFavoriteLocalDataSourceAndroidHostTest {
             recreated.removeFavoriteTeam("2")
             assertEquals(listOf("1"), recreated.getFavoriteTeams().map { it.id })
         } finally {
+            firstScope.cancel()
+            recreatedScope.cancel()
             file.delete()
         }
     }
