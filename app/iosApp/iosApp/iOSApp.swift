@@ -13,13 +13,15 @@ private final class AppRuntimeOwner: ObservableObject {
             fatalError("API_BASE_URL is missing from Info.plist")
         }
 
-        let documentsDirectory = try? FileManager.default.url(
-            for: .documentDirectory,
+        guard let favoriteDataStoreDirectory = try? FileManager.default.url(
+            for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
-            create: false
+            create: true
         )
-        let favoriteDataStoreDirectory = documentsDirectory ?? FileManager.default.temporaryDirectory
+        else {
+            fatalError("Unable to initialize favorites storage.")
+        }
         let favoriteDataStore = FavoriteDataStore_iosKt.createFavoriteDataStore(
             path: favoriteDataStoreDirectory
                 .appendingPathComponent("favorites.preferences_pb")

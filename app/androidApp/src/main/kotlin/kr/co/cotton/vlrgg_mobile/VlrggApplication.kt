@@ -5,8 +5,14 @@ import kr.co.cotton.vlrgg_mobile.data.local.datastore.FAVORITE_DATA_STORE_FILE_N
 import kr.co.cotton.vlrgg_mobile.data.local.datastore.createFavoriteDataStore
 import kr.co.cotton.vlrgg_mobile.di.AppGraph
 import kr.co.cotton.vlrgg_mobile.di.createAppGraph
+import kr.co.cotton.vlrgg_mobile.ui.theme.initializeVlrMaterial3
 
 class VlrggApplication : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+        initializeVlrMaterial3()
+    }
 
     val appGraph: AppGraph by lazy {
         createAppGraph(

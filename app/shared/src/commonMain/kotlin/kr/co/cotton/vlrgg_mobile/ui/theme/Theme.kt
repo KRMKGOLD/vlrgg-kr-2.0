@@ -46,9 +46,7 @@ object VlrTheme {
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 fun VlrTheme(content: @Composable () -> Unit) {
-    ComposeMaterial3Flags.isSnackbarStylingFixEnabled = true
     androidx.compose.runtime.CompositionLocalProvider(
         LocalVlrColors provides VlrLightColors,
         LocalVlrTypography provides VlrTypography,
@@ -59,4 +57,9 @@ fun VlrTheme(content: @Composable () -> Unit) {
             content = content,
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+fun initializeVlrMaterial3() {
+    ComposeMaterial3Flags.isSnackbarStylingFixEnabled = true
 }

@@ -34,6 +34,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamMatch
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kr.co.cotton.vlrgg_mobile.ui.theme.initializeVlrMaterial3
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -415,57 +416,59 @@ class TeamDetailContentUiTest {
     }
 
     @Test
-    fun favoriteFailureSnackbarUsesCanonicalGeometryMessageRetryAndNoCloseAction() = runComposeUiTest {
-        var retries = 0
-        var density = 1f
-        setContent {
-            density = LocalDensity.current.density
-            Fixture(
-                uiState = TeamDetailUiState(
-                    contentState = TeamDetailContentState.Content(populatedTeam),
-                    favorite = TeamFavoriteUiState(
-                        isRestored = true,
-                        failedIntent = TeamFavoriteMutationIntent.Add,
+    fun favoriteFailureSnackbarUsesCanonicalGeometryMessageRetryAndNoCloseAction() {
+        initializeVlrMaterial3()
+        runComposeUiTest {
+            var retries = 0
+            var density = 1f
+            setContent {
+                density = LocalDensity.current.density
+                Fixture(
+                    uiState = TeamDetailUiState(
+                        contentState = TeamDetailContentState.Content(populatedTeam),
+                        favorite = TeamFavoriteUiState(
+                            isRestored = true,
+                            failedIntent = TeamFavoriteMutationIntent.Add,
+                        ),
                     ),
-                ),
-                onFavoriteRetry = { retries += 1 },
-            )
-        }
+                    onFavoriteRetry = { retries += 1 },
+                )
+            }
 
-        val rootBounds = onNodeWithTag(TEST_ROOT_TAG).fetchSemanticsNode().boundsInRoot
-        val snackbarBounds = onNodeWithTag(TEAM_DETAIL_FAVORITE_SNACKBAR_TAG)
-            .assertIsDisplayed()
-            .fetchSemanticsNode()
-            .boundsInRoot
-        val inset = 16f * density
-        assertTrue(snackbarBounds.width <= 328f * density + 1f)
-        assertTrue(snackbarBounds.left >= rootBounds.left + inset - 1f)
-        assertTrue(snackbarBounds.right <= rootBounds.right - inset + 1f)
-        assertTrue(snackbarBounds.bottom <= rootBounds.bottom - inset + 1f)
-        assertTrue(snackbarBounds.height < rootBounds.height)
-        onNodeWithText("즐겨찾기 추가에 실패했습니다.").assertIsDisplayed()
-        val retry = onNodeWithText("재시도")
-            .assertIsDisplayed()
-            .assertWidthIsAtLeast(48.dp)
-            .assertHeightIsAtLeast(48.dp)
-        onNodeWithContentDescription("즐겨찾기 오류 닫기").assertDoesNotExist()
-        onNodeWithTag(TEAM_DETAIL_HEADER_TAG).assertExists()
-        retry.performClick()
-        assertEquals(1, retries)
+            val rootBounds = onNodeWithTag(TEST_ROOT_TAG).fetchSemanticsNode().boundsInRoot
+            val snackbarBounds = onNodeWithTag(TEAM_DETAIL_FAVORITE_SNACKBAR_TAG)
+                .assertIsDisplayed()
+                .fetchSemanticsNode()
+                .boundsInRoot
+            val inset = 16f * density
+            assertTrue(snackbarBounds.width <= 328f * density + 1f)
+            assertTrue(snackbarBounds.left >= rootBounds.left + inset - 1f)
+            assertTrue(snackbarBounds.right <= rootBounds.right - inset + 1f)
+            assertTrue(snackbarBounds.bottom <= rootBounds.bottom - inset + 1f)
+            assertTrue(snackbarBounds.height < rootBounds.height)
+            onNodeWithText("즐겨찾기 추가에 실패했습니다.").assertIsDisplayed()
+            val retry = onNodeWithText("재시도")
+                .assertIsDisplayed()
+                .assertWidthIsAtLeast(48.dp)
+                .assertHeightIsAtLeast(48.dp)
+            onNodeWithContentDescription("즐겨찾기 오류 닫기").assertDoesNotExist()
+            onNodeWithTag(TEAM_DETAIL_HEADER_TAG).assertExists()
+            retry.performClick()
+            assertEquals(1, retries)
 
-        setContent {
-            Fixture(
-                uiState = TeamDetailUiState(
-                    contentState = TeamDetailContentState.Content(populatedTeam),
-                    favorite = TeamFavoriteUiState(
-                        isFavorite = true,
-                        isRestored = true,
-                        failedIntent = TeamFavoriteMutationIntent.Remove,
+            setContent {
+                Fixture(
+                    uiState = TeamDetailUiState(
+                        contentState = TeamDetailContentState.Content(populatedTeam),
+                        favorite = TeamFavoriteUiState(
+                            isFavorite = true,
+                            failedIntent = TeamFavoriteMutationIntent.Remove,
+                        ),
                     ),
-                ),
-            )
+                )
+            }
+            onNodeWithText("즐겨찾기 해제에 실패했습니다.").assertIsDisplayed()
         }
-        onNodeWithText("즐겨찾기 해제에 실패했습니다.").assertIsDisplayed()
     }
 
     @Test
