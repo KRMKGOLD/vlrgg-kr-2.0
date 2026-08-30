@@ -3,8 +3,6 @@ package kr.co.cotton.vlrgg_mobile.data.di
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.Binds
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteEventDataSource
-import kr.co.cotton.vlrgg_mobile.data.local.DataStoreFavoriteLocalDataSource
-import kr.co.cotton.vlrgg_mobile.data.local.FavoriteLocalDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteMatchDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteNewsDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemotePlayerDataSource
@@ -19,7 +17,6 @@ import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteSearchDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteSeriesDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteTeamDataSourceImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.EventRepositoryImpl
-import kr.co.cotton.vlrgg_mobile.data.repository.FavoriteRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.MatchRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.NewsRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.PlayerRepositoryImpl
@@ -27,7 +24,6 @@ import kr.co.cotton.vlrgg_mobile.data.repository.SearchRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.SeriesRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.TeamRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
-import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.NewsRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
@@ -37,17 +33,6 @@ import kr.co.cotton.vlrgg_mobile.domain.repository.TeamRepository
 
 @BindingContainer
 internal interface DataBinding {
-
-    // Favorites
-    @Binds
-    fun bindFavoriteLocalDataSource(
-        impl: DataStoreFavoriteLocalDataSource,
-    ): FavoriteLocalDataSource
-
-    @Binds
-    fun bindFavoriteRepository(
-        impl: FavoriteRepositoryImpl,
-    ): FavoriteRepository
 
     // Events
     @Binds

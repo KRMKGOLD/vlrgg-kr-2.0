@@ -8,6 +8,7 @@ import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import kr.co.cotton.vlrgg_mobile.data.di.DataBinding
+import kr.co.cotton.vlrgg_mobile.data.di.FavoriteDataBinding
 import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
@@ -21,6 +22,7 @@ import kr.co.cotton.vlrgg_mobile.network.di.NetworkBinding
     bindingContainers = [
         NetworkBinding::class,
         DataBinding::class,
+        FavoriteDataBinding::class,
     ],
 )
 interface AppGraph : ViewModelGraph {

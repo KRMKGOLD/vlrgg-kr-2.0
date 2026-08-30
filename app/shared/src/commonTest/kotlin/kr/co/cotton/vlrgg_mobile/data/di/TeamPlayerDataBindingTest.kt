@@ -4,7 +4,6 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.createGraphFactory
-import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import io.ktor.client.HttpClient
 import kr.co.cotton.vlrgg_mobile.data.remote.RemotePlayerDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteTeamDataSource
@@ -48,7 +47,7 @@ class TeamPlayerDataBindingTest {
         DataBinding::class,
     ],
 )
-internal interface TestTeamPlayerDataGraph : ViewModelGraph {
+internal interface TestTeamPlayerDataGraph {
     val remoteTeamDataSource: RemoteTeamDataSource
     val teamRepository: TeamRepository
     val remotePlayerDataSource: RemotePlayerDataSource

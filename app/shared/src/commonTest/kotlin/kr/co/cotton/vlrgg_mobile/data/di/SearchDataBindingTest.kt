@@ -4,7 +4,6 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.createGraphFactory
-import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import io.ktor.client.HttpClient
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteSearchDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteSearchDataSourceImpl
@@ -36,7 +35,7 @@ class SearchDataBindingTest {
     scope = AppScope::class,
     bindingContainers = [NetworkBinding::class, DataBinding::class],
 )
-internal interface TestSearchDataGraph : ViewModelGraph {
+internal interface TestSearchDataGraph {
     val remoteSearchDataSource: RemoteSearchDataSource
     val searchRepository: SearchRepository
     val httpClient: HttpClient

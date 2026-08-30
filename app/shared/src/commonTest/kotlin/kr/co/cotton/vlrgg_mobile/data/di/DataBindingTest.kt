@@ -4,7 +4,6 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.createGraphFactory
-import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import io.ktor.client.HttpClient
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteNewsDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteNewsDataSourceImpl
@@ -53,7 +52,7 @@ class DataBindingTest {
         DataBinding::class,
     ],
 )
-internal interface TestDataGraph : ViewModelGraph {
+internal interface TestDataGraph {
     val remoteNewsDataSource: RemoteNewsDataSource
     val newsRepository: NewsRepository
     val httpClient: HttpClient
