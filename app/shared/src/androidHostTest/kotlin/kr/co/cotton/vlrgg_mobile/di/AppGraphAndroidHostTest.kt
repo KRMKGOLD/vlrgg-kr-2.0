@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.CreationExtras
+import java.io.File
+import kr.co.cotton.vlrgg_mobile.data.local.datastore.createFavoriteDataStore
+import kr.co.cotton.vlrgg_mobile.data.repository.FavoriteRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.PlayerRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.MatchRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.data.repository.TeamRepositoryImpl
@@ -19,16 +22,17 @@ import kotlin.test.assertSame
 class AppGraphAndroidHostTest {
     @Test
     fun appGraphResolvesTeamPlayerAndMatchRepositories() {
-        val graph = createAppGraph(apiBaseUrl = TEST_API_BASE_URL)
+        val graph = createTestGraph()
 
         assertIs<TeamRepositoryImpl>(graph.teamRepository)
         assertIs<PlayerRepositoryImpl>(graph.playerRepository)
         assertIs<MatchRepositoryImpl>(graph.matchRepository)
+        assertIs<FavoriteRepositoryImpl>(graph.favoriteRepository)
     }
 
     @Test
     fun metroGraphResolvesFactoryCreatesMyPageAndRejectsUnknownViewModels() {
-        val graph = createAppGraph(apiBaseUrl = TEST_API_BASE_URL)
+        val graph = createTestGraph()
         val factory = graph.metroViewModelFactory
 
         assertIs<MyPageViewModel>(
@@ -44,7 +48,7 @@ class AppGraphAndroidHostTest {
 
     @Test
     fun viewModelProviderScopesMyPageToItsNavigationEntryOwner() {
-        val factory = createAppGraph(apiBaseUrl = TEST_API_BASE_URL).metroViewModelFactory
+        val factory = createTestGraph().metroViewModelFactory
         val firstOwner = TestViewModelStoreOwner()
         val secondOwner = TestViewModelStoreOwner()
 
@@ -65,6 +69,16 @@ class AppGraphAndroidHostTest {
         owner: ViewModelStoreOwner,
         factory: ViewModelProvider.Factory,
     ): MyPageViewModel = ViewModelProvider.create(owner, factory)[MyPageViewModel::class]
+
+    private fun createTestGraph() = createAppGraph(
+        apiBaseUrl = TEST_API_BASE_URL,
+        favoriteDataStore = createFavoriteDataStore(
+            File.createTempFile("favorite-graph-", ".preferences_pb").apply {
+                delete()
+                deleteOnExit()
+            }.absolutePath,
+        ),
+    )
 
     private class TestViewModelStoreOwner : ViewModelStoreOwner {
         override val viewModelStore = ViewModelStore()

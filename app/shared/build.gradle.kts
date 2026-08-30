@@ -58,6 +58,8 @@ kotlin {
             implementation(libs.navigation3.ui)
             implementation(libs.lifecycle.viewmodel.navigation3)
             implementation(libs.kotlinx.serialization.json)
+            api(libs.androidx.datastore.core)
+            api(libs.androidx.datastore.preferences)
             implementation(libs.ktor.clientCore)
             implementation(libs.ktor.clientContentNegotiation)
             implementation(libs.ktor.clientSerializationKotlinxJson)

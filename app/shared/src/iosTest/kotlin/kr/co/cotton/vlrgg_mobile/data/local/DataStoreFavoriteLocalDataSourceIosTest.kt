@@ -1,0 +1,63 @@
+package kr.co.cotton.vlrgg_mobile.data.local
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import kotlinx.cinterop.ExperimentalForeignApi
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kr.co.cotton.vlrgg_mobile.data.local.datastore.createFavoriteDataStore
+import kr.co.cotton.vlrgg_mobile.data.local.datastore.model.FavoritePlayerStorage
+import kr.co.cotton.vlrgg_mobile.data.local.datastore.model.FavoriteTeamStorage
+import kr.co.cotton.vlrgg_mobile.data.repository.FavoriteRepositoryImpl
+import kr.co.cotton.vlrgg_mobile.domain.AppResult
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSTemporaryDirectory
+import platform.Foundation.NSUUID
+import kotlin.test.Test
+import kotlin.test.assertEquals
+
+@OptIn(ExperimentalForeignApi::class)
+class DataStoreFavoriteLocalDataSourceIosTest {
+
+    @Test
+    fun malformedStoredValueBecomesRepositoryFailure() = runTest {
+        val path = NSTemporaryDirectory() + "favorite-malformed-" + NSUUID().UUIDString + ".preferences_pb"
+        try {
+            val dataStore = createFavoriteDataStore(path, CoroutineScope(SupervisorJob()))
+            dataStore.edit { preferences ->
+                preferences[stringPreferencesKey("favorite_teams")] = "{malformed"
+            }
+
+            val repository = FavoriteRepositoryImpl(DataStoreFavoriteLocalDataSource(dataStore))
+            assertEquals(AppResult.Failure, repository.getFavoriteTeams())
+        } finally {
+            NSFileManager.defaultManager.removeItemAtPath(path, error = null)
+        }
+    }
+
+    @Test
+    fun dataStoreRoundTripSurvivesRecreation() = runTest {
+        val path = NSTemporaryDirectory() + "favorite-" + NSUUID().UUIDString + ".preferences_pb"
+        try {
+            val firstScope = CoroutineScope(SupervisorJob())
+            val first = DataStoreFavoriteLocalDataSource(createFavoriteDataStore(path, firstScope))
+            first.upsertFavoriteTeam(FavoriteTeamStorage("2", "DRX", null, ""))
+            first.upsertFavoritePlayer(FavoritePlayerStorage("100", "", null, "KR", null))
+            firstScope.cancel()
+
+            val recreated = DataStoreFavoriteLocalDataSource(
+                createFavoriteDataStore(path, CoroutineScope(SupervisorJob())),
+            )
+            assertEquals(listOf(FavoriteTeamStorage("2", "DRX", null, "")), recreated.observeFavoriteTeams().first())
+            assertEquals(
+                listOf(FavoritePlayerStorage("100", "", null, "KR", null)),
+                recreated.observeFavoritePlayers().first(),
+            )
+        } finally {
+            NSFileManager.defaultManager.removeItemAtPath(path, error = null)
+        }
+    }
+}
