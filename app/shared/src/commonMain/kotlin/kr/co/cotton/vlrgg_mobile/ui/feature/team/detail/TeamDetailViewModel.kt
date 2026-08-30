@@ -99,9 +99,6 @@ class TeamDetailViewModel(
                     )
                 }
             }
-            .onFailure {
-                updateFavorite { it.copy(isRestored = true) }
-            }
     }
 
     private fun beginFavoriteMutation(mutation: FavoriteMutation) {

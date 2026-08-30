@@ -82,12 +82,15 @@ class PlayerDetailViewModel(
     }
 
     private fun restoreFavorite() = viewModelScope.launch {
-        val restored = favoriteRepository.getFavoritePlayers()
-        val isFavorite = (restored as? kr.co.cotton.vlrgg_mobile.domain.AppResult.Success)
-            ?.data
-            ?.any { it.id == playerId }
-            ?: false
-        updateFavorite { it.copy(isFavorite = isFavorite, isRestored = true) }
+        favoriteRepository.getFavoritePlayers()
+            .onSuccess { favorites ->
+                updateFavorite {
+                    it.copy(
+                        isFavorite = favorites.any { it.id == playerId },
+                        isRestored = true,
+                    )
+                }
+            }
     }
 
     private fun executeFavoriteMutation(mutation: FavoriteMutation) {

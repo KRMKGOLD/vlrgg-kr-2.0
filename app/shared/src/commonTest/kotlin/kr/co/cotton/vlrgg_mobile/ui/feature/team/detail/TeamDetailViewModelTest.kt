@@ -191,6 +191,31 @@ class TeamDetailViewModelTest {
     }
 
     @Test
+    fun favoriteRestoreFailureKeepsTheFavoriteUnrestoredAndPreventsMutation() = runViewModelTest {
+        val team = teamDetail()
+        val favorites = FakeFavoriteRepository(
+            favoriteTeamsResult = AppResult.Failure,
+            addResults = listOf(AppResult.Success(Unit)),
+        )
+        val viewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(team))),
+            favoriteRepository = favorites,
+            teamId = TEAM_ID,
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(TeamDetailContentState.Content(team), viewModel.uiState.value.contentState)
+        assertEquals(TeamFavoriteUiState(), viewModel.uiState.value.favorite)
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertTrue(favorites.addedTeams.isEmpty())
+        assertTrue(favorites.removedTeamIds.isEmpty())
+    }
+
+    @Test
     fun optimisticAddAndRemovePreserveContentAndCallTheExactFavoriteRepositoryMethod() = runViewModelTest {
         val team = teamDetail()
         val favorites = FakeFavoriteRepository(addResults = listOf(AppResult.Success(Unit)))
