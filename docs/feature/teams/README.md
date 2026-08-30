@@ -8,8 +8,8 @@
 - **Favorite #43 Team Detail: 구현 완료.** 기기 로컬 즐겨찾기 상태를 복원하고, star의 등록·해제를 optimistic하게 처리한다. 실패하면 Add는 OFF, Remove는 ON으로 되돌린 뒤 actionable Retry Snackbar를 표시하며 mutation 중에도 화면 전체를 막지 않는다. 이 동작은 notification permission이나 서버 notification subscription을 만들거나 변경하지 않는다.
 - **#44 MyPage: 예정.** Team/Player 로컬 persistence 기반만 준비되었으며, MyPage 즐겨찾기 집계·목록·Detail navigation·제거 UI는 아직 구현하지 않았다.
 - **자동화 검증: 완료.** #43 Detail favorite 동작은 Compose UI 및 iOS simulator 자동화 검증을 통과했다. Android/iOS 실기기 screenshot 및 접근성 검증은 이 범위에서 수행하지 않았다.
-- **Player Detail P1: 예정.** Team Detail에서 Player Detail destination으로 이동하지만, Player Detail 자체 구현은 후속 P1 범위다.
-- **#42 전체: 미완료.** T1 Team Detail UI/navigation만 완료되었고 후속 Player Detail P1 범위가 남아 있다. Favorite는 별도 Issue #43에서 구현 완료되었다.
+- **Player Detail P1: 구현 완료.** Team Detail에서 Player Detail destination으로 이동하며, Player Detail 자체 구현도 완료되었다.
+- **#42 전체: 완료/종료.** T1 Team Detail UI/navigation과 후속 Player Detail P1 범위가 구현 완료되었다. Favorite는 별도 Issue #43에서 구현 완료되었으며, MyPage 범위는 #44에 남아 있다.
 
 ## 목적과 사용자 가치
 
