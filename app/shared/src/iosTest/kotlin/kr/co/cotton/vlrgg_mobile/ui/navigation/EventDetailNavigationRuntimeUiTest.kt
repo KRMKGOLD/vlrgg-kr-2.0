@@ -23,12 +23,15 @@ import kr.co.cotton.vlrgg_mobile.domain.model.events.EventDetail as EventIdentit
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStats
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatsAvailability
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventPlayerStats
+import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoritePlayer
+import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
+import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail as PlayerIdentity
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerProfile
@@ -41,6 +44,8 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PLAYER_DETAIL_HEADER_TAG
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PlayerDetailViewModel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -63,7 +68,7 @@ class EventDetailNavigationRuntimeUiTest {
                 },
                 PlayerDetailViewModel.Factory::class to {
                     PlayerDetailViewModel.Factory { playerId ->
-                        PlayerDetailViewModel(FakePlayerRepository(), playerId)
+                        PlayerDetailViewModel(FakePlayerRepository(), FakeFavoriteRepository(), playerId)
                     }
                 },
                 MatchDetailViewModel.Factory::class to {
@@ -211,6 +216,24 @@ class EventDetailNavigationRuntimeUiTest {
         override suspend fun getPlayerDetail(playerId: String): AppResult<PlayerIdentity> = AppResult.Success(
             PlayerIdentity(playerId, PlayerProfile("Event Player", null, emptyList(), null, null), null, emptyList(), emptyList()),
         )
+    }
+
+    private class FakeFavoriteRepository : FavoriteRepository {
+        override fun observeFavoriteTeams(): Flow<AppResult<List<FavoriteTeam>>> = emptyFlow()
+
+        override fun observeFavoritePlayers(): Flow<AppResult<List<FavoritePlayer>>> = emptyFlow()
+
+        override suspend fun getFavoriteTeams(): AppResult<List<FavoriteTeam>> = AppResult.Success(emptyList())
+
+        override suspend fun getFavoritePlayers(): AppResult<List<FavoritePlayer>> = AppResult.Success(emptyList())
+
+        override suspend fun addFavoriteTeam(favorite: FavoriteTeam): AppResult<Unit> = AppResult.Success(Unit)
+
+        override suspend fun addFavoritePlayer(favorite: FavoritePlayer): AppResult<Unit> = AppResult.Success(Unit)
+
+        override suspend fun removeFavoriteTeam(teamId: String): AppResult<Unit> = AppResult.Success(Unit)
+
+        override suspend fun removeFavoritePlayer(playerId: String): AppResult<Unit> = AppResult.Success(Unit)
     }
 
     private class TestHostViewModelStoreOwner : ViewModelStoreOwner {
