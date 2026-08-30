@@ -7,6 +7,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteMatchDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchesPageResponseDto
+import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDetailResponseDto
 
 @Inject
 internal class RemoteMatchDataSourceImpl(
@@ -19,6 +20,9 @@ internal class RemoteMatchDataSourceImpl(
     override suspend fun getResults(page: Int): MatchesPageResponseDto =
         getMatchPage(path = RESULTS_PATH, page = page)
 
+    override suspend fun getMatchDetail(matchId: String): MatchDetailResponseDto =
+        httpClient.get("$MATCHES_PATH/$matchId").body()
+
     private suspend fun getMatchPage(
         path: String,
         page: Int,
@@ -27,7 +31,8 @@ internal class RemoteMatchDataSourceImpl(
     }.body()
 
     private companion object {
-        const val UPCOMING_MATCHES_PATH = "/api/v1/matches/upcoming"
-        const val RESULTS_PATH = "/api/v1/matches/results"
+        const val MATCHES_PATH = "/api/v1/matches"
+        const val UPCOMING_MATCHES_PATH = "$MATCHES_PATH/upcoming"
+        const val RESULTS_PATH = "$MATCHES_PATH/results"
     }
 }

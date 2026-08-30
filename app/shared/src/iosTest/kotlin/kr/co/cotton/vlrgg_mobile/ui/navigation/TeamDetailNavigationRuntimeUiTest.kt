@@ -53,6 +53,7 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PLAYER_DETAIL_HEADER_T
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PlayerDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.playerMatchCardTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.playerTeamRowTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 
@@ -64,7 +65,11 @@ class TeamDetailNavigationRuntimeUiTest {
         var navigationState: AppNavigationState? = null
         val teamRepository = FakeTeamRepository()
         val playerRepository = FakePlayerRepository()
-        val viewModelFactory = teamViewModelFactory(teamRepository, playerRepository)
+        val viewModelFactory = teamViewModelFactory(
+            teamRepository,
+            playerRepository,
+            FixtureMatchRepository(),
+        )
         val hostOwner = TestHostViewModelStoreOwner()
 
         setContent {
@@ -107,8 +112,8 @@ class TeamDetailNavigationRuntimeUiTest {
         scrollToTag(teamMatchCardTag(MATCH_ID))
         onNodeWithTag(teamMatchCardTag(MATCH_ID)).performClick()
         assertTopDestination(navigationState, MatchDetail(MATCH_ID))
-        onNodeWithText("match_detail").assertExists()
-        onNodeWithText("Back").performClick()
+        assertRealMatchDetailDestination()
+        onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithTag(teamMatchCardTag(MATCH_ID)).assertIsDisplayed()
         scrollToTag(teamPlayerRowTag(LAST_PLAYER_ID))
         onNodeWithTag(teamPlayerRowTag(LAST_PLAYER_ID)).assertIsDisplayed()
@@ -123,8 +128,8 @@ class TeamDetailNavigationRuntimeUiTest {
         scrollToTag(playerMatchCardTag(PLAYER_MATCH_ID))
         onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).performClick()
         assertTopDestination(navigationState, MatchDetail(PLAYER_MATCH_ID))
-        onNodeWithText("match_detail").assertExists()
-        onNodeWithText("Back").performClick()
+        assertRealMatchDetailDestination()
+        onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).assertIsDisplayed()
         runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
         onNodeWithText("fixture:news").assertExists()
@@ -249,6 +254,7 @@ class TeamDetailNavigationRuntimeUiTest {
     private fun teamViewModelFactory(
         repository: TeamRepository,
         playerRepository: PlayerRepository,
+        matchRepository: FixtureMatchRepository,
     ) = AppViewModelFactory(
         viewModelProviders = emptyMap(),
         assistedFactoryProviders = emptyMap(),
@@ -258,6 +264,9 @@ class TeamDetailNavigationRuntimeUiTest {
             },
             PlayerDetailViewModel.Factory::class to {
                 PlayerDetailViewModel.Factory { playerId -> PlayerDetailViewModel(playerRepository, playerId) }
+            },
+            MatchDetailViewModel.Factory::class to {
+                fixtureMatchDetailFactory(matchRepository)
             },
         ),
     )

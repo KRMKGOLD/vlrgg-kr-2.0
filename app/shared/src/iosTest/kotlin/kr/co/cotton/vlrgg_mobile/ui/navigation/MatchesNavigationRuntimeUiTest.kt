@@ -6,6 +6,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -18,6 +19,7 @@ import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 import kr.co.cotton.vlrgg_mobile.di.AppViewModelFactory
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
+import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDetail as MatchDetailModel
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchListCategory
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchPage
@@ -27,6 +29,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MatchesViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.matchCardTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -47,7 +50,11 @@ class MatchesNavigationRuntimeUiTest {
                     }
                 },
             ),
-            manualAssistedFactoryProviders = emptyMap(),
+            manualAssistedFactoryProviders = mapOf(
+                MatchDetailViewModel.Factory::class to {
+                    fixtureMatchDetailFactory(repository)
+                },
+            ),
         )
         val hostOwner = TestHostViewModelStoreOwner()
         var navigationState: AppNavigationState? = null
@@ -106,10 +113,19 @@ class MatchesNavigationRuntimeUiTest {
                 requireNotNull(navigationState).currentBackStack.last()
             })
             assertEquals(MatchDetail(matchId = "result-10"), detailEntry.destination)
+            assertRealMatchDetailDestination()
 
-            onNodeWithText("Back").performClick()
+            onNodeWithContentDescription("뒤로 가기").performClick()
             onNodeWithTag(matchCardTag("result-10")).assertIsDisplayed()
             onNodeWithText("예정 · 라이브").performClick()
+            onNodeWithTag(matchCardTag("upcoming-10")).assertIsDisplayed()
+            onNodeWithTag(matchCardTag("upcoming-10")).performClick()
+            val upcomingDetailEntry = assertIs<OverlayNavEntry>(runOnIdle {
+                requireNotNull(navigationState).currentBackStack.last()
+            })
+            assertEquals(MatchDetail(matchId = "upcoming-10"), upcomingDetailEntry.destination)
+            assertRealMatchDetailDestination()
+            onNodeWithContentDescription("뒤로 가기").performClick()
             onNodeWithTag(matchCardTag("upcoming-10")).assertIsDisplayed()
             assertEquals(1, repository.upcomingRequests)
             assertEquals(1, repository.resultsRequests)
@@ -146,6 +162,9 @@ class MatchesNavigationRuntimeUiTest {
                 status = MatchStatus.COMPLETED,
             )
         }
+
+        override suspend fun getMatchDetail(matchId: String): AppResult<MatchDetailModel> =
+            AppResult.Success(fixtureMatchDetail(matchId))
 
         private fun page(
             category: MatchListCategory,

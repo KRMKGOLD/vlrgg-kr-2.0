@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
+import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchListCategory
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchPage
@@ -632,6 +633,9 @@ class MatchesViewModelTest {
             requestedResultsPages += page
             return resultProvider(Feed.RESULTS, page, callIndex)
         }
+
+        override suspend fun getMatchDetail(matchId: String): AppResult<MatchDetail> =
+            error("Match detail is not used")
     }
 
     private companion object {

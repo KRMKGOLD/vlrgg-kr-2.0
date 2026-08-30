@@ -2,7 +2,10 @@ package kr.co.cotton.vlrgg_mobile.data.mapper
 
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDateGroupDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchEventDto
+import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDetailResponseDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchListCategoryDto
+import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchMapDto
+import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.RelatedMatchDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchStatusDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchSummaryDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchTeamDto
@@ -97,6 +100,77 @@ class MatchMapperTest {
         val actualStatuses = response.toDomain().groups.single().matches.map { it.status }
 
         assertEquals(expectedStatuses, actualStatuses)
+    }
+
+    @Test
+    fun detailMapsEveryServerFieldAndPreservesMapAndRelatedMatchOrder() {
+        val detail = MatchDetailResponseDto(
+            id = "7000",
+            status = MatchStatusDto.COMPLETED,
+            timeLabel = "2026-08-29 17:00",
+            relativeTimeLabel = "1h ago",
+            scheduledAt = "2026-08-29T08:00:00Z",
+            homeTeam = MatchTeamDto(name = "Alpha", id = "alpha"),
+            awayTeam = MatchTeamDto(name = "Beta", id = null),
+            homeScore = 0,
+            awayScore = null,
+            event = MatchEventDto(name = "Champions", series = "Playoffs", id = null),
+            description = "Grand final",
+            seriesFormat = "Bo5",
+            maps = listOf(
+                MatchMapDto(name = "Lotus", homeScore = 0, awayScore = 13),
+                MatchMapDto(name = "Haven", homeScore = null, awayScore = null),
+            ),
+            headToHead = listOf(
+                RelatedMatchDto("6999", "Alpha", "Beta", 2, 0),
+                RelatedMatchDto("6998", "Beta", "Alpha", null, null),
+            ),
+            pastMatches = listOf(
+                RelatedMatchDto("6997", "Alpha", "Gamma", 13, 11),
+                RelatedMatchDto("6996", "Beta", "Delta", null, 0),
+            ),
+        )
+
+        val actual = detail.toDomain()
+
+        assertEquals("7000", actual.id)
+        assertEquals(MatchStatus.COMPLETED, actual.status)
+        assertEquals("2026-08-29 17:00", actual.timeLabel)
+        assertEquals("1h ago", actual.relativeTimeLabel)
+        assertEquals("2026-08-29T08:00:00Z", actual.scheduledAt)
+        assertEquals("alpha", actual.homeTeam.id)
+        assertEquals(null, actual.awayTeam.id)
+        assertEquals(0, actual.homeScore)
+        assertEquals(null, actual.awayScore)
+        assertEquals("Playoffs", actual.event.series)
+        assertEquals(null, actual.event.id)
+        assertEquals("Grand final", actual.description)
+        assertEquals("Bo5", actual.seriesFormat)
+        assertEquals(listOf("Lotus", "Haven"), actual.maps.map { it.name })
+        assertEquals(0, actual.maps.first().homeScore)
+        assertEquals(null, actual.maps.last().awayScore)
+        assertEquals(listOf("6999", "6998"), actual.headToHead.map { it.id })
+        assertEquals(listOf("6997", "6996"), actual.pastMatches.map { it.id })
+        assertEquals(0, actual.pastMatches.last().awayScore)
+    }
+
+    @Test
+    fun detailMapsAllStatusesWithoutOmission() {
+        val actualStatuses = MatchStatusDto.entries.map { status ->
+            MatchDetailResponseDto(
+                id = status.name,
+                status = status,
+                timeLabel = "label",
+                homeTeam = MatchTeamDto("Alpha"),
+                awayTeam = MatchTeamDto("Beta"),
+                event = MatchEventDto("Champions"),
+                maps = emptyList(),
+                headToHead = emptyList(),
+                pastMatches = emptyList(),
+            ).toDomain().status
+        }
+
+        assertEquals(MatchStatus.entries, actualStatuses)
     }
 
     private fun group(

@@ -64,6 +64,61 @@ class RemoteMatchDataSourceImplTest {
     }
 
     @Test
+    fun getMatchDetailRequestsExactPathAndDeserializesOptionalFields() = runTest {
+        val client = createClient(
+            MockEngine { request ->
+                assertEquals("/api/v1/matches/7000", request.url.encodedPath)
+                assertEquals(emptySet(), request.url.parameters.names())
+                respondJson(MATCH_DETAIL_JSON)
+            },
+        )
+
+        try {
+            val response = RemoteMatchDataSourceImpl(client).getMatchDetail("7000")
+
+            assertEquals("7000", response.id)
+            assertEquals(MatchStatusDto.COMPLETED, response.status)
+            assertEquals("2026-08-29T08:00:00Z", response.scheduledAt)
+            assertEquals(0, response.homeScore)
+            assertEquals(null, response.awayScore)
+            assertEquals(listOf("Lotus", "Haven"), response.maps.map { it.name })
+            assertEquals(listOf("6999", "6998"), response.headToHead.map { it.id })
+            assertEquals(listOf("6997", "6996"), response.pastMatches.map { it.id })
+            assertEquals(0, response.pastMatches.last().awayScore)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun getMatchDetailDeserializesOmittedOptionalFieldsAsNullAndPreservesEmptyLists() = runTest {
+        val client = createClient(
+            MockEngine { request ->
+                assertEquals("/api/v1/matches/7001", request.url.encodedPath)
+                respondJson(MATCH_DETAIL_WITH_OMITTED_OPTIONAL_FIELDS_JSON)
+            },
+        )
+
+        try {
+            val response = RemoteMatchDataSourceImpl(client).getMatchDetail("7001")
+
+            assertEquals(null, response.relativeTimeLabel)
+            assertEquals(null, response.scheduledAt)
+            assertEquals(null, response.homeScore)
+            assertEquals(null, response.awayScore)
+            assertEquals(null, response.event.series)
+            assertEquals(null, response.event.id)
+            assertEquals(null, response.description)
+            assertEquals(null, response.seriesFormat)
+            assertEquals(emptyList(), response.maps)
+            assertEquals(emptyList(), response.headToHead)
+            assertEquals(emptyList(), response.pastMatches)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
     fun nonSuccessfulResponseThrowsKtorResponseException() = runTest {
         val client = createClient(
             MockEngine {
@@ -155,6 +210,44 @@ class RemoteMatchDataSourceImplTest {
                   ]
                 }
               ]
+            }
+            """.trimIndent()
+
+        val MATCH_DETAIL_JSON =
+            """
+            {
+              "id": "7000", "status": "completed", "timeLabel": "2026-08-29 17:00",
+              "relativeTimeLabel": "1h ago", "scheduledAt": "2026-08-29T08:00:00Z",
+              "homeTeam": { "name": "Alpha", "id": "alpha" },
+              "awayTeam": { "name": "Beta", "id": null },
+              "homeScore": 0, "awayScore": null,
+              "event": { "name": "Champions", "series": "Playoffs", "id": null },
+              "description": "Grand final", "seriesFormat": "Bo5",
+              "maps": [
+                { "name": "Lotus", "homeScore": 0, "awayScore": 13 },
+                { "name": "Haven", "homeScore": null, "awayScore": null }
+              ],
+              "headToHead": [
+                { "id": "6999", "homeTeamName": "Alpha", "awayTeamName": "Beta", "homeScore": 2, "awayScore": 0 },
+                { "id": "6998", "homeTeamName": "Beta", "awayTeamName": "Alpha", "homeScore": null, "awayScore": null }
+              ],
+              "pastMatches": [
+                { "id": "6997", "homeTeamName": "Alpha", "awayTeamName": "Gamma", "homeScore": 13, "awayScore": 11 },
+                { "id": "6996", "homeTeamName": "Beta", "awayTeamName": "Delta", "homeScore": null, "awayScore": 0 }
+              ]
+            }
+            """.trimIndent()
+
+        val MATCH_DETAIL_WITH_OMITTED_OPTIONAL_FIELDS_JSON =
+            """
+            {
+              "id": "7001", "status": "upcoming", "timeLabel": "TBD",
+              "homeTeam": { "name": "Alpha" },
+              "awayTeam": { "name": "Beta" },
+              "event": { "name": "Champions" },
+              "maps": [],
+              "headToHead": [],
+              "pastMatches": []
             }
             """.trimIndent()
     }

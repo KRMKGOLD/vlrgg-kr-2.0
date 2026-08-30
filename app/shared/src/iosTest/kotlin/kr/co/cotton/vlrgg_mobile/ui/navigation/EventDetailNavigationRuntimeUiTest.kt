@@ -36,6 +36,8 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailTab
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.eventDetailTabTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.eventStatsPlayerTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.matchCardTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PLAYER_DETAIL_HEADER_TAG
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PlayerDetailViewModel
@@ -49,6 +51,7 @@ class EventDetailNavigationRuntimeUiTest {
     @Test
     fun eventDetailPreservesSelectedTabDataAndScrollAcrossRootAndChildRoundTrips() {
         val repository = FakeEventRepository()
+        val matchRepository = FixtureMatchRepository()
         val viewModelFactory = AppViewModelFactory(
             viewModelProviders = emptyMap(),
             assistedFactoryProviders = emptyMap(),
@@ -62,6 +65,9 @@ class EventDetailNavigationRuntimeUiTest {
                     PlayerDetailViewModel.Factory { playerId ->
                         PlayerDetailViewModel(FakePlayerRepository(), playerId)
                     }
+                },
+                MatchDetailViewModel.Factory::class to {
+                    fixtureMatchDetailFactory(matchRepository)
                 },
             ),
         )
@@ -79,7 +85,7 @@ class EventDetailNavigationRuntimeUiTest {
                             initialSelectedRoot = EventsRoot,
                             onNavigationStateAvailable = { navigationState = it },
                             entryContent = { destination, onSearch, onPush, onBack ->
-                                if (destination is EventDetail || destination is PlayerDetail) {
+                                if (destination is EventDetail || destination is PlayerDetail || destination is MatchDetail) {
                                     NavigationContent(
                                         destination = destination,
                                         onSearch = onSearch,
@@ -97,6 +103,14 @@ class EventDetailNavigationRuntimeUiTest {
             }
 
             runOnIdle { requireNotNull(navigationState).push(EventDetail(EVENT_ID)) }
+            onNodeWithTag(EVENT_DETAIL_ROUTE_TAG).assertExists()
+            onNodeWithTag(matchCardTag("match-1")).performClick()
+            val matchEntry = assertIs<OverlayNavEntry>(
+                runOnIdle { requireNotNull(navigationState).currentBackStack.last() },
+            )
+            assertEquals(MatchDetail("match-1"), matchEntry.destination)
+            assertRealMatchDetailDestination()
+            onNodeWithContentDescription("뒤로 가기").performClick()
             onNodeWithTag(EVENT_DETAIL_ROUTE_TAG).assertExists()
             onNodeWithTag(eventDetailTabTag(EventDetailTab.NEWS)).performClick()
             onNode(hasScrollToNodeAction()).performScrollToNode(hasText("News 24"))
