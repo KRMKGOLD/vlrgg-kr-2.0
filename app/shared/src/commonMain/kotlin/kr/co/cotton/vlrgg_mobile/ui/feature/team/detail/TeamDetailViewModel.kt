@@ -12,6 +12,7 @@ import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kr.co.cotton.vlrgg_mobile.domain.onFailure
 import kr.co.cotton.vlrgg_mobile.domain.onSuccess
@@ -159,7 +160,9 @@ class TeamDetailViewModel(
     }
 
     private fun updateFavorite(transform: (TeamFavoriteUiState) -> TeamFavoriteUiState) {
-        _uiState.value = _uiState.value.copy(favorite = transform(_uiState.value.favorite))
+        _uiState.update { state ->
+            state.copy(favorite = transform(state.favorite))
+        }
     }
 
     private data class FavoriteMutation(

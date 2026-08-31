@@ -339,7 +339,18 @@ class PlayerDetailViewModelTest {
     @Test
     fun recreatedViewModelRestoresPersistedFavoriteForSamePlayerId() = runViewModelTest {
         val player = playerDetail()
-        val favorites = FakeFavoriteRepository(existing = listOf(player.favoriteSnapshot()))
+        val favorites = FakeFavoriteRepository()
+
+        val firstViewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(player))),
+            favorites,
+            PLAYER_ID,
+        )
+        advanceUntilIdle()
+        firstViewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertTrue(firstViewModel.uiState.value.favorite.isFavorite)
 
         val recreatedViewModel = PlayerDetailViewModel(
             FakePlayerRepository(listOf(AppResult.Success(player))),
@@ -349,7 +360,7 @@ class PlayerDetailViewModelTest {
         advanceUntilIdle()
 
         assertTrue(recreatedViewModel.uiState.value.favorite.isFavorite)
-        assertEquals(1, favorites.restoreCallCount)
+        assertEquals(2, favorites.restoreCallCount)
     }
 
     private fun runViewModelTest(testBody: suspend TestScope.() -> Unit) = runTest {
@@ -385,11 +396,16 @@ class PlayerDetailViewModelTest {
     }
 
     private class FakeFavoriteRepository(
-        private val existing: List<FavoritePlayer> = emptyList(),
-        private val favoritePlayersResults: List<AppResult<List<FavoritePlayer>>> = listOf(AppResult.Success(existing)),
-        private val addResults: List<AppResult<Unit>> = emptyList(),
-        private val removeResults: List<AppResult<Unit>> = emptyList(),
+        existing: List<FavoritePlayer> = emptyList(),
+        favoritePlayersResults: List<AppResult<List<FavoritePlayer>>> = emptyList(),
+        addResults: List<AppResult<Unit>> = emptyList(),
+        removeResults: List<AppResult<Unit>> = emptyList(),
     ) : FavoriteRepository {
+        private val storedFavoritePlayers = existing.toMutableList()
+        private val favoritePlayersResultQueue = ArrayDeque(favoritePlayersResults)
+        private val addResultQueue = ArrayDeque(addResults)
+        private val removeResultQueue = ArrayDeque(removeResults)
+
         var restoreCallCount = 0
         val added = mutableListOf<FavoritePlayer>()
         val removed = mutableListOf<String>()
@@ -402,21 +418,46 @@ class PlayerDetailViewModelTest {
 
         override suspend fun getFavoritePlayers(): AppResult<List<FavoritePlayer>> {
             restoreCallCount += 1
-            return favoritePlayersResults.getOrElse(restoreCallCount - 1) { AppResult.Success(existing) }
+            return if (favoritePlayersResultQueue.isEmpty()) {
+                AppResult.Success(storedFavoritePlayers.toList())
+            } else {
+                favoritePlayersResultQueue.removeFirst()
+            }
         }
 
         override suspend fun addFavoriteTeam(favorite: kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam) = error("unused")
 
         override suspend fun addFavoritePlayer(favorite: FavoritePlayer): AppResult<Unit> {
             added += favorite
-            return addResults.getOrElse(added.lastIndex) { AppResult.Success(Unit) }
+            val result = if (addResultQueue.isEmpty()) {
+                AppResult.Success(Unit)
+            } else {
+                addResultQueue.removeFirst()
+            }
+            if (result is AppResult.Success) {
+                val existingIndex = storedFavoritePlayers.indexOfFirst { it.id == favorite.id }
+                if (existingIndex >= 0) {
+                    storedFavoritePlayers[existingIndex] = favorite
+                } else {
+                    storedFavoritePlayers += favorite
+                }
+            }
+            return result
         }
 
         override suspend fun removeFavoriteTeam(teamId: String) = error("unused")
 
         override suspend fun removeFavoritePlayer(playerId: String): AppResult<Unit> {
             removed += playerId
-            return removeResults.getOrElse(removed.lastIndex) { AppResult.Success(Unit) }
+            val result = if (removeResultQueue.isEmpty()) {
+                AppResult.Success(Unit)
+            } else {
+                removeResultQueue.removeFirst()
+            }
+            if (result is AppResult.Success) {
+                storedFavoritePlayers.removeAll { it.id == playerId }
+            }
+            return result
         }
     }
 
