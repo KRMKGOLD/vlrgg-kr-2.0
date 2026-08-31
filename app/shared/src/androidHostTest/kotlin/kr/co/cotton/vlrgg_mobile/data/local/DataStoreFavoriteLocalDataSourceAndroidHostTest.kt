@@ -3,7 +3,7 @@ package kr.co.cotton.vlrgg_mobile.data.local
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kr.co.cotton.vlrgg_mobile.data.local.datastore.createFavoriteDataStore
@@ -17,8 +17,10 @@ class DataStoreFavoriteLocalDataSourceAndroidHostTest {
     @Test
     fun dataStoreRoundTripRecreationKeepsTypesKeysOrderAndExactRemoval() = runTest {
         val file = File.createTempFile("favorite-", ".preferences_pb").apply { delete() }
-        val firstScope = CoroutineScope(SupervisorJob())
-        val recreatedScope = CoroutineScope(SupervisorJob())
+        val firstJob = SupervisorJob()
+        val firstScope = CoroutineScope(firstJob)
+        val recreatedJob = SupervisorJob()
+        val recreatedScope = CoroutineScope(recreatedJob)
         try {
             val first = DataStoreFavoriteLocalDataSource(
                 createFavoriteDataStore(file.absolutePath, firstScope),
@@ -29,7 +31,7 @@ class DataStoreFavoriteLocalDataSourceAndroidHostTest {
             first.upsertFavoritePlayer(FavoritePlayerStorage("100", "", null, "", "Korea"))
             first.removeFavoritePlayer("2")
 
-            firstScope.cancel()
+            firstJob.cancelAndJoin()
             val recreated = DataStoreFavoriteLocalDataSource(
                 createFavoriteDataStore(file.absolutePath, recreatedScope),
             )
@@ -48,8 +50,8 @@ class DataStoreFavoriteLocalDataSourceAndroidHostTest {
             recreated.removeFavoriteTeam("2")
             assertEquals(listOf("1"), recreated.getFavoriteTeams().map { it.id })
         } finally {
-            firstScope.cancel()
-            recreatedScope.cancel()
+            firstJob.cancelAndJoin()
+            recreatedJob.cancelAndJoin()
             file.delete()
         }
     }
