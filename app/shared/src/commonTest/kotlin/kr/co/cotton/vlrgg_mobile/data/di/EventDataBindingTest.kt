@@ -4,7 +4,6 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.createGraphFactory
-import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import io.ktor.client.HttpClient
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteEventDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteEventDataSourceImpl
@@ -53,7 +52,7 @@ class EventDataBindingTest {
         DataBinding::class,
     ],
 )
-internal interface TestEventDataGraph : ViewModelGraph {
+internal interface TestEventDataGraph {
     val remoteEventDataSource: RemoteEventDataSource
     val eventRepository: EventRepository
     val httpClient: HttpClient

@@ -31,6 +31,10 @@ fun TeamDetailScreen(
         onPlayerClick = onPlayerClick,
         onNewsClick = onNewsClick,
         onRetry = viewModel::retry,
+        onFavoriteToggle = viewModel::toggleFavorite,
+        onFavoriteRetry = viewModel::retryFavoriteMutation,
+        onFavoriteRestoreRetry = viewModel::retryFavoriteRestore,
+        onFavoriteErrorDismiss = viewModel::dismissFavoriteError,
         modifier = modifier,
     )
 }

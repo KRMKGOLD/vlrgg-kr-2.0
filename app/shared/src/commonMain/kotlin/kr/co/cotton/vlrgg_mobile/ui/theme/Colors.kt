@@ -31,6 +31,9 @@ data class VlrColors(
     val statusPostponed: Color,
     val statusCancelled: Color,
     val skeleton: Color,
+    val inverseSurface: Color,
+    val inverseOnSurface: Color,
+    val inversePrimary: Color,
 )
 
 val VlrLightColors = VlrColors(
@@ -57,4 +60,7 @@ val VlrLightColors = VlrColors(
     statusPostponed = Color(0xFFF57C00),
     statusCancelled = Color(0xFF757575),
     skeleton = Color(0xFFE4E1E6),
+    inverseSurface = Color(0xFF303033),
+    inverseOnSurface = Color(0xFFF5F5F5),
+    inversePrimary = Color(0xFFFFB3B7),
 )

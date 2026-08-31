@@ -16,4 +16,5 @@ object VlrDimensions {
     val DefaultCornerRadius: Dp = 8.dp
     val CardCornerRadius: Dp = 12.dp
     val MinimumTouchTarget: Dp = 48.dp
+    val FavoriteSnackbarMaxWidth: Dp = 328.dp
 }

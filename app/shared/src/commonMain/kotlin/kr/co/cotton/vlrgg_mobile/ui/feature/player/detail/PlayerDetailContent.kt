@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +40,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -46,6 +48,8 @@ import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_match
 import vlrggmobile.app.shared.generated.resources.ic_person
+import vlrggmobile.app.shared.generated.resources.ic_star_filled
+import vlrggmobile.app.shared.generated.resources.ic_star_outline
 
 internal const val PLAYER_DETAIL_LOADING_TAG = "player-detail-loading"
 internal const val PLAYER_DETAIL_HEADER_TAG = "player-detail-header"
@@ -53,6 +57,9 @@ internal const val PLAYER_DETAIL_TEAM_SECTION_TAG = "player-detail-team-section"
 internal const val PLAYER_DETAIL_STATS_SECTION_TAG = "player-detail-stats-section"
 internal const val PLAYER_DETAIL_MATCHES_SECTION_TAG = "player-detail-matches-section"
 internal const val PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG = "player-detail-loading-header-avatar"
+internal const val PLAYER_DETAIL_FAVORITE_OUTLINE_TAG = "player-detail-favorite-outline"
+internal const val PLAYER_DETAIL_FAVORITE_FILLED_TAG = "player-detail-favorite-filled"
+internal const val PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG = "player-detail-favorite-snackbar"
 internal fun playerTeamRowTag(teamId: String) = "player-team-$teamId"
 internal fun playerMatchCardTag(matchId: String) = "player-match-$matchId"
 
@@ -64,12 +71,45 @@ fun PlayerDetailContent(
     onTeamClick: (String) -> Unit,
     onMatchClick: (String) -> Unit,
     onRetry: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    onFavoriteRetry: () -> Unit,
+    onFavoriteRestoreRetry: () -> Unit,
+    onFavoriteErrorDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    DisposableEffect(Unit) {
+        onDispose { onFavoriteErrorDismiss() }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { PlayerDetailTopBar(onBack) },
+        topBar = {
+            PlayerDetailTopBar(
+                favorite = uiState.favorite,
+                onBack = onBack,
+                onFavoriteClick = onFavoriteClick,
+            )
+        },
+        snackbarHost = {
+            val favorite = uiState.favorite
+            when {
+                favorite.failedIntent != null -> FavoriteFailureSnackbar(
+                    message = when (favorite.failedIntent) {
+                        PlayerFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
+                        PlayerFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
+                    },
+                    onRetry = onFavoriteRetry,
+                    testTag = PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG,
+                )
+
+                favorite.hasRestoreFailure -> FavoriteFailureSnackbar(
+                    message = "즐겨찾기 상태를 불러오지 못했습니다.",
+                    onRetry = onFavoriteRestoreRetry,
+                    testTag = PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG,
+                )
+            }
+        },
     ) { padding ->
         when (val state = uiState.contentState) {
             PlayerDetailContentState.Loading -> PlayerDetailLoading(
@@ -96,7 +136,11 @@ fun PlayerDetailContent(
 }
 
 @Composable
-private fun PlayerDetailTopBar(onBack: () -> Unit) {
+private fun PlayerDetailTopBar(
+    favorite: PlayerFavoriteUiState,
+    onBack: () -> Unit,
+    onFavoriteClick: () -> Unit,
+) {
     Column(Modifier.fillMaxWidth().height(56.dp).background(VlrTheme.colors.surface)) {
         Box(Modifier.fillMaxWidth().weight(1f)) {
             VlrIconButton(
@@ -104,10 +148,48 @@ private fun PlayerDetailTopBar(onBack: () -> Unit) {
                 modifier = Modifier.align(Alignment.CenterStart).padding(start = VlrDimensions.Space1),
                 icon = { Icon(vectorResource(Res.drawable.ic_arrow_back), null) },
             )
+            PlayerFavoriteButton(
+                favorite = favorite,
+                onClick = onFavoriteClick,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = VlrDimensions.Space1),
+            )
             Text("Player Profile", Modifier.align(Alignment.Center), style = VlrTheme.typography.pageTitle, color = VlrTheme.colors.textPrimary)
         }
         HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
     }
+}
+
+@Composable
+private fun PlayerFavoriteButton(
+    favorite: PlayerFavoriteUiState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!favorite.isRestored) return
+
+    VlrIconButton(
+        contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
+        onClick = onClick,
+        enabled = !favorite.isMutationInProgress,
+        modifier = modifier.testTag(
+            if (favorite.isFavorite) {
+                PLAYER_DETAIL_FAVORITE_FILLED_TAG
+            } else {
+                PLAYER_DETAIL_FAVORITE_OUTLINE_TAG
+            },
+        ),
+        icon = {
+            Icon(
+                imageVector = vectorResource(
+                    if (favorite.isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star_outline,
+                ),
+                contentDescription = null,
+                tint = if (favorite.isFavorite) VlrTheme.colors.actionPrimary else VlrTheme.colors.textSecondary,
+            )
+        },
+    )
 }
 
 @Composable

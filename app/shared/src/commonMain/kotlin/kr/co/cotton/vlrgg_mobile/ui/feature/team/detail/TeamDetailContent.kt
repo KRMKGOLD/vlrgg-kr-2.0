@@ -25,6 +25,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +44,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchSection
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
@@ -55,6 +57,8 @@ import vlrggmobile.app.shared.generated.resources.ic_error
 import vlrggmobile.app.shared.generated.resources.ic_match
 import vlrggmobile.app.shared.generated.resources.ic_news
 import vlrggmobile.app.shared.generated.resources.ic_person
+import vlrggmobile.app.shared.generated.resources.ic_star_filled
+import vlrggmobile.app.shared.generated.resources.ic_star_outline
 
 internal const val TEAM_DETAIL_LOADING_TAG = "team-detail-loading"
 internal const val TEAM_DETAIL_HEADER_TAG = "team-detail-header"
@@ -62,6 +66,9 @@ internal const val TEAM_DETAIL_UPCOMING_SECTION_TAG = "team-detail-upcoming-sect
 internal const val TEAM_DETAIL_RECENT_SECTION_TAG = "team-detail-recent-section"
 internal const val TEAM_DETAIL_ROSTER_SECTION_TAG = "team-detail-roster-section"
 internal const val TEAM_DETAIL_NEWS_SECTION_TAG = "team-detail-news-section"
+internal const val TEAM_DETAIL_FAVORITE_OUTLINE_TAG = "team-detail-favorite-outline"
+internal const val TEAM_DETAIL_FAVORITE_FILLED_TAG = "team-detail-favorite-filled"
+internal const val TEAM_DETAIL_FAVORITE_SNACKBAR_TAG = "team-detail-favorite-snackbar"
 
 internal fun teamMatchCardTag(matchId: String): String = "team-match-$matchId"
 internal fun teamPlayerRowTag(playerId: String): String = "team-player-$playerId"
@@ -79,12 +86,45 @@ fun TeamDetailContent(
     onPlayerClick: (playerId: String) -> Unit,
     onNewsClick: (articleId: String, slug: String) -> Unit,
     onRetry: () -> Unit,
+    onFavoriteToggle: () -> Unit,
+    onFavoriteRetry: () -> Unit,
+    onFavoriteRestoreRetry: () -> Unit,
+    onFavoriteErrorDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    DisposableEffect(Unit) {
+        onDispose { onFavoriteErrorDismiss() }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { TeamDetailTopBar(onBack = onBack) },
+        topBar = {
+            TeamDetailTopBar(
+                favorite = uiState.favorite,
+                onBack = onBack,
+                onFavoriteToggle = onFavoriteToggle,
+            )
+        },
+        snackbarHost = {
+            val favorite = uiState.favorite
+            when {
+                favorite.failedIntent != null -> FavoriteFailureSnackbar(
+                    message = when (favorite.failedIntent) {
+                        TeamFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
+                        TeamFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
+                    },
+                    onRetry = onFavoriteRetry,
+                    testTag = TEAM_DETAIL_FAVORITE_SNACKBAR_TAG,
+                )
+
+                favorite.hasRestoreFailure -> FavoriteFailureSnackbar(
+                    message = "즐겨찾기 상태를 불러오지 못했습니다.",
+                    onRetry = onFavoriteRestoreRetry,
+                    testTag = TEAM_DETAIL_FAVORITE_SNACKBAR_TAG,
+                )
+            }
+        },
     ) { contentPadding ->
         when (val contentState = uiState.contentState) {
             TeamDetailContentState.Loading -> TeamDetailLoading(
@@ -123,7 +163,9 @@ fun TeamDetailContent(
 
 @Composable
 private fun TeamDetailTopBar(
+    favorite: TeamFavoriteUiState,
     onBack: () -> Unit,
+    onFavoriteToggle: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -155,6 +197,36 @@ private fun TeamDetailTopBar(
                 style = VlrTheme.typography.pageTitle,
                 color = VlrTheme.colors.textPrimary,
             )
+            if (favorite.isRestored) {
+                VlrIconButton(
+                    contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
+                    onClick = onFavoriteToggle,
+                    enabled = !favorite.isMutationInProgress,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = VlrDimensions.Space1)
+                        .testTag(
+                            if (favorite.isFavorite) {
+                                TEAM_DETAIL_FAVORITE_FILLED_TAG
+                            } else {
+                                TEAM_DETAIL_FAVORITE_OUTLINE_TAG
+                            },
+                        ),
+                    icon = {
+                        Icon(
+                            imageVector = vectorResource(
+                                if (favorite.isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star_outline,
+                            ),
+                            contentDescription = null,
+                            tint = if (favorite.isFavorite) {
+                                VlrTheme.colors.actionPrimary
+                            } else {
+                                VlrTheme.colors.textPrimary
+                            },
+                        )
+                    },
+                )
+            }
         }
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,

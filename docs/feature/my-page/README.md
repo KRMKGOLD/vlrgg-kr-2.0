@@ -1,7 +1,7 @@
 # MyPage 기능 기획
 
-- Status: Planned; App implementation is Stage 2
-- Last reviewed: 2026-08-03
+- Status: Planned (#44); App implementation is Stage 2. #43의 Team/Player 기기 로컬 favorite persistence 기반만 준비되었고, MyPage의 즐겨찾기 집계·목록·Detail navigation·제거 UI는 구현되지 않았다.
+- Last reviewed: 2026-08-30
 
 ## 목적과 사용자 가치
 

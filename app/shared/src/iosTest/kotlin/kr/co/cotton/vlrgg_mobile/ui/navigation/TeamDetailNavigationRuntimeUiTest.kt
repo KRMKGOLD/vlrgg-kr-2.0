@@ -20,6 +20,8 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 import kr.co.cotton.vlrgg_mobile.di.AppViewModelFactory
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
+import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoritePlayer
+import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticle
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleBlock
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleInline
@@ -39,6 +41,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamMatch
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
 import kr.co.cotton.vlrgg_mobile.domain.repository.NewsRepository
+import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.SearchRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.TeamRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
@@ -55,6 +58,8 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.playerMatchCardTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.playerTeamRowTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.Test
 
 @OptIn(ExperimentalTestApi::class)
@@ -65,9 +70,11 @@ class TeamDetailNavigationRuntimeUiTest {
         var navigationState: AppNavigationState? = null
         val teamRepository = FakeTeamRepository()
         val playerRepository = FakePlayerRepository()
+        val favoriteRepository = FakeFavoriteRepository()
         val viewModelFactory = teamViewModelFactory(
             teamRepository,
             playerRepository,
+            favoriteRepository,
             FixtureMatchRepository(),
         )
         val hostOwner = TestHostViewModelStoreOwner()
@@ -152,6 +159,7 @@ class TeamDetailNavigationRuntimeUiTest {
     @Test
     fun searchAndNewsTeamLinksOpenTheLiveTeamScreenAndBackPreservesTheirInitiatingEntries() = runComposeUiTest {
         val teamRepository = FakeTeamRepository()
+        val favoriteRepository = FakeFavoriteRepository()
         val hostOwner = TestHostViewModelStoreOwner()
         val viewModelFactory = AppViewModelFactory(
             viewModelProviders = mapOf(
@@ -160,7 +168,9 @@ class TeamDetailNavigationRuntimeUiTest {
             assistedFactoryProviders = emptyMap(),
             manualAssistedFactoryProviders = mapOf(
                 TeamDetailViewModel.Factory::class to {
-                    TeamDetailViewModel.Factory { teamId -> TeamDetailViewModel(teamRepository, teamId) }
+                    TeamDetailViewModel.Factory { teamId ->
+                        TeamDetailViewModel(teamRepository, favoriteRepository, teamId)
+                    }
                 },
                 NewsDetailViewModel.Factory::class to {
                     NewsDetailViewModel.Factory { articleId, slug ->
@@ -169,7 +179,7 @@ class TeamDetailNavigationRuntimeUiTest {
                 },
                 PlayerDetailViewModel.Factory::class to {
                     PlayerDetailViewModel.Factory { playerId ->
-                        PlayerDetailViewModel(FakePlayerRepository(), playerId)
+                        PlayerDetailViewModel(FakePlayerRepository(), favoriteRepository, playerId)
                     }
                 },
             ),
@@ -254,16 +264,21 @@ class TeamDetailNavigationRuntimeUiTest {
     private fun teamViewModelFactory(
         repository: TeamRepository,
         playerRepository: PlayerRepository,
+        favoriteRepository: FavoriteRepository,
         matchRepository: FixtureMatchRepository,
     ) = AppViewModelFactory(
         viewModelProviders = emptyMap(),
         assistedFactoryProviders = emptyMap(),
         manualAssistedFactoryProviders = mapOf(
             TeamDetailViewModel.Factory::class to {
-                TeamDetailViewModel.Factory { teamId -> TeamDetailViewModel(repository, teamId) }
+                TeamDetailViewModel.Factory { teamId ->
+                    TeamDetailViewModel(repository, favoriteRepository, teamId)
+                }
             },
             PlayerDetailViewModel.Factory::class to {
-                PlayerDetailViewModel.Factory { playerId -> PlayerDetailViewModel(playerRepository, playerId) }
+                PlayerDetailViewModel.Factory { playerId ->
+                    PlayerDetailViewModel(playerRepository, favoriteRepository, playerId)
+                }
             },
             MatchDetailViewModel.Factory::class to {
                 fixtureMatchDetailFactory(matchRepository)
@@ -336,6 +351,24 @@ class TeamDetailNavigationRuntimeUiTest {
                 ),
             )
         }
+    }
+
+    private class FakeFavoriteRepository : FavoriteRepository {
+        override fun observeFavoriteTeams(): Flow<AppResult<List<FavoriteTeam>>> = emptyFlow()
+
+        override fun observeFavoritePlayers(): Flow<AppResult<List<FavoritePlayer>>> = emptyFlow()
+
+        override suspend fun getFavoriteTeams(): AppResult<List<FavoriteTeam>> = AppResult.Success(emptyList())
+
+        override suspend fun getFavoritePlayers(): AppResult<List<FavoritePlayer>> = AppResult.Success(emptyList())
+
+        override suspend fun addFavoriteTeam(favorite: FavoriteTeam): AppResult<Unit> = AppResult.Success(Unit)
+
+        override suspend fun addFavoritePlayer(favorite: FavoritePlayer): AppResult<Unit> = AppResult.Success(Unit)
+
+        override suspend fun removeFavoriteTeam(teamId: String): AppResult<Unit> = AppResult.Success(Unit)
+
+        override suspend fun removeFavoritePlayer(playerId: String): AppResult<Unit> = AppResult.Success(Unit)
     }
 
     private class FakeSearchRepository : SearchRepository {

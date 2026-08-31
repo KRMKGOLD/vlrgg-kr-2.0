@@ -1,13 +1,15 @@
 # Team 기능 기획
 
-## 구현 상태 (2026-08-26)
+## 구현 상태 (2026-08-30)
 
 - **Backend: 구현 완료.** `GET /api/v1/teams/{teamId}`가 Team overview와 news를 요청 시점에 수집해 app-facing response로 반환하며 parser/route 테스트가 있다.
 - **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있다.
 - **App UI T1 Team Detail: 구현 완료.** Team Detail의 loading/content/error, 섹션별 빈 상태, Match·Player·News Detail navigation이 구현되어 있다.
-- **Favorite: #43 예정.** 로컬 즐겨찾기와 MyPage 연동은 Issue #43 범위다.
-- **Player Detail P1: 예정.** Team Detail에서 Player Detail destination으로 이동하지만, Player Detail 자체 구현은 후속 P1 범위다.
-- **#42 전체: 미완료.** T1 Team Detail UI/navigation만 완료되었고 후속 Player Detail P1 범위가 남아 있다. Favorite는 별도 Issue #43의 예정 범위다.
+- **Favorite #43 Team Detail: 구현 완료.** 기기 로컬 즐겨찾기 상태를 복원하고, star의 등록·해제를 optimistic하게 처리한다. 실패하면 Add는 OFF, Remove는 ON으로 되돌린 뒤 actionable Retry Snackbar를 표시하며 mutation 중에도 화면 전체를 막지 않는다. 이 동작은 notification permission이나 서버 notification subscription을 만들거나 변경하지 않는다.
+- **#44 MyPage: 예정.** Team/Player 로컬 persistence 기반만 준비되었으며, MyPage 즐겨찾기 집계·목록·Detail navigation·제거 UI는 아직 구현하지 않았다.
+- **자동화 검증: 완료.** #43 Detail favorite 동작은 Compose UI 및 iOS simulator 자동화 검증을 통과했다. Android/iOS 실기기 screenshot 및 접근성 검증은 이 범위에서 수행하지 않았다.
+- **Player Detail P1: 구현 완료.** Team Detail에서 Player Detail destination으로 이동하며, Player Detail 자체 구현도 완료되었다.
+- **#42 전체: 완료/종료.** T1 Team Detail UI/navigation과 후속 Player Detail P1 범위가 구현 완료되었다. Favorite는 별도 Issue #43에서 구현 완료되었으며, MyPage 범위는 #44에 남아 있다.
 
 ## 목적과 사용자 가치
 
@@ -20,10 +22,10 @@ Team Detail은 사용자가 팀의 정체성, 예정·최근 경기, 현재 로�
 - Recent Matches
 - Current Roster의 Players와 Staff
 - 관련 News
-- Team 즐겨찾기 등록 및 해제 (#43 예정)
+- Team 즐겨찾기 등록 및 해제 (#43 구현 완료)
 - 각 콘텐츠에서 Match Detail, Player Detail, News Detail로 이동
 
-Team 즐겨찾기는 #43에서 구현하며 기기 로컬에만 저장하고 알림 구독을 만들지 않는다.
+Team 즐겨찾기는 #43에서 구현되었으며 기기 로컬에만 저장하고 알림 구독을 만들거나 변경하지 않는다.
 
 ## 명시적 제외 범위
 
@@ -57,7 +59,7 @@ Team Detail에서는 Event Detail로 직접 이동하지 않는다.
 1. Top App Bar
    - Back
    - Team Detail title
-   - Team favorite star는 #43 범위로 제외
+   - Team favorite star (#43 구현 완료)
 2. Team header
    - 팀 로고 또는 안정적인 placeholder
    - 팀 이름
@@ -80,7 +82,7 @@ Team Detail에서는 Event Detail로 직접 이동하지 않는다.
 | Player | Current Roster의 Player를 식별하는 요약 정보 |
 | Staff | Staff를 식별하는 요약 정보 |
 | News | News 목록 계약을 따르는 요약 정보 |
-| Favorite (#43 예정) | 현재 Team의 로컬 즐겨찾기 여부 |
+| Favorite (#43 구현 완료) | 현재 Team의 로컬 즐겨찾기 여부 |
 
 source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만들어 표시하지 않는다.
 
@@ -93,18 +95,17 @@ source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만
 | Sparse / Empty section | 현재 server response는 atomic이므로 generic Partial 화면을 만들지 않는다. Match, Roster, News의 누락은 section-level Empty로 표시하고 missing value는 marker로 표시한다. |
 | Empty section | Match, Roster, News가 없으면 섹션별 명시적 빈 상태를 표시한다. |
 | Error | Team Detail 자체를 불러오지 못하면 일반화된 오류와 재시도 동작을 표시한다. raw exception이나 파서 정보를 노출하지 않는다. |
-| Add favorite error (#43 예정) | star를 OFF로 되돌리고 actionable Retry Snackbar를 표시한다. |
-| Remove favorite error (#43 예정) | star를 ON으로 유지하고 actionable Retry Snackbar를 표시한다. |
+| Add favorite error (#43 구현 완료) | star를 OFF로 되돌리고 actionable Retry Snackbar를 표시한다. |
+| Remove favorite error (#43 구현 완료) | star를 ON으로 유지하고 actionable Retry Snackbar를 표시한다. |
 | Stale | 앱이 이전 데이터를 유지해 표시하도록 구현하는 경우 마지막 갱신 시각과 오래된 데이터임을 명시한다. silent stale fallback은 사용하지 않는다. |
 
 존재하는 정보가 적은 팀은 오류가 아니라 정상적인 부분/빈 콘텐츠로 처리한다.
 
 ## 사용자 인터랙션
 
-- #43에서 즐겨찾기 토글을 누르면 해당 Team을 로컬 즐겨찾기에 추가하거나 제거한다.
-- #43의 즐겨찾기 변경은 즉시 화면과 MyPage에 일관되게 반영한다. mutation 중에는 화면 전체 action을 막지 않는다.
-- #43의 즐겨찾기 Add 실패는 star를 OFF로 되돌리고 Retry Snackbar를, Remove 실패는 star를 ON으로 유지하고 Retry Snackbar를 표시한다.
-- #43의 즐겨찾기 등록은 notification permission을 요구하거나 서버 알림 구독을 만들지 않는다.
+- #43에서 즐겨찾기 토글을 누르면 해당 Team을 기기 로컬 즐겨찾기에 추가하거나 제거하며, Detail star를 즉시 optimistic하게 갱신한다.
+- #43의 즐겨찾기 mutation은 화면 전체 action을 막지 않는다. Add 실패는 star를 OFF로 되돌리고 Retry Snackbar를, Remove 실패는 star를 ON으로 유지하고 Retry Snackbar를 표시한다.
+- #43의 즐겨찾기 등록·해제는 notification permission을 요구하거나 서버 알림 구독을 만들거나 변경하지 않는다.
 - Match, Player, News 항목을 누르면 대응하는 Detail로 이동한다.
 - 오류 상태는 Retry/Back만 제공하는 modal error dialog로 표시하며 generic Partial screen은 만들지 않는다.
 
@@ -113,7 +114,7 @@ source에 존재하지 않는 정보를 빈 문자열이나 임의 값으로 만
 ### 앱
 
 - 서버 Response를 app remote DTO로 역직렬화하고 Domain Model로 매핑한다.
-- #43에서 Team 즐겨찾기를 로컬 persistence에 저장하고 MyPage와 상태를 공유한다.
+- #43에서 Team 즐겨찾기를 기기 로컬 persistence에 저장하고 Detail에서 복원한다. MyPage의 즐겨찾기 집계·목록·navigation·제거 UI는 #44 범위다.
 - 화면 상태, 날짜/시간 표시, 섹션 구성, navigation callback을 관리한다.
 - #43의 Team 즐겨찾기와 notification 상태를 연결하지 않는다.
 
@@ -168,10 +169,11 @@ https://www.vlr.gg/team/19296/team-korea
 - [x] 정보가 적은 일회성 팀이 전체 오류로 잘못 처리되지 않는다.
 - [x] Match, Player, News 항목은 각각 올바른 Detail로 이동한다.
 - [x] Team Detail에는 Event로 직접 이동하는 인터랙션이 없다.
-- [ ] #43: 즐겨찾기 등록 후 Team이 MyPage의 Team 그룹에 나타나고, 제거 후 사라진다.
-- [ ] #43: Team favorite Add 실패는 star OFF와 actionable Retry Snackbar를 표시한다.
-- [ ] #43: Team favorite Remove 실패는 star ON을 유지하고 actionable Retry Snackbar를 표시한다.
-- [ ] #43: Team favorite mutation은 전체 화면을 block하지 않는다.
-- [ ] #43: Team 즐겨찾기 등록·해제는 서버 notification subscription을 생성하거나 변경하지 않는다.
+- [x] #43: Team Detail의 즐겨찾기 상태는 기기 로컬 persistence에서 복원된다.
+- [x] #43: Team favorite Add 실패는 star OFF와 actionable Retry Snackbar를 표시한다.
+- [x] #43: Team favorite Remove 실패는 star ON을 유지하고 actionable Retry Snackbar를 표시한다.
+- [x] #43: Team favorite mutation은 전체 화면을 block하지 않는다.
+- [x] #43: Team 즐겨찾기 등록·해제는 notification permission이나 서버 notification subscription을 만들거나 변경하지 않는다.
+- [ ] #44: Team 즐겨찾기는 MyPage의 Team 그룹에 집계되고, 항목 Detail navigation과 제거 UI를 제공한다.
 - [x] loading, empty section, error dialog가 유효 콘텐츠와 시각적으로 구분되고 generic Partial screen은 없다. stale 화면은 현재 범위에 없다.
 - [x] 서버 parser test는 일반 팀과 이력이 적은 팀 fixture를 모두 검증한다.

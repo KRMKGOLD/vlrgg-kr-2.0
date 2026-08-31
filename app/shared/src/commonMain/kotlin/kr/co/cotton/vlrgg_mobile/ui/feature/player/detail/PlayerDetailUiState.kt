@@ -10,4 +10,18 @@ sealed interface PlayerDetailContentState {
 
 data class PlayerDetailUiState(
     val contentState: PlayerDetailContentState = PlayerDetailContentState.Loading,
+    val favorite: PlayerFavoriteUiState = PlayerFavoriteUiState(),
 )
+
+data class PlayerFavoriteUiState(
+    val isFavorite: Boolean = false,
+    val isRestored: Boolean = false,
+    val hasRestoreFailure: Boolean = false,
+    val isMutationInProgress: Boolean = false,
+    val failedIntent: PlayerFavoriteMutationIntent? = null,
+)
+
+enum class PlayerFavoriteMutationIntent {
+    Add,
+    Remove,
+}

@@ -1,6 +1,8 @@
 package kr.co.cotton.vlrgg_mobile.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ComposeMaterial3Flags
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -26,6 +28,9 @@ val VlrLightMaterialColorScheme: ColorScheme = lightColorScheme(
     error = VlrLightColors.actionPrimary,
     onError = VlrLightColors.onActionPrimary,
     scrim = VlrLightColors.scrim,
+    inverseSurface = VlrLightColors.inverseSurface,
+    inverseOnSurface = VlrLightColors.inverseOnSurface,
+    inversePrimary = VlrLightColors.inversePrimary,
 )
 
 val LocalVlrColors = staticCompositionLocalOf { VlrLightColors }
@@ -55,4 +60,9 @@ fun VlrTheme(content: @Composable () -> Unit) {
             content = content,
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+fun initializeVlrMaterial3() {
+    ComposeMaterial3Flags.isSnackbarStylingFixEnabled = true
 }

@@ -4,7 +4,6 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.DependencyGraph
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.createGraphFactory
-import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import io.ktor.client.HttpClient
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteMatchDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.impl.RemoteMatchDataSourceImpl
@@ -53,7 +52,7 @@ class MatchDataBindingTest {
         DataBinding::class,
     ],
 )
-internal interface TestMatchDataGraph : ViewModelGraph {
+internal interface TestMatchDataGraph {
     val remoteMatchDataSource: RemoteMatchDataSource
     val matchRepository: MatchRepository
     val httpClient: HttpClient

@@ -13,7 +13,25 @@ private final class AppRuntimeOwner: ObservableObject {
             fatalError("API_BASE_URL is missing from Info.plist")
         }
 
-        graph = AppGraphKt.createAppGraph(apiBaseUrl: apiBaseUrl)
+        guard let favoriteDataStoreDirectory = try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        else {
+            fatalError("Unable to initialize favorites storage.")
+        }
+        let favoriteDataStore = FavoriteDataStore_iosKt.createFavoriteDataStore(
+            path: favoriteDataStoreDirectory
+                .appendingPathComponent("favorites.preferences_pb")
+                .path,
+            scope: nil
+        )
+        graph = AppGraphKt.createAppGraph(
+            apiBaseUrl: apiBaseUrl,
+            favoriteDataStore: favoriteDataStore
+        )
     }
 }
 
