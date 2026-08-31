@@ -28,6 +28,7 @@ fun PlayerDetailScreen(
         onRetry = viewModel::retry,
         onFavoriteClick = viewModel::toggleFavorite,
         onFavoriteRetry = viewModel::retryFavoriteMutation,
+        onFavoriteRestoreRetry = viewModel::retryFavoriteRestore,
         onFavoriteErrorDismiss = viewModel::dismissFavoriteError,
         modifier = modifier,
     )

@@ -30,6 +30,7 @@ class PlayerDetailViewModel(
     val uiState: StateFlow<PlayerDetailUiState> = _uiState.asStateFlow()
 
     private var failedFavoriteMutation: FavoriteMutation? = null
+    private var isFavoriteRestoreInProgress = false
 
     init {
         loadPlayerDetail()
@@ -79,21 +80,42 @@ class PlayerDetailViewModel(
         executeFavoriteMutation(mutation)
     }
 
+    fun retryFavoriteRestore() {
+        if (!_uiState.value.favorite.hasRestoreFailure || isFavoriteRestoreInProgress) return
+
+        restoreFavorite()
+    }
+
     fun dismissFavoriteError() {
         failedFavoriteMutation = null
         updateFavorite { it.copy(failedIntent = null) }
     }
 
-    private fun restoreFavorite() = viewModelScope.launch {
-        favoriteRepository.getFavoritePlayers()
-            .onSuccess { restoredFavorites ->
-                updateFavorite { favoriteState ->
-                    favoriteState.copy(
-                        isFavorite = restoredFavorites.any { favorite -> favorite.id == playerId },
-                        isRestored = true,
-                    )
+    private fun restoreFavorite() {
+        if (isFavoriteRestoreInProgress) return
+
+        isFavoriteRestoreInProgress = true
+        viewModelScope.launch {
+            favoriteRepository.getFavoritePlayers()
+                .onSuccess { restoredFavorites ->
+                    updateFavorite { favoriteState ->
+                        favoriteState.copy(
+                            isFavorite = restoredFavorites.any { favorite -> favorite.id == playerId },
+                            isRestored = true,
+                            hasRestoreFailure = false,
+                        )
+                    }
                 }
-            }
+                .onFailure {
+                    updateFavorite { favoriteState ->
+                        favoriteState.copy(
+                            isRestored = false,
+                            hasRestoreFailure = true,
+                        )
+                    }
+                }
+            isFavoriteRestoreInProgress = false
+        }
     }
 
     private fun executeFavoriteMutation(mutation: FavoriteMutation) {

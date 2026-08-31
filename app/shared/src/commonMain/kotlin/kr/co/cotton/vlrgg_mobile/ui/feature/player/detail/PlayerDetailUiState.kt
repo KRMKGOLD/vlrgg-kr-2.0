@@ -16,6 +16,7 @@ data class PlayerDetailUiState(
 data class PlayerFavoriteUiState(
     val isFavorite: Boolean = false,
     val isRestored: Boolean = false,
+    val hasRestoreFailure: Boolean = false,
     val isMutationInProgress: Boolean = false,
     val failedIntent: PlayerFavoriteMutationIntent? = null,
 )

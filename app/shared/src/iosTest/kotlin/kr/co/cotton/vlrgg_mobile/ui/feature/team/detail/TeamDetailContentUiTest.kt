@@ -473,6 +473,30 @@ class TeamDetailContentUiTest {
     }
 
     @Test
+    fun favoriteRestoreFailureSnackbarKeepsContentAndBackAndRetriesExactlyOnce() = runComposeUiTest {
+        var restoreRetries = 0
+        var backs = 0
+        setContent {
+            Fixture(
+                uiState = TeamDetailUiState(
+                    contentState = TeamDetailContentState.Content(populatedTeam),
+                    favorite = TeamFavoriteUiState(hasRestoreFailure = true),
+                ),
+                onBack = { backs += 1 },
+                onFavoriteRestoreRetry = { restoreRetries += 1 },
+            )
+        }
+
+        onNodeWithTag(TEAM_DETAIL_HEADER_TAG).assertExists()
+        onNodeWithText("즐겨찾기 상태를 불러오지 못했습니다.").assertIsDisplayed()
+        onNodeWithText("재시도").performClick()
+        onNodeWithContentDescription("뒤로 가기").performClick()
+
+        assertEquals(1, restoreRetries)
+        assertEquals(1, backs)
+    }
+
+    @Test
     fun favoriteFailureIsClearedThroughLifecycleCallbackWithoutVisibleCloseAction() = runComposeUiTest {
         var dismisses = 0
         setContent {
@@ -554,6 +578,7 @@ class TeamDetailContentUiTest {
         onRetry: () -> Unit = {},
         onFavoriteToggle: () -> Unit = {},
         onFavoriteRetry: () -> Unit = {},
+        onFavoriteRestoreRetry: () -> Unit = {},
         onFavoriteErrorDismiss: () -> Unit = {},
     ) {
         VlrTheme {
@@ -568,6 +593,7 @@ class TeamDetailContentUiTest {
                     onRetry = onRetry,
                     onFavoriteToggle = onFavoriteToggle,
                     onFavoriteRetry = onFavoriteRetry,
+                    onFavoriteRestoreRetry = onFavoriteRestoreRetry,
                     onFavoriteErrorDismiss = onFavoriteErrorDismiss,
                 )
             }

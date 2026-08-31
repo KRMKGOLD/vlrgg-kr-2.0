@@ -341,6 +341,29 @@ class PlayerDetailContentUiTest {
     }
 
     @Test
+    fun favoriteRestoreFailureSnackbarKeepsContentAndBackAndRetriesExactlyOnce() = runComposeUiTest {
+        var restoreRetries = 0
+        var backs = 0
+        setContent {
+            Fixture(
+                PlayerDetailContentState.Content(player),
+                favorite = PlayerFavoriteUiState(hasRestoreFailure = true),
+                onBack = { backs += 1 },
+                onFavoriteRestoreRetry = { restoreRetries += 1 },
+            )
+        }
+
+        onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
+        onNodeWithText("stax").assertExists()
+        onNodeWithText("즐겨찾기 상태를 불러오지 못했습니다.").assertIsDisplayed()
+        onNodeWithText("재시도").performClick()
+        onNodeWithContentDescription("뒤로 가기").performClick()
+
+        assertEquals(1, restoreRetries)
+        assertEquals(1, backs)
+    }
+
+    @Test
     fun favoriteFailureIsClearedThroughLifecycleCallbackWithoutVisibleCloseAction() = runComposeUiTest {
         var dismisses = 0
         setContent {
@@ -415,6 +438,7 @@ class PlayerDetailContentUiTest {
         favorite: PlayerFavoriteUiState = PlayerFavoriteUiState(),
         onFavoriteClick: () -> Unit = {},
         onFavoriteRetry: () -> Unit = {},
+        onFavoriteRestoreRetry: () -> Unit = {},
         onFavoriteErrorDismiss: () -> Unit = {},
     ) = VlrTheme {
         Box(Modifier.fillMaxSize().testTag(TEST_ROOT_TAG)) {
@@ -423,6 +447,7 @@ class PlayerDetailContentUiTest {
                 onBack = onBack, onTeamClick = onTeamClick, onMatchClick = onMatchClick, onRetry = onRetry,
                 onFavoriteClick = onFavoriteClick,
                 onFavoriteRetry = onFavoriteRetry,
+                onFavoriteRestoreRetry = onFavoriteRestoreRetry,
                 onFavoriteErrorDismiss = onFavoriteErrorDismiss,
             )
         }

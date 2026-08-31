@@ -20,6 +20,7 @@ enum class TeamFavoriteMutationIntent {
 data class TeamFavoriteUiState(
     val isFavorite: Boolean = false,
     val isRestored: Boolean = false,
+    val hasRestoreFailure: Boolean = false,
     val isMutationInProgress: Boolean = false,
     val failedIntent: TeamFavoriteMutationIntent? = null,
 )

@@ -88,6 +88,7 @@ fun TeamDetailContent(
     onRetry: () -> Unit,
     onFavoriteToggle: () -> Unit,
     onFavoriteRetry: () -> Unit,
+    onFavoriteRestoreRetry: () -> Unit,
     onFavoriteErrorDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -106,13 +107,20 @@ fun TeamDetailContent(
             )
         },
         snackbarHost = {
-            uiState.favorite.failedIntent?.let { intent ->
-                FavoriteFailureSnackbar(
-                    message = when (intent) {
+            val favorite = uiState.favorite
+            when {
+                favorite.failedIntent != null -> FavoriteFailureSnackbar(
+                    message = when (favorite.failedIntent) {
                         TeamFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
                         TeamFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
                     },
                     onRetry = onFavoriteRetry,
+                    testTag = TEAM_DETAIL_FAVORITE_SNACKBAR_TAG,
+                )
+
+                favorite.hasRestoreFailure -> FavoriteFailureSnackbar(
+                    message = "즐겨찾기 상태를 불러오지 못했습니다.",
+                    onRetry = onFavoriteRestoreRetry,
                     testTag = TEAM_DETAIL_FAVORITE_SNACKBAR_TAG,
                 )
             }

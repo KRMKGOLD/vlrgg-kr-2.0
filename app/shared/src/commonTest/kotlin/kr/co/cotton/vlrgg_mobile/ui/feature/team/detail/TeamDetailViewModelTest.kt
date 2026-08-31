@@ -191,7 +191,7 @@ class TeamDetailViewModelTest {
     }
 
     @Test
-    fun favoriteRestoreFailureKeepsTheFavoriteUnrestoredAndPreventsMutation() = runViewModelTest {
+    fun favoriteRestoreFailureKeepsContentAndExposesOnlySafeRetryableState() = runViewModelTest {
         val team = teamDetail()
         val favorites = FakeFavoriteRepository(
             favoriteTeamsResults = listOf(AppResult.Failure),
@@ -206,13 +206,48 @@ class TeamDetailViewModelTest {
         advanceUntilIdle()
 
         assertEquals(TeamDetailContentState.Content(team), viewModel.uiState.value.contentState)
-        assertEquals(TeamFavoriteUiState(), viewModel.uiState.value.favorite)
+        assertEquals(
+            TeamFavoriteUiState(hasRestoreFailure = true),
+            viewModel.uiState.value.favorite,
+        )
+        assertFalse(viewModel.uiState.value.toString().contains("exception", ignoreCase = true))
+        assertFalse(viewModel.uiState.value.toString().contains("http", ignoreCase = true))
 
         viewModel.toggleFavorite()
         advanceUntilIdle()
 
         assertTrue(favorites.addedTeams.isEmpty())
         assertTrue(favorites.removedTeamIds.isEmpty())
+    }
+
+    @Test
+    fun retryFavoriteRestoreRetriesOneFailedRestoreOnceAndConvergesToStoredState() = runViewModelTest {
+        val team = teamDetail()
+        val favorites = FakeFavoriteRepository(
+            favoriteTeamsResults = listOf(
+                AppResult.Failure,
+                AppResult.Success(listOf(team.toFavoriteTeam())),
+            ),
+        )
+        val viewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(team))),
+            favoriteRepository = favorites,
+            teamId = TEAM_ID,
+        )
+
+        advanceUntilIdle()
+        viewModel.retryFavoriteRestore()
+        viewModel.retryFavoriteRestore()
+        advanceUntilIdle()
+
+        assertEquals(2, favorites.restoreCallCount)
+        assertTrue(viewModel.uiState.value.favorite.isRestored)
+        assertTrue(viewModel.uiState.value.favorite.isFavorite)
+        assertFalse(viewModel.uiState.value.favorite.hasRestoreFailure)
+
+        viewModel.retryFavoriteRestore()
+        advanceUntilIdle()
+        assertEquals(2, favorites.restoreCallCount)
     }
 
     @Test

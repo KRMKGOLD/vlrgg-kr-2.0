@@ -73,6 +73,7 @@ fun PlayerDetailContent(
     onRetry: () -> Unit,
     onFavoriteClick: () -> Unit,
     onFavoriteRetry: () -> Unit,
+    onFavoriteRestoreRetry: () -> Unit,
     onFavoriteErrorDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -91,13 +92,20 @@ fun PlayerDetailContent(
             )
         },
         snackbarHost = {
-            uiState.favorite.failedIntent?.let { intent ->
-                FavoriteFailureSnackbar(
-                    message = when (intent) {
+            val favorite = uiState.favorite
+            when {
+                favorite.failedIntent != null -> FavoriteFailureSnackbar(
+                    message = when (favorite.failedIntent) {
                         PlayerFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
                         PlayerFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
                     },
                     onRetry = onFavoriteRetry,
+                    testTag = PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG,
+                )
+
+                favorite.hasRestoreFailure -> FavoriteFailureSnackbar(
+                    message = "즐겨찾기 상태를 불러오지 못했습니다.",
+                    onRetry = onFavoriteRestoreRetry,
                     testTag = PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG,
                 )
             }
