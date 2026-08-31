@@ -40,6 +40,9 @@ class PlayerDetailViewModel(
         if (_uiState.value.contentState != PlayerDetailContentState.Error) return
         _uiState.value = _uiState.value.copy(contentState = PlayerDetailContentState.Loading)
         loadPlayerDetail()
+        if (!_uiState.value.favorite.isRestored) {
+            restoreFavorite()
+        }
     }
 
     private fun loadPlayerDetail() = viewModelScope.launch {
@@ -70,8 +73,8 @@ class PlayerDetailViewModel(
     }
 
     fun retryFavoriteMutation() {
-        val mutation = failedFavoriteMutation ?: return
         if (_uiState.value.favorite.isMutationInProgress) return
+        val mutation = failedFavoriteMutation ?: return
 
         executeFavoriteMutation(mutation)
     }
@@ -83,10 +86,10 @@ class PlayerDetailViewModel(
 
     private fun restoreFavorite() = viewModelScope.launch {
         favoriteRepository.getFavoritePlayers()
-            .onSuccess { favorites ->
-                updateFavorite {
-                    it.copy(
-                        isFavorite = favorites.any { it.id == playerId },
+            .onSuccess { restoredFavorites ->
+                updateFavorite { favoriteState ->
+                    favoriteState.copy(
+                        isFavorite = restoredFavorites.any { favorite -> favorite.id == playerId },
                         isRestored = true,
                     )
                 }

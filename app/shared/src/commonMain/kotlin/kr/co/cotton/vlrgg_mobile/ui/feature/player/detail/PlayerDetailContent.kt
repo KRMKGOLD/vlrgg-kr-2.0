@@ -12,21 +12,16 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
@@ -45,6 +40,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -75,9 +71,9 @@ fun PlayerDetailContent(
     onTeamClick: (String) -> Unit,
     onMatchClick: (String) -> Unit,
     onRetry: () -> Unit,
-    onFavoriteClick: () -> Unit = {},
-    onFavoriteRetry: () -> Unit = {},
-    onFavoriteErrorDismiss: () -> Unit = {},
+    onFavoriteClick: () -> Unit,
+    onFavoriteRetry: () -> Unit,
+    onFavoriteErrorDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     DisposableEffect(Unit) {
@@ -96,9 +92,13 @@ fun PlayerDetailContent(
         },
         snackbarHost = {
             uiState.favorite.failedIntent?.let { intent ->
-                PlayerFavoriteFailureSnackbar(
-                    intent = intent,
+                FavoriteFailureSnackbar(
+                    message = when (intent) {
+                        PlayerFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
+                        PlayerFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
+                    },
                     onRetry = onFavoriteRetry,
+                    testTag = PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG,
                 )
             }
         },
@@ -182,52 +182,6 @@ private fun PlayerFavoriteButton(
             )
         },
     )
-}
-
-@Composable
-private fun PlayerFavoriteFailureSnackbar(
-    intent: PlayerFavoriteMutationIntent,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space4,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-            Snackbar(
-                modifier = Modifier
-                .widthIn(max = 328.dp)
-                .fillMaxWidth()
-                .testTag(PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG),
-            containerColor = MaterialTheme.colorScheme.inverseSurface,
-            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            actionContentColor = MaterialTheme.colorScheme.inversePrimary,
-            action = {
-                TextButton(
-                    onClick = onRetry,
-                    modifier = Modifier
-                        .widthIn(min = VlrDimensions.MinimumTouchTarget)
-                        .heightIn(min = VlrDimensions.MinimumTouchTarget),
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.inversePrimary,
-                    ),
-                ) { Text("재시도") }
-            },
-            content = {
-                Text(
-                    text = when (intent) {
-                        PlayerFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
-                        PlayerFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
-                    },
-                )
-            },
-        )
-    }
 }
 
 @Composable

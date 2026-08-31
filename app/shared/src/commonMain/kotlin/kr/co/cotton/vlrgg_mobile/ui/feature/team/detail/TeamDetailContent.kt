@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -22,14 +21,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -49,6 +44,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchSection
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
@@ -111,9 +107,13 @@ fun TeamDetailContent(
         },
         snackbarHost = {
             uiState.favorite.failedIntent?.let { intent ->
-                TeamFavoriteErrorSnackbar(
-                    intent = intent,
+                FavoriteFailureSnackbar(
+                    message = when (intent) {
+                        TeamFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
+                        TeamFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
+                    },
                     onRetry = onFavoriteRetry,
+                    testTag = TEAM_DETAIL_FAVORITE_SNACKBAR_TAG,
                 )
             }
         },
@@ -223,52 +223,6 @@ private fun TeamDetailTopBar(
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
             color = VlrTheme.colors.outline,
-        )
-    }
-}
-
-@Composable
-private fun TeamFavoriteErrorSnackbar(
-    intent: TeamFavoriteMutationIntent,
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val message = when (intent) {
-        TeamFavoriteMutationIntent.Add -> "즐겨찾기 추가에 실패했습니다."
-        TeamFavoriteMutationIntent.Remove -> "즐겨찾기 해제에 실패했습니다."
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space4,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Snackbar(
-            modifier = Modifier
-                .widthIn(max = 328.dp)
-                .fillMaxWidth()
-                .testTag(TEAM_DETAIL_FAVORITE_SNACKBAR_TAG),
-            containerColor = MaterialTheme.colorScheme.inverseSurface,
-            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            actionContentColor = MaterialTheme.colorScheme.inversePrimary,
-            action = {
-                TextButton(
-                    onClick = onRetry,
-                    modifier = Modifier
-                        .widthIn(min = VlrDimensions.MinimumTouchTarget)
-                        .heightIn(min = VlrDimensions.MinimumTouchTarget),
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.inversePrimary,
-                    ),
-                ) { Text("재시도") }
-            },
-            content = {
-                Text(message)
-            },
         )
     }
 }

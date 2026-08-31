@@ -172,7 +172,7 @@ class TeamDetailViewModelTest {
         val storedViewModel = TeamDetailViewModel(
             teamRepository = FakeTeamRepository(listOf(AppResult.Success(teamDetail()))),
             favoriteRepository = FakeFavoriteRepository(
-                favoriteTeamsResult = AppResult.Success(listOf(teamDetail().toFavoriteTeam())),
+                favoriteTeamsResults = listOf(AppResult.Success(listOf(teamDetail().toFavoriteTeam()))),
             ),
             teamId = TEAM_ID,
         )
@@ -194,7 +194,7 @@ class TeamDetailViewModelTest {
     fun favoriteRestoreFailureKeepsTheFavoriteUnrestoredAndPreventsMutation() = runViewModelTest {
         val team = teamDetail()
         val favorites = FakeFavoriteRepository(
-            favoriteTeamsResult = AppResult.Failure,
+            favoriteTeamsResults = listOf(AppResult.Failure),
             addResults = listOf(AppResult.Success(Unit)),
         )
         val viewModel = TeamDetailViewModel(
@@ -216,6 +216,43 @@ class TeamDetailViewModelTest {
     }
 
     @Test
+    fun favoriteRetryRestoresFavoriteAfterInitialRestoreFailure() = runViewModelTest {
+        val team = teamDetail()
+        val teams = FakeTeamRepository(
+            listOf(
+                AppResult.Failure,
+                AppResult.Success(team),
+            ),
+        )
+        val favorites = FakeFavoriteRepository(
+            favoriteTeamsResults = listOf(
+                AppResult.Failure,
+                AppResult.Success(emptyList()),
+            ),
+        )
+        val viewModel = TeamDetailViewModel(
+            teamRepository = teams,
+            favoriteRepository = favorites,
+            teamId = TEAM_ID,
+        )
+
+        advanceUntilIdle()
+        assertEquals(TeamDetailContentState.Error, viewModel.uiState.value.contentState)
+        assertFalse(viewModel.uiState.value.favorite.isRestored)
+        assertEquals(listOf(TEAM_ID), teams.requestedTeamIds)
+        assertEquals(1, favorites.restoreCallCount)
+
+        viewModel.retry()
+        assertEquals(TeamDetailContentState.Loading, viewModel.uiState.value.contentState)
+        advanceUntilIdle()
+
+        assertEquals(TeamDetailContentState.Content(team), viewModel.uiState.value.contentState)
+        assertTrue(viewModel.uiState.value.favorite.isRestored)
+        assertEquals(listOf(TEAM_ID, TEAM_ID), teams.requestedTeamIds)
+        assertEquals(2, favorites.restoreCallCount)
+    }
+
+    @Test
     fun optimisticAddAndRemovePreserveContentAndCallTheExactFavoriteRepositoryMethod() = runViewModelTest {
         val team = teamDetail()
         val favorites = FakeFavoriteRepository(addResults = listOf(AppResult.Success(Unit)))
@@ -234,7 +271,7 @@ class TeamDetailViewModelTest {
         assertEquals(listOf(team.toFavoriteTeam()), favorites.addedTeams)
 
         val removeFavorites = FakeFavoriteRepository(
-            favoriteTeamsResult = AppResult.Success(listOf(team.toFavoriteTeam())),
+            favoriteTeamsResults = listOf(AppResult.Success(listOf(team.toFavoriteTeam()))),
             removeResults = listOf(AppResult.Success(Unit)),
         )
         val removeViewModel = TeamDetailViewModel(
@@ -282,7 +319,7 @@ class TeamDetailViewModelTest {
     fun failedRemoveRollsBackToOnAndDismissPreventsStaleSnackbar() = runViewModelTest {
         val team = teamDetail()
         val favorites = FakeFavoriteRepository(
-            favoriteTeamsResult = AppResult.Success(listOf(team.toFavoriteTeam())),
+            favoriteTeamsResults = listOf(AppResult.Success(listOf(team.toFavoriteTeam()))),
             removeResults = listOf(AppResult.Failure),
         )
         val viewModel = TeamDetailViewModel(
@@ -411,31 +448,35 @@ class TeamDetailViewModelTest {
     }
 
     private class FakeFavoriteRepository(
-        private val favoriteTeamsResult: AppResult<List<FavoriteTeam>> = AppResult.Success(emptyList()),
+        private val favoriteTeamsResults: List<AppResult<List<FavoriteTeam>>> = listOf(AppResult.Success(emptyList())),
         private val addResults: List<AppResult<Unit>> = emptyList(),
         private val removeResults: List<AppResult<Unit>> = emptyList(),
     ) : FavoriteRepository {
         val addedTeams = mutableListOf<FavoriteTeam>()
         val removedTeamIds = mutableListOf<String>()
+        var restoreCallCount = 0
 
         override fun observeFavoriteTeams(): Flow<AppResult<List<FavoriteTeam>>> = emptyFlow()
 
         override fun observeFavoritePlayers(): Flow<AppResult<List<FavoritePlayer>>> = emptyFlow()
 
-        override suspend fun getFavoriteTeams(): AppResult<List<FavoriteTeam>> = favoriteTeamsResult
+        override suspend fun getFavoriteTeams(): AppResult<List<FavoriteTeam>> {
+            restoreCallCount += 1
+            return favoriteTeamsResults.getOrElse(restoreCallCount - 1) { AppResult.Success(emptyList()) }
+        }
 
         override suspend fun getFavoritePlayers(): AppResult<List<FavoritePlayer>> = AppResult.Success(emptyList())
 
         override suspend fun addFavoriteTeam(favorite: FavoriteTeam): AppResult<Unit> {
             addedTeams += favorite
-            return addResults[addedTeams.lastIndex]
+            return addResults.getOrElse(addedTeams.lastIndex) { AppResult.Success(Unit) }
         }
 
         override suspend fun addFavoritePlayer(favorite: FavoritePlayer): AppResult<Unit> = AppResult.Success(Unit)
 
         override suspend fun removeFavoriteTeam(teamId: String): AppResult<Unit> {
             removedTeamIds += teamId
-            return removeResults[removedTeamIds.lastIndex]
+            return removeResults.getOrElse(removedTeamIds.lastIndex) { AppResult.Success(Unit) }
         }
 
         override suspend fun removeFavoritePlayer(playerId: String): AppResult<Unit> = AppResult.Success(Unit)

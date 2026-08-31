@@ -13,6 +13,9 @@ class VlrThemeContractTest {
         assertEquals(VlrLightColors.surface, VlrLightMaterialColorScheme.surface)
         assertEquals(VlrLightColors.textPrimary, VlrLightMaterialColorScheme.onSurface)
         assertEquals(VlrLightColors.accentLive, VlrLightMaterialColorScheme.secondary)
+        assertEquals(VlrLightColors.inverseSurface, VlrLightMaterialColorScheme.inverseSurface)
+        assertEquals(VlrLightColors.inverseOnSurface, VlrLightMaterialColorScheme.inverseOnSurface)
+        assertEquals(VlrLightColors.inversePrimary, VlrLightMaterialColorScheme.inversePrimary)
     }
 
     @Test

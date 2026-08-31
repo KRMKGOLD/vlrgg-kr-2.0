@@ -42,6 +42,9 @@ class TeamDetailViewModel(
             contentState = TeamDetailContentState.Loading,
         )
         loadTeamDetail()
+        if (!_uiState.value.favorite.isRestored) {
+            restoreFavorite()
+        }
     }
 
     fun toggleFavorite() {
@@ -91,10 +94,10 @@ class TeamDetailViewModel(
 
     private fun restoreFavorite() = viewModelScope.launch {
         favoriteRepository.getFavoriteTeams()
-            .onSuccess { favorites ->
-                updateFavorite {
-                    it.copy(
-                        isFavorite = favorites.any { it.id == teamId },
+            .onSuccess { restoredFavorites ->
+                updateFavorite { favoriteState ->
+                    favoriteState.copy(
+                        isFavorite = restoredFavorites.any { favorite -> favorite.id == teamId },
                         isRestored = true,
                     )
                 }

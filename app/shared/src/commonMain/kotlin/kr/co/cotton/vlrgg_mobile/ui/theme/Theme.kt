@@ -28,6 +28,9 @@ val VlrLightMaterialColorScheme: ColorScheme = lightColorScheme(
     error = VlrLightColors.actionPrimary,
     onError = VlrLightColors.onActionPrimary,
     scrim = VlrLightColors.scrim,
+    inverseSurface = VlrLightColors.inverseSurface,
+    inverseOnSurface = VlrLightColors.inverseOnSurface,
+    inversePrimary = VlrLightColors.inversePrimary,
 )
 
 val LocalVlrColors = staticCompositionLocalOf { VlrLightColors }

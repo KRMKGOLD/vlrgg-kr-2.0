@@ -136,7 +136,7 @@ class PlayerDetailViewModelTest {
     @Test
     fun favoriteRestoreFailureKeepsTheFavoriteUnrestoredAndPreventsMutation() = runViewModelTest {
         val player = playerDetail()
-        val favorites = FakeFavoriteRepository(favoritePlayersResult = AppResult.Failure)
+        val favorites = FakeFavoriteRepository(favoritePlayersResults = listOf(AppResult.Failure))
         val viewModel = PlayerDetailViewModel(
             FakePlayerRepository(listOf(AppResult.Success(player))),
             favorites,
@@ -153,6 +153,43 @@ class PlayerDetailViewModelTest {
 
         assertTrue(favorites.added.isEmpty())
         assertTrue(favorites.removed.isEmpty())
+    }
+
+    @Test
+    fun favoriteRetryRestoresFavoriteAfterInitialRestoreFailure() = runViewModelTest {
+        val player = playerDetail()
+        val players = FakePlayerRepository(
+            listOf(
+                AppResult.Failure,
+                AppResult.Success(player),
+            ),
+        )
+        val favorites = FakeFavoriteRepository(
+            favoritePlayersResults = listOf(
+                AppResult.Failure,
+                AppResult.Success(emptyList()),
+            ),
+        )
+        val viewModel = PlayerDetailViewModel(
+            players,
+            favorites,
+            PLAYER_ID,
+        )
+
+        advanceUntilIdle()
+        assertEquals(PlayerDetailContentState.Error, viewModel.uiState.value.contentState)
+        assertFalse(viewModel.uiState.value.favorite.isRestored)
+        assertEquals(listOf(PLAYER_ID), players.requestedPlayerIds)
+        assertEquals(1, favorites.restoreCallCount)
+
+        viewModel.retry()
+        assertEquals(PlayerDetailContentState.Loading, viewModel.uiState.value.contentState)
+        advanceUntilIdle()
+
+        assertEquals(PlayerDetailContentState.Content(player), viewModel.uiState.value.contentState)
+        assertTrue(viewModel.uiState.value.favorite.isRestored)
+        assertEquals(listOf(PLAYER_ID, PLAYER_ID), players.requestedPlayerIds)
+        assertEquals(2, favorites.restoreCallCount)
     }
 
     @Test
@@ -197,7 +234,7 @@ class PlayerDetailViewModelTest {
     }
 
     @Test
-    fun retryReusesSamePlayerSnapshotExactlyOnceAndDismissClearsIntent() = runViewModelTest {
+    fun retryReusesSamePlayerSnapshotExactlyOnce() = runViewModelTest {
         val player = playerDetail()
         val favorites = FakeFavoriteRepository(addResults = listOf(AppResult.Failure, AppResult.Success(Unit)))
         val viewModel = PlayerDetailViewModel(
@@ -216,6 +253,22 @@ class PlayerDetailViewModelTest {
         assertTrue(viewModel.uiState.value.favorite.isFavorite)
         assertEquals(null, viewModel.uiState.value.favorite.failedIntent)
         assertEquals(listOf(player.favoriteSnapshot(), player.favoriteSnapshot()), favorites.added)
+    }
+
+    @Test
+    fun dismissFavoriteErrorClearsAnActualMutationFailureState() = runViewModelTest {
+        val player = playerDetail()
+        val favorites = FakeFavoriteRepository(addResults = listOf(AppResult.Failure))
+        val viewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(player))),
+            favorites,
+            PLAYER_ID,
+        )
+        advanceUntilIdle()
+
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertEquals(PlayerFavoriteMutationIntent.Add, viewModel.uiState.value.favorite.failedIntent)
 
         viewModel.dismissFavoriteError()
         assertEquals(null, viewModel.uiState.value.favorite.failedIntent)
@@ -298,7 +351,7 @@ class PlayerDetailViewModelTest {
 
     private class FakeFavoriteRepository(
         private val existing: List<FavoritePlayer> = emptyList(),
-        private val favoritePlayersResult: AppResult<List<FavoritePlayer>> = AppResult.Success(existing),
+        private val favoritePlayersResults: List<AppResult<List<FavoritePlayer>>> = listOf(AppResult.Success(existing)),
         private val addResults: List<AppResult<Unit>> = emptyList(),
         private val removeResults: List<AppResult<Unit>> = emptyList(),
     ) : FavoriteRepository {
@@ -314,7 +367,7 @@ class PlayerDetailViewModelTest {
 
         override suspend fun getFavoritePlayers(): AppResult<List<FavoritePlayer>> {
             restoreCallCount += 1
-            return favoritePlayersResult
+            return favoritePlayersResults.getOrElse(restoreCallCount - 1) { AppResult.Success(existing) }
         }
 
         override suspend fun addFavoriteTeam(favorite: kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam) = error("unused")

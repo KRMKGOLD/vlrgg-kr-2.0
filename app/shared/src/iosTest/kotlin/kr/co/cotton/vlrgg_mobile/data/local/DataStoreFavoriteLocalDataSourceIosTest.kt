@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile.data.local
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -43,13 +44,15 @@ class DataStoreFavoriteLocalDataSourceIosTest {
     @Test
     fun dataStoreRoundTripSurvivesRecreation() = runTest {
         val path = NSTemporaryDirectory() + "favorite-" + NSUUID().UUIDString + ".preferences_pb"
-        val firstScope = CoroutineScope(SupervisorJob())
-        val recreatedScope = CoroutineScope(SupervisorJob())
+        val firstJob = SupervisorJob()
+        val firstScope = CoroutineScope(firstJob)
+        val recreatedJob = SupervisorJob()
+        val recreatedScope = CoroutineScope(recreatedJob)
         try {
             val first = DataStoreFavoriteLocalDataSource(createFavoriteDataStore(path, firstScope))
             first.upsertFavoriteTeam(FavoriteTeamStorage("2", "DRX", null, ""))
             first.upsertFavoritePlayer(FavoritePlayerStorage("100", "", null, "KR", null))
-            firstScope.cancel()
+            firstJob.cancelAndJoin()
 
             val recreated = DataStoreFavoriteLocalDataSource(
                 createFavoriteDataStore(path, recreatedScope),
@@ -60,8 +63,8 @@ class DataStoreFavoriteLocalDataSourceIosTest {
                 recreated.observeFavoritePlayers().first(),
             )
         } finally {
-            firstScope.cancel()
-            recreatedScope.cancel()
+            firstJob.cancelAndJoin()
+            recreatedJob.cancelAndJoin()
             NSFileManager.defaultManager.removeItemAtPath(path, error = null)
         }
     }

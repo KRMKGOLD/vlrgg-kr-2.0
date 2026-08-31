@@ -3,7 +3,7 @@ package kr.co.cotton.vlrgg_mobile.di
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
 import kr.co.cotton.vlrgg_mobile.data.local.datastore.createFavoriteDataStore
 import kr.co.cotton.vlrgg_mobile.data.repository.FavoriteRepositoryImpl
@@ -22,8 +22,10 @@ class FavoriteAppGraphIosTest {
     @Test
     fun graphResolvesFavoriteRepositoryAndRestoresExistingStorage() = runTest {
         val path = NSTemporaryDirectory() + "favorite-graph-" + NSUUID().UUIDString + ".preferences_pb"
-        val firstScope = CoroutineScope(SupervisorJob())
-        val recreatedScope = CoroutineScope(SupervisorJob())
+        val firstJob = SupervisorJob()
+        val firstScope = CoroutineScope(firstJob)
+        val recreatedJob = SupervisorJob()
+        val recreatedScope = CoroutineScope(recreatedJob)
         try {
             val firstGraph = createAppGraph(
                 apiBaseUrl = TEST_API_BASE_URL,
@@ -32,7 +34,7 @@ class FavoriteAppGraphIosTest {
             assertIs<FavoriteRepositoryImpl>(firstGraph.favoriteRepository)
             val favorite = FavoriteTeam("2", "DRX", null, "")
             assertEquals(AppResult.Success(Unit), firstGraph.favoriteRepository.addFavoriteTeam(favorite))
-            firstScope.cancel()
+            firstJob.cancelAndJoin()
 
             val recreatedGraph = createAppGraph(
                 apiBaseUrl = TEST_API_BASE_URL,
@@ -43,8 +45,8 @@ class FavoriteAppGraphIosTest {
                 recreatedGraph.favoriteRepository.getFavoriteTeams(),
             )
         } finally {
-            firstScope.cancel()
-            recreatedScope.cancel()
+            firstJob.cancelAndJoin()
+            recreatedJob.cancelAndJoin()
             NSFileManager.defaultManager.removeItemAtPath(path, error = null)
         }
     }

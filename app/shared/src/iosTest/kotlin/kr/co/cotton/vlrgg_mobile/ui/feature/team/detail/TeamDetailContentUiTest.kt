@@ -462,6 +462,7 @@ class TeamDetailContentUiTest {
                         contentState = TeamDetailContentState.Content(populatedTeam),
                         favorite = TeamFavoriteUiState(
                             isFavorite = true,
+                            isRestored = true,
                             failedIntent = TeamFavoriteMutationIntent.Remove,
                         ),
                     ),
