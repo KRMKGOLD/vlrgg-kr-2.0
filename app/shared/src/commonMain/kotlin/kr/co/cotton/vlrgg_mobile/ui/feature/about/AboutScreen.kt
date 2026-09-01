@@ -22,16 +22,15 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
@@ -43,17 +42,13 @@ import vlrggmobile.app.shared.generated.resources.ic_search
 fun AboutScreen(
     platform: AboutPlatform,
     onSearch: () -> Unit,
+    viewModel: AboutViewModel = metroViewModel(),
     modifier: Modifier = Modifier,
 ) {
-    val versionLabel = remember(platform) { aboutUiState(platform.buildVersion).versionLabel }
-    var feedbackName by rememberSaveable { mutableStateOf<String?>(null) }
-    val uiState = AboutUiState(
-        versionLabel = versionLabel,
-        feedback = feedbackName?.let(AboutFeedback::valueOf),
-    )
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    fun updateState(updated: AboutUiState) {
-        feedbackName = updated.feedback?.name
+    LaunchedEffect(platform) {
+        viewModel.updateBuildVersion(platform.buildVersion)
     }
 
     AboutContent(
@@ -61,17 +56,13 @@ fun AboutScreen(
         onSearch = onSearch,
         onSourceClick = {
             platform.openUrl(ABOUT_SOURCE_URL) { opened ->
-                updateState(uiState.afterSourceOpen(opened))
+                viewModel.onSourceOpenResult(opened)
             }
         },
         onCopySourceClick = {
-            updateState(if (platform.copyText(ABOUT_SOURCE_URL)) {
-                uiState.afterSourceCopy()
-            } else {
-                uiState.afterSourceOpen(opened = false)
-            })
+            viewModel.onSourceCopyResult(platform.copyText(ABOUT_SOURCE_URL))
         },
-        onDismissFeedback = { updateState(uiState.dismissFeedback()) },
+        onDismissFeedback = viewModel::dismissFeedback,
         modifier = modifier,
     )
 }

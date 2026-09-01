@@ -10,6 +10,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.ABOUT_SOURCE_URL
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutPlatform
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutScreen
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutViewModel
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,6 +20,7 @@ class AboutNavigationRuntimeUiTest {
     @Test
     fun aboutIsFifthRootAndRetainsItsErrorStateAcrossSearchAndRootRoundTrips() = runComposeUiTest {
         val platform = FailingAboutPlatform()
+        val aboutViewModel = AboutViewModel()
 
         setContent {
             VlrTheme {
@@ -26,7 +28,11 @@ class AboutNavigationRuntimeUiTest {
                     initialSelectedRoot = AboutRoot,
                     entryContent = { destination, onSearch, _, onBack ->
                         when (destination) {
-                            AboutRoot -> AboutScreen(platform = platform, onSearch = onSearch)
+                            AboutRoot -> AboutScreen(
+                                platform = platform,
+                                onSearch = onSearch,
+                                viewModel = aboutViewModel,
+                            )
                             Search -> Button(onClick = onBack) { Text("search overlay") }
                             is RootNavKey -> Text("root:${destination.destinationDescriptor.title}")
                             else -> error("Unexpected destination: $destination")

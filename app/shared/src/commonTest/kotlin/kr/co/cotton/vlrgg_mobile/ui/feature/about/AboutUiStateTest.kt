@@ -35,4 +35,20 @@ class AboutUiStateTest {
         assertNull(copied.dismissFeedback().feedback)
         assertNull(copied.dismissFeedback().dismissFeedback().feedback)
     }
+
+    @Test
+    fun viewModelOwnsVersionAndFeedbackTransitions() {
+        val viewModel = AboutViewModel()
+
+        viewModel.updateBuildVersion("2.0.4")
+        viewModel.onSourceOpenResult(opened = false)
+        assertEquals("v2.0.4", viewModel.uiState.value.versionLabel)
+        assertEquals(AboutFeedback.SourceLinkError, viewModel.uiState.value.feedback)
+
+        viewModel.onSourceCopyResult(copied = true)
+        assertEquals(AboutFeedback.SourceLinkCopied, viewModel.uiState.value.feedback)
+
+        viewModel.dismissFeedback()
+        assertNull(viewModel.uiState.value.feedback)
+    }
 }

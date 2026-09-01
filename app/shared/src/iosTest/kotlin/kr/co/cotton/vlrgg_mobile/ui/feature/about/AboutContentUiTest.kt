@@ -34,7 +34,13 @@ class AboutContentUiTest {
     fun sourceOpenFailureOffersCopyRecoveryAndDismissesStaleFeedback() = runComposeUiTest {
         val platform = FakeAboutPlatform()
         setContent {
-            VlrTheme { AboutScreen(platform = platform, onSearch = {}) }
+            VlrTheme {
+                AboutScreen(
+                    platform = platform,
+                    onSearch = {},
+                    viewModel = AboutViewModel(),
+                )
+            }
         }
 
         onNodeWithText("github.com/KRMKGOLD/vlrgg-kr-2.0").assertExists()
