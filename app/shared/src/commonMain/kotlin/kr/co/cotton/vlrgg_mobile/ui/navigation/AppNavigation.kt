@@ -28,6 +28,7 @@ import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutPlatform
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_event
@@ -38,6 +39,7 @@ import vlrggmobile.app.shared.generated.resources.ic_person
 
 @Composable
 fun AppNavigation(
+    aboutPlatform: AboutPlatform,
     modifier: Modifier = Modifier,
 ) {
     AppNavigationRuntime(
@@ -48,6 +50,7 @@ fun AppNavigation(
                 onSearch = onSearch,
                 onPush = onPush,
                 onBack = onBack,
+                aboutPlatform = aboutPlatform,
             )
         },
     )
@@ -247,12 +250,14 @@ private fun NavigationEntryContent(
     onSearch: () -> Unit,
     onPush: (AppNavKey) -> Unit,
     onBack: () -> Unit,
+    aboutPlatform: AboutPlatform,
 ) {
     NavigationContent(
         destination = destination,
         onSearch = onSearch,
         onPush = onPush,
         onBack = onBack,
+        aboutPlatform = aboutPlatform,
     )
 }
 

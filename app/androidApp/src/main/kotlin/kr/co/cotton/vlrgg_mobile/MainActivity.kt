@@ -15,9 +15,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val graph = (application as VlrggApplication).appGraph
+        val aboutPlatform = AndroidAboutPlatform(this)
 
         setContent {
-            App(graph = graph)
+            App(
+                graph = graph,
+                aboutPlatform = aboutPlatform,
+            )
         }
     }
 }

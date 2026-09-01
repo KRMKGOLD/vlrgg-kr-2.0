@@ -1,9 +1,10 @@
 # About 기능 기획
 
-## 구현 상태 (2026-08-03)
+## 구현 상태 (2026-08-31)
 
 - **Backend: 해당 없음.** About은 정적 앱 정보와 외부 Source Code 링크만 사용하며 별도 API/scraping이 없다.
-- **App: 미구현.** About root UI, external-link recovery, Search/Bottom Navigation 연결은 아직 구현되지 않았다.
+- **App: A1 구현 및 자동 검증 완료.** About은 다섯 번째 root destination으로 렌더링되고, Android/iOS runtime owner가 실제 build metadata와 external-open/copy 경계를 제공한다. Android host test, iOS simulator test, Android Debug build, iOS simulator Xcode build를 통과했다.
+- **실기기 검증은 미완료.** Android/iOS의 실제 external-open, clipboard, screen reader 동작은 이 문서의 자동 검증 완료 범위에 포함하지 않는다.
 
 ## 목적과 사용자 가치
 
@@ -83,6 +84,10 @@ About은 앱의 목적과 현재 버전, 코드 공개 위치, 테마 지원 범
 | Version unavailable | 버전 조회가 실패하면 해당 값만 안전한 unavailable copy로 대체하며 전체 화면 오류로 만들지 않는다. |
 | Static availability | About은 원격 조회가 없으므로 독립 Loading/Empty/Stale screen을 만들지 않는다. platform 버전 정보 준비가 비동기라면 해당 값만 안정적인 placeholder로 표시한다. |
 
+## Stitch 오류 상태 적용 판정
+
+`About Source Link Error` Stitch 시안은 inverse-surface Snackbar와 compact geometry를 기준으로 사용했다. 다만 시안의 `재시도` action은 GitHub #47, RALPLAN A1, 이 문서의 recovery 계약과 충돌하므로, 동작과 label은 `링크 복사`를 우선 적용했다. canonical Stitch 원본은 수정하지 않는다.
+
 ## 사용자 인터랙션
 
 - Source Code를 누르면 외부 브라우저 또는 설치된 대응 앱으로 repository를 연다.
@@ -113,15 +118,15 @@ About은 앱의 목적과 현재 버전, 코드 공개 위치, 테마 지원 범
 
 ## 테스트 가능한 수용 기준
 
-- [ ] About은 Bottom Navigation의 다섯 번째 root destination이다.
-- [ ] 앱 소개, 실제 build version, Source Code, Theme, attribution 영역을 표시한다.
-- [ ] Source Code 액션은 `https://github.com/KRMKGOLD/vlrgg-kr-2.0`을 외부 앱으로 연다.
-- [ ] About은 Feedback 액션을 표시하지 않는다.
-- [ ] 외부 이동을 처리할 앱이 없거나 실행이 실패해도 모든 콘텐츠를 유지하고 Snackbar와 `링크 복사` recovery를 표시한다.
-- [ ] Theme 영역은 Light만 현재 지원됨을 표시하고 Dark Mode가 MVP에 포함된 것처럼 동작하지 않는다.
-- [ ] VLR.GG 데이터 출처와 비공식·개인 프로젝트 문맥을 명확히 표시한다.
-- [ ] About은 별도 server API를 호출하지 않는다.
-- [ ] Top App Bar에서 Search를 열고 Back하면 About으로 복귀한다.
+- [x] About은 Bottom Navigation의 다섯 번째 root destination이다.
+- [x] 앱 소개, 실제 build version, Source Code, Theme, attribution 영역을 표시한다.
+- [ ] Source Code 액션은 `https://github.com/KRMKGOLD/vlrgg-kr-2.0`을 외부 앱으로 연다. (실기기 external-open 검증 필요)
+- [x] About은 Feedback 액션을 표시하지 않는다.
+- [x] 외부 이동을 처리할 앱이 없거나 실행이 실패해도 모든 콘텐츠를 유지하고 Snackbar와 `링크 복사` recovery를 표시한다.
+- [x] Theme 영역은 Light만 현재 지원됨을 표시하고 Dark Mode가 MVP에 포함된 것처럼 동작하지 않는다.
+- [x] VLR.GG 데이터 출처와 비공식·개인 프로젝트 문맥을 명확히 표시한다.
+- [x] About은 별도 server API를 호출하지 않는다.
+- [x] Top App Bar에서 Search를 열고 Back하면 About으로 복귀한다.
 - [ ] screen reader가 외부 링크의 목적과 외부 이동임을 식별할 수 있다.
 
 ## 후속 배포 검토
