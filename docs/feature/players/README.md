@@ -1,13 +1,13 @@
 # Player 기능 기획
 
-## 구현 상태 (2026-08-30)
+## 구현 상태 (2026-09-01)
 
 - **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 전체 기간 Player 정보, `currentTeam.imageUrl`을 포함한 현재 팀, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
 - **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있으며 `currentTeam.imageUrl`을 서버 Response에서 앱 Domain Model까지 전달한다.
 - **App UI P1 sections/navigation: 구현 완료.** Player Detail의 loading/content/error, Current Team·Agent Stats·Recent Matches의 독립 empty state, `currentTeam.imageUrl`을 사용하는 Current Team logo card, outlined Recent Match card, 고정 Agent identity column과 수평 스크롤 metric table, UI Agent 이름 첫 글자 대문자 표시, Agent icon 미사용, Team/Match navigation과 state restoration 회귀 테스트가 구현되어 있다. Android/iOS 실기기 screenshot 및 접근성 검증은 아직 수행하지 않았다.
 - **Favorite #43 Player Detail: 구현 완료.** 기기 로컬 즐겨찾기 상태를 복원하고, star의 등록·해제를 optimistic하게 처리한다. 실패하면 Add는 OFF, Remove는 ON으로 되돌린 뒤 actionable Retry Snackbar를 표시하며 mutation 중에도 화면 전체를 막지 않는다. 이 동작은 notification permission이나 서버 notification subscription을 만들거나 변경하지 않는다.
-- **#44 MyPage: 예정.** Team/Player 로컬 persistence 기반만 준비되었으며, MyPage 즐겨찾기 집계·목록·Detail navigation·제거 UI는 아직 구현하지 않았다.
-- **자동화 검증: 완료.** #43 Detail favorite 동작은 Compose UI 및 iOS simulator 자동화 검증을 통과했다. Android/iOS 실기기 screenshot 및 접근성 검증은 이 범위에서 수행하지 않았다.
+- **#44 MyPage: 구현 완료.** 로컬 Team/Player favorite를 독립 섹션에 저장 순서대로 표시하고, Player Detail navigation과 optimistic 제거·실패 rollback·Retry를 제공한다.
+- **자동화 검증: 완료.** #43 Detail favorite와 #44 MyPage Player 목록·navigation·제거 상태는 common 및 iOS Compose 자동화 검증을 통과했다. Android/iOS 실기기 screenshot 및 pixel-perfect golden 비교는 수행하지 않았다.
 - **이미지 계약 경계.** `currentTeam.imageUrl`은 서버→앱 계약에 포함되며, 값이 있으면 Current Team logo card에 사용하고 `null`이면 안정적인 text placeholder를 표시한다. Player face와 Agent icon URL은 계속 지원하지 않으므로 P1은 Player face placeholder와 text-only Agent identity를 사용하며 Agent icon은 표시하지 않는다. Issue #68은 Team logo·roster image 서버 계약, Issue #70은 해당 Team 이미지의 앱 적용만 다루며, 두 이슈 모두 이 문서에서 완료로 표시하지 않는다.
 
 ## 목적과 사용자 가치
@@ -97,7 +97,7 @@ Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표
 ## 사용자 인터랙션
 
 - 즐겨찾기 토글을 누르면 해당 Player를 로컬 즐겨찾기에 추가하거나 제거한다.
-- 즐겨찾기 변경은 Detail star에 즉시 optimistic하게 반영하며 mutation 중에도 화면 전체 action을 막지 않는다. MyPage 즐겨찾기 UI는 #44 범위다.
+- 즐겨찾기 변경은 Detail star에 즉시 optimistic하게 반영하며 mutation 중에도 화면 전체 action을 막지 않는다. #44 MyPage 즐겨찾기 UI도 구현 완료되었다.
 - 즐겨찾기 Add 실패는 star를 OFF로 되돌리고 Retry Snackbar를, Remove 실패는 star를 ON으로 유지하고 Retry Snackbar를 표시한다.
 - 즐겨찾기 등록은 notification permission을 요구하거나 서버 알림 구독을 만들지 않는다.
 - Current Team을 누르면 Team Detail로 이동한다.
@@ -109,7 +109,7 @@ Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표
 ### 앱
 
 - 서버 Response를 app remote DTO로 역직렬화하고 Domain Model로 매핑한다.
-- Player 즐겨찾기를 기기 로컬 persistence에 저장하고 Detail에서 복원한다. MyPage의 즐겨찾기 집계·목록·navigation·제거 UI는 #44 범위다.
+- Player 즐겨찾기를 기기 로컬 persistence에 저장하고 Detail에서 복원한다. #44 MyPage는 이 저장소를 관찰해 Player 목록·Detail navigation·제거 UI를 제공한다.
 - Stats의 화면 상태와 navigation callback을 관리한다.
 - Player 즐겨찾기와 notification 상태를 연결하지 않는다.
 
@@ -191,6 +191,6 @@ https://www.vlr.gg/player/488/rb/?timespan=all
 - [x] #43: Player favorite Remove 실패는 star ON을 유지하고 actionable Retry Snackbar를 표시한다.
 - [x] #43: Player favorite mutation은 전체 화면을 block하지 않는다.
 - [x] #43: Player 즐겨찾기 등록·해제는 notification permission이나 서버 notification subscription을 만들거나 변경하지 않는다.
-- [ ] #44: Player 즐겨찾기는 MyPage의 Player 그룹에 집계되고, 항목 Detail navigation과 제거 UI를 제공한다.
+- [x] #44: Player 즐겨찾기는 MyPage의 Player 그룹에 저장 순서대로 집계되고, 항목 Detail navigation과 제거·실패 Retry UI를 제공한다.
 - [x] 현재 팀, Stats 또는 최근 경기가 없어도 나머지 Player 정보는 정상 표시된다.
 - [ ] loading, empty section, error dialog, stale 상태가 유효 콘텐츠와 시각적으로 구분되고 generic Partial screen은 없다.
