@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.vectorResource
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.EventsScreen
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutPlatform
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MatchesScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailScreen
@@ -47,6 +49,7 @@ fun NavigationContent(
     onSearch: () -> Unit,
     onPush: (AppNavKey) -> Unit,
     onBack: () -> Unit,
+    aboutPlatform: AboutPlatform = UnavailableAboutPlatform,
     modifier: Modifier = Modifier,
 ) {
     when (destination) {
@@ -80,14 +83,11 @@ fun NavigationContent(
             modifier = modifier.fillMaxSize(),
         )
 
-        AboutRoot,
-            -> RootContent(
-            destination = destination,
+        AboutRoot -> AboutScreen(
+            platform = aboutPlatform,
             onSearch = onSearch,
             modifier = modifier,
-        ) {
-            DestinationMarker(destination)
-        }
+        )
 
         Search -> SearchScreen(
             onBack = onBack,
@@ -146,6 +146,14 @@ fun NavigationContent(
             modifier = modifier.fillMaxSize(),
         )
     }
+}
+
+private object UnavailableAboutPlatform : AboutPlatform {
+    override val buildVersion: String? = null
+
+    override fun openUrl(url: String, onResult: (Boolean) -> Unit) = onResult(false)
+
+    override fun copyText(text: String): Boolean = false
 }
 
 internal fun destinationForSearchResult(result: SearchResult): AppNavKey = when (result) {
