@@ -237,6 +237,68 @@ class MyPageViewModelTest {
     }
 
     @Test
+    fun successfulTeamRemovalStaysHiddenUntilObservationAcknowledgesIt() = runViewModelTest {
+        val repository = FakeFavoriteRepository()
+        val viewModel = MyPageViewModel(repository)
+        val beforeRemoval = listOf(team("target"), team("remaining"))
+        val afterRemoval = listOf(team("remaining"))
+        repository.emitTeams(AppResult.Success(beforeRemoval))
+        repository.emitPlayers(AppResult.Success(emptyList()))
+        runCurrent()
+
+        viewModel.removeFavoriteTeam("target")
+        runCurrent()
+        repository.emitTeams(AppResult.Success(beforeRemoval))
+        runCurrent()
+
+        assertEquals(
+            FavoriteSectionState.Content(afterRemoval),
+            viewModel.uiState.value.favoriteTeams,
+        )
+
+        repository.emitTeams(AppResult.Success(afterRemoval))
+        runCurrent()
+        repository.emitTeams(AppResult.Success(beforeRemoval))
+        runCurrent()
+
+        assertEquals(
+            FavoriteSectionState.Content(beforeRemoval),
+            viewModel.uiState.value.favoriteTeams,
+        )
+    }
+
+    @Test
+    fun successfulPlayerRemovalStaysHiddenUntilObservationAcknowledgesIt() = runViewModelTest {
+        val repository = FakeFavoriteRepository()
+        val viewModel = MyPageViewModel(repository)
+        val beforeRemoval = listOf(player("target"), player("remaining"))
+        val afterRemoval = listOf(player("remaining"))
+        repository.emitTeams(AppResult.Success(emptyList()))
+        repository.emitPlayers(AppResult.Success(beforeRemoval))
+        runCurrent()
+
+        viewModel.removeFavoritePlayer("target")
+        runCurrent()
+        repository.emitPlayers(AppResult.Success(beforeRemoval))
+        runCurrent()
+
+        assertEquals(
+            FavoriteSectionState.Content(afterRemoval),
+            viewModel.uiState.value.favoritePlayers,
+        )
+
+        repository.emitPlayers(AppResult.Success(afterRemoval))
+        runCurrent()
+        repository.emitPlayers(AppResult.Success(beforeRemoval))
+        runCurrent()
+
+        assertEquals(
+            FavoriteSectionState.Content(beforeRemoval),
+            viewModel.uiState.value.favoritePlayers,
+        )
+    }
+
+    @Test
     fun removalFailureAfterObservationFailureRestoresTheWholeSectionInStoredOrder() = runViewModelTest {
         val removalResult = CompletableDeferred<AppResult<Unit>>()
         val repository = FakeFavoriteRepository(teamRemoveResult = removalResult)
