@@ -118,7 +118,7 @@ MyPage 자체에는 upstream VLR.GG URL이 없다.
 
 ## 검증과 한계
 
-- common ViewModel 테스트는 독립 관찰, generation 교체, cancellation, 저장 순서, optimistic 제거, 실패 rollback race를 검증한다.
+- common ViewModel 테스트는 독립 관찰, 양쪽 generation을 먼저 교체하는 full Retry, cancellation, 저장 순서, optimistic 제거, 최신 관찰 snapshot 기준 실패 rollback race를 검증한다.
 - iOS Compose 테스트는 loading, empty, populated, section/full error, removal error, 섹션 순서, navigation round trip을 검증한다.
 - 360dp virtual display에서 16dp inset, 56dp Top App Bar, 48dp minimum target, 긴 Team/Player/한국어 문자열의 안전한 layout을 검증한다.
 - 현재 저장소에는 golden image 또는 real-device screenshot 비교 infrastructure가 없다. 따라서 자동화 결과는 Compose semantics/geometry 증거이며 pixel-perfect 또는 실기기 시각 검증으로 주장하지 않는다.
@@ -134,7 +134,7 @@ MyPage 자체에는 upstream VLR.GG URL이 없다.
 - [x] section Retry와 full Retry는 stale generation emission을 무시한다.
 - [x] 즐겨찾기 제거는 대상 행만 optimistic하게 숨긴다.
 - [x] 제거 실패는 대상과 sibling의 저장 순서를 복원하고 Retry Snackbar를 제공한다.
-- [x] 관찰 실패와 제거 실패가 겹치는 race에서도 제거 전 전체 섹션을 복원한다.
+- [x] 제거 중 최신 관찰 snapshot이 바뀌거나 관찰 실패가 이어져도 최신 성공 snapshot의 항목과 순서를 기준으로 rollback하며, 이미 사라진 대상은 되살리지 않는다.
 - [x] Search, Team/Player Detail, 다른 root 왕복 후 MyPage scroll과 entry state를 보존한다.
 - [x] 360dp compact width에서 16dp inset, 56dp Top App Bar, 48dp minimum target을 유지한다.
 - [x] 현재 MyPage에는 Team/Player favorite 이외의 개인화 섹션이 없다.
