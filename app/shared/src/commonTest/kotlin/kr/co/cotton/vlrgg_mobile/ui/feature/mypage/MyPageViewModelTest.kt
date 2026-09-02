@@ -304,7 +304,12 @@ class MyPageViewModelTest {
         runCurrent()
         val latestSnapshot = listOf(team("last"))
         repository.emitTeams(AppResult.Success(latestSnapshot))
+        repository.emitTeams(AppResult.Failure)
         runCurrent()
+        assertEquals(FavoriteSectionState.Error, viewModel.uiState.value.favoriteTeams)
+
+        viewModel.retryFavoriteTeams()
+        assertEquals(FavoriteSectionState.Loading, viewModel.uiState.value.favoriteTeams)
 
         removalResult.complete(AppResult.Failure)
         runCurrent()
