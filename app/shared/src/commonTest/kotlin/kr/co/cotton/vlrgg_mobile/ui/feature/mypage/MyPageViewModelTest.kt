@@ -237,27 +237,26 @@ class MyPageViewModelTest {
     }
 
     @Test
-    fun successfulTeamRemovalStaysHiddenUntilObservationAcknowledgesIt() = runViewModelTest {
+    fun firstTeamSnapshotAfterSuccessfulRemovalCanReAddTheSameId() = runViewModelTest {
         val repository = FakeFavoriteRepository()
         val viewModel = MyPageViewModel(repository)
         val beforeRemoval = listOf(team("target"), team("remaining"))
-        val afterRemoval = listOf(team("remaining"))
         repository.emitTeams(AppResult.Success(beforeRemoval))
         repository.emitPlayers(AppResult.Success(emptyList()))
         runCurrent()
+        repository.beforeTeamRemoveReturns = {
+            repository.emitTeams(AppResult.Success(beforeRemoval), subscription = 0)
+        }
 
         viewModel.removeFavoriteTeam("target")
         runCurrent()
-        repository.emitTeams(AppResult.Success(beforeRemoval))
-        runCurrent()
-
+        assertEquals(2, repository.teamSubscriptions.size)
+        assertEquals(1, repository.playerSubscriptions.size)
         assertEquals(
-            FavoriteSectionState.Content(afterRemoval),
+            FavoriteSectionState.Content(listOf(team("remaining"))),
             viewModel.uiState.value.favoriteTeams,
         )
 
-        repository.emitTeams(AppResult.Success(afterRemoval))
-        runCurrent()
         repository.emitTeams(AppResult.Success(beforeRemoval))
         runCurrent()
 
@@ -268,27 +267,26 @@ class MyPageViewModelTest {
     }
 
     @Test
-    fun successfulPlayerRemovalStaysHiddenUntilObservationAcknowledgesIt() = runViewModelTest {
+    fun firstPlayerSnapshotAfterSuccessfulRemovalCanReAddTheSameId() = runViewModelTest {
         val repository = FakeFavoriteRepository()
         val viewModel = MyPageViewModel(repository)
         val beforeRemoval = listOf(player("target"), player("remaining"))
-        val afterRemoval = listOf(player("remaining"))
         repository.emitTeams(AppResult.Success(emptyList()))
         repository.emitPlayers(AppResult.Success(beforeRemoval))
         runCurrent()
+        repository.beforePlayerRemoveReturns = {
+            repository.emitPlayers(AppResult.Success(beforeRemoval), subscription = 0)
+        }
 
         viewModel.removeFavoritePlayer("target")
         runCurrent()
-        repository.emitPlayers(AppResult.Success(beforeRemoval))
-        runCurrent()
-
+        assertEquals(2, repository.playerSubscriptions.size)
+        assertEquals(1, repository.teamSubscriptions.size)
         assertEquals(
-            FavoriteSectionState.Content(afterRemoval),
+            FavoriteSectionState.Content(listOf(player("remaining"))),
             viewModel.uiState.value.favoritePlayers,
         )
 
-        repository.emitPlayers(AppResult.Success(afterRemoval))
-        runCurrent()
         repository.emitPlayers(AppResult.Success(beforeRemoval))
         runCurrent()
 
@@ -447,6 +445,8 @@ class MyPageViewModelTest {
         val playerSubscriptions = mutableListOf<Channel<AppResult<List<FavoritePlayer>>>>()
         val removedTeamIds = mutableListOf<String>()
         val removedPlayerIds = mutableListOf<String>()
+        var beforeTeamRemoveReturns: suspend () -> Unit = {}
+        var beforePlayerRemoveReturns: suspend () -> Unit = {}
         private val teamRemoveResults = ArrayDeque(teamRemoveResults)
         private val playerRemoveResults = ArrayDeque(playerRemoveResults)
 
@@ -471,12 +471,16 @@ class MyPageViewModelTest {
         override suspend fun removeFavoriteTeam(teamId: String): AppResult<Unit> {
             removedTeamIds += teamId
             teamRemoveResult?.let { return it.await() }
-            return if (teamRemoveResults.isEmpty()) AppResult.Success(Unit) else teamRemoveResults.removeFirst()
+            val result = if (teamRemoveResults.isEmpty()) AppResult.Success(Unit) else teamRemoveResults.removeFirst()
+            beforeTeamRemoveReturns()
+            return result
         }
 
         override suspend fun removeFavoritePlayer(playerId: String): AppResult<Unit> {
             removedPlayerIds += playerId
-            return if (playerRemoveResults.isEmpty()) AppResult.Success(Unit) else playerRemoveResults.removeFirst()
+            val result = if (playerRemoveResults.isEmpty()) AppResult.Success(Unit) else playerRemoveResults.removeFirst()
+            beforePlayerRemoveReturns()
+            return result
         }
 
         suspend fun emitTeams(

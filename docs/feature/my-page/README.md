@@ -94,7 +94,7 @@ Team과 Player 관찰은 독립적으로 시작하고 갱신한다.
 ### 즐겨찾기 해제
 
 - 제거 요청 직후 대상 행을 optimistic하게 숨긴다.
-- mutation 성공 시 숨긴 상태를 확정하고 repository Flow의 다음 snapshot을 계속 관찰한다.
+- mutation 성공 시 현재 숨김 상태를 유지한 채 해당 favorite 종류의 관찰 generation만 교체한다. 이전 generation의 queued snapshot은 폐기하고, 새 generation의 첫 snapshot을 authoritative state로 적용한다. 같은 ID가 다시 포함되어 있으면 새 즐겨찾기로 간주해 즉시 표시한다.
 - mutation 실패 시 최신 성공 repository snapshot을 저장 순서 그대로 표시한다. 대상이 그 snapshot에 남아 있을 때만 `재시도` Snackbar를 제공하며, 이미 사라진 대상은 되살리지 않는다.
 - optimistic 제거 중 같은 섹션이 Error 또는 Loading으로 바뀌어도 최신 성공 snapshot을 유지해 rollback에 사용한다. 이 rollback은 다른 종류의 favorite state를 변경하지 않는다.
 - 동시에 하나의 제거 mutation만 실행하며 중복 제거/재시도 입력은 무시한다.
