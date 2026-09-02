@@ -78,7 +78,7 @@ Team과 Player 관찰은 독립적으로 시작하고 갱신한다.
 | Empty | 해당 종류의 즐겨찾기가 없다는 section message를 표시한다. |
 | Section Error | 성공한 다른 섹션을 유지하고 실패한 섹션에만 Retry를 제공한다. |
 | Initial Full Error | 두 섹션 모두 첫 성공 snapshot 없이 실패한 경우 content 영역 전체에 Retry를 제공한다. Bottom Navigation은 유지한다. |
-| Favorite Removal In Progress | 제거할 항목만 optimistic하게 숨기고 해당 mutation target을 loading/disabled 처리한다. 다른 섹션과 화면 action은 유지한다. |
+| Favorite Removal In Progress | 제거할 항목만 optimistic하게 숨긴다. 다른 섹션과 화면 action은 유지한다. |
 | Favorite Removal Error | 최신 성공 repository snapshot을 저장 순서 그대로 표시하고, 제거 대상이 그 snapshot에 남아 있을 때만 Retry Snackbar를 표시한다. |
 
 한 섹션이 한 번이라도 성공 snapshot을 받은 뒤 발생한 관찰 실패는 full error로 승격하지 않는다. 전체 Retry는 두 관찰 generation을 함께 교체하고, section Retry는 실패한 종류의 generation만 교체한다. 취소된 이전 generation의 emission은 현재 state에 반영하지 않는다.

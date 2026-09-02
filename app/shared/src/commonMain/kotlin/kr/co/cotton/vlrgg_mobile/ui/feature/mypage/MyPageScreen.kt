@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -132,7 +133,7 @@ internal fun MyPageContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .testTag(MY_PAGE_LIST_TAG),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    contentPadding = PaddingValues(
                         horizontal = VlrDimensions.Space4,
                         vertical = VlrDimensions.Space6,
                     ),
@@ -174,7 +175,6 @@ internal fun MyPageContent(
                             SectionCard {
                                 FavoriteTeamRow(
                                     favorite = favorite,
-                                    isRemoving = uiState.removingFavorite == FavoriteRemovalTarget.Team(favorite.id),
                                     onClick = onTeamClick,
                                     onRemove = onRemoveTeam,
                                 )
@@ -220,7 +220,6 @@ internal fun MyPageContent(
                             SectionCard {
                                 FavoritePlayerRow(
                                     favorite = favorite,
-                                    isRemoving = uiState.removingFavorite == FavoriteRemovalTarget.Player(favorite.id),
                                     onClick = onPlayerClick,
                                     onRemove = onRemovePlayer,
                                 )
@@ -315,7 +314,6 @@ private fun SectionLoading(description: String) {
 @Composable
 private fun FavoriteTeamRow(
     favorite: FavoriteTeam,
-    isRemoving: Boolean,
     onClick: (String) -> Unit,
     onRemove: (String) -> Unit,
 ) {
@@ -325,7 +323,6 @@ private fun FavoriteTeamRow(
         subtitle = listOfNotNull(favorite.tag, favorite.country).joinToString(" · ").ifBlank { null },
         rowDescription = "팀 상세: ${favorite.name}",
         removalDescription = "${favorite.name} 즐겨찾기 해제",
-        isRemoving = isRemoving,
         onClick = onClick,
         onRemove = onRemove,
         modifier = Modifier.testTag(myPageTeamRowTag(favorite.id)),
@@ -335,7 +332,6 @@ private fun FavoriteTeamRow(
 @Composable
 private fun FavoritePlayerRow(
     favorite: FavoritePlayer,
-    isRemoving: Boolean,
     onClick: (String) -> Unit,
     onRemove: (String) -> Unit,
 ) {
@@ -345,7 +341,6 @@ private fun FavoritePlayerRow(
         subtitle = listOfNotNull(favorite.realName, favorite.countryName).joinToString(" · ").ifBlank { null },
         rowDescription = "선수 상세: ${favorite.handle}",
         removalDescription = "${favorite.handle} 즐겨찾기 해제",
-        isRemoving = isRemoving,
         onClick = onClick,
         onRemove = onRemove,
         modifier = Modifier.testTag(myPagePlayerRowTag(favorite.id)),
@@ -359,7 +354,6 @@ private fun FavoriteRow(
     subtitle: String?,
     rowDescription: String,
     removalDescription: String,
-    isRemoving: Boolean,
     onClick: (String) -> Unit,
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -407,8 +401,6 @@ private fun FavoriteRow(
         VlrIconButton(
             contentDescription = removalDescription,
             onClick = removeFavorite,
-            enabled = !isRemoving,
-            isLoading = isRemoving,
             icon = {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_star_filled),
