@@ -4,11 +4,16 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -106,6 +111,33 @@ class MyPageViewModelTest {
             viewModel.uiState.value.favoritePlayers,
         )
     }
+
+    @Test
+    fun fullRetryInvalidatesBothOldSubscriptionsBeforeStartingEitherReplacement() =
+        runImmediateViewModelTest {
+            val freshTeams = listOf(team("fresh"))
+            val freshPlayers = listOf(player("fresh"))
+            val repository = ImmediateRetryFavoriteRepository(
+                freshTeams = freshTeams,
+                freshPlayers = freshPlayers,
+            )
+            val viewModel = MyPageViewModel(repository)
+            assertTrue(viewModel.uiState.value.isFullError)
+
+            var stateWhenReplacementTeamStarted: MyPageUiState? = null
+            repository.onReplacementTeamCollection = {
+                repository.emitFromOldPlayer(AppResult.Success(listOf(player("stale"))))
+                stateWhenReplacementTeamStarted = viewModel.uiState.value
+            }
+
+            viewModel.retry()
+
+            val restartState = checkNotNull(stateWhenReplacementTeamStarted)
+            assertEquals(FavoriteSectionState.Loading, restartState.favoriteTeams)
+            assertEquals(FavoriteSectionState.Loading, restartState.favoritePlayers)
+            assertEquals(FavoriteSectionState.Content(freshTeams), viewModel.uiState.value.favoriteTeams)
+            assertEquals(FavoriteSectionState.Content(freshPlayers), viewModel.uiState.value.favoritePlayers)
+        }
 
     @Test
     fun failuresAfterAnySuccessfulSnapshotStaySectionLocal() = runViewModelTest {
@@ -236,6 +268,55 @@ class MyPageViewModelTest {
     }
 
     @Test
+    fun removalFailureUsesTheLatestRawSnapshotAndItsRepositoryOrder() = runViewModelTest {
+        val removalResult = CompletableDeferred<AppResult<Unit>>()
+        val repository = FakeFavoriteRepository(teamRemoveResult = removalResult)
+        val viewModel = MyPageViewModel(repository)
+        repository.emitTeams(AppResult.Success(listOf(team("first"), team("target"), team("last"))))
+        repository.emitPlayers(AppResult.Success(emptyList()))
+        runCurrent()
+
+        viewModel.removeFavoriteTeam("target")
+        runCurrent()
+        val latestSnapshot = listOf(team("target"), team("last"))
+        repository.emitTeams(AppResult.Success(latestSnapshot))
+        repository.emitTeams(AppResult.Failure)
+        runCurrent()
+        assertEquals(FavoriteSectionState.Error, viewModel.uiState.value.favoriteTeams)
+
+        removalResult.complete(AppResult.Failure)
+        runCurrent()
+
+        assertEquals(FavoriteSectionState.Content(latestSnapshot), viewModel.uiState.value.favoriteTeams)
+        assertEquals(FavoriteRemovalTarget.Team("target"), viewModel.uiState.value.failedRemoval)
+    }
+
+    @Test
+    fun removalFailureDoesNotResurrectATargetMissingFromTheLatestSnapshot() = runViewModelTest {
+        val removalResult = CompletableDeferred<AppResult<Unit>>()
+        val repository = FakeFavoriteRepository(teamRemoveResult = removalResult)
+        val viewModel = MyPageViewModel(repository)
+        repository.emitTeams(AppResult.Success(listOf(team("target"), team("last"))))
+        repository.emitPlayers(AppResult.Success(emptyList()))
+        runCurrent()
+
+        viewModel.removeFavoriteTeam("target")
+        runCurrent()
+        val latestSnapshot = listOf(team("last"))
+        repository.emitTeams(AppResult.Success(latestSnapshot))
+        runCurrent()
+
+        removalResult.complete(AppResult.Failure)
+        runCurrent()
+
+        assertEquals(FavoriteSectionState.Content(latestSnapshot), viewModel.uiState.value.favoriteTeams)
+        assertNull(viewModel.uiState.value.failedRemoval)
+        viewModel.retryFavoriteRemoval()
+        runCurrent()
+        assertEquals(listOf("target"), repository.removedTeamIds)
+    }
+
+    @Test
     fun playerRemovalCallsOnlyThePlayerRepositoryMethodAndCancellationIsNotError() = runViewModelTest {
         val repository = FakeFavoriteRepository()
         val viewModel = MyPageViewModel(repository)
@@ -259,6 +340,15 @@ class MyPageViewModelTest {
 
     private fun runViewModelTest(testBody: suspend TestScope.() -> Unit) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            testBody()
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    private fun runImmediateViewModelTest(testBody: suspend TestScope.() -> Unit) = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         try {
             testBody()
         } finally {
@@ -338,6 +428,62 @@ class MyPageViewModelTest {
 
         fun cancelTeamObservation(cancellation: CancellationException) {
             teamSubscriptions.last().close(cancellation)
+        }
+    }
+
+    private class ImmediateRetryFavoriteRepository(
+        private val freshTeams: List<FavoriteTeam>,
+        private val freshPlayers: List<FavoritePlayer>,
+    ) : FavoriteRepository {
+        private val oldPlayerResults = MutableSharedFlow<AppResult<List<FavoritePlayer>>>(
+            extraBufferCapacity = 1,
+        )
+        private var teamObservationCount = 0
+        private var playerObservationCount = 0
+
+        var onReplacementTeamCollection: (() -> Unit)? = null
+
+        override fun observeFavoriteTeams(): Flow<AppResult<List<FavoriteTeam>>> {
+            val observation = teamObservationCount++
+            return flow {
+                if (observation == 0) {
+                    emit(AppResult.Failure)
+                    awaitCancellation()
+                }
+
+                onReplacementTeamCollection?.invoke()
+                emit(AppResult.Success(freshTeams))
+                awaitCancellation()
+            }
+        }
+
+        override fun observeFavoritePlayers(): Flow<AppResult<List<FavoritePlayer>>> {
+            val observation = playerObservationCount++
+            return flow {
+                if (observation == 0) {
+                    emit(AppResult.Failure)
+                    oldPlayerResults.collect { emit(it) }
+                } else {
+                    emit(AppResult.Success(freshPlayers))
+                    awaitCancellation()
+                }
+            }
+        }
+
+        override suspend fun getFavoriteTeams() = error("unused")
+
+        override suspend fun getFavoritePlayers() = error("unused")
+
+        override suspend fun addFavoriteTeam(favorite: FavoriteTeam) = error("unused")
+
+        override suspend fun addFavoritePlayer(favorite: FavoritePlayer) = error("unused")
+
+        override suspend fun removeFavoriteTeam(teamId: String) = error("unused")
+
+        override suspend fun removeFavoritePlayer(playerId: String) = error("unused")
+
+        fun emitFromOldPlayer(result: AppResult<List<FavoritePlayer>>) {
+            assertTrue(oldPlayerResults.tryEmit(result))
         }
     }
 }

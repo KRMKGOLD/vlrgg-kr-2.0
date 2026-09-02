@@ -37,6 +37,8 @@ class MyPageViewModel(
     private var playerGeneration = 0L
     private var hasTeamSnapshot = false
     private var hasPlayerSnapshot = false
+    private var latestTeamFavorites: List<FavoriteTeam>? = null
+    private var latestPlayerFavorites: List<FavoritePlayer>? = null
     private var failedRemovalRequest: FavoriteRemovalRequest? = null
 
     init {
@@ -47,10 +49,21 @@ class MyPageViewModel(
     fun retry() {
         if (!_uiState.value.isFullError) return
 
+        teamObservationJob?.cancel()
+        playerObservationJob?.cancel()
+        val nextTeamGeneration = ++teamGeneration
+        val nextPlayerGeneration = ++playerGeneration
         hasTeamSnapshot = false
         hasPlayerSnapshot = false
-        startTeamObservation(showLoading = true)
-        startPlayerObservation(showLoading = true)
+        _uiState.update {
+            it.copy(
+                favoriteTeams = FavoriteSectionState.Loading,
+                favoritePlayers = FavoriteSectionState.Loading,
+                isFullError = false,
+            )
+        }
+        teamObservationJob = observeTeamFavorites(nextTeamGeneration)
+        playerObservationJob = observePlayerFavorites(nextPlayerGeneration)
     }
 
     fun retryFavoriteTeams() {
@@ -70,9 +83,7 @@ class MyPageViewModel(
 
         executeRemoval(
             FavoriteRemovalRequest.Team(
-                favorite = content.favorites[index],
-                index = index,
-                previousFavorites = content.favorites.toList(),
+                id = content.favorites[index].id,
             ),
         )
     }
@@ -84,9 +95,7 @@ class MyPageViewModel(
 
         executeRemoval(
             FavoriteRemovalRequest.Player(
-                favorite = content.favorites[index],
-                index = index,
-                previousFavorites = content.favorites.toList(),
+                id = content.favorites[index].id,
             ),
         )
     }
@@ -107,13 +116,15 @@ class MyPageViewModel(
                 )
             }
         }
-        teamObservationJob = observeFavorites(
-            generation = generation,
-            currentGeneration = { teamGeneration },
-            flow = favoriteRepository.observeFavoriteTeams(),
-            onResult = ::applyTeamResult,
-        )
+        teamObservationJob = observeTeamFavorites(generation)
     }
+
+    private fun observeTeamFavorites(generation: Long): Job = observeFavorites(
+        generation = generation,
+        currentGeneration = { teamGeneration },
+        flow = favoriteRepository.observeFavoriteTeams(),
+        onResult = ::applyTeamResult,
+    )
 
     private fun startPlayerObservation(showLoading: Boolean) {
         playerObservationJob?.cancel()
@@ -126,13 +137,15 @@ class MyPageViewModel(
                 )
             }
         }
-        playerObservationJob = observeFavorites(
-            generation = generation,
-            currentGeneration = { playerGeneration },
-            flow = favoriteRepository.observeFavoritePlayers(),
-            onResult = ::applyPlayerResult,
-        )
+        playerObservationJob = observePlayerFavorites(generation)
     }
+
+    private fun observePlayerFavorites(generation: Long): Job = observeFavorites(
+        generation = generation,
+        currentGeneration = { playerGeneration },
+        flow = favoriteRepository.observeFavoritePlayers(),
+        onResult = ::applyPlayerResult,
+    )
 
     private fun <T> observeFavorites(
         generation: Long,
@@ -155,6 +168,7 @@ class MyPageViewModel(
         when (result) {
             is AppResult.Success -> {
                 hasTeamSnapshot = true
+                latestTeamFavorites = result.data.toList()
                 clearFailedTeamRemovalIfMissing(result.data)
                 val removing = _uiState.value.removingFavorite as? FavoriteRemovalTarget.Team
                 val visibleFavorites = result.data.filterNot { it.id == removing?.id }
@@ -174,6 +188,7 @@ class MyPageViewModel(
         when (result) {
             is AppResult.Success -> {
                 hasPlayerSnapshot = true
+                latestPlayerFavorites = result.data.toList()
                 clearFailedPlayerRemovalIfMissing(result.data)
                 val removing = _uiState.value.removingFavorite as? FavoriteRemovalTarget.Player
                 val visibleFavorites = result.data.filterNot { it.id == removing?.id }
@@ -214,8 +229,8 @@ class MyPageViewModel(
         removalJob = viewModelScope.launch {
             val result = try {
                 when (request) {
-                    is FavoriteRemovalRequest.Team -> favoriteRepository.removeFavoriteTeam(request.favorite.id)
-                    is FavoriteRemovalRequest.Player -> favoriteRepository.removeFavoritePlayer(request.favorite.id)
+                    is FavoriteRemovalRequest.Team -> favoriteRepository.removeFavoriteTeam(request.id)
+                    is FavoriteRemovalRequest.Player -> favoriteRepository.removeFavoritePlayer(request.id)
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
@@ -229,12 +244,12 @@ class MyPageViewModel(
                 }
 
                 AppResult.Failure -> {
-                    restoreRemovedFavorite(request)
-                    failedRemovalRequest = request
+                    val shouldRetry = restoreLatestFavorites(request)
+                    failedRemovalRequest = request.takeIf { shouldRetry }
                     _uiState.update {
                         it.copy(
                             removingFavorite = null,
-                            failedRemoval = request.target,
+                            failedRemoval = request.target.takeIf { shouldRetry },
                         )
                     }
                 }
@@ -246,37 +261,27 @@ class MyPageViewModel(
         _uiState.update { state ->
             when (request) {
                 is FavoriteRemovalRequest.Team -> state.copy(
-                    favoriteTeams = state.favoriteTeams.withoutId(request.favorite.id) { it.id },
+                    favoriteTeams = state.favoriteTeams.withoutId(request.id) { it.id },
                 )
 
                 is FavoriteRemovalRequest.Player -> state.copy(
-                    favoritePlayers = state.favoritePlayers.withoutId(request.favorite.id) { it.id },
+                    favoritePlayers = state.favoritePlayers.withoutId(request.id) { it.id },
                 )
             }
         }
     }
 
-    private fun restoreRemovedFavorite(request: FavoriteRemovalRequest) {
-        _uiState.update { state ->
-            when (request) {
-                is FavoriteRemovalRequest.Team -> state.copy(
-                    favoriteTeams = state.favoriteTeams.restoreAt(
-                        favorite = request.favorite,
-                        index = request.index,
-                        previousFavorites = request.previousFavorites,
-                        id = { it.id },
-                    ),
-                )
+    private fun restoreLatestFavorites(request: FavoriteRemovalRequest): Boolean = when (request) {
+        is FavoriteRemovalRequest.Team -> {
+            val favorites = latestTeamFavorites ?: return false
+            _uiState.update { it.copy(favoriteTeams = favorites.toSectionState()) }
+            favorites.any { it.id == request.id }
+        }
 
-                is FavoriteRemovalRequest.Player -> state.copy(
-                    favoritePlayers = state.favoritePlayers.restoreAt(
-                        favorite = request.favorite,
-                        index = request.index,
-                        previousFavorites = request.previousFavorites,
-                        id = { it.id },
-                    ),
-                )
-            }
+        is FavoriteRemovalRequest.Player -> {
+            val favorites = latestPlayerFavorites ?: return false
+            _uiState.update { it.copy(favoritePlayers = favorites.toSectionState()) }
+            favorites.any { it.id == request.id }
         }
     }
 
@@ -300,19 +305,15 @@ class MyPageViewModel(
         val target: FavoriteRemovalTarget
 
         data class Team(
-            val favorite: FavoriteTeam,
-            val index: Int,
-            val previousFavorites: List<FavoriteTeam>,
+            val id: String,
         ) : FavoriteRemovalRequest {
-            override val target = FavoriteRemovalTarget.Team(favorite.id)
+            override val target = FavoriteRemovalTarget.Team(id)
         }
 
         data class Player(
-            val favorite: FavoritePlayer,
-            val index: Int,
-            val previousFavorites: List<FavoritePlayer>,
+            val id: String,
         ) : FavoriteRemovalRequest {
-            override val target = FavoriteRemovalTarget.Player(favorite.id)
+            override val target = FavoriteRemovalTarget.Player(id)
         }
     }
 }
@@ -326,25 +327,4 @@ private fun <T> FavoriteSectionState<T>.withoutId(
 ): FavoriteSectionState<T> {
     val favorites = (this as? FavoriteSectionState.Content)?.favorites ?: return this
     return favorites.filterNot { id(it) == removedId }.toSectionState()
-}
-
-private fun <T> FavoriteSectionState<T>.restoreAt(
-    favorite: T,
-    index: Int,
-    previousFavorites: List<T>,
-    id: (T) -> String,
-): FavoriteSectionState<T> {
-    val favorites = when (this) {
-        is FavoriteSectionState.Content -> favorites
-        FavoriteSectionState.Empty -> emptyList()
-        FavoriteSectionState.Error,
-        FavoriteSectionState.Loading,
-        -> previousFavorites
-    }
-    if (favorites.any { id(it) == id(favorite) }) return FavoriteSectionState.Content(favorites)
-
-    val restored = favorites.toMutableList().apply {
-        add(index.coerceIn(0, size), favorite)
-    }
-    return FavoriteSectionState.Content(restored)
 }
