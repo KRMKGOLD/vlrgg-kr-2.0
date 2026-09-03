@@ -57,6 +57,7 @@ internal class TeamDetailParser {
             name = header.requiredText(TEAM_NAME_SELECTOR, "Team name is missing."),
             tag = header.selectFirst(TEAM_TAG_SELECTOR)?.normalizedTextOrNull(),
             country = header.selectFirst(TEAM_COUNTRY_SELECTOR)?.normalizedTextOrNull(),
+            logoUrl = header.selectFirst(TEAM_LOGO_IMAGE_SELECTOR)?.attr("src")?.toPublicImageUrl(),
         )
     }
 
@@ -152,6 +153,7 @@ internal class TeamDetailParser {
             handle = link.requiredText(ROSTER_HANDLE_SELECTOR, "Player handle is missing."),
             realName = link.selectFirst(ROSTER_REAL_NAME_SELECTOR)?.normalizedTextOrNull(),
             roleLabels = link.select(ROSTER_ROLE_SELECTOR).mapNotNull { it.normalizedTextOrNull() },
+            imageUrl = element.selectFirst(ROSTER_IMAGE_SELECTOR)?.attr("src")?.toPublicImageUrl(),
         )
     }
 
@@ -209,6 +211,16 @@ internal class TeamDetailParser {
 
     private fun String.normalizedTextOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
 
+    // Team images are HTTPS-only: normalize protocol/root-relative sources and discard all other schemes or paths.
+    private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
+        when {
+            source.startsWith("//") -> "https:$source"
+            source.startsWith("https://") -> source
+            source.startsWith("/") -> "https://www.vlr.gg$source"
+            else -> null
+        }
+    }
+
     private fun String.matchedId(pattern: Regex): String? = pattern.matchEntire(this)?.groups?.get(1)?.value
 
     private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
@@ -236,6 +248,7 @@ internal class TeamDetailParser {
         const val TEAM_NAME_SELECTOR = ".team-header-name h1.wf-title"
         const val TEAM_TAG_SELECTOR = ".team-header-tag"
         const val TEAM_COUNTRY_SELECTOR = ".team-header-country"
+        const val TEAM_LOGO_IMAGE_SELECTOR = ".team-header-logo img[src]"
         const val SECTION_HEADING_SELECTOR = "h2.wf-label.mod-large"
         const val UPCOMING_MATCHES_HEADING = "Upcoming matches"
         const val RECENT_RESULTS_HEADING = "Recent Results"
@@ -251,6 +264,7 @@ internal class TeamDetailParser {
         const val ROSTER_HANDLE_SELECTOR = ".team-roster-item-name-alias"
         const val ROSTER_REAL_NAME_SELECTOR = ".team-roster-item-name-real"
         const val ROSTER_ROLE_SELECTOR = ".team-roster-item-name-role"
+        const val ROSTER_IMAGE_SELECTOR = ".team-roster-item-img img[src]"
         const val TEAM_NEWS_CONTAINER_CLASS = "wf-card"
         const val NEWS_ITEM_CLASS = "wf-module-item"
         const val NEWS_DATE_CLASS = "ge-text-light"

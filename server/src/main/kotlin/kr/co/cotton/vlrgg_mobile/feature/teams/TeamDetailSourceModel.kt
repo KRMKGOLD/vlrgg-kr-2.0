@@ -25,6 +25,7 @@ internal data class TeamProfileSource(
     val name: String,
     val tag: String?,
     val country: String?,
+    val logoUrl: String? = null,
 )
 
 internal data class TeamMatchSource(
@@ -42,6 +43,7 @@ internal data class TeamRosterMemberSource(
     val handle: String,
     val realName: String?,
     val roleLabels: List<String>,
+    val imageUrl: String? = null,
 )
 
 internal data class TeamNewsSource(

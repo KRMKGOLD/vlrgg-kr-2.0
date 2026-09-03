@@ -11,12 +11,17 @@ class TeamDetailParserTest {
     fun `parser reads live wrapped Team news and excludes contaminated links`() {
         val source = parser.parse(activeContent())
 
-        assertEquals(TeamProfileSource("KIWOOM DRX", "KRX", "South Korea"), source.profile)
+        assertEquals(
+            TeamProfileSource("KIWOOM DRX", "KRX", "South Korea", "https://owcdn.net/img/kiwoom-drx.png"),
+            source.profile,
+        )
         assertEquals(listOf("698887"), source.upcomingMatches.map(TeamMatchSource::id))
         assertEquals("VCT 26: PAC Stage 2", source.upcomingMatches.single().eventName)
         assertEquals(listOf("675209"), source.recentMatches.map(TeamMatchSource::id))
         assertEquals(listOf("4462"), source.players.map(TeamRosterMemberSource::id))
         assertEquals(listOf("775"), source.staff.map(TeamRosterMemberSource::id))
+        assertEquals("https://owcdn.net/img/players/mako.png", source.players.single().imageUrl)
+        assertEquals("https://www.vlr.gg/img/base/ph/sil.png", source.staff.single().imageUrl)
         assertEquals(
             listOf("700755/kiwoom-drx-releases-rookie-hermes", "672565/rrq-and-krx-eliminate-dfm"),
             source.news.map { it.reference.value },
@@ -120,12 +125,49 @@ class TeamDetailParserTest {
     fun `parser accepts sparse team and missing news section as empty optional content`() {
         val source = parser.parse(sparseContent())
 
-        assertEquals(TeamProfileSource("One-Off Team", null, null), source.profile)
+        assertEquals(TeamProfileSource("One-Off Team", null, null, null), source.profile)
+        assertNull(source.profile.logoUrl)
         assertTrue(source.upcomingMatches.isEmpty())
         assertTrue(source.recentMatches.isEmpty())
         assertTrue(source.players.isEmpty())
         assertTrue(source.staff.isEmpty())
         assertTrue(source.news.isEmpty())
+    }
+
+    @Test
+    fun `parser ignores missing or unsupported Team image URLs without failing`() {
+        listOf("", "http://cdn.example/image.png", "data:image/png;base64,abc", "javascript:alert(1)", "images/image.png")
+            .forEach { unsupportedUrl ->
+                val source = parser.parse(activeContent().copy(
+                    overviewHtml = fixture("active-team-overview.html")
+                        .replace("//owcdn.net/img/kiwoom-drx.png", unsupportedUrl)
+                        .replace("//owcdn.net/img/players/mako.png", unsupportedUrl)
+                        .replace("/img/base/ph/sil.png", unsupportedUrl),
+                ))
+
+                assertNull(source.profile.logoUrl)
+                assertNull(source.players.single().imageUrl)
+                assertNull(source.staff.single().imageUrl)
+            }
+    }
+
+    @Test
+    fun `parser scopes optional Team images to their Team header and roster item`() {
+        val source = parser.parse(activeContent().copy(
+            overviewHtml = fixture("active-team-overview.html")
+                .replace("<div class=\"team-header-logo\"><img src=\"//owcdn.net/img/kiwoom-drx.png\"></div>", "")
+                .replace(
+                    "<div class=\"team-summary-container\">",
+                    """<div class="team-header-logo"><img src="https://unrelated.example/logo.png"></div>
+<div class="team-roster-item-img"><img src="https://unrelated.example/member.png"></div>
+<div class="team-summary-container">""",
+                )
+                .replace("//owcdn.net/img/players/mako.png", ""),
+        ))
+
+        assertNull(source.profile.logoUrl)
+        assertNull(source.players.single().imageUrl)
+        assertEquals("https://www.vlr.gg/img/base/ph/sil.png", source.staff.single().imageUrl)
     }
 
     @Test

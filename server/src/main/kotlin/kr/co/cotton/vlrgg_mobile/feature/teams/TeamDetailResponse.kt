@@ -9,6 +9,7 @@ internal data class TeamDetailResponse(
     val name: String,
     val tag: String?,
     val country: String?,
+    val logoUrl: String? = null,
     val upcomingMatches: List<TeamMatchResponse>,
     val recentMatches: List<TeamMatchResponse>,
     val players: List<TeamRosterMemberResponse>,
@@ -33,6 +34,7 @@ internal data class TeamRosterMemberResponse(
     val handle: String,
     val realName: String?,
     val roleLabels: List<String>,
+    val imageUrl: String? = null,
 )
 
 @Serializable

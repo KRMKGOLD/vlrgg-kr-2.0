@@ -17,11 +17,11 @@ class TeamDetailMapperServiceTest {
         val response = TeamDetailMapper().map(
             TeamId.fromPath("9999999999"),
             TeamDetailSource(
-                profile = TeamProfileSource("Example", null, null),
+                profile = TeamProfileSource("Example", null, null, "https://cdn.example/logo.png"),
                 upcomingMatches = listOf(TeamMatchSource("123", null, null, "Example", "Opponent", null, null)),
                 recentMatches = emptyList(),
-                players = listOf(TeamRosterMemberSource("456", "player", null, emptyList())),
-                staff = emptyList(),
+                players = listOf(TeamRosterMemberSource("456", "player", null, emptyList(), "https://cdn.example/player.png")),
+                staff = listOf(TeamRosterMemberSource("457", "staff", null, emptyList())),
                 news = listOf(TeamNewsSource(NewsReference.fromPath("789", "article")!!, "Article", null)),
             ),
         )
@@ -29,9 +29,12 @@ class TeamDetailMapperServiceTest {
         assertEquals("9999999999", response.id)
         assertEquals("123", response.upcomingMatches.single().id)
         assertEquals("456", response.players.single().id)
+        assertEquals("https://cdn.example/logo.png", response.logoUrl)
+        assertEquals("https://cdn.example/player.png", response.players.single().imageUrl)
         assertEquals("789/article", response.news.single().reference)
         assertNull(response.tag)
         assertNull(response.upcomingMatches.single().eventName)
+        assertNull(response.staff.single().imageUrl)
     }
 
     @Test
