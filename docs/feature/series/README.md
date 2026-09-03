@@ -6,7 +6,7 @@ Series Detail은 같은 대회 체계에 속한 Event를 예정·완료 기준�
 
 이 문서는 제품 동작을 정의한다. 시각 언어와 공통 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
-## 구현 상태 (2026-08-29)
+## 구현 상태 (2026-09-03)
 
 - **Backend: 구현 완료.** `GET /api/v1/series/{seriesId}`가 Series와 Upcoming/Completed Event 그룹을 반환하며 parser/mapper/service/route 테스트가 있다.
 - **App D2: 구현 완료.** Series 응답 매핑과 repository/Metro binding, Loading/Content/Error 상태, Populated/Upcoming Only/Completed Only/전체 Empty 화면, Search → Series → Event 이동과 back/root 상태 복원을 구현했다.

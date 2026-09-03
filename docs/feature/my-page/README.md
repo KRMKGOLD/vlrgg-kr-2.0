@@ -1,7 +1,7 @@
 # MyPage 기능 기획
 
 - Status: Implemented (#44)
-- Last reviewed: 2026-09-01
+- Last reviewed: 2026-09-03
 
 ## 목적과 사용자 가치
 

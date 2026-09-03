@@ -6,14 +6,14 @@ Events 기능은 사용자가 Valorant 대회의 현재 진행 상태를 훑고,
 
 이 문서는 제품 동작을 정의한다. 색상, 타이포그래피, 공통 컴포넌트와 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
-## 구현 상태 (2026-08-25)
+## 구현 상태 (2026-09-03)
 
 - **Backend: 구현 완료.** Event 목록, 상세, Matches, News, Stats endpoint와 scraper/parser/mapper 및 fixture/route 테스트가 구현되어 있다.
 - **App E1 — Event List: 구현 완료.** `GET /api/v1/events` 응답을 Domain Model로 매핑해 `Ongoing`, `Upcoming`, `Completed / Paused` 세 그룹을 항상 표시한다. 각 Event row는 이름, 상태 chip과 원본에 있는 경우 이미지·일정/기간(`dateLabel`)·지역(`regionCode`)을 표시하며, 선택하면 Events root back stack에 Event Detail route를 push한다.
 - **E1 화면 상태: 구현 완료.** 최초 로딩 skeleton, 전체 empty, 전체 오류와 재시도, pull-to-refresh를 제공한다. 한 상태 그룹이 비어도 해당 그룹의 빈 안내를 표시하고 다른 그룹의 콘텐츠는 유지한다.
 - **App E2–E4 — Event Detail: 구현 완료.** Event identity와 Matches(기본)/News/Stats 탭을 각각 독립 endpoint에 연결했다. identity 실패는 전체 Initial Error+Retry로, 탭 실패는 identity와 다른 성공 탭을 유지하는 tab-local Error+Retry로 처리한다.
 - **Event Detail 상태 복원: 구현 완료.** Navigation 3 entry의 ViewModel/saveable state 경계와 `SavedStateHandle`을 사용해 selected tab, 탭별 loaded data, 세로 scroll과 Stats metric 가로 scroll을 탭 전환·하위 Detail Back·root 전환 뒤에도 보존한다. 성공한 탭은 재선택할 때 다시 요청하지 않는다.
-- **후속 진입 경로: 미구현.** Matches의 Event 참조와 Search의 Event 결과를 통한 Event Detail 진입은 각 후속 기능 작업에서 연결한다.
+- **후속 진입 경로: 구현 완료.** Matches의 Event 참조와 Search의 Event 결과가 Event Detail destination으로 연결된다. Team Detail과 Player Detail에는 Event 직접 이동 요소를 추가하지 않는다.
 
 ## MVP 범위
 
@@ -236,9 +236,9 @@ https://www.vlr.gg/event/stats/2955/esports-world-cup-2026-pacific-qualifier
 
 - [x] Event List가 `All` 첫 페이지의 Event를 `Ongoing`, `Upcoming`, `Completed / Paused`로 구분해 표시한다.
 - [x] 하단 `Events` 탭의 Event List row에서 Event Detail에 진입할 수 있다.
-- [ ] Matches의 Event 참조에서 Event Detail에 진입할 수 있다.
-- [ ] Search의 Event 결과에서 Event Detail에 진입할 수 있다.
-- [ ] Team Detail과 Player Detail에는 Event 직접 이동 요소가 없다.
+- [x] Matches의 Event 참조에서 Event Detail에 진입할 수 있다.
+- [x] Search의 Event 결과에서 Event Detail에 진입할 수 있다.
+- [x] Team Detail과 Player Detail에는 Event 직접 이동 요소가 없다.
 - [x] Event Detail이 `Matches`, `News`, `Stats` 탭을 제공하고 `Matches`가 기본이며 탭별 상태·스크롤을 보존한다.
 - [x] Event Stats가 `No stats available`을 반환하면 정상 empty state를 표시한다.
 - [x] Event Stats의 network 또는 parsing 실패는 empty와 구분된 error state와 재시도를 표시한다.
