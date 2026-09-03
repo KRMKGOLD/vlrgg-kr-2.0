@@ -55,6 +55,8 @@ fun NavigationContent(
     when (destination) {
         MyPageRoot -> MyPageScreen(
             onSearch = onSearch,
+            onTeamClick = { teamId -> onPush(TeamDetail(teamId)) },
+            onPlayerClick = { playerId -> onPush(PlayerDetail(playerId)) },
             modifier = modifier.fillMaxSize(),
         )
 
