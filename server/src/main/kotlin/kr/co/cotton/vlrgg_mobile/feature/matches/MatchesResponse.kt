@@ -54,6 +54,7 @@ data class MatchDetailResponse(
 data class MatchTeamResponse(
     val name: String,
     val id: String? = null,
+    val imageUrl: String? = null,
 )
 
 @Serializable

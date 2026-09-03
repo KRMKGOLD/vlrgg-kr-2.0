@@ -35,6 +35,7 @@ internal data class MatchDetailSource(
 internal data class MatchTeamSource(
     val name: String,
     val id: String? = null,
+    val imageUrl: String? = null,
 )
 
 internal data class MatchEventSource(

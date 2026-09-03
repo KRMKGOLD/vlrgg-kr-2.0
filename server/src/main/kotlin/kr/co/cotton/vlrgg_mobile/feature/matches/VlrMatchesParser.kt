@@ -67,10 +67,12 @@ internal class VlrMatchesParser(
             homeTeam = MatchTeamSource(
                 name = teams[HOME_TEAM_INDEX].requiredText(".wf-title-med"),
                 id = teams[HOME_TEAM_INDEX].attr("href").extractTeamIdOrNull(),
+                imageUrl = teams[HOME_TEAM_INDEX].selectFirst("img[src]")?.attr("src").toPublicImageUrl(),
             ),
             awayTeam = MatchTeamSource(
                 name = teams[AWAY_TEAM_INDEX].requiredText(".wf-title-med"),
                 id = teams[AWAY_TEAM_INDEX].attr("href").extractTeamIdOrNull(),
+                imageUrl = teams[AWAY_TEAM_INDEX].selectFirst("img[src]")?.attr("src").toPublicImageUrl(),
             ),
             homeScore = scoreValues.getOrNull(HOME_TEAM_INDEX),
             awayScore = scoreValues.getOrNull(AWAY_TEAM_INDEX),
@@ -315,6 +317,16 @@ internal class VlrMatchesParser(
             .toInstant(ZoneOffset.UTC)
             .toString()
     }.getOrNull()
+
+    // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and discard HTTP, empty, or other schemes.
+    private fun String?.toPublicImageUrl(): String? = this?.trim()?.takeIf { it.isNotEmpty() }?.let { source ->
+        when {
+            source.startsWith("//") -> "https:$source"
+            source.startsWith("https://") -> source
+            source.startsWith("/") -> "https://www.vlr.gg$source"
+            else -> null
+        }
+    }
 
     private fun String.extractMatchIdOrNull(): String? = canonicalVlrPathOrNull()
         ?.let(MATCH_PATH_REGEX::matchEntire)
