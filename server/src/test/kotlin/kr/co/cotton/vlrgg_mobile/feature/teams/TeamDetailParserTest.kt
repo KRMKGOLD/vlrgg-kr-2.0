@@ -138,6 +138,36 @@ class TeamDetailParserTest {
     }
 
     @Test
+    fun `parser preserves the canonical TBD opponent in DOM order`() {
+        val source = parser.parse(alternateAttaxRubyTbdContent())
+
+        assertEquals(
+            listOf(TeamMatchSource(
+                id = "747668",
+                eventName = "POKAL 2026",
+                eventStage = "Playoffs ⋅ LR2",
+                teamName = "ALTERNATE aTTaX Ruby",
+                opponentName = "TBD",
+                statusText = "1d 6h",
+                scheduledAtText = "2026/09/05 12:00 am",
+            )),
+            source.upcomingMatches,
+        )
+    }
+
+    @Test
+    fun `parser fails closed for a non-TBD classless opponent span`() {
+        val content = alternateAttaxRubyTbdContent().copy(
+            overviewHtml = fixture("alternate-attax-ruby-tbd-overview.html").replace(
+                ">TBD</span>",
+                ">Unconfirmed</span>",
+            ),
+        )
+
+        assertFailsWith<SourceParsingFailure> { parser.parse(content) }
+    }
+
+    @Test
     fun `parser fails closed for malformed canonical match item`() {
         val content = activeContent().copy(
             overviewHtml = fixture("active-team-overview.html")
@@ -263,6 +293,13 @@ class TeamDetailParserTest {
         newsHtml = fixture("sparse-team-news.html"),
         overviewUrl = Url("https://www.vlr.gg/team/19296/"),
         newsUrl = Url("https://www.vlr.gg/team/news/19296/"),
+    )
+
+    private fun alternateAttaxRubyTbdContent() = TeamDetailUpstreamContent(
+        overviewHtml = fixture("alternate-attax-ruby-tbd-overview.html"),
+        newsHtml = fixture("sparse-team-news.html"),
+        overviewUrl = Url("https://www.vlr.gg/team/11496/"),
+        newsUrl = Url("https://www.vlr.gg/team/news/11496/"),
     )
 
     private fun fixture(name: String): String = checkNotNull(

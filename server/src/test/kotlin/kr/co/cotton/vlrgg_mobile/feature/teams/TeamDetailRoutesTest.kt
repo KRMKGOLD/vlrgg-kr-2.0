@@ -36,6 +36,26 @@ class TeamDetailRoutesTest {
     }
 
     @Test
+    fun `route preserves a canonical TBD opponent from Team match source`() = withTeamApplication(
+        FixtureTransport(
+            overviewHtml = fixture("alternate-attax-ruby-tbd-overview.html"),
+            newsHtml = fixture("sparse-team-news.html"),
+        ),
+    ) {
+        val response = client.get("/api/v1/teams/11496")
+        val match = Json.parseToJsonElement(response.bodyAsText()).jsonObject["upcomingMatches"]
+            ?.jsonArray
+            ?.single()
+            ?.jsonObject
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals("747668", match?.get("id")?.jsonPrimitive?.content)
+        assertEquals("ALTERNATE aTTaX Ruby", match?.get("teamName")?.jsonPrimitive?.content)
+        assertEquals("TBD", match?.get("opponentName")?.jsonPrimitive?.content)
+        assertTrue(Json.parseToJsonElement(response.bodyAsText()).jsonObject["news"]!!.jsonArray.isEmpty())
+    }
+
+    @Test
     fun `route accepts a Team Search reference ID directly as its path ID`() = withTeamApplication(FixtureTransport()) {
         val searchReferenceId = (SearchMapper().map(
             SearchSourceModel(listOf(SearchSourceResult(SearchSourceResultType.TEAM, "2", "Sentinels", null))),
@@ -134,8 +154,8 @@ class TeamDetailRoutesTest {
     }
 
     private class FixtureTransport(
-        private val overviewHtml: String = fixture("active-team-overview.html"),
-        private val newsHtml: String = fixture("active-team-news.html"),
+        private val overviewHtml: String = TeamDetailRoutesTest.fixture("active-team-overview.html"),
+        private val newsHtml: String = TeamDetailRoutesTest.fixture("active-team-news.html"),
         private val failedPath: String? = null,
     ) : UpstreamHtmlTransport {
         private val lock = Any()
@@ -157,17 +177,17 @@ class TeamDetailRoutesTest {
                 else -> error("Unexpected upstream path: $path")
             }
         }
-
-        companion object {
-            private fun fixture(name: String): String = checkNotNull(
-                TeamDetailRoutesTest::class.java.classLoader.getResource("fixtures/teams/$name"),
-            ).readText()
-        }
     }
 
     private class ArticleFixtureTransport : UpstreamHtmlTransport {
         override suspend fun get(url: Url): String = checkNotNull(
             javaClass.classLoader.getResource("fixtures/news-article.html"),
+        ).readText()
+    }
+
+    private companion object {
+        private fun fixture(name: String): String = checkNotNull(
+            TeamDetailRoutesTest::class.java.classLoader.getResource("fixtures/teams/$name"),
         ).readText()
     }
 }
