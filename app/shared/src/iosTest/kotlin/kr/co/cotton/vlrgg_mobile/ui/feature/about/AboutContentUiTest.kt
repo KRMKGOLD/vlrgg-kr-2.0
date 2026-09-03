@@ -91,6 +91,38 @@ class AboutContentUiTest {
     }
 
     @Test
+    fun repeatedSourceOpenFailureRestartsTheVisibleSnackbarTimeout() = runComposeUiTest {
+        val platform = FakeAboutPlatform()
+        val accessibilityManager = RecordingAccessibilityManager(recommendedTimeoutMillis = 100)
+        setContent {
+            CompositionLocalProvider(LocalAccessibilityManager provides accessibilityManager) {
+                VlrTheme {
+                    AboutScreen(
+                        platform = platform,
+                        onSearch = {},
+                        viewModel = AboutViewModel(),
+                    )
+                }
+            }
+        }
+
+        mainClock.autoAdvance = false
+        val sourceLink = onNodeWithContentDescription("Source Code 외부 링크 열기")
+        sourceLink.performClick()
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(50)
+
+        sourceLink.performClick()
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(50)
+        onNodeWithText("소스 코드를 열 수 없습니다.").assertIsDisplayed()
+
+        mainClock.advanceTimeBy(51)
+        onNodeWithText("소스 코드를 열 수 없습니다.").assertDoesNotExist()
+        assertEquals(2, accessibilityManager.requests.size)
+    }
+
+    @Test
     fun sourceOpenSuccessUsesExactRepositoryUrlWithoutFeedback() = runComposeUiTest {
         val platform = FakeAboutPlatform(openResult = true)
         setContent {

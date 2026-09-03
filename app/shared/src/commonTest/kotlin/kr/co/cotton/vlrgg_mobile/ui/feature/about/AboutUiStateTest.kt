@@ -25,6 +25,16 @@ class AboutUiStateTest {
 
         assertEquals(AboutFeedback.SourceLinkError, failed.feedback)
         assertEquals("v2.0.4", failed.versionLabel)
+        assertEquals(1L, failed.sourceLinkErrorId)
+    }
+
+    @Test
+    fun eachSourceOpenFailureGetsANewFeedbackIdentifier() {
+        val firstFailure = aboutUiState("2.0.4").afterSourceOpen(opened = false)
+        val secondFailure = firstFailure.afterSourceOpen(opened = false)
+
+        assertEquals(2L, secondFailure.sourceLinkErrorId)
+        assertEquals(AboutFeedback.SourceLinkError, secondFailure.feedback)
     }
 
     @Test

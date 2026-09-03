@@ -64,7 +64,7 @@ fun AboutScreen(
     DisposableEffect(Unit) {
         onDispose(viewModel::dismissFeedback)
     }
-    LaunchedEffect(uiState.feedback, accessibilityManager) {
+    LaunchedEffect(uiState.feedback, uiState.sourceLinkErrorId, accessibilityManager) {
         if (uiState.feedback == AboutFeedback.SourceLinkError) {
             delay(
                 accessibilityManager?.calculateRecommendedTimeoutMillis(
