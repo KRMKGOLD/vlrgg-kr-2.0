@@ -98,3 +98,24 @@ jobs:
           else
             git diff --check "$(git hash-object -t tree /dev/null)" "$HEAD_SHA"
           fi
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Run iOS simulator tests and compilation checks
+        run: >
+          ./gradlew --no-daemon
+          :app:shared:iosSimulatorArm64Test
+          :app:shared:compileKotlinIosSimulatorArm64
