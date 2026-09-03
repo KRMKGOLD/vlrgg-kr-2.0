@@ -32,6 +32,10 @@ class PlayerDetailRoutesTest {
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals("488", body["id"]?.jsonPrimitive?.content)
+        assertEquals(
+            "https://owcdn.net/img/69d5f87b7c32d.png",
+            body["profile"]?.jsonObject?.get("imageUrl")?.jsonPrimitive?.content,
+        )
         assertEquals("11060", body["currentTeam"]?.jsonObject?.get("id")?.jsonPrimitive?.content)
         assertEquals(
             "https://owcdn.net/img/6399bb707aacb.png",
@@ -50,6 +54,24 @@ class PlayerDetailRoutesTest {
             ?.jsonObject
 
         assertEquals(JsonNull, currentTeam?.get("imageUrl"))
+    }
+
+    @Test
+    fun `route preserves missing and unsafe player profile images as JSON null`() {
+        withPlayerApplication(FixtureTransport(html = fixture("player-detail-empty.html"))) {
+            val profile = Json.parseToJsonElement(client.get("/api/v1/players/488").bodyAsText()).jsonObject["profile"]?.jsonObject
+
+            assertEquals(JsonNull, profile?.get("imageUrl"))
+        }
+        withPlayerApplication(
+            FixtureTransport(html = fixture("player-detail.html").replace("//owcdn.net/img/69d5f87b7c32d.png", "javascript:alert(1)")),
+        ) {
+            val response = client.get("/api/v1/players/488")
+            val profile = Json.parseToJsonElement(response.bodyAsText()).jsonObject["profile"]?.jsonObject
+
+            assertEquals(HttpStatusCode.OK, response.status)
+            assertEquals(JsonNull, profile?.get("imageUrl"))
+        }
     }
 
     @Test

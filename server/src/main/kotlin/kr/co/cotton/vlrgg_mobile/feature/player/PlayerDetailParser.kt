@@ -41,6 +41,7 @@ internal class PlayerDetailParser {
                 ?.lowercase()
                 ?.normalizedStringOrNull(),
             countryName = header.selectFirst(PLAYER_FLAG_SELECTOR)?.parent()?.normalizedTextOrNull(),
+            imageUrl = header.selectFirst(PLAYER_AVATAR_SELECTOR)?.attr("src")?.toPublicImageUrl(),
         )
     }
 
@@ -174,7 +175,7 @@ internal class PlayerDetailParser {
     private fun Element.normalizedTextOrNull(): String? = text().normalizedStringOrNull()
     private fun Element.ownNormalizedTextOrNull(): String? = ownText().normalizedStringOrNull()
     private fun String.normalizedStringOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
-    // Player team images are HTTPS-only: normalize protocol/root-relative sources to HTTPS and discard HTTP, empty, or other schemes.
+    // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and discard HTTP, empty, or other schemes.
     private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
         when {
             source.startsWith("//") -> "https:$source"
@@ -220,6 +221,7 @@ internal class PlayerDetailParser {
         const val PLAYER_HEADER_SELECTOR = ".player-header"
         const val PLAYER_HANDLE_SELECTOR = "h1.wf-title"
         const val PLAYER_REAL_NAME_SELECTOR = ".player-real-name"
+        const val PLAYER_AVATAR_SELECTOR = ".wf-avatar.mod-player img[src]"
         const val PLAYER_FLAG_SELECTOR = "i.flag"
         const val FLAG_MODIFIER_PREFIX = "mod-"
         const val ALIASES_LABEL = "aliases:"

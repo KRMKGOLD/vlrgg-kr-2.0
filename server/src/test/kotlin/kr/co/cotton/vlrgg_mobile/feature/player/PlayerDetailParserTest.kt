@@ -12,7 +12,17 @@ class PlayerDetailParserTest {
     fun `parser separates profile current team all-time Agent Stats and five Recent Matches`() {
         val source = parser.parse(content("player-detail.html"))
 
-        assertEquals(PlayerProfileSource("Rb", "Goo Sang-min", listOf("ClokingRb"), "kr", "SOUTH KOREA"), source.profile)
+        assertEquals(
+            PlayerProfileSource(
+                "Rb",
+                "Goo Sang-min",
+                listOf("ClokingRb"),
+                "kr",
+                "SOUTH KOREA",
+                "https://owcdn.net/img/69d5f87b7c32d.png",
+            ),
+            source.profile,
+        )
         assertEquals(
             PlayerTeamSource("11060", "Nongshim RedForce", "https://owcdn.net/img/6399bb707aacb.png"),
             source.currentTeam,
@@ -120,6 +130,50 @@ class PlayerDetailParserTest {
             )
             assertEquals(expected, parser.parse(content("player-detail.html").copy(html = html)).currentTeam?.imageUrl, source)
         }
+    }
+
+    @Test
+    fun `parser normalizes only supported HTTPS player header avatar sources`() {
+        val imageSources = mapOf(
+            "//owcdn.net/img/69d5f87b7c32d.png" to "https://owcdn.net/img/69d5f87b7c32d.png",
+            "/img/69d5f87b7c32d.png" to "https://www.vlr.gg/img/69d5f87b7c32d.png",
+            "https://owcdn.net/img/69d5f87b7c32d.png" to "https://owcdn.net/img/69d5f87b7c32d.png",
+            "" to null,
+            "http://owcdn.net/img/69d5f87b7c32d.png" to null,
+            "data:image/png;base64,abc" to null,
+            "javascript:alert(1)" to null,
+            "69d5f87b7c32d.png" to null,
+        )
+
+        imageSources.forEach { (source, expected) ->
+            val html = fixture("player-detail.html").replace("//owcdn.net/img/69d5f87b7c32d.png", source)
+
+            assertEquals(expected, parser.parse(content("player-detail.html").copy(html = html)).profile.imageUrl, source)
+        }
+
+        val withoutAvatar = fixture("player-detail.html").replace(
+            "<div class=\"wf-avatar mod-player\"><img src=\"//owcdn.net/img/69d5f87b7c32d.png\" alt=\"Rb\"></div>",
+            "",
+        )
+        assertNull(parser.parse(content("player-detail.html").copy(html = withoutAvatar)).profile.imageUrl)
+    }
+
+    @Test
+    fun `parser scopes representative image to the player header avatar excluding outside team and Agent images`() {
+        val withoutHeaderAvatar = fixture("player-detail.html").replace(
+            "<div class=\"wf-avatar mod-player\"><img src=\"//owcdn.net/img/69d5f87b7c32d.png\" alt=\"Rb\"></div>",
+            "",
+        )
+        val html = withoutHeaderAvatar.replace(
+            "</body>",
+            "<div class=\"wf-avatar mod-player\"><img src=\"//owcdn.net/img/players/outside.png\"></div></body>",
+        )
+
+        val source = parser.parse(content("player-detail.html").copy(html = html))
+
+        assertNull(source.profile.imageUrl)
+        assertEquals("jett", source.agentStats.first().agentName)
+        assertEquals("https://owcdn.net/img/6399bb707aacb.png", source.currentTeam?.imageUrl)
     }
 
     private fun content(name: String) = PlayerDetailUpstreamContent(fixture(name), upstreamUrl)

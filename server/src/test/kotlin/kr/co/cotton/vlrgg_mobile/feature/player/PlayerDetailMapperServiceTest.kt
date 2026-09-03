@@ -35,6 +35,7 @@ class PlayerDetailMapperServiceTest {
 
         assertEquals("9999999999", response.id)
         assertNull(response.currentTeam)
+        assertNull(response.profile.imageUrl)
         assertNull(response.agentStats.single().rating)
         assertNull(response.agentStats.single().roundsPlayed)
         assertEquals(5, response.recentMatches.size)
@@ -58,6 +59,23 @@ class PlayerDetailMapperServiceTest {
         )
 
         assertEquals("https://owcdn.net/img/6399bb707aacb.png", response.currentTeam?.imageUrl)
+    }
+
+    @Test
+    fun `mapper preserves nullable player profile image URL`() {
+        listOf("https://owcdn.net/img/69d5f87b7c32d.png", null).forEach { imageUrl ->
+            val response = PlayerDetailMapper().map(
+                PlayerId.fromPath("488"),
+                PlayerDetailSource(
+                    profile = PlayerProfileSource("solo", null, emptyList(), null, null, imageUrl),
+                    currentTeam = null,
+                    agentStats = emptyList(),
+                    recentMatches = emptyList(),
+                ),
+            )
+
+            assertEquals(imageUrl, response.profile.imageUrl)
+        }
     }
 
     @Test
@@ -85,7 +103,9 @@ class PlayerDetailMapperServiceTest {
         val transport = RecordingTransport()
         val service = PlayerDetailService(PlayerDetailScraper(transport), PlayerDetailParser(), PlayerDetailMapper())
 
-        assertEquals("488", service.get(PlayerId.fromPath("488")).id)
+        val firstResponse = service.get(PlayerId.fromPath("488"))
+        assertEquals("488", firstResponse.id)
+        assertNull(firstResponse.profile.imageUrl)
         transport.failAfterFirst = true
         assertFailsWith<UpstreamNetworkFailure> { service.get(PlayerId.fromPath("488")) }
         assertEquals(2, transport.requestedUrls.size)
@@ -102,14 +122,33 @@ class PlayerDetailMapperServiceTest {
         }
     }
 
-    private class RecordingTransport : UpstreamHtmlTransport {
+    @Test
+    fun `service maps the parsed player profile image URL`() = runBlocking {
+        val service = PlayerDetailService(
+            PlayerDetailScraper(RecordingTransport(fixture("player-detail.html"))),
+            PlayerDetailParser(),
+            PlayerDetailMapper(),
+        )
+
+        assertEquals("https://owcdn.net/img/69d5f87b7c32d.png", service.get(PlayerId.fromPath("488")).profile.imageUrl)
+    }
+
+    private class RecordingTransport(
+        private val html: String = fixture("player-detail-empty.html"),
+    ) : UpstreamHtmlTransport {
         val requestedUrls = mutableListOf<Url>()
         var failAfterFirst = false
 
         override suspend fun get(url: Url): String {
             requestedUrls += url
             if (failAfterFirst) throw UpstreamNetworkFailure(url)
-            return checkNotNull(javaClass.classLoader.getResource("fixtures/players/player-detail-empty.html")).readText()
+            return html
         }
+    }
+
+    private companion object {
+        fun fixture(name: String): String = checkNotNull(
+            PlayerDetailMapperServiceTest::class.java.classLoader.getResource("fixtures/players/$name"),
+        ).readText()
     }
 }
