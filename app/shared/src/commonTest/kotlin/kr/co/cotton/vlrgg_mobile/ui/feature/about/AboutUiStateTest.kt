@@ -8,8 +8,8 @@ class AboutUiStateTest {
     @Test
     fun versionLabelPrefixesOnlyAvailableBuildVersions() {
         assertEquals("v2.0.4", aboutUiState("2.0.4").versionLabel)
-        assertEquals(ABOUT_VERSION_UNAVAILABLE, aboutUiState(" ").versionLabel)
-        assertEquals(ABOUT_VERSION_UNAVAILABLE, aboutUiState(null).versionLabel)
+        assertNull(aboutUiState(" ").versionLabel)
+        assertNull(aboutUiState(null).versionLabel)
     }
 
     @Test
@@ -20,24 +20,36 @@ class AboutUiStateTest {
     }
 
     @Test
-    fun sourceOpenFailureKeepsContentAndCopyRecoveryReplacesFailure() {
+    fun sourceOpenFailureKeepsContentWithoutAddingARecoveryAction() {
         val failed = aboutUiState("2.0.4").afterSourceOpen(opened = false)
 
         assertEquals(AboutFeedback.SourceLinkError, failed.feedback)
         assertEquals("v2.0.4", failed.versionLabel)
-        assertEquals(AboutFeedback.SourceLinkCopied, failed.afterSourceCopy().feedback)
     }
 
     @Test
-    fun dismissIsIdempotentAfterCopyFeedback() {
-        val copied = aboutUiState("2.0.4").afterSourceCopy()
+    fun dismissIsIdempotentAfterFailureFeedback() {
+        val failed = aboutUiState("2.0.4").afterSourceOpen(opened = false)
 
-        assertNull(copied.dismissFeedback().feedback)
-        assertNull(copied.dismissFeedback().dismissFeedback().feedback)
+        assertNull(failed.dismissFeedback().feedback)
+        assertNull(failed.dismissFeedback().dismissFeedback().feedback)
     }
 
     @Test
-    fun viewModelOwnsVersionAndFeedbackTransitions() {
+    fun sourceOpenCallbackGateRejectsDisposedAndSupersededAttempts() {
+        val gate = AboutSourceOpenCallbackGate()
+
+        val firstAttempt = gate.beginAttempt()
+        val secondAttempt = gate.beginAttempt()
+        assertEquals(false, gate.accepts(firstAttempt))
+        assertEquals(true, gate.accepts(secondAttempt))
+
+        gate.dispose()
+        assertEquals(false, gate.accepts(secondAttempt))
+    }
+
+    @Test
+    fun viewModelOwnsVersionAndSourceOpenFeedbackTransitions() {
         val viewModel = AboutViewModel()
 
         viewModel.updateBuildVersion("2.0.4")
@@ -45,9 +57,10 @@ class AboutUiStateTest {
         assertEquals("v2.0.4", viewModel.uiState.value.versionLabel)
         assertEquals(AboutFeedback.SourceLinkError, viewModel.uiState.value.feedback)
 
-        viewModel.onSourceCopyResult(copied = true)
-        assertEquals(AboutFeedback.SourceLinkCopied, viewModel.uiState.value.feedback)
+        viewModel.onSourceOpenResult(opened = true)
+        assertNull(viewModel.uiState.value.feedback)
 
+        viewModel.onSourceOpenResult(opened = false)
         viewModel.dismissFeedback()
         assertNull(viewModel.uiState.value.feedback)
     }

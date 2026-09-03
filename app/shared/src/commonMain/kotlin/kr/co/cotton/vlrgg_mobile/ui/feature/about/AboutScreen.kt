@@ -17,26 +17,32 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrSnackbar
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_search
+import kotlinx.coroutines.delay
+
+internal const val AboutSourceLinkErrorBaseDurationMillis = 4_000L
 
 @Composable
 fun AboutScreen(
@@ -46,25 +52,46 @@ fun AboutScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val sourceOpenCallbackGate = remember(platform) { AboutSourceOpenCallbackGate() }
 
     LaunchedEffect(platform) {
         viewModel.updateBuildVersion(platform.buildVersion)
+    }
+    DisposableEffect(sourceOpenCallbackGate) {
+        onDispose(sourceOpenCallbackGate::dispose)
     }
 
     AboutContent(
         uiState = uiState,
         onSearch = onSearch,
         onSourceClick = {
+            val attemptId = sourceOpenCallbackGate.beginAttempt()
             platform.openUrl(ABOUT_SOURCE_URL) { opened ->
-                viewModel.onSourceOpenResult(opened)
+                if (sourceOpenCallbackGate.accepts(attemptId)) {
+                    viewModel.onSourceOpenResult(opened)
+                }
             }
-        },
-        onCopySourceClick = {
-            viewModel.onSourceCopyResult(platform.copyText(ABOUT_SOURCE_URL))
         },
         onDismissFeedback = viewModel::dismissFeedback,
         modifier = modifier,
     )
+}
+
+/** Keeps one About composition from accepting callbacks after navigation away. */
+internal class AboutSourceOpenCallbackGate {
+    private var active = true
+    private var latestAttemptId = 0L
+
+    fun beginAttempt(): Long {
+        latestAttemptId += 1
+        return latestAttemptId
+    }
+
+    fun accepts(attemptId: Long): Boolean = active && attemptId == latestAttemptId
+
+    fun dispose() {
+        active = false
+    }
 }
 
 @Composable
@@ -72,10 +99,28 @@ internal fun AboutContent(
     uiState: AboutUiState,
     onSearch: () -> Unit,
     onSourceClick: () -> Unit,
-    onCopySourceClick: () -> Unit,
     onDismissFeedback: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val accessibilityManager = LocalAccessibilityManager.current
+
+    DisposableEffect(Unit) {
+        onDispose(onDismissFeedback)
+    }
+    LaunchedEffect(uiState.feedback, accessibilityManager) {
+        if (uiState.feedback == AboutFeedback.SourceLinkError) {
+            delay(
+                accessibilityManager?.calculateRecommendedTimeoutMillis(
+                    originalTimeoutMillis = AboutSourceLinkErrorBaseDurationMillis,
+                    containsIcons = false,
+                    containsText = true,
+                    containsControls = false,
+                ) ?: AboutSourceLinkErrorBaseDurationMillis,
+            )
+            onDismissFeedback()
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = VlrTheme.colors.surface,
@@ -100,15 +145,14 @@ internal fun AboutContent(
                 AttributionSection()
             }
 
-            AboutFeedbackSnackbar(
-                feedback = uiState.feedback,
-                onCopySourceClick = onCopySourceClick,
-                onDismissFeedback = onDismissFeedback,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = VlrDimensions.Space4)
-                    .padding(bottom = VlrDimensions.Space3),
-            )
+            if (uiState.feedback == AboutFeedback.SourceLinkError) {
+                VlrSnackbar(
+                    message = "소스 코드를 열 수 없습니다.",
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = VlrDimensions.Space3),
+                )
+            }
         }
     }
 }
@@ -148,7 +192,7 @@ private fun AboutTopAppBar(onSearch: () -> Unit) {
 }
 
 @Composable
-private fun AppIdentitySection(versionLabel: String) {
+private fun AppIdentitySection(versionLabel: String?) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
@@ -163,17 +207,19 @@ private fun AppIdentitySection(versionLabel: String) {
             style = VlrTheme.typography.body,
             color = VlrTheme.colors.textSecondary,
         )
-        Surface(
-            border = BorderStroke(VlrDimensions.OutlineWidth, VlrTheme.colors.outline),
-            color = VlrTheme.colors.surfaceSubtle,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
-        ) {
-            Text(
-                text = versionLabel,
-                modifier = Modifier.padding(horizontal = VlrDimensions.Space2, vertical = VlrDimensions.Space1),
-                style = VlrTheme.typography.labelSmall,
-                color = VlrTheme.colors.textSecondary,
-            )
+        versionLabel?.let { label ->
+            Surface(
+                border = BorderStroke(VlrDimensions.OutlineWidth, VlrTheme.colors.outline),
+                color = VlrTheme.colors.surfaceSubtle,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+            ) {
+                Text(
+                    text = label,
+                    modifier = Modifier.padding(horizontal = VlrDimensions.Space2, vertical = VlrDimensions.Space1),
+                    style = VlrTheme.typography.labelSmall,
+                    color = VlrTheme.colors.textSecondary,
+                )
+            }
         }
         HorizontalDivider(color = VlrTheme.colors.outline)
     }
@@ -252,41 +298,5 @@ private fun AboutInfoSection(
             modifier = Modifier.padding(top = VlrDimensions.Space3),
             color = VlrTheme.colors.outline,
         )
-    }
-}
-
-@Composable
-private fun AboutFeedbackSnackbar(
-    feedback: AboutFeedback?,
-    onCopySourceClick: () -> Unit,
-    onDismissFeedback: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    when (feedback) {
-        AboutFeedback.SourceLinkError -> Snackbar(
-            modifier = modifier,
-            action = {
-                Text(
-                    text = "링크 복사",
-                    modifier = Modifier
-                        .heightIn(min = VlrDimensions.MinimumTouchTarget)
-                        .clickable(role = Role.Button, onClick = onCopySourceClick)
-                        .padding(horizontal = VlrDimensions.Space2),
-                    style = VlrTheme.typography.bodyStrong,
-                    color = VlrTheme.colors.actionPrimary,
-                )
-            },
-            containerColor = VlrTheme.colors.textPrimary,
-            contentColor = VlrTheme.colors.surface,
-        ) { Text("소스 코드를 열 수 없습니다.") }
-
-        AboutFeedback.SourceLinkCopied -> Snackbar(
-            modifier = modifier
-                .clickable(role = Role.Button, onClickLabel = "안내 닫기", onClick = onDismissFeedback),
-            containerColor = VlrTheme.colors.textPrimary,
-            contentColor = VlrTheme.colors.surface,
-        ) { Text("링크를 복사했습니다.") }
-
-        null -> Unit
     }
 }

@@ -71,9 +71,4 @@ private final class IosAboutPlatform: NSObject, AboutPlatform {
             onResult(KotlinBoolean(bool: success))
         }
     }
-
-    func doCopyText(text: String) -> Bool {
-        UIPasteboard.general.string = text
-        return true
-    }
 }
