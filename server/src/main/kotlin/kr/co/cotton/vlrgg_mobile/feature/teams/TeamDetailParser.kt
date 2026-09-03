@@ -87,20 +87,37 @@ internal class TeamDetailParser {
     private fun parseMatch(element: Element): TeamMatchSource {
         val id = element.attr("href").matchedId(MATCH_PATH_PATTERN)
             ?: sourceStructureError("Match identifier is missing.")
-        val teamNames = element.select(MATCH_TEAM_NAME_SELECTOR).mapNotNull { it.normalizedTextOrNull() }
-        if (teamNames.size != REQUIRED_TEAM_COUNT) sourceStructureError("Match must contain exactly two teams.")
+        val teamSlots = element.children().filter { it.hasClass(MATCH_TEAM_SLOT_CLASS) }
+        if (teamSlots.size != REQUIRED_TEAM_COUNT) sourceStructureError("Match must contain exactly two teams.")
+        val teamName = teamSlots[0].directCanonicalTeamName()
+            ?: sourceStructureError("Match team name is missing.")
+        val opponentName = teamSlots[1].directCanonicalTeamName()
+            ?: teamSlots[1].directTbdOpponentName()
+            ?: sourceStructureError("Match opponent name is missing.")
 
         val event = element.selectFirst(MATCH_EVENT_SELECTOR)
         return TeamMatchSource(
             id = id,
             eventName = event?.children()?.firstOrNull()?.normalizedTextOrNull(),
             eventStage = event?.ownText()?.normalizedTextOrNull(),
-            teamName = teamNames[0],
-            opponentName = teamNames[1],
+            teamName = teamName,
+            opponentName = opponentName,
             statusText = element.selectFirst(MATCH_RESULT_SELECTOR)?.normalizedTextOrNull(),
             scheduledAtText = element.selectFirst(MATCH_DATE_SELECTOR)?.normalizedTextOrNull(),
         )
     }
+
+    private fun Element.directCanonicalTeamName(): String? = children()
+        .filter { it.hasClass(MATCH_TEAM_NAME_CLASS) }
+        .singleOrNull()
+        ?.normalizedTextOrNull()
+
+    private fun Element.directTbdOpponentName(): String? = children()
+        .singleOrNull()
+        ?.takeIf { it.normalName() == "span" && it.attributes().size() == 0 && it.children().isEmpty() }
+        ?.ownText()
+        ?.normalizedTextOrNull()
+        ?.takeIf { it == TBD_TEAM_NAME }
 
     private fun parseRoster(document: Document): Pair<List<TeamRosterMemberSource>, List<TeamRosterMemberSource>> {
         val rosterSection = document.sectionFollowing(CURRENT_ROSTER_HEADING) ?: return emptyList<TeamRosterMemberSource>() to emptyList()
@@ -224,7 +241,8 @@ internal class TeamDetailParser {
         const val RECENT_RESULTS_HEADING = "Recent Results"
         const val CURRENT_ROSTER_HEADING = "Current Roster"
         const val MATCH_ITEM_CLASS = "m-item"
-        const val MATCH_TEAM_NAME_SELECTOR = ".m-item-team-name"
+        const val MATCH_TEAM_SLOT_CLASS = "m-item-team"
+        const val MATCH_TEAM_NAME_CLASS = "m-item-team-name"
         const val MATCH_EVENT_SELECTOR = ".m-item-event"
         const val MATCH_RESULT_SELECTOR = ".m-item-result"
         const val MATCH_DATE_SELECTOR = ".m-item-date"
@@ -242,6 +260,7 @@ internal class TeamDetailParser {
         const val PLAYERS_LABEL = "players"
         const val STAFF_LABEL = "staff"
         const val REQUIRED_TEAM_COUNT = 2
+        const val TBD_TEAM_NAME = "TBD"
 
         val MATCH_PATH_PATTERN = Regex("^/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
         val PLAYER_PATH_PATTERN = Regex("^/player/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
