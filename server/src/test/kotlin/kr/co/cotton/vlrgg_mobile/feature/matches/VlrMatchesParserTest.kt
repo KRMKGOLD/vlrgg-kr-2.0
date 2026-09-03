@@ -87,6 +87,7 @@ class VlrMatchesParserTest {
             "//owcdn.net/img/home.png" to "https://owcdn.net/img/home.png",
             "/img/home.png" to "https://www.vlr.gg/img/home.png",
             "https://owcdn.net/img/home.png" to "https://owcdn.net/img/home.png",
+            "HTTPS://owcdn.net/img/home.png" to "https://owcdn.net/img/home.png",
             "//" to null,
             "https://" to null,
             "https:///img/home.png" to null,

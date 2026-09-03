@@ -216,7 +216,8 @@ internal class TeamDetailParser {
     private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
         val normalized = when {
             source.startsWith("//") -> "https:$source"
-            source.startsWith("https://") -> source
+            source.startsWith("https://", ignoreCase = true) ->
+                "https://${source.substringAfter("://")}"
             source.startsWith("/") -> "https://www.vlr.gg$source"
             else -> null
         }

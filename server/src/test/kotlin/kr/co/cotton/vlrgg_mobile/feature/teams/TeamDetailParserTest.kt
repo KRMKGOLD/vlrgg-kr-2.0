@@ -162,6 +162,20 @@ class TeamDetailParserTest {
     }
 
     @Test
+    fun `parser accepts uppercase HTTPS Team image URLs and normalizes their scheme`() {
+        val source = parser.parse(activeContent().copy(
+            overviewHtml = fixture("active-team-overview.html")
+                .replace("//owcdn.net/img/kiwoom-drx.png", "HTTPS://owcdn.net/img/kiwoom-drx.png")
+                .replace("//owcdn.net/img/players/mako.png", "HTTPS://owcdn.net/img/players/mako.png")
+                .replace("/img/base/ph/sil.png", "HTTPS://www.vlr.gg/img/base/ph/sil.png"),
+        ))
+
+        assertEquals("https://owcdn.net/img/kiwoom-drx.png", source.profile.logoUrl)
+        assertEquals("https://owcdn.net/img/players/mako.png", source.players.single().imageUrl)
+        assertEquals("https://www.vlr.gg/img/base/ph/sil.png", source.staff.single().imageUrl)
+    }
+
+    @Test
     fun `parser scopes optional Team images to their Team header and roster item`() {
         val source = parser.parse(activeContent().copy(
             overviewHtml = fixture("active-team-overview.html")
