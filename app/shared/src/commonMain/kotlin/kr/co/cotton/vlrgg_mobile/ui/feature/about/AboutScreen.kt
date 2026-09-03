@@ -53,12 +53,29 @@ fun AboutScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sourceOpenCallbackGate = remember(platform) { AboutSourceOpenCallbackGate() }
+    val accessibilityManager = LocalAccessibilityManager.current
 
     LaunchedEffect(platform) {
         viewModel.updateBuildVersion(platform.buildVersion)
     }
     DisposableEffect(sourceOpenCallbackGate) {
         onDispose(sourceOpenCallbackGate::dispose)
+    }
+    DisposableEffect(Unit) {
+        onDispose(viewModel::dismissFeedback)
+    }
+    LaunchedEffect(uiState.feedback, accessibilityManager) {
+        if (uiState.feedback == AboutFeedback.SourceLinkError) {
+            delay(
+                accessibilityManager?.calculateRecommendedTimeoutMillis(
+                    originalTimeoutMillis = AboutSourceLinkErrorBaseDurationMillis,
+                    containsIcons = false,
+                    containsText = true,
+                    containsControls = false,
+                ) ?: AboutSourceLinkErrorBaseDurationMillis,
+            )
+            viewModel.dismissFeedback()
+        }
     }
 
     AboutContent(
@@ -72,7 +89,6 @@ fun AboutScreen(
                 }
             }
         },
-        onDismissFeedback = viewModel::dismissFeedback,
         modifier = modifier,
     )
 }
@@ -99,28 +115,8 @@ internal fun AboutContent(
     uiState: AboutUiState,
     onSearch: () -> Unit,
     onSourceClick: () -> Unit,
-    onDismissFeedback: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val accessibilityManager = LocalAccessibilityManager.current
-
-    DisposableEffect(Unit) {
-        onDispose(onDismissFeedback)
-    }
-    LaunchedEffect(uiState.feedback, accessibilityManager) {
-        if (uiState.feedback == AboutFeedback.SourceLinkError) {
-            delay(
-                accessibilityManager?.calculateRecommendedTimeoutMillis(
-                    originalTimeoutMillis = AboutSourceLinkErrorBaseDurationMillis,
-                    containsIcons = false,
-                    containsText = true,
-                    containsControls = false,
-                ) ?: AboutSourceLinkErrorBaseDurationMillis,
-            )
-            onDismissFeedback()
-        }
-    }
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = VlrTheme.colors.surface,

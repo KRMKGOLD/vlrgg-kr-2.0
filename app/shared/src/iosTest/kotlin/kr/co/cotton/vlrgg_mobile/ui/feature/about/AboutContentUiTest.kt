@@ -153,7 +153,6 @@ class AboutContentUiTest {
                 uiState = uiState,
                 onSearch = {},
                 onSourceClick = onSourceClick,
-                onDismissFeedback = {},
             )
         }
     }
