@@ -154,8 +154,6 @@ private object UnavailableAboutPlatform : AboutPlatform {
     override val buildVersion: String? = null
 
     override fun openUrl(url: String, onResult: (Boolean) -> Unit) = onResult(false)
-
-    override fun copyText(text: String): Boolean = false
 }
 
 internal fun destinationForSearchResult(result: SearchResult): AppNavKey = when (result) {

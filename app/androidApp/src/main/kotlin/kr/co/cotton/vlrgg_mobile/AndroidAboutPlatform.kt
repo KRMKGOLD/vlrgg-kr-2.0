@@ -1,7 +1,5 @@
 package kr.co.cotton.vlrgg_mobile
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -25,15 +23,5 @@ class AndroidAboutPlatform(
             false
         }
         onResult(opened)
-    }
-
-    override fun copyText(text: String): Boolean = try {
-        val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return false
-        clipboard.setPrimaryClip(ClipData.newPlainText("Source Code", text))
-        true
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (_: Exception) {
-        false
     }
 }

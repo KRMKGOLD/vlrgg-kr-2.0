@@ -18,7 +18,7 @@ import kotlin.test.assertEquals
 @OptIn(ExperimentalTestApi::class)
 class AboutNavigationRuntimeUiTest {
     @Test
-    fun aboutIsFifthRootAndRetainsItsErrorStateAcrossSearchAndRootRoundTrips() = runComposeUiTest {
+    fun aboutIsFifthRootAndDoesNotReplaySourceErrorAfterSearchAndRootRoundTrips() = runComposeUiTest {
         val platform = FailingAboutPlatform()
         val aboutViewModel = AboutViewModel()
 
@@ -48,12 +48,12 @@ class AboutNavigationRuntimeUiTest {
 
         onNodeWithContentDescription("검색").performClick()
         onNodeWithText("search overlay").performClick()
-        onNodeWithText("소스 코드를 열 수 없습니다.").assertExists()
+        onNodeWithText("소스 코드를 열 수 없습니다.").assertDoesNotExist()
 
         onNodeWithText("News").performClick()
         onNodeWithText("root:News").assertExists()
         onNodeWithText("About").performClick()
-        onNodeWithText("소스 코드를 열 수 없습니다.").assertExists()
+        onNodeWithText("소스 코드를 열 수 없습니다.").assertDoesNotExist()
         assertEquals(listOf(ABOUT_SOURCE_URL), platform.openedUrls)
     }
 
@@ -65,7 +65,5 @@ class AboutNavigationRuntimeUiTest {
             openedUrls += url
             onResult(false)
         }
-
-        override fun copyText(text: String): Boolean = true
     }
 }

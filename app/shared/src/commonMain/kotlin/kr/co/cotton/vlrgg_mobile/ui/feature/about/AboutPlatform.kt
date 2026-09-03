@@ -5,6 +5,4 @@ interface AboutPlatform {
     val buildVersion: String?
 
     fun openUrl(url: String, onResult: (Boolean) -> Unit)
-
-    fun copyText(text: String): Boolean
 }

@@ -27,12 +27,6 @@ class AboutViewModel : ViewModel() {
         _uiState.update { current -> current.afterSourceOpen(opened) }
     }
 
-    fun onSourceCopyResult(copied: Boolean) {
-        _uiState.update { current ->
-            if (copied) current.afterSourceCopy() else current.afterSourceOpen(opened = false)
-        }
-    }
-
     fun dismissFeedback() {
         _uiState.update(AboutUiState::dismissFeedback)
     }

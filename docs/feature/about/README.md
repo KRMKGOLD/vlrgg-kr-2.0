@@ -1,10 +1,10 @@
 # About 기능 기획
 
-## 구현 상태 (2026-08-31)
+## 구현 상태 (2026-09-03)
 
 - **Backend: 해당 없음.** About은 정적 앱 정보와 외부 Source Code 링크만 사용하며 별도 API/scraping이 없다.
-- **App: A1 구현 및 자동 검증 완료.** About은 다섯 번째 root destination으로 렌더링되고, Android/iOS runtime owner가 실제 build metadata와 external-open/copy 경계를 제공한다. Android host test, iOS simulator test, Android Debug build, iOS simulator Xcode build를 통과했다.
-- **실기기 검증은 미완료.** Android/iOS의 실제 external-open, clipboard, screen reader 동작은 이 문서의 자동 검증 완료 범위에 포함하지 않는다.
+- **App: A1 기본 구현과 #47 refinement의 자동 검증이 완료되었다.** About은 다섯 번째 root destination이며 Android/iOS runtime owner가 build metadata와 external-open 경계를 제공한다. metadata가 없으면 version UI를 생략하고, source-link 실패는 action 없는 짧은 Snackbar로 알린다. 이 시간은 text-only 안내에 맞춰 accessibility 권장 timeout으로 조정되며, About을 벗어난 뒤 늦게 도착한 platform callback은 무시한다.
+- **실기기 검증은 미완료.** Android/iOS의 실제 external-open과 screen reader 동작은 이 문서의 자동 검증 완료 범위에 포함하지 않는다.
 
 ## 목적과 사용자 가치
 
@@ -79,14 +79,14 @@ About은 앱의 목적과 현재 버전, 코드 공개 위치, 테마 지원 범
 
 | 상태 | 동작 |
 | --- | --- |
-| Populated | 빌드 버전과 확정된 Source Code 링크를 포함한 모든 정보 영역을 표시한다. |
-| Source Link Error | 외부 앱에서 Source Code 링크를 실행할 수 없으면 모든 정보를 유지하고 Snackbar에 `링크 복사` action을 제공한다. |
-| Version unavailable | 버전 조회가 실패하면 해당 값만 안전한 unavailable copy로 대체하며 전체 화면 오류로 만들지 않는다. |
-| Static availability | About은 원격 조회가 없으므로 독립 Loading/Empty/Stale screen을 만들지 않는다. platform 버전 정보 준비가 비동기라면 해당 값만 안정적인 placeholder로 표시한다. |
+| Populated | 유효한 build version이 있을 때만 version chip과 확정된 Source Code 링크를 포함한 정보 영역을 표시한다. |
+| Source Link Error | 외부 앱에서 Source Code 링크를 실행할 수 없으면 모든 정보를 유지하고 정확히 `소스 코드를 열 수 없습니다.`만 보이는 action 없는 짧은 Snackbar를 자동으로 닫는다. 표시 시간은 text-only 안내를 기준으로 accessibility 권장 timeout을 적용한다. Source Code row는 남아 다음 사용자 탭으로 재시도할 수 있다. |
+| Version unavailable | version이 null·blank·unavailable이면 unavailable copy와 빈 version chip을 모두 생략하며 App identity는 유지한다. |
+| Static availability | About은 원격 조회가 없으므로 독립 Loading/Empty/Stale screen이나 version placeholder를 만들지 않는다. |
 
 ## Stitch 오류 상태 적용 판정
 
-`About Source Link Error` Stitch 시안은 inverse-surface Snackbar와 compact geometry를 기준으로 사용했다. 다만 시안의 `재시도` action은 GitHub #47, RALPLAN A1, 이 문서의 recovery 계약과 충돌하므로, 동작과 label은 `링크 복사`를 우선 적용했다. canonical Stitch 원본은 수정하지 않는다.
+canonical `About — Source Link Error`는 inverse-surface compact Snackbar를 유지하면서 `소스 코드를 열 수 없습니다.`만 표시하도록 정렬한다. `재시도`, `링크 복사`, 닫기 및 그 밖의 action은 없으며, canonical `About — Populated`의 정보 구조는 변경하지 않는다.
 
 ## 사용자 인터랙션
 
@@ -102,7 +102,7 @@ About은 앱의 목적과 현재 버전, 코드 공개 위치, 테마 지원 범
 - 앱 소개와 attribution 문구를 제품 리소스로 제공한다.
 - 실제 build version을 platform/shared boundary를 통해 표시한다.
 - Source Code 외부 이동을 platform 방식으로 처리한다.
-- 실패한 외부 이동을 raw platform 오류 없이 Snackbar로 안내하고 `링크 복사` recovery를 제공한다.
+- 실패한 외부 이동을 raw platform 오류 없이 action 없는 짧은 Snackbar로 안내하고, text-only 안내의 accessibility 권장 timeout이 지난 뒤 사용자가 Source Code row를 다시 눌러 재시도하게 한다.
 - Theme 영역은 Light-only MVP 계약을 따른다.
 
 ### 서버
@@ -121,8 +121,8 @@ About은 앱의 목적과 현재 버전, 코드 공개 위치, 테마 지원 범
 - [x] About은 Bottom Navigation의 다섯 번째 root destination이다.
 - [x] 앱 소개, 실제 build version, Source Code, Theme, attribution 영역을 표시한다.
 - [ ] Source Code 액션은 `https://github.com/KRMKGOLD/vlrgg-kr-2.0`을 외부 앱으로 연다. (실기기 external-open 검증 필요)
-- [x] About은 Feedback 액션을 표시하지 않는다.
-- [x] 외부 이동을 처리할 앱이 없거나 실행이 실패해도 모든 콘텐츠를 유지하고 Snackbar와 `링크 복사` recovery를 표시한다.
+- [x] About failure Snackbar는 정확한 오류 문구만 표시하고 `재시도`, `링크 복사`, 닫기 등 action을 표시하지 않으며, 짧은 base time을 text-only accessibility 권장 timeout으로 조정한 뒤 자동으로 사라진다.
+- [x] 외부 이동을 처리할 앱이 없거나 실행이 실패해도 모든 콘텐츠와 Source Code row를 유지하고, About disposal 뒤 늦게 도착한 callback이나 화면 복귀 시 만료된 Snackbar를 다시 표시하지 않는다.
 - [x] Theme 영역은 Light만 현재 지원됨을 표시하고 Dark Mode가 MVP에 포함된 것처럼 동작하지 않는다.
 - [x] VLR.GG 데이터 출처와 비공식·개인 프로젝트 문맥을 명확히 표시한다.
 - [x] About은 별도 server API를 호출하지 않는다.

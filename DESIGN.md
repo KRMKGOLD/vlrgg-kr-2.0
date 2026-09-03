@@ -8,7 +8,7 @@
 
 **Status:** Active — Step 1 contract
 
-**Last refreshed:** 2026-08-05
+**Last refreshed:** 2026-09-03
 **Applies to:** Compose Multiplatform UI in `app/shared/src/commonMain`; Android and iOS mobile first.
 
 This is the canonical visual, interaction, and accessibility contract for the app. Feature documents own their data and flows; [the app architecture](docs/app-arch/app-arch.md) owns placement and runtime boundaries. Step 1 ships the Light theme (`Theme.kt`, `Colors.kt`, `Typography.kt`, `Dimensions.kt`) and shared `VlrButton`, `VlrIconButton`, `VlrSearchField`, and `StatusChip` contracts in `commonMain`; this document remains the handoff for feature adoption and visual validation.
@@ -33,7 +33,7 @@ The canonical wireframes are an approved reconstruction brief, not evidence that
 - News rows are thumbnail/card-free divider rows whose full bounds open News Detail. Search rows are image-free divided rows with text type labels and full-row navigation.
 - Match Card visual anatomy is shared, but navigation is contextual: Matches Root may expose stable-ID Team/Event nested targets; Event/Team/Player/MyPage Next Matches cards open Match Detail only. Match Detail retains Maps then Head to Head; existing server `pastMatches` may remain in the response but is UI-hidden and belongs to follow-up contract cleanup.
 - MyPage provides no Match favorite feature or group and displays no Match bell. Team favorites are the primary personalization; Player favorites are secondary. The planned `Next Matches` contract aggregates upcoming Matches from favorite Team IDs, dedupes by stable Match ID, sorts by scheduled time, distinguishes no teams/no matches/section failure, reuses Compact Match Card, and opens Match Detail only. No endpoint or DTO is invented here.
-- Event Detail uses `Matches` (default), `News`, `Stats` tabs with per-tab state/scroll preservation. Stats keeps a pinned identity column, horizontally scrolls metrics in `Rounds`/`Rating`/`ACS`/`K-D`/`ADR`/`KAST` order, and only the Player identity cell opens Player Detail. Team/Player Detail use section Empty/missing markers with no generic Partial screen; Series uses full-content loading/error with no generic Partial. About is flat information sections with exact source URL; source-link failure is Snackbar + Copy Link.
+- Event Detail uses `Matches` (default), `News`, `Stats` tabs with per-tab state/scroll preservation. Stats keeps a pinned identity column, horizontally scrolls metrics in `Rounds`/`Rating`/`ACS`/`K-D`/`ADR`/`KAST` order, and only the Player identity cell opens Player Detail. Team/Player Detail use section Empty/missing markers with no generic Partial screen; Series uses full-content loading/error with no generic Partial. About is flat information sections with exact source URL; source-link failure is a short actionless Snackbar with only `소스 코드를 열 수 없습니다.`; the Source Code row remains available for a later retry.
 
 ## Accessibility and interaction acceptance
 
