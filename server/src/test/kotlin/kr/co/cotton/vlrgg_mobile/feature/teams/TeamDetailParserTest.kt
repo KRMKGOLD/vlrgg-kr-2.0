@@ -135,8 +135,18 @@ class TeamDetailParserTest {
     }
 
     @Test
-    fun `parser ignores missing or unsupported Team image URLs without failing`() {
-        listOf("", "http://cdn.example/image.png", "data:image/png;base64,abc", "javascript:alert(1)", "images/image.png")
+    fun `parser ignores missing unsupported or malformed Team image URLs without failing`() {
+        listOf(
+            "",
+            "//",
+            "https://",
+            "https:///image.png",
+            "https://bad host/image.png",
+            "http://cdn.example/image.png",
+            "data:image/png;base64,abc",
+            "javascript:alert(1)",
+            "images/image.png",
+        )
             .forEach { unsupportedUrl ->
                 val source = parser.parse(activeContent().copy(
                     overviewHtml = fixture("active-team-overview.html")

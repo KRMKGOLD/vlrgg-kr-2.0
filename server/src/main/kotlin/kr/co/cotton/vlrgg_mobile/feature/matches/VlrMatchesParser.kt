@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches
 
 import io.ktor.http.*
+import java.net.URI
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -318,13 +319,17 @@ internal class VlrMatchesParser(
             .toString()
     }.getOrNull()
 
-    // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and discard HTTP, empty, or other schemes.
+    // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and require a valid host.
     private fun String?.toPublicImageUrl(): String? = this?.trim()?.takeIf { it.isNotEmpty() }?.let { source ->
-        when {
+        val normalized = when {
             source.startsWith("//") -> "https:$source"
             source.startsWith("https://") -> source
             source.startsWith("/") -> "https://www.vlr.gg$source"
             else -> null
+        }
+        normalized?.takeIf { url ->
+            val uri = runCatching { URI(url) }.getOrNull() ?: return@takeIf false
+            uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrEmpty()
         }
     }
 

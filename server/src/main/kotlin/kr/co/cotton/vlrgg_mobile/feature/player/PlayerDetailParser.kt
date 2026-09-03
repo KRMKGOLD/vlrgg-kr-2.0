@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.player
 
 import io.ktor.http.*
+import java.net.URI
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
@@ -175,13 +176,17 @@ internal class PlayerDetailParser {
     private fun Element.normalizedTextOrNull(): String? = text().normalizedStringOrNull()
     private fun Element.ownNormalizedTextOrNull(): String? = ownText().normalizedStringOrNull()
     private fun String.normalizedStringOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
-    // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and discard HTTP, empty, or other schemes.
+    // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and require a valid host.
     private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
-        when {
+        val normalized = when {
             source.startsWith("//") -> "https:$source"
             source.startsWith("https://") -> source
             source.startsWith("/") -> "https://www.vlr.gg$source"
             else -> null
+        }
+        normalized?.takeIf { url ->
+            val uri = runCatching { URI(url) }.getOrNull() ?: return@takeIf false
+            uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrEmpty()
         }
     }
     private fun String.matchedId(pattern: Regex): String? = pattern.matchEntire(this)?.groups?.get(1)?.value

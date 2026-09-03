@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.teams
 
 import io.ktor.http.*
+import java.net.URI
 import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
@@ -211,13 +212,17 @@ internal class TeamDetailParser {
 
     private fun String.normalizedTextOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
 
-    // Team images are HTTPS-only: normalize protocol/root-relative sources and discard all other schemes or paths.
+    // Team images are HTTPS-only: normalize protocol/root-relative sources and require a valid host.
     private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
-        when {
+        val normalized = when {
             source.startsWith("//") -> "https:$source"
             source.startsWith("https://") -> source
             source.startsWith("/") -> "https://www.vlr.gg$source"
             else -> null
+        }
+        normalized?.takeIf { url ->
+            val uri = runCatching { URI(url) }.getOrNull() ?: return@takeIf false
+            uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrEmpty()
         }
     }
 

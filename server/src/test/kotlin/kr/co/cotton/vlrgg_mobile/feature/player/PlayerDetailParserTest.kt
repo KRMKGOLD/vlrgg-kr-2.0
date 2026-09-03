@@ -119,6 +119,11 @@ class PlayerDetailParserTest {
         val imageSources = mapOf(
             "//owcdn.net/img/team.png" to "https://owcdn.net/img/team.png",
             "/img/team.png" to "https://www.vlr.gg/img/team.png",
+            "https://owcdn.net/img/team.png" to "https://owcdn.net/img/team.png",
+            "//" to null,
+            "https://" to null,
+            "https:///img/team.png" to null,
+            "https://bad host/img/team.png" to null,
             "http://owcdn.net/img/team.png" to null,
             "" to null,
         )
@@ -138,6 +143,10 @@ class PlayerDetailParserTest {
             "//owcdn.net/img/69d5f87b7c32d.png" to "https://owcdn.net/img/69d5f87b7c32d.png",
             "/img/69d5f87b7c32d.png" to "https://www.vlr.gg/img/69d5f87b7c32d.png",
             "https://owcdn.net/img/69d5f87b7c32d.png" to "https://owcdn.net/img/69d5f87b7c32d.png",
+            "//" to null,
+            "https://" to null,
+            "https:///img/69d5f87b7c32d.png" to null,
+            "https://bad host/img/69d5f87b7c32d.png" to null,
             "" to null,
             "http://owcdn.net/img/69d5f87b7c32d.png" to null,
             "data:image/png;base64,abc" to null,
