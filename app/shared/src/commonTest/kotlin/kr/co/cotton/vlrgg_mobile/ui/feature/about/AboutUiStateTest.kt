@@ -61,6 +61,7 @@ class AboutUiStateTest {
         assertNull(viewModel.uiState.value.feedback)
 
         viewModel.onSourceOpenResult(opened = false)
+        assertEquals(AboutFeedback.SourceLinkError, viewModel.uiState.value.feedback)
         viewModel.dismissFeedback()
         assertNull(viewModel.uiState.value.feedback)
     }
