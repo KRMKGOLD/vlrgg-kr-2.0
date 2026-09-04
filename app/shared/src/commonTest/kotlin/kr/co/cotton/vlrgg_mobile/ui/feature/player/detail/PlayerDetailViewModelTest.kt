@@ -249,6 +249,34 @@ class PlayerDetailViewModelTest {
     }
 
     @Test
+    fun addFavoritePersistsTheLatestProfileImageUrlIncludingNull() = runViewModelTest {
+        val imageUrl = "https://cdn.example.com/stax.png"
+        val withImage = playerDetail().copy(profile = playerDetail().profile.copy(imageUrl = imageUrl))
+        val favorites = FakeFavoriteRepository()
+        val viewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(withImage))),
+            favorites,
+            PLAYER_ID,
+        )
+
+        advanceUntilIdle()
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertEquals(imageUrl, favorites.added.single().imageUrl)
+
+        val withoutImageFavorites = FakeFavoriteRepository()
+        val withoutImageViewModel = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(playerDetail().copy(profile = playerDetail().profile.copy(imageUrl = null))))),
+            withoutImageFavorites,
+            PLAYER_ID,
+        )
+        advanceUntilIdle()
+        withoutImageViewModel.toggleFavorite()
+        advanceUntilIdle()
+        assertEquals(null, withoutImageFavorites.added.single().imageUrl)
+    }
+
+    @Test
     fun removeIsOptimisticThenRestoresOnFailure() = runViewModelTest {
         val player = playerDetail()
         val favorites = FakeFavoriteRepository(existing = listOf(player.favoriteSnapshot()), removeResults = listOf(AppResult.Failure))
@@ -467,6 +495,7 @@ class PlayerDetailViewModelTest {
         realName = profile.realName,
         countryCode = profile.countryCode,
         countryName = profile.countryName,
+        imageUrl = profile.imageUrl,
     )
 
     private companion object {

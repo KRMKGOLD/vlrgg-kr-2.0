@@ -18,6 +18,7 @@ data class FavoritePlayerStorage(
     val realName: String?,
     val countryCode: String?,
     val countryName: String?,
+    val imageUrl: String? = null,
 )
 
 @Serializable

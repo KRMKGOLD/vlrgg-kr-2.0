@@ -152,6 +152,64 @@ class PlayerDetailContentUiTest {
     }
 
     @Test
+    fun profileUsesProvidedImageUrlAndKeepsTheHeaderPlaceholderForFailureNullAndBlankUrls() {
+        val profileImageUrl = "https://cdn.example.com/stax.png"
+        val requestedUrls = mutableListOf<Any?>()
+        var imageLoader: ImageLoader? = null
+        val fakeEngine = FakeImageLoaderEngine.Builder()
+            .default(
+                Interceptor { chain ->
+                    requestedUrls += chain.request.data
+                    ErrorResult(null, chain.request, IllegalStateException("Profile image fixture failure"))
+                },
+            )
+            .build()
+
+        SingletonImageLoader.setUnsafe(
+            SingletonImageLoader.Factory { context ->
+                ImageLoader.Builder(context)
+                    .components { add(fakeEngine) }
+                    .build()
+                    .also { imageLoader = it }
+            },
+        )
+        try {
+            runComposeUiTest {
+                setContent {
+                    Fixture(
+                        PlayerDetailContentState.Content(
+                            player.copy(profile = player.profile.copy(imageUrl = profileImageUrl)),
+                        ),
+                    )
+                }
+                assertEquals(profileImageUrl, requestedUrls.single())
+                onNodeWithTag(playerHeaderImagePlaceholderTag(player.id), useUnmergedTree = true).assertExists()
+                onNodeWithText("stax").assertExists()
+                onNodeWithTag(playerTeamRowTag(TEAM_ID)).performClick()
+
+                listOf<String?>(null, " ").forEach { missingUrl ->
+                    setContent {
+                        Fixture(
+                            PlayerDetailContentState.Content(
+                                player.copy(profile = player.profile.copy(imageUrl = missingUrl)),
+                            ),
+                        )
+                    }
+                    onNodeWithTag(playerHeaderImagePlaceholderTag(player.id), useUnmergedTree = true).assertExists()
+                    onNodeWithText("stax").assertExists()
+                }
+                assertEquals(1, requestedUrls.size)
+            }
+        } finally {
+            try {
+                SingletonImageLoader.reset()
+            } finally {
+                imageLoader?.shutdown()
+            }
+        }
+    }
+
+    @Test
     fun agentTableCapitalizesOnlyTheUiLabelKeepsNullableMarkersAndRightAlignsMetrics() = runComposeUiTest {
         setContent {
             Fixture(

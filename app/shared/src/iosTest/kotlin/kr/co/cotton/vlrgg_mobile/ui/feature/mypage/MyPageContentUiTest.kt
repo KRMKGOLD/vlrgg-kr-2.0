@@ -95,6 +95,70 @@ class MyPageContentUiTest {
             }
         }
     }
+
+    @Test
+    fun playerImageUsesStoredUrlAndKeepsTheExistingPlaceholderForFailureNullAndBlankUrls() {
+        val imageUrl = "https://cdn.example.com/stax.png"
+        val requestedUrls = mutableListOf<Any?>()
+        var imageLoader: ImageLoader? = null
+        val fakeEngine = FakeImageLoaderEngine.Builder()
+            .default(
+                Interceptor { chain ->
+                    requestedUrls += chain.request.data
+                    ErrorResult(null, chain.request, IllegalStateException("fixture failure"))
+                },
+            )
+            .build()
+        SingletonImageLoader.setUnsafe(
+            SingletonImageLoader.Factory { context ->
+                ImageLoader.Builder(context)
+                    .components { add(fakeEngine) }
+                    .build()
+                    .also { imageLoader = it }
+            },
+        )
+        try {
+            runComposeUiTest {
+                val favorite = player("player-image").copy(imageUrl = imageUrl)
+                var selectedPlayerId: String? = null
+                setContent {
+                    TestContent(
+                        uiState = MyPageUiState(
+                            favoriteTeams = FavoriteSectionState.Error,
+                            favoritePlayers = FavoriteSectionState.Content(listOf(favorite)),
+                        ),
+                        onPlayerClick = { selectedPlayerId = it },
+                    )
+                }
+                assertEquals(imageUrl, requestedUrls.single())
+                onNodeWithTag(myPagePlayerImagePlaceholderTag(favorite.id), useUnmergedTree = true).assertExists()
+                onNodeWithTag(myPagePlayerRowTag(favorite.id)).performClick()
+                assertEquals(favorite.id, selectedPlayerId)
+                onNodeWithText("즐겨찾기한 팀을 불러오지 못했습니다.").assertExists()
+
+                listOf<String?>(null, " ").forEach { missingUrl ->
+                    setContent {
+                        TestContent(
+                            uiState = MyPageUiState(
+                                favoriteTeams = FavoriteSectionState.Error,
+                                favoritePlayers = FavoriteSectionState.Content(
+                                    listOf(favorite.copy(imageUrl = missingUrl)),
+                                ),
+                            ),
+                        )
+                    }
+                    onNodeWithTag(myPagePlayerImagePlaceholderTag(favorite.id), useUnmergedTree = true).assertExists()
+                }
+                assertEquals(1, requestedUrls.size)
+            }
+        } finally {
+            try {
+                SingletonImageLoader.reset()
+            } finally {
+                imageLoader?.shutdown()
+            }
+        }
+    }
     @Test
     fun sectionsStayOrderedAndIndependentAndEmitExactStoredIds() = runComposeUiTest {
         val teams = listOf(team("team-2"), team("team-1"))

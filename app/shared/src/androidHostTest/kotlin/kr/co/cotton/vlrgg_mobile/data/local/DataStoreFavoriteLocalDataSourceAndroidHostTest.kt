@@ -39,6 +39,28 @@ class DataStoreFavoriteLocalDataSourceAndroidHostTest {
     }
 
     @Test
+    fun legacyPlayerJsonWithoutImageUrlDecodesWithANullImageUrl() = runTest {
+        val file = File.createTempFile("favorite-player-legacy-", ".preferences_pb").apply { delete() }
+        val job = SupervisorJob()
+        val scope = CoroutineScope(job)
+        try {
+            val dataStore = createFavoriteDataStore(file.absolutePath, scope)
+            dataStore.edit { preferences ->
+                preferences[stringPreferencesKey("favorite_players")] =
+                    "{\"favorites\":[{\"id\":\"100\",\"handle\":\"stax\",\"realName\":null,\"countryCode\":\"KR\",\"countryName\":\"Korea\"}]}"
+            }
+
+            assertEquals(
+                listOf(FavoritePlayerStorage("100", "stax", null, "KR", "Korea", null)),
+                DataStoreFavoriteLocalDataSource(dataStore).getFavoritePlayers(),
+            )
+        } finally {
+            job.cancelAndJoin()
+            file.delete()
+        }
+    }
+
+    @Test
     fun dataStoreRoundTripRecreationKeepsTypesKeysOrderAndExactRemoval() = runTest {
         val file = File.createTempFile("favorite-", ".preferences_pb").apply { delete() }
         val firstJob = SupervisorJob()
@@ -54,7 +76,10 @@ class DataStoreFavoriteLocalDataSourceAndroidHostTest {
             )
             first.upsertFavoriteTeam(FavoriteTeamStorage("1", "Sentinels", "SEN", null))
             first.upsertFavoriteTeam(FavoriteTeamStorage("2", "DRX updated", "", null, null))
-            first.upsertFavoritePlayer(FavoritePlayerStorage("100", "", null, "", "Korea"))
+            first.upsertFavoritePlayer(
+                FavoritePlayerStorage("100", "", null, "", "Korea", "https://cdn.example.com/old-stax.png"),
+            )
+            first.upsertFavoritePlayer(FavoritePlayerStorage("100", "", null, "", "Korea", null))
             first.removeFavoritePlayer("2")
 
             firstJob.cancelAndJoin()

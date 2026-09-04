@@ -24,7 +24,7 @@ class FavoriteRepositoryImplTest {
         val source = FakeFavoriteLocalDataSource()
         val repository = FavoriteRepositoryImpl(source)
         val team = FavoriteTeam("2", "DRX", "DRX", "Korea", "https://cdn.example.com/drx.png")
-        val player = FavoritePlayer("100", "stax", null, "KR", "Korea")
+        val player = FavoritePlayer("100", "stax", null, "KR", "Korea", "https://cdn.example.com/stax.png")
 
         assertEquals(AppResult.Success(Unit), repository.addFavoriteTeam(team))
         assertEquals(AppResult.Success(Unit), repository.addFavoritePlayer(player))

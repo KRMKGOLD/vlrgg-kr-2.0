@@ -27,6 +27,7 @@ internal fun FavoritePlayerStorage.toDomain(): FavoritePlayer = FavoritePlayer(
     realName = realName,
     countryCode = countryCode,
     countryName = countryName,
+    imageUrl = imageUrl,
 )
 
 internal fun FavoritePlayer.toStorage(): FavoritePlayerStorage = FavoritePlayerStorage(
@@ -35,4 +36,5 @@ internal fun FavoritePlayer.toStorage(): FavoritePlayerStorage = FavoritePlayerS
     realName = realName,
     countryCode = countryCode,
     countryName = countryName,
+    imageUrl = imageUrl,
 )

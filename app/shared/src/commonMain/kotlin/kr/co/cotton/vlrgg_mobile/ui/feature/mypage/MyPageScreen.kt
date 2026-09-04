@@ -73,6 +73,8 @@ internal fun myPageTeamImageTag(id: String): String = "my_page_team_image_$id"
 internal fun myPageTeamImagePlaceholderTag(id: String): String = "my_page_team_image_placeholder_$id"
 
 internal fun myPagePlayerRowTag(id: String): String = "my_page_player_$id"
+internal fun myPagePlayerImageTag(id: String): String = "my_page_player_image_$id"
+internal fun myPagePlayerImagePlaceholderTag(id: String): String = "my_page_player_image_placeholder_$id"
 
 @Composable
 fun MyPageScreen(
@@ -348,6 +350,9 @@ private fun FavoritePlayerRow(
         id = favorite.id,
         title = favorite.handle,
         subtitle = listOfNotNull(favorite.realName, favorite.countryName).joinToString(" · ").ifBlank { null },
+        imageUrl = favorite.imageUrl,
+        imageTag = myPagePlayerImageTag(favorite.id),
+        imagePlaceholderTag = myPagePlayerImagePlaceholderTag(favorite.id),
         rowDescription = "선수 상세: ${favorite.handle}",
         removalDescription = "${favorite.handle} 즐겨찾기 해제",
         onClick = onClick,
