@@ -39,6 +39,7 @@ class RemotePlayerDataSourceImplTest {
 
             assertEquals("488", response.id)
             assertEquals("Rb", response.profile.handle)
+            assertEquals("https://owcdn.net/img/rb.png", response.profile.imageUrl)
             assertEquals("11060", response.currentTeam?.id)
             assertEquals("https://owcdn.net/img/6399bb707aacb.png", response.currentTeam?.imageUrl)
             assertEquals(1.07, response.agentStats.single().rating)
@@ -47,6 +48,19 @@ class RemotePlayerDataSourceImplTest {
             assertNull(response.recentMatches.last().eventStage)
             assertNull(response.recentMatches.last().teamAScore)
             assertNull(response.recentMatches.last().playedOn)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun omittedProfileImageDeserializesAsNull() = runTest {
+        val client = createClient(MockEngine { respondJson(PLAYER_DETAIL_WITHOUT_PROFILE_IMAGE_JSON) })
+
+        try {
+            val response = RemotePlayerDataSourceImpl(client).getPlayerDetail("488")
+
+            assertNull(response.profile.imageUrl)
         } finally {
             client.close()
         }
@@ -139,7 +153,8 @@ class RemotePlayerDataSourceImplTest {
                 "realName": "Goo Sang-min",
                 "aliases": ["ClokingRb"],
                 "countryCode": "kr",
-                "countryName": "SOUTH KOREA"
+                "countryName": "SOUTH KOREA",
+                "imageUrl": "https://owcdn.net/img/rb.png"
               },
               "currentTeam": {
                 "id": "11060",
@@ -179,6 +194,19 @@ class RemotePlayerDataSourceImplTest {
                   "teamAScore": null, "teamBScore": 1, "outcome": "LOSS", "playedOn": null
                 }
               ]
+            }
+            """.trimIndent()
+
+        val PLAYER_DETAIL_WITHOUT_PROFILE_IMAGE_JSON =
+            """
+            {
+              "id": "488",
+              "profile": {
+                "handle": "Rb",
+                "aliases": []
+              },
+              "agentStats": [],
+              "recentMatches": []
             }
             """.trimIndent()
     }

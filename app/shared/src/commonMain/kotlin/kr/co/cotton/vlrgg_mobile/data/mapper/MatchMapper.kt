@@ -65,6 +65,7 @@ internal fun MatchDetailResponseDto.toDomain(): MatchDetail = MatchDetail(
 private fun MatchTeamDto.toDomain(): MatchTeam = MatchTeam(
     name = name,
     id = id,
+    imageUrl = imageUrl,
 )
 
 private fun MatchEventDto.toDomain(): MatchEvent = MatchEvent(

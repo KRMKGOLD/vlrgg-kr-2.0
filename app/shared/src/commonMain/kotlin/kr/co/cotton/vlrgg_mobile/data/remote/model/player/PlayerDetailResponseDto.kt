@@ -19,6 +19,7 @@ internal data class PlayerProfileDto(
     val aliases: List<String>,
     val countryCode: String? = null,
     val countryName: String? = null,
+    val imageUrl: String? = null,
 )
 
 @Serializable

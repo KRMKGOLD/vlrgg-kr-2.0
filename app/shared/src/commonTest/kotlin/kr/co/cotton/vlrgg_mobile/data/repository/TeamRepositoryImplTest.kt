@@ -62,9 +62,18 @@ class TeamRepositoryImplTest {
             TeamMatchDto("698887", null, null, "KIWOOM DRX", "Sentinels", null, null),
         ),
         recentMatches = emptyList(),
-        players = listOf(TeamRosterMemberDto("4462", "MaKo", null, emptyList())),
+        players = listOf(
+            TeamRosterMemberDto(
+                "4462",
+                "MaKo",
+                null,
+                emptyList(),
+                "https://owcdn.net/img/mako.png",
+            ),
+        ),
         staff = emptyList(),
         news = listOf(TeamNewsDto("700755/kiwoom-drx", "DRX news", null)),
+        logoUrl = "https://owcdn.net/img/drx.png",
     )
 
     private fun teamDetail() = TeamDetail(
@@ -76,9 +85,18 @@ class TeamRepositoryImplTest {
             TeamMatch("698887", null, null, "KIWOOM DRX", "Sentinels", null, null),
         ),
         recentMatches = emptyList(),
-        players = listOf(TeamRosterMember("4462", "MaKo", null, emptyList())),
+        players = listOf(
+            TeamRosterMember(
+                "4462",
+                "MaKo",
+                null,
+                emptyList(),
+                "https://owcdn.net/img/mako.png",
+            ),
+        ),
         staff = emptyList(),
         news = listOf(TeamNews("700755", "kiwoom-drx", "DRX news", null)),
+        logoUrl = "https://owcdn.net/img/drx.png",
     )
 }
 

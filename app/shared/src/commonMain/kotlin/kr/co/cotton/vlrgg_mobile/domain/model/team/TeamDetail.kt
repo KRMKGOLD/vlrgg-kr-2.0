@@ -10,6 +10,7 @@ data class TeamDetail(
     val players: List<TeamRosterMember>,
     val staff: List<TeamRosterMember>,
     val news: List<TeamNews>,
+    val logoUrl: String? = null,
 )
 
 data class TeamMatch(
@@ -27,6 +28,7 @@ data class TeamRosterMember(
     val handle: String,
     val realName: String?,
     val roleLabels: List<String>,
+    val imageUrl: String? = null,
 )
 
 data class TeamNews(

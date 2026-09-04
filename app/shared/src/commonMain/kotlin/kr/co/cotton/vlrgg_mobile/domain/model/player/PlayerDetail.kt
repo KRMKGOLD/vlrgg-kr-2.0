@@ -14,6 +14,7 @@ data class PlayerProfile(
     val aliases: List<String>,
     val countryCode: String?,
     val countryName: String?,
+    val imageUrl: String? = null,
 )
 
 data class PlayerCurrentTeam(
