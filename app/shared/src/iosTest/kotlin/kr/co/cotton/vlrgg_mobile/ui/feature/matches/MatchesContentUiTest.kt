@@ -436,8 +436,16 @@ class MatchesContentUiTest {
             status = MatchStatus.LIVE,
             timeLabel = "10:30 AM",
             relativeTimeLabel = "IN 2 HOURS",
-            homeTeam = MatchTeam(name = "Paper Rex", id = "team-prx"),
-            awayTeam = MatchTeam(name = "Gen.G", id = "team-geng"),
+            homeTeam = MatchTeam(
+                name = "Paper Rex",
+                id = "team-prx",
+                imageUrl = "https://cdn.example.com/prx-list.png",
+            ),
+            awayTeam = MatchTeam(
+                name = "Gen.G",
+                id = "team-geng",
+                imageUrl = "https://cdn.example.com/geng-list.png",
+            ),
             homeScore = null,
             awayScore = null,
             event = MatchEvent(
@@ -452,8 +460,16 @@ class MatchesContentUiTest {
             status = MatchStatus.COMPLETED,
             timeLabel = "8:00 PM",
             relativeTimeLabel = null,
-            homeTeam = MatchTeam(name = "Fnatic", id = "team-fnc"),
-            awayTeam = MatchTeam(name = "Sentinels", id = "team-sen"),
+            homeTeam = MatchTeam(
+                name = "Fnatic",
+                id = "team-fnc",
+                imageUrl = "https://cdn.example.com/fnc-list.png",
+            ),
+            awayTeam = MatchTeam(
+                name = "Sentinels",
+                id = "team-sen",
+                imageUrl = "https://cdn.example.com/sen-list.png",
+            ),
             homeScore = 13,
             awayScore = 9,
             event = MatchEvent(
