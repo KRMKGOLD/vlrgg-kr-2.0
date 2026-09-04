@@ -19,6 +19,7 @@ internal data class PlayerProfileResponse(
     val aliases: List<String>,
     val countryCode: String?,
     val countryName: String?,
+    val imageUrl: String? = null,
 )
 
 @Serializable

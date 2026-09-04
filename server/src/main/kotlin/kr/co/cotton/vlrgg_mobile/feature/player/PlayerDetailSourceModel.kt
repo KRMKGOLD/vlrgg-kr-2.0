@@ -22,6 +22,7 @@ internal data class PlayerProfileSource(
     val aliases: List<String>,
     val countryCode: String?,
     val countryName: String?,
+    val imageUrl: String? = null,
 )
 
 internal data class PlayerTeamSource(

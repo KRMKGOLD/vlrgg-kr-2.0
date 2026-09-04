@@ -28,11 +28,20 @@ class MatchesRoutesTest {
         val listBody = Json.parseToJsonElement(list.bodyAsText()).jsonObject
         assertEquals(2, listBody["page"]?.jsonPrimitive?.int)
         assertEquals("upcoming", listBody["category"]?.jsonPrimitive?.content)
+        val listMatch = listBody["groups"]?.jsonArray?.single()?.jsonObject
+            ?.get("matches")?.jsonArray?.single()?.jsonObject
+        assertEquals(JsonNull, listMatch?.get("homeTeam")?.jsonObject?.get("imageUrl"))
+        assertEquals(JsonNull, listMatch?.get("awayTeam")?.jsonObject?.get("imageUrl"))
 
         val detail = client.get("/api/v1/matches/709685")
         assertEquals(HttpStatusCode.OK, detail.status)
         val detailBody = Json.parseToJsonElement(detail.bodyAsText()).jsonObject
         assertEquals("709685", detailBody["id"]?.jsonPrimitive?.content)
+        assertEquals(
+            "https://owcdn.net/img/alpha.png",
+            detailBody["homeTeam"]?.jsonObject?.get("imageUrl")?.jsonPrimitive?.content,
+        )
+        assertEquals(JsonNull, detailBody["awayTeam"]?.jsonObject?.get("imageUrl"))
         val headToHead = detailBody["headToHead"]?.jsonArray?.single()?.jsonObject
         assertEquals("700001", headToHead?.get("id")?.jsonPrimitive?.content)
         assertEquals("Alpha", headToHead?.get("homeTeamName")?.jsonPrimitive?.content)
@@ -102,7 +111,25 @@ class MatchesRoutesTest {
     ) : MatchesService {
         override suspend fun getMatches(category: MatchListCategory, page: Int): MatchesPageResponse {
             listFailure?.let { throw it }
-            return MatchesPageResponse(category, page, emptyList())
+            return MatchesPageResponse(
+                category = category,
+                page = page,
+                groups = listOf(
+                    MatchDateGroupResponse(
+                        dateLabel = "Today",
+                        matches = listOf(
+                            MatchSummaryResponse(
+                                id = "709685",
+                                status = MatchStatus.UPCOMING,
+                                timeLabel = "5:00 PM",
+                                homeTeam = MatchTeamResponse("Alpha"),
+                                awayTeam = MatchTeamResponse("Beta"),
+                                event = MatchEventResponse("Event"),
+                            ),
+                        ),
+                    ),
+                ),
+            )
         }
 
         override suspend fun getMatch(matchId: String): MatchDetailResponse {
@@ -113,7 +140,7 @@ class MatchesRoutesTest {
                 timeLabel = "5:00 PM",
                 relativeTimeLabel = null,
                 scheduledAt = null,
-                homeTeam = MatchTeamResponse("Alpha"),
+                homeTeam = MatchTeamResponse("Alpha", imageUrl = "https://owcdn.net/img/alpha.png"),
                 awayTeam = MatchTeamResponse("Beta"),
                 homeScore = null,
                 awayScore = null,

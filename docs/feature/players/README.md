@@ -2,13 +2,13 @@
 
 ## 구현 상태 (2026-09-03)
 
-- **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 전체 기간 Player 정보, `currentTeam.imageUrl`을 포함한 현재 팀, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
+- **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 nullable `profile.imageUrl`, `currentTeam.imageUrl`을 포함한 전체 기간 Player 정보, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
 - **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있으며 `currentTeam.imageUrl`을 서버 Response에서 앱 Domain Model까지 전달한다.
 - **App UI P1 sections/navigation: 구현 완료.** Player Detail의 loading/content/error, Current Team·Agent Stats·Recent Matches의 독립 empty state, `currentTeam.imageUrl`을 사용하는 Current Team logo card, outlined Recent Match card, 고정 Agent identity column과 수평 스크롤 metric table, UI Agent 이름 첫 글자 대문자 표시, Agent icon 미사용, Team/Match navigation과 state restoration 회귀 테스트가 구현되어 있다. Android/iOS 실기기 screenshot 및 접근성 검증은 아직 수행하지 않았다.
 - **Favorite #43 Player Detail: 구현 완료.** 기기 로컬 즐겨찾기 상태를 복원하고, star의 등록·해제를 optimistic하게 처리한다. 실패하면 Add는 OFF, Remove는 ON으로 되돌린 뒤 actionable Retry Snackbar를 표시하며 mutation 중에도 화면 전체를 막지 않는다. 이 동작은 notification permission이나 서버 notification subscription을 만들거나 변경하지 않는다.
 - **#44 MyPage: 구현 완료.** 로컬 Team/Player favorite를 독립 섹션에 저장 순서대로 표시하고, Player Detail navigation과 optimistic 제거·실패 rollback·Retry를 제공한다.
 - **자동화 검증: 완료.** #43 Detail favorite와 #44 MyPage Player 목록·navigation·제거 상태는 common 및 iOS Compose 자동화 검증을 통과했다. Android/iOS 실기기 screenshot 및 pixel-perfect golden 비교는 수행하지 않았다.
-- **이미지 계약 경계.** `currentTeam.imageUrl`은 서버→앱 계약에 포함되며, 값이 있으면 Current Team logo card에 사용하고 `null`이면 안정적인 text placeholder를 표시한다. Player face와 Agent icon URL은 계속 지원하지 않으므로 P1은 Player face placeholder와 text-only Agent identity를 사용하며 Agent icon은 표시하지 않는다. Issue #68은 Team logo·roster image 서버 계약, Issue #70은 해당 Team 이미지의 앱 적용만 다루며, 두 이슈 모두 이 문서에서 완료로 표시하지 않는다.
+- **이미지 계약 경계.** `profile.imageUrl`과 `currentTeam.imageUrl`은 서버→앱 계약에 포함된다. `currentTeam.imageUrl`은 값이 있으면 Current Team logo card에 사용하고 `null`이면 안정적인 text placeholder를 표시한다. Player face URL은 서버가 지원하지만 KMP의 표시와 DTO/Domain 전달·로컬 저장은 별도 작업 범위이므로 P1은 계속 Player face text placeholder를 사용한다. Agent icon URL은 지원하지 않으며 Agent identity는 text-only로 표시한다. Issue #68은 Team logo·roster image, Player profile·current Team image, Match Detail 팀 이미지와 Match 목록의 null 정책을 함께 정하는 강화된 server Team/Player/Match 이미지 계약이며, Issue #70은 해당 Team 이미지의 앱 적용만 다룬다. 두 이슈 모두 이 문서에서 완료로 표시하지 않는다.
 
 ## 목적과 사용자 가치
 
@@ -58,7 +58,7 @@ Player Detail에서는 Event Detail로 직접 이동하지 않는다.
    - P1: Back
    - #43: Player favorite star 구현 완료
 2. Player header
-   - Player face: 안정적인 text placeholder (face image 미지원)
+   - Player face: KMP UI 적용 전까지 안정적인 text placeholder (`profile.imageUrl` 서버 지원)
    - handle
    - 제공 가능한 기본 정보
 3. Current Team logo card
@@ -71,7 +71,7 @@ Player Detail에서는 Event Detail로 직접 이동하지 않는다.
 
 | 영역 | 표시 데이터 |
 | --- | --- |
-| Player header | Player를 식별하고 이해하는 데 필요한 기본 정보 |
+| Player header | `handle`, 기본 정보, nullable `imageUrl` |
 | Current Team | `id`, `name`, nullable `imageUrl`과 함께 현재 Team을 식별하고 상세로 이동하는 데 필요한 요약 정보 |
 | Agent Stats | Agent별 기본 성과를 비교하는 데 필요한 요약 정보 |
 | Recent Match | Match 요약 계약을 따르는 최근 경기 정보 |
@@ -117,6 +117,7 @@ Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표
 
 - Player 페이지를 전체 기간 조건으로 수집하고 `Scraper → Parser → SourceModel → Mapper → Response` 경계를 지킨다.
 - Player 기본 정보, 현재 팀, Agent Stats, 최근 경기 5개를 앱에 적합한 응답으로 가공한다.
+- Player face URL은 `profile.imageUrl`로 전달한다. 값이 없거나 public HTTPS URL로 정규화할 수 없으면 `null`이며, 이는 DOM parsing failure가 아니다.
 - upstream에서 제공되지 않는 지표를 임의의 값으로 보정하지 않는다.
 - upstream DOM 구조, selector, 원본 HTML, 내부 오류를 앱 응답에 노출하지 않는다.
 - 일반 조회 실패 시 이전 결과를 성공 응답으로 반환하는 stale fallback을 사용하지 않는다.
@@ -140,7 +141,8 @@ Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표
     "realName": "Goo Sang-min",
     "aliases": ["ClokingRb"],
     "countryCode": "kr",
-    "countryName": "SOUTH KOREA"
+    "countryName": "SOUTH KOREA",
+    "imageUrl": "https://owcdn.net/img/69d5f87b7c32d.png"
   },
   "currentTeam": { "id": "11060", "name": "Nongshim RedForce", "imageUrl": "https://owcdn.net/img/6399bb707aacb.png" },
   "agentStats": [{
@@ -159,7 +161,7 @@ Stats가 없거나 현재 팀이 없는 Player도 유효한 Player Detail로 표
 }
 ```
 
-- `currentTeam`은 없을 수 있고, `agentStats`와 `recentMatches`는 빈 배열일 수 있다. `currentTeam`이 존재해도 `imageUrl`은 nullable이며, `null`은 upstream에서 사용할 수 있는 Team logo URL이 없다는 뜻이다. 이 경우 앱은 현재 팀이 없다고 처리하지 않고 logo card의 안정적인 text placeholder를 표시한다.
+- `profile.imageUrl`과 `currentTeam.imageUrl`은 nullable이다. `profile.imageUrl`의 `null`은 upstream에서 사용할 수 있는 Player face URL이 없다는 뜻이며 서버 parsing failure가 아니다. 서버가 값을 제공해도 KMP 표시와 저장은 별도 작업 범위이며, 그 전까지 앱은 Player face text placeholder를 표시한다. `currentTeam`은 없을 수 있고, `agentStats`와 `recentMatches`는 빈 배열일 수 있다. `currentTeam.imageUrl`이 `null`이면 앱은 현재 팀이 없다고 처리하지 않고 logo card의 안정적인 text placeholder를 표시한다.
 - agentStats의 optional numeric metric과 Recent Match score/date/stage는 source에 없거나 유효하게 해석할 수 없으면 `null`이다. 값 0을 임의로 만들지 않는다.
 - recentMatches는 source 순서의 최대 5개다. source에서 제공하지 않는 ID나 timestamp는 만들지 않는다.
 - upstream network failure는 `502 UPSTREAM_NETWORK_FAILURE`, DOM parsing failure는 `502 SOURCE_PARSING_FAILURE` 공통 envelope로만 노출한다. URL, slug, selector, raw HTML, 내부 exception text는 public response에 포함하지 않는다.

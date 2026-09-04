@@ -96,7 +96,7 @@ Match Detail과 관련 상세 화면은 bottom-navigation 목적지가 아니다
 4. Match row/card
    - Live 또는 예정/완료 상태
    - 경기 시각 또는 완료 시각
-   - 양 팀 이름 (현재 목록 DTO/domain 계약에는 이미지 URL이 없어 목록 card는 팀 이름만 표시)
+   - 양 팀 이름 (목록 응답의 `team.imageUrl`은 source에 없어 null이며 목록 card는 팀 이름만 표시)
    - 예정 경기의 남은 시간 또는 완료 경기의 스코어
    - Event 이름
 5. 다음 페이지 로딩 또는 페이지 로딩 실패 표시
@@ -114,7 +114,7 @@ Live 상태는 색상만으로 전달하지 않고 텍스트 label을 함께 사
 
 정보가 존재하지 않는 FFW 등의 terminal Match는 비어 있는 정상 스탯 화면처럼 보이지 않아야 한다. 확인 가능한 팀, 결과, 상태를 우선 표시하고 사용할 수 없는 section은 명시적으로 생략하거나 unavailable로 표현한다.
 Upcoming/Postponed pre-match에서는 Maps와 Head to Head를 section-level Empty로 표시할 수 있다. Match Detail의 Event identity와 Team identity는 각각 Event/Team Detail로 이동한다.
-Team hero는 양쪽 모두 로고 영역을 위에, Team name을 아래에 쌓는 대칭 구조이며, score/result는 두 Team hero 사이의 수평 중앙에 배치한다. 현재 public contract에는 Team logo URL이 없으므로 D1은 저강조 placeholder만 사용하고 remote image를 추정하지 않는다.
+Team hero는 양쪽 모두 로고 영역을 위에, Team name을 아래에 쌓는 대칭 구조이며, score/result는 두 Team hero 사이의 수평 중앙에 배치한다. 서버 Detail 응답은 검증된 team header 이미지가 있을 때만 HTTPS `imageUrl`을 제공한다. 이 URL을 KMP에서 실제로 로드·표시하는 작업은 별도 범위이며, 목록 응답은 source 제약으로 `imageUrl`이 null이다.
 
 ## 표시 데이터와 선택성
 
@@ -289,13 +289,13 @@ GET /api/v1/matches/{matchId}
 - `page`는 생략하면 `1`이며, 단 하나의 10진 정수 `1..1000`만 허용한다. 알려지지 않은 query parameter, 중복 `page`, 선행 0, 범위 밖 값은 `400 INVALID_REQUEST`다.
 - `matchId`는 선행 0이 없는 1~10자리 10진수만 허용한다. slug, upstream path, URL은 client 입력이나 API identity로 사용하지 않는다.
 - 성공 목록 response는 `{ category, page, groups }`이고, group은 `{ dateLabel, matches }`다. `category`는 `upcoming` 또는 `results`다.
-- summary는 `{ id, status, timeLabel, relativeTimeLabel?, homeTeam, awayTeam, homeScore?, awayScore?, event }`를 사용한다. team은 `{ name, id? }`, event는 `{ name, series?, id? }`다. ID가 있으면 Team/Event Detail navigation에 사용하며, 없으면 해당 이동 action을 노출하지 않는다.
+- summary는 `{ id, status, timeLabel, relativeTimeLabel?, homeTeam, awayTeam, homeScore?, awayScore?, event }`를 사용한다. team은 `{ name, id?, imageUrl? }`, event는 `{ name, series?, id? }`다. ID가 있으면 Team/Event Detail navigation에 사용하며, 없으면 해당 이동 action을 노출하지 않는다.
 - detail은 summary의 핵심 필드와 `scheduledAt?`, `description?`, `seriesFormat?`, `maps`, `headToHead`, `pastMatches`를 flat하게 제공한다. map은 `{ name, homeScore?, awayScore? }`이며 관련 경기는 `{ id, homeTeamName, awayTeamName, homeScore?, awayScore? }` 형태를 사용한다.
 - `status`는 `upcoming`, `live`, `completed`, `postponed`, `cancelled`, `unavailable` 중 하나다. 상태상 없는 score/map은 오류가 아니라 optional field 또는 빈 list로 표현한다.
 
 ### 현재 source 한계와 확장 지점
 
-- VLR.GG 목록 markup은 team/event의 안정적인 식별자와 절대 시각을 제공하지 않는다. 따라서 목록에서는 이름과 source 표시 문자열(`dateLabel`, `timeLabel`, `relativeTimeLabel`)만 제공한다. Detail markup의 안정적인 Team/Event ID는 `id`로 전달하지만, source에 없는 ID·image URL·추정 timestamp를 만들거나 upstream asset URL을 노출하지 않는다.
+- VLR.GG 목록 markup은 team/event의 안정적인 식별자와 절대 시각을 제공하지 않는다. 따라서 목록에서는 이름과 source 표시 문자열(`dateLabel`, `timeLabel`, `relativeTimeLabel`)만 제공하고 `team.imageUrl`은 null이다. 목록의 `.match-item-icon img`는 event icon이므로 team image로 사용하지 않는다. Detail markup의 검증된 각 team header link 내부 `img[src]`는 `//`·`/`·`https` source만 HTTPS public URL로 정규화해 해당 team의 `imageUrl`로 전달한다. source에 없는 ID·image URL·추정 timestamp를 만들지 않으며, HTTP·blank·data·javascript·bare-relative image source는 null이다. KMP가 Detail imageUrl을 로드·표시하는 적용은 이 server contract와 별도 범위다.
 - Detail의 `scheduledAt`은 upstream `data-utc-ts`를 안전하게 ISO-8601 UTC로 바꿀 수 있을 때만 포함한다. `timeLabel`은 source에서 읽은 사람이 읽을 수 있는 날짜/시간 label이며 UI가 locale/timezone 표시를 결정한다.
 - Detail의 `pastMatches`는 각 team history block 안에서 canonical numeric match link를 가진 `.match-histories-item`만 source 순서대로 전달한다. link가 없거나 상대 팀명이 빠진 item은 match identity를 합성하지 않고 제외하며, detail header의 team 순서와 item의 상대 팀/score만 사용한다.
 - `headToHead`는 `.match-h2h-matches`의 row가 canonical numeric match link를 직접 제공할 때만 source 순서대로 전달한다. canonical row reference가 없는 H2H row는 안정 식별자가 없다는 좁은 source limit 때문에 제외하며, event·team·score로 ID를 만들지 않는다; 유효한 row가 없으면 list는 빈 배열이다.
@@ -345,7 +345,7 @@ Matches 목록은 #38에서 구현 완료되었고, Match Detail Basic D1과 구
 - [x] 목록 pagination이 중복 항목 없이 동작하고 추가 페이지 실패 시 기존 목록을 유지한다.
 - [x] 경기 항목은 실제 Match Detail로, Match Detail의 Event reference는 Event Detail로 이동한다.
 - [x] Match Detail은 Event, 경기 설명, 양 팀, 스코어, 상태, 맵, Head to Head를 사용 가능한 범위에서 표시하고 기존 서버 `pastMatches` field를 UI section으로 렌더링하지 않는다.
-- [x] Match Detail의 양 Team hero는 로고 영역 위·이름 아래의 대칭 구조를 유지하고 score/result를 두 Team 사이 중앙에 배치한다. 계약에 없는 remote logo는 추정하지 않는다.
+- [x] Match Detail의 양 Team hero는 로고 영역 위·이름 아래의 대칭 구조를 유지하고 score/result를 두 Team 사이 중앙에 배치한다. server Detail의 검증된 `imageUrl` 제공과 KMP remote logo 적용은 별도 경계로 관리한다.
 - [x] BO1/BO3/BO5와 FFW fixture에서 상태별 선택성이 parsing failure와 구분된다.
 - [x] initial loading, empty, initial error, pagination error, unavailable 표현이 정상 populated 상태와 구분된다.
 - [ ] stale 데이터 표시는 현재 범위에 없으며, 향후 도입 시 마지막 확인 시각과 갱신 실패를 명시한다.
@@ -358,7 +358,7 @@ Matches 목록은 #38에서 구현 완료되었고, Match Detail Basic D1과 구
 - [x] map/H2H의 nullable score는 `—`, 실제 numeric zero는 `0`으로 구분한다.
 - [x] Team/Event ID가 있을 때만 전체 identity를 활성화하고 H2H 전체 surface는 관련 Match Detail로 이동한다.
 - [x] Matches Upcoming/Results, Event, Team, Player의 기존 Match route가 같은 실제 destination으로 해석되고 Back·root 전환 뒤 loaded/scroll overlay state를 보존한다.
-- [x] bottom navigation, notification bell·mutation·Snackbar, Match favorite, `pastMatches`, 추정 remote Team image를 Match Detail D1에 노출하지 않는다.
+- [x] bottom navigation, notification bell·mutation·Snackbar, Match favorite, `pastMatches`를 Match Detail D1에 노출하지 않는다. server Detail `imageUrl`의 KMP remote image 적용은 별도 범위다.
 - [x] Compose UI 테스트에서 48dp interactive target, 접근 가능한 label, 긴 한국어 Team/Event/description의 안전한 배치를 검증한다.
 - [ ] Android/iOS 실제 기기 screenshot 비교와 실기기 접근성 검증은 별도 수행이 필요하다.
 

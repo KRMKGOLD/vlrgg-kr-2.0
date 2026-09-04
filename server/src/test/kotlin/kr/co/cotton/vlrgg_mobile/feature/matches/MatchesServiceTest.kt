@@ -27,6 +27,8 @@ class MatchesServiceTest {
 
         val response = service.getMatches(MatchListCategory.UPCOMING, page = 1)
         assertEquals("709685", response.groups.single().matches.single().id)
+        assertNull(response.groups.single().matches.single().homeTeam.imageUrl)
+        assertNull(response.groups.single().matches.single().awayTeam.imageUrl)
 
         assertFailsWith<UpstreamNetworkFailure> { service.getMatches(MatchListCategory.UPCOMING, page = 1) }
         assertEquals(2, requestCount)
@@ -41,7 +43,7 @@ class MatchesServiceTest {
                     status = MatchStatusSource.CANCELLED,
                     timeLabel = "5:00 PM",
                     relativeTimeLabel = null,
-                    homeTeam = MatchTeamSource("Alpha", id = "1"),
+                    homeTeam = MatchTeamSource("Alpha", id = "1", imageUrl = "https://owcdn.net/img/alpha.png"),
                     awayTeam = MatchTeamSource("Beta", id = "2"),
                     homeScore = null,
                     awayScore = null,
@@ -59,6 +61,8 @@ class MatchesServiceTest {
         assertEquals(MatchStatus.CANCELLED, response.status)
         assertEquals("Alpha", response.homeTeam.name)
         assertEquals("1", response.homeTeam.id)
+        assertEquals("https://owcdn.net/img/alpha.png", response.homeTeam.imageUrl)
+        assertNull(response.awayTeam.imageUrl)
         assertEquals("Event", response.event.name)
         assertEquals("3", response.event.id)
     }

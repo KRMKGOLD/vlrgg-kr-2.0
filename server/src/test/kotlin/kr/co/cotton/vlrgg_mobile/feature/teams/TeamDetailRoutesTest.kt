@@ -27,8 +27,17 @@ class TeamDetailRoutesTest {
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals("8185", body["id"]?.jsonPrimitive?.content)
+        assertEquals("https://owcdn.net/img/kiwoom-drx.png", body["logoUrl"]?.jsonPrimitive?.content)
         assertEquals("698887", body["upcomingMatches"]?.jsonArray?.single()?.jsonObject?.get("id")?.jsonPrimitive?.content)
         assertEquals("4462", body["players"]?.jsonArray?.single()?.jsonObject?.get("id")?.jsonPrimitive?.content)
+        assertEquals(
+            "https://owcdn.net/img/players/mako.png",
+            body["players"]?.jsonArray?.single()?.jsonObject?.get("imageUrl")?.jsonPrimitive?.content,
+        )
+        assertEquals(
+            "https://www.vlr.gg/img/base/ph/sil.png",
+            body["staff"]?.jsonArray?.single()?.jsonObject?.get("imageUrl")?.jsonPrimitive?.content,
+        )
         assertEquals(
             "700755/kiwoom-drx-releases-rookie-hermes",
             body["news"]?.jsonArray?.first()?.jsonObject?.get("reference")?.jsonPrimitive?.content,
@@ -53,6 +62,20 @@ class TeamDetailRoutesTest {
         assertEquals("ALTERNATE aTTaX Ruby", match?.get("teamName")?.jsonPrimitive?.content)
         assertEquals("TBD", match?.get("opponentName")?.jsonPrimitive?.content)
         assertTrue(Json.parseToJsonElement(response.bodyAsText()).jsonObject["news"]!!.jsonArray.isEmpty())
+    }
+
+    @Test
+    fun `route serializes missing optional Team images as null`() = withTeamApplication(
+        FixtureTransport(
+            overviewHtml = fixture("sparse-team-overview.html"),
+            newsHtml = fixture("sparse-team-news.html"),
+        ),
+    ) {
+        val body = Json.parseToJsonElement(client.get("/api/v1/teams/19296").bodyAsText()).jsonObject
+
+        assertEquals(JsonNull, body["logoUrl"])
+        assertTrue(body["players"]!!.jsonArray.isEmpty())
+        assertTrue(body["staff"]!!.jsonArray.isEmpty())
     }
 
     @Test

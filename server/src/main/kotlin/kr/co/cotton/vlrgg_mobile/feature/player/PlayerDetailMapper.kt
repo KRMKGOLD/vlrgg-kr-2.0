@@ -10,6 +10,7 @@ internal class PlayerDetailMapper {
             aliases = source.profile.aliases,
             countryCode = source.profile.countryCode,
             countryName = source.profile.countryName,
+            imageUrl = source.profile.imageUrl,
         ),
         currentTeam = source.currentTeam?.let { PlayerTeamResponse(it.id, it.name, it.imageUrl) },
         agentStats = source.agentStats.map { stat ->

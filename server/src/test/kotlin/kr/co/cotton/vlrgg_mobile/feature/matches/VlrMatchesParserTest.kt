@@ -25,6 +25,8 @@ class VlrMatchesParserTest {
         assertEquals("22m", match.relativeTimeLabel)
         assertEquals("ONSIDE GAMING", match.homeTeam.name)
         assertEquals("Dplus Esports", match.awayTeam.name)
+        assertNull(match.homeTeam.imageUrl)
+        assertNull(match.awayTeam.imageUrl)
         assertNull(match.homeScore)
         assertNull(match.awayScore)
         assertEquals("Challengers 2026: Korea WDG Split 2", match.event.name)
@@ -58,8 +60,10 @@ class VlrMatchesParserTest {
         assertEquals("Stage 2: Lower Round 2", detail.summary.event.series)
         assertEquals("Nongshim RedForce", detail.summary.homeTeam.name)
         assertEquals("11060", detail.summary.homeTeam.id)
+        assertEquals("https://owcdn.net/img/6399bb707aacb.png", detail.summary.homeTeam.imageUrl)
         assertEquals("KIWOOM DRX", detail.summary.awayTeam.name)
         assertEquals("8185", detail.summary.awayTeam.id)
+        assertEquals("https://owcdn.net/img/6a353ee73ab25.png", detail.summary.awayTeam.imageUrl)
         assertEquals("2955", detail.summary.event.id)
         assertEquals(2, detail.summary.homeScore)
         assertEquals(0, detail.summary.awayScore)
@@ -75,6 +79,52 @@ class VlrMatchesParserTest {
         assertTrue(limited.maps.isEmpty())
         assertNull(limited.summary.homeScore)
         assertNull(limited.summary.awayScore)
+    }
+
+    @Test
+    fun `normalizes only supported detail team image URLs and preserves missing or unsafe values as null`() {
+        val sources = mapOf(
+            "//owcdn.net/img/home.png" to "https://owcdn.net/img/home.png",
+            "/img/home.png" to "https://www.vlr.gg/img/home.png",
+            "https://owcdn.net/img/home.png" to "https://owcdn.net/img/home.png",
+            "HTTPS://owcdn.net/img/home.png" to "https://owcdn.net/img/home.png",
+            "//" to null,
+            "https://" to null,
+            "https:///img/home.png" to null,
+            "https://bad host/img/home.png" to null,
+            "" to null,
+            "http://owcdn.net/img/home.png" to null,
+            "data:image/png;base64,abc" to null,
+            "javascript:alert(1)" to null,
+            "home.png" to null,
+        )
+
+        sources.forEach { (source, expected) ->
+            val html = fixtureHtml("detail-completed.html").replace("//owcdn.net/img/6399bb707aacb.png", source)
+            val detail = parser.parseDetail(html, detailUrl, "709685")
+
+            assertEquals(expected, detail.summary.homeTeam.imageUrl, source)
+            assertEquals("https://owcdn.net/img/6a353ee73ab25.png", detail.summary.awayTeam.imageUrl, source)
+        }
+    }
+
+    @Test
+    fun `scopes each team image to its validated detail team link`() {
+        val html = fixtureHtml("detail-completed.html")
+            .replace("<img src=\"//owcdn.net/img/6399bb707aacb.png\">", "")
+            .replace(
+                "<div class=\"match-header-vs-score\">",
+                "<img src=\"//owcdn.net/img/not-a-team.png\"><div class=\"match-header-vs-score\">",
+            )
+            .replace(
+                "<a href=\"/event/2955/esports-world-cup-2026-pacific-qualifier/stage-2\" class=\"match-header-event\">",
+                "<a href=\"/event/2955/esports-world-cup-2026-pacific-qualifier/stage-2\" class=\"match-header-event\"><img src=\"//owcdn.net/img/event.png\">",
+            )
+
+        val detail = parser.parseDetail(html, detailUrl, "709685")
+
+        assertNull(detail.summary.homeTeam.imageUrl)
+        assertEquals("https://owcdn.net/img/6a353ee73ab25.png", detail.summary.awayTeam.imageUrl)
     }
 
     @Test

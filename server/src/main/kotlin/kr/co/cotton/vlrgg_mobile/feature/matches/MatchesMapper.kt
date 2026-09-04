@@ -54,7 +54,7 @@ internal class MatchesMapper {
         event = source.event.toResponse(),
     )
 
-    private fun MatchTeamSource.toResponse() = MatchTeamResponse(name = name, id = id)
+    private fun MatchTeamSource.toResponse() = MatchTeamResponse(name = name, id = id, imageUrl = imageUrl)
 
     private fun MatchEventSource.toResponse() = MatchEventResponse(name = name, series = series, id = id)
 

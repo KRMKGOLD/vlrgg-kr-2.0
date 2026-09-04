@@ -7,6 +7,7 @@ internal class TeamDetailMapper {
         name = source.profile.name,
         tag = source.profile.tag,
         country = source.profile.country,
+        logoUrl = source.profile.logoUrl,
         upcomingMatches = source.upcomingMatches.map { it.toResponse() },
         recentMatches = source.recentMatches.map { it.toResponse() },
         players = source.players.map { it.toResponse() },
@@ -29,6 +30,7 @@ internal class TeamDetailMapper {
         handle = handle,
         realName = realName,
         roleLabels = roleLabels,
+        imageUrl = imageUrl,
     )
 
     private fun TeamNewsSource.toResponse() = TeamNewsResponse(
