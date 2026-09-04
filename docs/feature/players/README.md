@@ -1,6 +1,6 @@
 # Player 기능 기획
 
-## 구현 상태 (2026-09-01)
+## 구현 상태 (2026-09-03)
 
 - **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 전체 기간 Player 정보, `currentTeam.imageUrl`을 포함한 현재 팀, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
 - **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있으며 `currentTeam.imageUrl`을 서버 Response에서 앱 Domain Model까지 전달한다.
@@ -193,4 +193,5 @@ https://www.vlr.gg/player/488/rb/?timespan=all
 - [x] #43: Player 즐겨찾기 등록·해제는 notification permission이나 서버 notification subscription을 만들거나 변경하지 않는다.
 - [x] #44: Player 즐겨찾기는 MyPage의 Player 그룹에 저장 순서대로 집계되고, 항목 Detail navigation과 제거·실패 Retry UI를 제공한다.
 - [x] 현재 팀, Stats 또는 최근 경기가 없어도 나머지 Player 정보는 정상 표시된다.
-- [ ] loading, empty section, error dialog, stale 상태가 유효 콘텐츠와 시각적으로 구분되고 generic Partial screen은 없다.
+- [x] loading, empty section, error dialog가 유효 콘텐츠와 시각적으로 구분되고 generic Partial screen은 없다.
+- [ ] stale 상태는 현재 범위에 없으며, 향후 도입 시 마지막 갱신 시각과 오래된 데이터를 명시한다.

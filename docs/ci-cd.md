@@ -1,7 +1,7 @@
 # CI/CD and Cloud Run delivery direction
 
-- Status: Stage 1.1 credential-free CI implemented; Stage 2 live deployment deferred
-- Last reviewed: 2026-07-31
+- Status: Stage 1.1 credential-free CI implemented, including iOS simulator coverage; Stage 2 live deployment deferred
+- Last reviewed: 2026-09-03
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
 ## Goal and stage boundary
@@ -94,10 +94,11 @@ Jobs:
 4. `:app:androidApp:testDebugUnitTest :app:androidApp:lintDebug`
 5. `:server:test :server:build`
 6. Stage 1.1 이후 Firestore Emulator launch/readiness, explicit environment, `:server:firestoreEmulatorTest`, always cleanup
+7. macOS runner에서 `:app:shared:iosSimulatorArm64Test :app:shared:compileKotlinIosSimulatorArm64`
 
-iOS 검증은 macOS runner 비용 때문에 `app/shared/**`, `app/iosApp/**`, `core/**`, Gradle 설정 변경에 한해 별도 job 또는 `main`/수동 workflow로 운영한다. 최소 task는 `:app:shared:compileKotlinIosSimulatorArm64`; simulator test를 gate로 선택하면 `:app:shared:iosSimulatorArm64Test`를 사용한다.
+macOS iOS job은 Android/server Linux job과 별도로 모든 `pull_request` 및 `main` push에서 실행한다. 따라서 iOS simulator test와 Kotlin/Native iOS compilation은 PR 병합 전과 `main` 반영 후 모두 검증되며, macOS runner 사용 시간은 이 전체 CI trigger 범위에 따라 발생한다.
 
-`ci.yml`은 Node 22, Java 21, pinned `firebase-tools@15.25.1`의 foreground `emulators:exec`로 Firestore를 시작·ready 확인·`:server:test :server:firestoreEmulatorTest :server:build :server:installDist` 실행·cleanup한다. KMP Android host, Android unit/lint, packaged `/health`와 notification-route fail-closed smoke도 credential 없이 실행한다. Patch whitespace 검사는 PR에서는 base SHA와 head SHA의 범위, `main` push에서는 event before와 head SHA의 범위를 검사하며, `app/**` zero-touch는 이 Stage 1.1 branch evidence이지 향후 app PR을 막는 permanent CI rule이 아니다.
+`ci.yml`은 Node 22, Java 21, pinned `firebase-tools@15.25.1`의 foreground `emulators:exec`로 Firestore를 시작·ready 확인·`:server:test :server:firestoreEmulatorTest :server:build :server:installDist` 실행·cleanup한다. Linux job의 KMP Android host, Android unit/lint, packaged `/health`와 notification-route fail-closed smoke와 macOS job의 iOS simulator test/compile 모두 credential 없이 실행한다. Patch whitespace 검사는 PR에서는 base SHA와 head SHA의 범위, `main` push에서는 event before와 head SHA의 범위를 검사하며, `app/**` zero-touch는 이 Stage 1.1 branch evidence이지 향후 app PR을 막는 permanent CI rule이 아니다.
 
 ## Planned `deploy-server.yml`
 

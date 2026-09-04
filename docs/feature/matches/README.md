@@ -4,7 +4,7 @@
 
 이 문서는 Upcoming/Live, Results, Match Detail과 경기 시작 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
-## 구현 상태 (2026-08-29)
+## 구현 상태 (2026-09-03)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
 - **Backend Match 알림/구독: Stage 1.1 server offline GREEN.** Firestore Emulator, 익명 Target ID/Secret, START-only, request-bound scheduler로 Stage 1 runtime을 교체했고 credential-free contract/emulator/package evidence가 GREEN이다. 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md), [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](../../architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
@@ -337,17 +337,18 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 
 ### 목록과 상세
 
-기존 Matches 목록 구현 항목은 이번 Match Detail D1의 완료 판정 범위가 아니므로 기존 체크 상태를 유지한다.
+Matches 목록은 #38에서 구현 완료되었고, Match Detail Basic D1과 구분해 아래 현재 완료 상태를 기록한다.
 
-- [ ] Matches 탭에서 Upcoming/Live와 Results를 명확히 전환할 수 있다.
-- [ ] Upcoming/Live는 날짜, 경기 시각, 남은 시간, 양 팀, Event, 상태를 표시한다.
-- [ ] Results는 날짜, 완료 시각, 양 팀, 스코어, Event를 표시한다.
-- [ ] 목록 pagination이 중복 항목 없이 동작하고 추가 페이지 실패 시 기존 목록을 유지한다.
+- [x] Matches 탭에서 Upcoming/Live와 Results를 명확히 전환할 수 있다.
+- [x] Upcoming/Live는 날짜, 경기 시각, 남은 시간, 양 팀, Event, 상태를 표시한다.
+- [x] Results는 날짜, 완료 시각, 양 팀, 스코어, Event를 표시한다.
+- [x] 목록 pagination이 중복 항목 없이 동작하고 추가 페이지 실패 시 기존 목록을 유지한다.
 - [x] 경기 항목은 실제 Match Detail로, Match Detail의 Event reference는 Event Detail로 이동한다.
 - [x] Match Detail은 Event, 경기 설명, 양 팀, 스코어, 상태, 맵, Head to Head를 사용 가능한 범위에서 표시하고 기존 서버 `pastMatches` field를 UI section으로 렌더링하지 않는다.
 - [x] Match Detail의 양 Team hero는 로고 영역 위·이름 아래의 대칭 구조를 유지하고 score/result를 두 Team 사이 중앙에 배치한다. 계약에 없는 remote logo는 추정하지 않는다.
 - [x] BO1/BO3/BO5와 FFW fixture에서 상태별 선택성이 parsing failure와 구분된다.
-- [ ] initial loading, empty, initial error, pagination error, stale/unavailable 표현이 정상 populated 상태와 구분된다.
+- [x] initial loading, empty, initial error, pagination error, unavailable 표현이 정상 populated 상태와 구분된다.
+- [ ] stale 데이터 표시는 현재 범위에 없으며, 향후 도입 시 마지막 확인 시각과 갱신 실패를 명시한다.
 
 ### Match Detail Basic D1
 

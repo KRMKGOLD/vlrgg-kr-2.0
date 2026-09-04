@@ -4,7 +4,7 @@
 
 - **Backend: 해당 없음.** About은 정적 앱 정보와 외부 Source Code 링크만 사용하며 별도 API/scraping이 없다.
 - **App: A1 기본 구현과 #47 refinement의 자동 검증이 완료되었다.** About은 다섯 번째 root destination이며 Android/iOS runtime owner가 build metadata와 external-open 경계를 제공한다. metadata가 없으면 version UI를 생략하고, source-link 실패는 action 없는 짧은 Snackbar로 알린다. 이 시간은 text-only 안내에 맞춰 accessibility 권장 timeout으로 조정되며, About을 벗어난 뒤 늦게 도착한 platform callback은 무시한다.
-- **실기기 검증은 미완료.** Android/iOS의 실제 external-open과 screen reader 동작은 이 문서의 자동 검증 완료 범위에 포함하지 않는다.
+- **실기기 검증은 미완료.** Android/iOS의 실제 external-open은 이 문서의 자동 검증 완료 범위에 포함하지 않는다.
 
 ## 목적과 사용자 가치
 
@@ -127,7 +127,7 @@ canonical `About — Source Link Error`는 inverse-surface compact Snackbar를 �
 - [x] VLR.GG 데이터 출처와 비공식·개인 프로젝트 문맥을 명확히 표시한다.
 - [x] About은 별도 server API를 호출하지 않는다.
 - [x] Top App Bar에서 Search를 열고 Back하면 About으로 복귀한다.
-- [ ] screen reader가 외부 링크의 목적과 외부 이동임을 식별할 수 있다.
+- [x] screen reader가 외부 링크의 목적과 외부 이동임을 식별할 수 있다.
 
 ## 후속 배포 검토
 

@@ -3,7 +3,7 @@
 ## 문서 상태
 
 - Status: Active
-- Last reviewed: 2026-09-01
+- Last reviewed: 2026-09-03
 - Product scope: VLR.GG Mobile Tracker 1차 MVP
 - Design source: [`../../DESIGN.md`](../../DESIGN.md)
 - App architecture: [`../app-arch/app-arch.md`](../app-arch/app-arch.md)
@@ -35,7 +35,7 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | 5 | Match Detail Basic, Series Detail | [`matches/README.md`](matches/README.md), [`series/README.md`](series/README.md) |
 | Cross-feature | MyPage, Team·Player 즐겨찾기, About | [`my-page/README.md`](my-page/README.md), [`about/README.md`](about/README.md) |
 
-## 구현 상태 (2026-09-01)
+## 구현 상태 (2026-09-03)
 
 아래 상태는 현재 기능 브랜치의 코드 기준 구현 범위를 기록한 것이며, 1차 MVP의 제품 범위나 수용 기준을 변경하지 않는다. 서버 공통 기반에는 공개 콘텐츠 route의 런타임 OpenAPI/Swagger 문서가 구현되어 있다.
 
@@ -49,18 +49,18 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | DI | 구현 — Metro `AppGraph`와 `AppViewModelFactory`; MyPage ViewModel binding 포함 |
 | Navigation | 구현 — 직렬화 가능한 root/Search/detail key, MyPage 기본 root, root별 saved back stack과 transient overlay, selected root/stack 저장·복원, root별 entry saveable state와 ViewModelStore scope. MyPage는 Team/Player Detail과 Search로 이동 |
 | Runtime 회귀 테스트 | 구현 — navigation key 직렬화·상태·descriptor, MyPage ViewModel, Android AppGraph host, iOS Compose navigation/geometry 테스트 |
-| 실제 feature/data | 일부 구현 — #44 MyPage의 로컬 Team/Player 즐겨찾기 목록·Detail navigation·제거/재시도와 About을 포함한다. 기능별 상세 상태는 아래 표와 각 문서를 따른다. |
+| 실제 feature/data | 구현 — #34~#47로 News, Matches, Events, Search, Team/Player Detail, Series Detail, Team/Player 즐겨찾기·MyPage, About의 현재 MVP slice가 앱 data/UI/navigation에 연결되어 있다. 기능별 상세 상태와 실제 기기 검증 범위는 아래 표와 각 문서를 따른다. |
 | 기기 검증 | 미완료 — physical Android/iOS 시각·접근성 검증 |
 
 | Feature slice | Backend | App |
 | --- | --- | --- |
-| News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | 목록 구현 완료 — remote DTO/Domain/Data 계층, 목록 상태·pagination·pull-to-refresh UI, News Detail placeholder 이동. 상세 본문 UI와 내부 링크 navigation은 미구현 |
-| Matches | 콘텐츠 조회 구현 완료 — Upcoming/Results 목록과 Match Detail API | Feature 미구현 — root/detail key와 marker만 있고 실제 목록·상세 UI와 data 연동 없음 |
-| Events | 구현 완료 — 목록, 상세, Matches, News, Stats API | Feature 미구현 |
+| News | 구현 완료 — 목록·상세 API와 구조화된 본문 parsing | 구현 완료 — 목록 pagination·pull-to-refresh와 News Detail의 구조화된 본문, Team/Player 내부 링크 navigation |
+| Matches | 콘텐츠 조회 구현 완료 — Upcoming/Results 목록과 Match Detail API | 구현 완료 — Upcoming/Live·Results 목록 pagination과 Match Detail Basic D1; 앱 알림 연동은 Stage 2 |
+| Events | 구현 완료 — 목록, 상세, Matches, News, Stats API | 구현 완료 — Event List와 Matches·News·Stats Detail tabs, 관련 Detail navigation |
 | Search | 구현 완료 — Series/Event/Team/Player 결과 API | 구현 완료 — 명시적 제출, 5개 상태, 지원 타입 Detail 이동 |
-| Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | Feature 미구현 |
-| Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | Feature 미구현 |
-| Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | Feature 미구현 |
+| Team Detail | 구현 완료 — Team overview·news를 합친 상세 API | 구현 완료 — 섹션 상태, Match·Player·News navigation, 로컬 즐겨찾기 |
+| Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | 구현 완료 — 섹션 상태, Team·Match navigation, 로컬 즐겨찾기 |
+| Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | 구현 완료 — Upcoming/Completed Event 그룹과 Search → Series → Event navigation |
 | MyPage, Team·Player 즐겨찾기, About | Backend 기능 없음 | 구현 완료 — MyPage Team/Player 독립 목록·Detail 이동·제거/재시도·상태 복원과 About 화면 |
 | Match 알림 | Stage 1.1 server offline GREEN — Firestore Emulator, 익명 Target 권한, START-only, request-bound scheduler | Feature 미구현 — App·실제 Firebase 연동은 `NOT RUN — Stage 2` |
 

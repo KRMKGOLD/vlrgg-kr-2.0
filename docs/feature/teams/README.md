@@ -1,6 +1,6 @@
 # Team 기능 기획
 
-## 구현 상태 (2026-09-01)
+## 구현 상태 (2026-09-03)
 
 - **Backend: 구현 완료.** `GET /api/v1/teams/{teamId}`가 Team overview와 news를 요청 시점에 수집해 app-facing response로 반환하며 parser/route 테스트가 있다.
 - **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있다.
