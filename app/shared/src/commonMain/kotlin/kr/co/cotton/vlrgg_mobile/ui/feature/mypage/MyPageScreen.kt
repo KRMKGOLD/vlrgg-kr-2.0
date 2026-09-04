@@ -30,10 +30,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -42,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoritePlayer
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam
@@ -65,6 +69,8 @@ internal const val MY_PAGE_TEAM_SECTION_TAG = "my_page_team_section"
 internal const val MY_PAGE_PLAYER_SECTION_TAG = "my_page_player_section"
 
 internal fun myPageTeamRowTag(id: String): String = "my_page_team_$id"
+internal fun myPageTeamImageTag(id: String): String = "my_page_team_image_$id"
+internal fun myPageTeamImagePlaceholderTag(id: String): String = "my_page_team_image_placeholder_$id"
 
 internal fun myPagePlayerRowTag(id: String): String = "my_page_player_$id"
 
@@ -321,6 +327,9 @@ private fun FavoriteTeamRow(
         id = favorite.id,
         title = favorite.name,
         subtitle = listOfNotNull(favorite.tag, favorite.country).joinToString(" · ").ifBlank { null },
+        imageUrl = favorite.imageUrl,
+        imageTag = myPageTeamImageTag(favorite.id),
+        imagePlaceholderTag = myPageTeamImagePlaceholderTag(favorite.id),
         rowDescription = "팀 상세: ${favorite.name}",
         removalDescription = "${favorite.name} 즐겨찾기 해제",
         onClick = onClick,
@@ -352,6 +361,9 @@ private fun FavoriteRow(
     id: String,
     title: String,
     subtitle: String?,
+    imageUrl: String? = null,
+    imageTag: String? = null,
+    imagePlaceholderTag: String? = null,
     rowDescription: String,
     removalDescription: String,
     onClick: (String) -> Unit,
@@ -360,6 +372,8 @@ private fun FavoriteRow(
 ) {
     val openDetail = remember(id, onClick) { { onClick(id) } }
     val removeFavorite = remember(id, onRemove) { { onRemove(id) } }
+    val nonBlankImageUrl = imageUrl?.takeIf(String::isNotBlank)
+    var imageFailed by remember(nonBlankImageUrl) { mutableStateOf(false) }
 
     Row(
         modifier = modifier
@@ -375,7 +389,25 @@ private fun FavoriteRow(
                 .size(32.dp)
                 .clip(CircleShape)
                 .background(VlrTheme.colors.surfaceSubtle),
-        )
+        ) {
+            if (nonBlankImageUrl != null && !imageFailed) {
+                AsyncImage(
+                    model = nonBlankImageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    onError = { imageFailed = true },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(imageTag?.let(Modifier::testTag) ?: Modifier),
+                )
+            } else if (imagePlaceholderTag != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(imagePlaceholderTag),
+                )
+            }
+        }
         Spacer(Modifier.width(VlrDimensions.Space3))
         Column(
             modifier = Modifier.weight(1f),

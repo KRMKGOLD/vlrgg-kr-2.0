@@ -8,6 +8,7 @@ data class FavoriteTeamStorage(
     val name: String,
     val tag: String?,
     val country: String?,
+    val imageUrl: String? = null,
 )
 
 @Serializable

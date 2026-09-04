@@ -16,6 +16,7 @@ class FavoriteMapperTest {
             name = "",
             tag = null,
             country = "",
+            imageUrl = "https://cdn.example.com/drx.png",
         )
 
         assertEquals(favorite, favorite.toStorage().toDomain())
@@ -36,10 +37,11 @@ class FavoriteMapperTest {
 
     @Test
     fun teamAndPlayerUseSeparateStorageModels() {
-        val teamStorage = FavoriteTeamStorage("2", "DRX", "DRX", "Korea")
+        val teamStorage = FavoriteTeamStorage("2", "DRX", "DRX", "Korea", "https://cdn.example.com/drx.png")
         val playerStorage = FavoritePlayerStorage("100", "stax", null, "KR", "Korea")
 
         assertEquals("2", teamStorage.toDomain().id)
+        assertEquals("https://cdn.example.com/drx.png", teamStorage.toDomain().imageUrl)
         assertEquals("100", playerStorage.toDomain().id)
     }
 }

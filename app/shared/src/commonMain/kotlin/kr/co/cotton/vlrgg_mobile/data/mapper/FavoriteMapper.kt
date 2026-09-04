@@ -10,6 +10,7 @@ internal fun FavoriteTeamStorage.toDomain(): FavoriteTeam = FavoriteTeam(
     name = name,
     tag = tag,
     country = country,
+    imageUrl = imageUrl,
 )
 
 internal fun FavoriteTeam.toStorage(): FavoriteTeamStorage = FavoriteTeamStorage(
@@ -17,6 +18,7 @@ internal fun FavoriteTeam.toStorage(): FavoriteTeamStorage = FavoriteTeamStorage
     name = name,
     tag = tag,
     country = country,
+    imageUrl = imageUrl,
 )
 
 internal fun FavoritePlayerStorage.toDomain(): FavoritePlayer = FavoritePlayer(

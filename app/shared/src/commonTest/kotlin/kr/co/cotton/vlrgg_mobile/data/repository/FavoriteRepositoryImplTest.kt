@@ -23,7 +23,7 @@ class FavoriteRepositoryImplTest {
     fun queriesAndMutationsExposeOnlyDomainAppResults() = runTest {
         val source = FakeFavoriteLocalDataSource()
         val repository = FavoriteRepositoryImpl(source)
-        val team = FavoriteTeam("2", "DRX", "DRX", "Korea")
+        val team = FavoriteTeam("2", "DRX", "DRX", "Korea", "https://cdn.example.com/drx.png")
         val player = FavoritePlayer("100", "stax", null, "KR", "Korea")
 
         assertEquals(AppResult.Success(Unit), repository.addFavoriteTeam(team))

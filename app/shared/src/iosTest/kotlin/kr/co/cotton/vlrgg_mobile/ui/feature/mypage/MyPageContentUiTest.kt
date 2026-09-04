@@ -18,6 +18,12 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.dp
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
+import coil3.intercept.Interceptor
+import coil3.request.ErrorResult
+import coil3.test.FakeImageLoaderEngine
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoritePlayer
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
@@ -25,8 +31,70 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@OptIn(ExperimentalTestApi::class)
+@OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class MyPageContentUiTest {
+    @Test
+    fun teamImageUsesStoredUrlAndKeepsTheExistingPlaceholderForFailureNullAndBlankUrls() {
+        val imageUrl = "https://cdn.example.com/drx.png"
+        val requestedUrls = mutableListOf<Any?>()
+        var imageLoader: ImageLoader? = null
+        val fakeEngine = FakeImageLoaderEngine.Builder()
+            .default(
+                Interceptor { chain ->
+                    requestedUrls += chain.request.data
+                    ErrorResult(null, chain.request, IllegalStateException("fixture failure"))
+                },
+            )
+            .build()
+        SingletonImageLoader.setUnsafe(
+            SingletonImageLoader.Factory { context ->
+                ImageLoader.Builder(context)
+                    .components { add(fakeEngine) }
+                    .build()
+                    .also { imageLoader = it }
+            },
+        )
+        try {
+            runComposeUiTest {
+                val favorite = team("team-image").copy(imageUrl = imageUrl)
+                var selectedTeamId: String? = null
+                setContent {
+                    TestContent(
+                        uiState = MyPageUiState(
+                            favoriteTeams = FavoriteSectionState.Content(listOf(favorite)),
+                            favoritePlayers = FavoriteSectionState.Empty,
+                        ),
+                        onTeamClick = { selectedTeamId = it },
+                    )
+                }
+                assertEquals(imageUrl, requestedUrls.single())
+                onNodeWithTag(myPageTeamImagePlaceholderTag(favorite.id), useUnmergedTree = true).assertExists()
+                onNodeWithTag(myPageTeamRowTag(favorite.id)).performClick()
+                assertEquals(favorite.id, selectedTeamId)
+
+                listOf<String?>(null, " ").forEach { missingUrl ->
+                    setContent {
+                        TestContent(
+                            uiState = MyPageUiState(
+                                favoriteTeams = FavoriteSectionState.Content(
+                                    listOf(favorite.copy(imageUrl = missingUrl)),
+                                ),
+                                favoritePlayers = FavoriteSectionState.Empty,
+                            ),
+                        )
+                    }
+                    onNodeWithTag(myPageTeamImagePlaceholderTag(favorite.id), useUnmergedTree = true).assertExists()
+                }
+                assertEquals(1, requestedUrls.size)
+            }
+        } finally {
+            try {
+                SingletonImageLoader.reset()
+            } finally {
+                imageLoader?.shutdown()
+            }
+        }
+    }
     @Test
     fun sectionsStayOrderedAndIndependentAndEmitExactStoredIds() = runComposeUiTest {
         val teams = listOf(team("team-2"), team("team-1"))

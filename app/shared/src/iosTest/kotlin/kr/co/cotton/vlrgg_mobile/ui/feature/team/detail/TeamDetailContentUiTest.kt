@@ -29,6 +29,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
+import coil3.intercept.Interceptor
+import coil3.request.ErrorResult
+import coil3.test.FakeImageLoaderEngine
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamMatch
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
@@ -40,8 +46,80 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-@OptIn(ExperimentalTestApi::class)
+@OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class TeamDetailContentUiTest {
+
+    @Test
+    fun providedTeamAndRosterImageUrlsRequestOnlyProvidedValuesAndFallbackToPlaceholders() {
+        val imageUrl = "https://cdn.example.com/drx.png"
+        val playerImageUrl = "https://cdn.example.com/mako.png"
+        val staffImageUrl = "https://cdn.example.com/termi.png"
+        val requestedUrls = mutableListOf<Any?>()
+        var imageLoader: ImageLoader? = null
+        val fakeEngine = FakeImageLoaderEngine.Builder()
+            .default(
+                Interceptor { chain ->
+                    requestedUrls += chain.request.data
+                    ErrorResult(null, chain.request, IllegalStateException("fixture failure"))
+                },
+            )
+            .build()
+
+        SingletonImageLoader.setUnsafe(
+            SingletonImageLoader.Factory { context ->
+                ImageLoader.Builder(context)
+                    .components { add(fakeEngine) }
+                    .build()
+                    .also { imageLoader = it }
+            },
+        )
+        try {
+            runComposeUiTest {
+                setContent {
+                    Fixture(
+                        contentState = TeamDetailContentState.Content(
+                            populatedTeam.copy(
+                                logoUrl = imageUrl,
+                                players = populatedTeam.players.map { it.copy(imageUrl = playerImageUrl) },
+                                staff = populatedTeam.staff.map { it.copy(imageUrl = staffImageUrl) },
+                            ),
+                        ),
+                    )
+                }
+
+                assertTrue(requestedUrls.containsAll(listOf(imageUrl, playerImageUrl, staffImageUrl)))
+                onNodeWithTag(teamHeaderLogoPlaceholderTag(TEAM_ID), useUnmergedTree = true).assertExists()
+                scrollToTag(teamPlayerRowTag(PLAYER_ID))
+                onNodeWithTag(teamRosterImagePlaceholderTag(PLAYER_ID), useUnmergedTree = true).assertExists()
+                scrollToTag(teamStaffRowTag(STAFF_ID))
+                onNodeWithTag(teamRosterImagePlaceholderTag(STAFF_ID), useUnmergedTree = true).assertExists()
+
+                setContent {
+                    Fixture(
+                        contentState = TeamDetailContentState.Content(
+                            populatedTeam.copy(
+                                logoUrl = "   ",
+                                players = populatedTeam.players.map { it.copy(imageUrl = null) },
+                                staff = populatedTeam.staff.map { it.copy(imageUrl = " ") },
+                            ),
+                        ),
+                    )
+                }
+                onNodeWithTag(teamHeaderLogoPlaceholderTag(TEAM_ID), useUnmergedTree = true).assertExists()
+                scrollToTag(teamPlayerRowTag(PLAYER_ID))
+                onNodeWithTag(teamRosterImagePlaceholderTag(PLAYER_ID), useUnmergedTree = true).assertExists()
+                scrollToTag(teamStaffRowTag(STAFF_ID))
+                onNodeWithTag(teamRosterImagePlaceholderTag(STAFF_ID), useUnmergedTree = true).assertExists()
+                assertEquals(3, requestedUrls.size)
+            }
+        } finally {
+            try {
+                SingletonImageLoader.reset()
+            } finally {
+                imageLoader?.shutdown()
+            }
+        }
+    }
 
     @Test
     fun loadingKeepsTopBarAndShowsGeometrySkeletonWithoutSampleTeamData() = runComposeUiTest {
