@@ -16,6 +16,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.semantics.SemanticsProperties
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
+import coil3.intercept.Interceptor
+import coil3.request.ErrorResult
+import coil3.test.FakeImageLoaderEngine
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
@@ -26,8 +32,58 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-@OptIn(ExperimentalTestApi::class)
+@OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class MatchesContentUiTest {
+
+    @Test
+    fun upcomingLiveAndResultsListsDoNotRequestTeamImages() {
+        val requestedUrls = mutableListOf<Any?>()
+        var imageLoader: ImageLoader? = null
+        val fakeEngine = FakeImageLoaderEngine.Builder()
+            .default(
+                Interceptor { chain ->
+                    requestedUrls += chain.request.data
+                    ErrorResult(null, chain.request, IllegalStateException("list image request"))
+                },
+            )
+            .build()
+        SingletonImageLoader.setUnsafe(
+            SingletonImageLoader.Factory { context ->
+                ImageLoader.Builder(context)
+                    .components { add(fakeEngine) }
+                    .build()
+                    .also { imageLoader = it }
+            },
+        )
+        try {
+            runComposeUiTest {
+                setContent { MatchesContentFixture(uiState = contentState(upcomingMatch)) }
+                onNodeWithTag(matchCardTag(upcomingMatch.id)).assertIsDisplayed()
+                assertEquals(0, requestedUrls.size)
+
+                setContent {
+                    MatchesContentFixture(
+                        uiState = MatchesUiState(
+                            selectedTab = MatchesTab.RESULTS,
+                            results = MatchesFeedUiState(
+                                contentState = MatchesFeedContentState.Content(
+                                    listOf(MatchDateGroup("YESTERDAY", listOf(completedMatch))),
+                                ),
+                            ),
+                        ),
+                    )
+                }
+                onNodeWithTag(matchCardTag(completedMatch.id)).assertIsDisplayed()
+                assertEquals(0, requestedUrls.size)
+            }
+        } finally {
+            try {
+                SingletonImageLoader.reset()
+            } finally {
+                imageLoader?.shutdown()
+            }
+        }
+    }
 
     @Test
     fun loadingShowsSkeletonAndNoNotificationAction() = runComposeUiTest {
