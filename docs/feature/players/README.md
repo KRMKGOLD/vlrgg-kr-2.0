@@ -1,14 +1,14 @@
 # Player 기능 기획
 
-## 구현 상태 (2026-09-03)
+## 구현 상태 (2026-09-04)
 
 - **Backend: 구현 완료.** `GET /api/v1/players/{playerId}`가 nullable `profile.imageUrl`, `currentTeam.imageUrl`을 포함한 전체 기간 Player 정보, Agent Stats, 최근 경기 최대 5개를 반환하며 parser/mapper/service/route 테스트가 있다.
-- **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있으며 `currentTeam.imageUrl`을 서버 Response에서 앱 Domain Model까지 전달한다.
-- **App UI P1 sections/navigation: 구현 완료.** Player Detail의 loading/content/error, Current Team·Agent Stats·Recent Matches의 독립 empty state, `currentTeam.imageUrl`을 사용하는 Current Team logo card, outlined Recent Match card, 고정 Agent identity column과 수평 스크롤 metric table, UI Agent 이름 첫 글자 대문자 표시, Agent icon 미사용, Team/Match navigation과 state restoration 회귀 테스트가 구현되어 있다. Android/iOS 실기기 screenshot 및 접근성 검증은 아직 수행하지 않았다.
+- **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있으며 `profile.imageUrl`과 기존 `currentTeam.imageUrl`을 서버 Response에서 앱 Domain Model까지 그대로 전달한다.
+- **App UI P1 sections/navigation: 구현 완료.** Player Detail의 loading/content/error, Current Team·Agent Stats·Recent Matches의 독립 empty state, `profile.imageUrl`을 사용하는 Player header, `currentTeam.imageUrl`을 사용하는 Current Team logo card, outlined Recent Match card, 고정 Agent identity column과 수평 스크롤 metric table, UI Agent 이름 첫 글자 대문자 표시, Agent icon 미사용, Team/Match navigation과 state restoration 회귀 테스트가 구현되어 있다. Android/iOS 실기기 screenshot 및 접근성 검증은 아직 수행하지 않았다.
 - **Favorite #43 Player Detail: 구현 완료.** 기기 로컬 즐겨찾기 상태를 복원하고, star의 등록·해제를 optimistic하게 처리한다. 실패하면 Add는 OFF, Remove는 ON으로 되돌린 뒤 actionable Retry Snackbar를 표시하며 mutation 중에도 화면 전체를 막지 않는다. 이 동작은 notification permission이나 서버 notification subscription을 만들거나 변경하지 않는다.
 - **#44 MyPage: 구현 완료.** 로컬 Team/Player favorite를 독립 섹션에 저장 순서대로 표시하고, Player Detail navigation과 optimistic 제거·실패 rollback·Retry를 제공한다.
 - **자동화 검증: 완료.** #43 Detail favorite와 #44 MyPage Player 목록·navigation·제거 상태는 common 및 iOS Compose 자동화 검증을 통과했다. Android/iOS 실기기 screenshot 및 pixel-perfect golden 비교는 수행하지 않았다.
-- **이미지 계약 경계.** `profile.imageUrl`과 `currentTeam.imageUrl`은 서버→앱 계약에 포함된다. `currentTeam.imageUrl`은 값이 있으면 Current Team logo card에 사용하고 `null`이면 안정적인 text placeholder를 표시한다. Player face URL은 서버가 지원하지만 KMP의 표시와 DTO/Domain 전달·로컬 저장은 별도 작업 범위이므로 P1은 계속 Player face text placeholder를 사용한다. Agent icon URL은 지원하지 않으며 Agent identity는 text-only로 표시한다. Issue #68은 Team logo·roster image, Player profile·current Team image, Match Detail 팀 이미지와 Match 목록의 null 정책을 함께 정하는 강화된 server Team/Player/Match 이미지 계약이며, Issue #70은 해당 Team 이미지의 앱 적용만 다룬다. 두 이슈 모두 이 문서에서 완료로 표시하지 않는다.
+- **이미지 계약 경계 #68/#70.** #68은 Team logo·roster image, Player profile·current Team image, Match Detail 팀 이미지와 Match 목록의 null 정책을 서버에 확정했다. #70은 이 값을 KMP DTO·Domain·UI와 Team/Player favorite persistence에 연결했다. Player favorite에는 최신 `profile.imageUrl` 또는 `null`만 저장하고 MyPage에서 표시한다. null·blank·load failure는 기존 placeholder와 배치를 유지하며 Agent icon은 계속 지원하지 않는다.
 
 ## 목적과 사용자 가치
 
@@ -58,7 +58,7 @@ Player Detail에서는 Event Detail로 직접 이동하지 않는다.
    - P1: Back
    - #43: Player favorite star 구현 완료
 2. Player header
-   - Player face: KMP UI 적용 전까지 안정적인 text placeholder (`profile.imageUrl` 서버 지원)
+   - Player face: nullable `profile.imageUrl` 또는 안정적인 text placeholder
    - handle
    - 제공 가능한 기본 정보
 3. Current Team logo card

@@ -1,7 +1,7 @@
 # MyPage 기능 기획
 
-- Status: Implemented (#44)
-- Last reviewed: 2026-09-03
+- Status: Implemented (#44, #70 image persistence)
+- Last reviewed: 2026-09-04
 
 ## 목적과 사용자 가치
 
@@ -14,6 +14,7 @@ MyPage는 기기에 저장한 Favorite Team과 Favorite Player를 다시 찾는 
 - Favorite Teams 주 섹션
 - Favorite Players 보조 섹션
 - 저장 순서를 유지하는 Team/Player 목록
+- 저장된 Team logo와 Player profile 이미지 표시 및 안정적인 placeholder fallback
 - Team Detail과 Player Detail 이동
 - optimistic 즐겨찾기 해제, 실패 rollback, actionable Retry Snackbar
 - Team/Player별 loading, empty, content, section error와 초기 full error
@@ -62,10 +63,12 @@ Team과 Player는 하나의 목록으로 섞지 않으며 Team 섹션이 항상 
 
 | 영역 | 표시 데이터 |
 | --- | --- |
-| Favorite Team | 저장된 Team ID, 이름, tag, country |
-| Favorite Player | 저장된 Player ID, handle, real name, country |
+| Favorite Team | 저장된 Team ID, 이름, tag, country, nullable logo `imageUrl` |
+| Favorite Player | 저장된 Player ID, handle, real name, country, nullable profile `imageUrl` |
 
 목록은 repository가 제공한 저장 순서를 그대로 사용한다. Detail navigation에는 저장된 stable ID를 전달하며 UI에서 임의 ID를 만들거나 정렬하지 않는다.
+
+#70부터 동일 ID를 다시 저장하면 Team은 최신 logo URL 또는 `null`, Player는 최신 profile URL 또는 `null`로 수렴한다. nullable default를 사용하므로 image field가 없는 기존 DataStore JSON도 `null`로 복원한다. Match 이미지는 저장하지 않으며 이미지 null·blank·load failure는 행 전체 오류로 승격하지 않는다.
 
 ## 화면 상태
 

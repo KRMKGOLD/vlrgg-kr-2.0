@@ -4,12 +4,13 @@
 
 이 문서는 Upcoming/Live, Results, Match Detail과 경기 시작 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
-## 구현 상태 (2026-09-03)
+## 구현 상태 (2026-09-04)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
 - **Backend Match 알림/구독: Stage 1.1 server offline GREEN.** Firestore Emulator, 익명 Target ID/Secret, START-only, request-bound scheduler로 Stage 1 runtime을 교체했고 credential-free contract/emulator/package evidence가 GREEN이다. 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md), [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](../../architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
 - **App Matches 목록: 구현 완료.** Upcoming/Live와 Results의 독립 상태·페이지네이션·스크롤, 최초 로딩/빈 상태/오류/새로고침/추가 로딩 상태, 날짜 그룹과 공통 Match card, 실제 Match Detail 진입 및 root/detail 왕복 복원이 구현되어 있다.
 - **App Match Detail Basic D1: 구현 완료.** Loading/Content/Error, Upcoming/Postponed/Live/Completed/Cancelled/Unavailable, optional section Partial, `Match hero → Maps → Head to Head`, Team/Event/H2H 이동과 overlay/root 왕복 상태 복원을 구현했다. Android host 테스트·컴파일과 iOS simulator Compose UI 테스트로 검증했으며 실제 양 플랫폼 기기 screenshot·실기기 접근성 검증 완료를 주장하지 않는다.
+- **이미지 연동 #70: 구현 완료.** #68의 nullable `homeTeam.imageUrl`과 `awayTeam.imageUrl`을 앱 DTO·Domain에 그대로 전달하고 Match Detail hero의 기존 양 팀 geometry 안에서 표시한다. null·blank·load failure는 기존 Team text placeholder를 유지한다. Upcoming/Live·Results 목록의 팀 이미지는 계약상 `null`이며 image request를 만들지 않고, event icon·Team ID/name 기반 URL·related/past Match 이미지를 사용하지 않는다.
 - **App Match 알림: Stage 2 후속 범위.** notification bell, 구독 mutation, Target credential, App Check/FCM, 권한·settings dialog와 전역 알림 흐름은 Match Detail Basic D1에 포함하지 않는다. Match favorite와 `pastMatches` UI도 구현하지 않았다.
 
 ## 목적과 사용자 가치
