@@ -323,6 +323,36 @@ class TeamDetailViewModelTest {
     }
 
     @Test
+    fun addFavoritePersistsTheLatestTeamLogoUrlIncludingNull() = runViewModelTest {
+        val imageUrl = "https://cdn.example.com/drx.png"
+        val withLogo = teamDetail().copy(logoUrl = imageUrl)
+        val favorites = FakeFavoriteRepository()
+        val viewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(withLogo))),
+            favoriteRepository = favorites,
+            teamId = TEAM_ID,
+        )
+
+        advanceUntilIdle()
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertEquals(imageUrl, favorites.addedTeams.single().imageUrl)
+
+        val withoutLogoFavorites = FakeFavoriteRepository()
+        val withoutLogoViewModel = TeamDetailViewModel(
+            teamRepository = FakeTeamRepository(listOf(AppResult.Success(teamDetail().copy(logoUrl = null)))),
+            favoriteRepository = withoutLogoFavorites,
+            teamId = TEAM_ID,
+        )
+        advanceUntilIdle()
+        withoutLogoViewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        assertEquals(null, withoutLogoFavorites.addedTeams.single().imageUrl)
+    }
+
+    @Test
     fun failedMutationsRollbackExposeOnlySafeIntentAndRetryExactSnapshotOnce() = runViewModelTest {
         val team = teamDetail()
         val favorites = FakeFavoriteRepository(
@@ -522,6 +552,7 @@ class TeamDetailViewModelTest {
         name = name,
         tag = tag,
         country = country,
+        imageUrl = logoUrl,
     )
 
     private companion object {

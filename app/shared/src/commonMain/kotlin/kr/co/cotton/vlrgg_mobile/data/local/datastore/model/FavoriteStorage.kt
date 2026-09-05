@@ -8,6 +8,7 @@ data class FavoriteTeamStorage(
     val name: String,
     val tag: String?,
     val country: String?,
+    val imageUrl: String? = null,
 )
 
 @Serializable
@@ -17,6 +18,7 @@ data class FavoritePlayerStorage(
     val realName: String?,
     val countryCode: String?,
     val countryName: String?,
+    val imageUrl: String? = null,
 )
 
 @Serializable

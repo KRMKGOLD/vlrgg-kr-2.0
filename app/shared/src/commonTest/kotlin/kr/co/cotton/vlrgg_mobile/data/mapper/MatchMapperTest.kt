@@ -59,6 +59,8 @@ class MatchMapperTest {
         assertEquals(MatchStatus.LIVE, actual.status)
         assertEquals("2h 10m", actual.relativeTimeLabel)
         assertEquals(null, actual.awayTeam.id)
+        assertEquals(null, actual.homeTeam.imageUrl)
+        assertEquals(null, actual.awayTeam.imageUrl)
         assertEquals(null, actual.homeScore)
         assertEquals(null, actual.awayScore)
         assertEquals(null, actual.event.series)
@@ -110,8 +112,16 @@ class MatchMapperTest {
             timeLabel = "2026-08-29 17:00",
             relativeTimeLabel = "1h ago",
             scheduledAt = "2026-08-29T08:00:00Z",
-            homeTeam = MatchTeamDto(name = "Alpha", id = "alpha"),
-            awayTeam = MatchTeamDto(name = "Beta", id = null),
+            homeTeam = MatchTeamDto(
+                name = "Alpha",
+                id = "alpha",
+                imageUrl = "https://owcdn.net/img/alpha.png",
+            ),
+            awayTeam = MatchTeamDto(
+                name = "Beta",
+                id = null,
+                imageUrl = "https://owcdn.net/img/beta.png",
+            ),
             homeScore = 0,
             awayScore = null,
             event = MatchEventDto(name = "Champions", series = "Playoffs", id = null),
@@ -140,6 +150,8 @@ class MatchMapperTest {
         assertEquals("2026-08-29T08:00:00Z", actual.scheduledAt)
         assertEquals("alpha", actual.homeTeam.id)
         assertEquals(null, actual.awayTeam.id)
+        assertEquals("https://owcdn.net/img/alpha.png", actual.homeTeam.imageUrl)
+        assertEquals("https://owcdn.net/img/beta.png", actual.awayTeam.imageUrl)
         assertEquals(0, actual.homeScore)
         assertEquals(null, actual.awayScore)
         assertEquals("Playoffs", actual.event.series)

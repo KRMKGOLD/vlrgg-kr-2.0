@@ -156,8 +156,14 @@ class MatchRepositoryImplTest {
                         id = it,
                         status = MatchStatusDto.LIVE,
                         timeLabel = "LIVE",
-                        homeTeam = MatchTeamDto("Alpha"),
-                        awayTeam = MatchTeamDto("Beta"),
+                        homeTeam = MatchTeamDto(
+                            "Alpha",
+                            imageUrl = "https://owcdn.net/img/alpha.png",
+                        ),
+                        awayTeam = MatchTeamDto(
+                            "Beta",
+                            imageUrl = "https://owcdn.net/img/beta.png",
+                        ),
                         homeScore = null,
                         awayScore = 0,
                         event = MatchEventDto("Champions"),
@@ -175,6 +181,8 @@ class MatchRepositoryImplTest {
         assertEquals("7000", match.id)
         assertEquals(null, match.homeScore)
         assertEquals(0, match.awayScore)
+        assertEquals("https://owcdn.net/img/alpha.png", match.homeTeam.imageUrl)
+        assertEquals("https://owcdn.net/img/beta.png", match.awayTeam.imageUrl)
     }
 
     private fun pageDto(

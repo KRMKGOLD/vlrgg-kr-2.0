@@ -36,10 +36,13 @@ class RemoteTeamDataSourceImplTest {
 
             assertEquals("8185", response.id)
             assertEquals("KRX", response.tag)
+            assertEquals("https://owcdn.net/img/drx.png", response.logoUrl)
             assertEquals("Stage 2", response.upcomingMatches.single().eventStage)
             assertEquals("698100", response.recentMatches.single().id)
             assertEquals("MaKo", response.players.single().handle)
+            assertEquals("https://owcdn.net/img/mako.png", response.players.single().imageUrl)
             assertEquals(listOf("head coach"), response.staff.single().roleLabels)
+            assertEquals("https://owcdn.net/img/termi.png", response.staff.single().imageUrl)
             assertEquals("700755/kiwoom-drx-releases-rookie-hermes", response.news.single().reference)
         } finally {
             client.close()
@@ -55,11 +58,27 @@ class RemoteTeamDataSourceImplTest {
 
             assertEquals(null, response.tag)
             assertEquals(null, response.country)
+            assertEquals(null, response.logoUrl)
             assertEquals(emptyList(), response.upcomingMatches)
             assertEquals(emptyList(), response.recentMatches)
             assertEquals(emptyList(), response.players)
             assertEquals(emptyList(), response.staff)
             assertEquals(emptyList(), response.news)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun omittedImageFieldsDeserializeAsNull() = runTest {
+        val client = createClient(MockEngine { respondJson(TEAM_DETAIL_WITHOUT_IMAGE_FIELDS_JSON) })
+
+        try {
+            val response = RemoteTeamDataSourceImpl(client).getTeamDetail("8185")
+
+            assertEquals(null, response.logoUrl)
+            assertEquals(null, response.players.single().imageUrl)
+            assertEquals(null, response.staff.single().imageUrl)
         } finally {
             client.close()
         }
@@ -143,6 +162,7 @@ class RemoteTeamDataSourceImplTest {
               "name": "KIWOOM DRX",
               "tag": "KRX",
               "country": "South Korea",
+              "logoUrl": "https://owcdn.net/img/drx.png",
               "upcomingMatches": [{
                 "id": "698887",
                 "eventName": "VCT Pacific",
@@ -165,13 +185,15 @@ class RemoteTeamDataSourceImplTest {
                 "id": "4462",
                 "handle": "MaKo",
                 "realName": "Kim Myeong-kwan",
-                "roleLabels": ["player"]
+                "roleLabels": ["player"],
+                "imageUrl": "https://owcdn.net/img/mako.png"
               }],
               "staff": [{
                 "id": "775",
                 "handle": "termi",
                 "realName": null,
-                "roleLabels": ["head coach"]
+                "roleLabels": ["head coach"],
+                "imageUrl": "https://owcdn.net/img/termi.png"
               }],
               "news": [{
                 "reference": "700755/kiwoom-drx-releases-rookie-hermes",
@@ -192,6 +214,27 @@ class RemoteTeamDataSourceImplTest {
               "recentMatches": [],
               "players": [],
               "staff": [],
+              "news": []
+            }
+            """.trimIndent()
+
+        val TEAM_DETAIL_WITHOUT_IMAGE_FIELDS_JSON =
+            """
+            {
+              "id": "8185",
+              "name": "KIWOOM DRX",
+              "upcomingMatches": [],
+              "recentMatches": [],
+              "players": [{
+                "id": "4462",
+                "handle": "MaKo",
+                "roleLabels": []
+              }],
+              "staff": [{
+                "id": "775",
+                "handle": "termi",
+                "roleLabels": []
+              }],
               "news": []
             }
             """.trimIndent()

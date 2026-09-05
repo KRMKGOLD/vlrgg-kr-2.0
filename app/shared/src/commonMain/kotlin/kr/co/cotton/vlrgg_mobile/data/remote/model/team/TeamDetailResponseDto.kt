@@ -13,6 +13,7 @@ internal data class TeamDetailResponseDto(
     val players: List<TeamRosterMemberDto>,
     val staff: List<TeamRosterMemberDto>,
     val news: List<TeamNewsDto>,
+    val logoUrl: String? = null,
 )
 
 @Serializable
@@ -32,6 +33,7 @@ internal data class TeamRosterMemberDto(
     val handle: String,
     val realName: String? = null,
     val roleLabels: List<String>,
+    val imageUrl: String? = null,
 )
 
 @Serializable

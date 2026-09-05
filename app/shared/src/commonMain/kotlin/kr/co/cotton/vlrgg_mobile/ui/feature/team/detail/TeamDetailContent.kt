@@ -27,6 +27,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,7 +40,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import androidx.compose.ui.window.DialogProperties
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
@@ -73,6 +79,10 @@ internal const val TEAM_DETAIL_FAVORITE_SNACKBAR_TAG = "team-detail-favorite-sna
 internal fun teamMatchCardTag(matchId: String): String = "team-match-$matchId"
 internal fun teamPlayerRowTag(playerId: String): String = "team-player-$playerId"
 internal fun teamStaffRowTag(staffId: String): String = "team-staff-$staffId"
+internal fun teamHeaderLogoTag(teamId: String): String = "team-header-logo-$teamId"
+internal fun teamHeaderLogoPlaceholderTag(teamId: String): String = "team-header-logo-placeholder-$teamId"
+internal fun teamRosterImageTag(memberId: String): String = "team-roster-image-$memberId"
+internal fun teamRosterImagePlaceholderTag(memberId: String): String = "team-roster-image-placeholder-$memberId"
 internal fun teamNewsRowTag(articleId: String, slug: String): String = "team-news-$articleId/$slug"
 internal fun teamNewsPublishedDateTag(articleId: String, slug: String): String =
     "team-news-date-$articleId/$slug"
@@ -309,6 +319,8 @@ private fun LazyListScope.divider(key: String) {
 private fun TeamHeader(
     team: TeamDetail,
 ) {
+    val imageUrl = team.logoUrl?.takeIf(String::isNotBlank)
+    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
     val metadata = listOfNotNull(
         team.tag?.takeIf(String::isNotBlank),
         team.country?.takeIf(String::isNotBlank),
@@ -332,11 +344,24 @@ private fun TeamHeader(
                 .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = team.tag?.takeIf(String::isNotBlank) ?: team.name.stableInitials(),
-                style = VlrTheme.typography.display,
-                color = VlrTheme.colors.textBrand,
-            )
+            if (imageUrl != null && !imageFailed) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    onError = { imageFailed = true },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(teamHeaderLogoTag(team.id)),
+                )
+            } else {
+                Text(
+                    text = team.tag?.takeIf(String::isNotBlank) ?: team.name.stableInitials(),
+                    modifier = Modifier.testTag(teamHeaderLogoPlaceholderTag(team.id)),
+                    style = VlrTheme.typography.display,
+                    color = VlrTheme.colors.textBrand,
+                )
+            }
         }
         Spacer(Modifier.height(VlrDimensions.Space3))
         Text(
@@ -471,6 +496,8 @@ private fun TeamRosterRow(
     contentDescription: String? = null,
     onClick: (() -> Unit)? = null,
 ) {
+    val imageUrl = member.imageUrl?.takeIf(String::isNotBlank)
+    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
     val interactiveModifier = if (onClick != null && contentDescription != null) {
         Modifier
             .semantics { this.contentDescription = contentDescription }
@@ -499,11 +526,24 @@ private fun TeamRosterRow(
                 .background(VlrTheme.colors.surfaceSubtle),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = member.handle.firstOrNull()?.uppercaseChar()?.toString().orEmpty(),
-                style = VlrTheme.typography.label,
-                color = VlrTheme.colors.textBrand,
-            )
+            if (imageUrl != null && !imageFailed) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    onError = { imageFailed = true },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(teamRosterImageTag(member.id)),
+                )
+            } else {
+                Text(
+                    text = member.handle.firstOrNull()?.uppercaseChar()?.toString().orEmpty(),
+                    modifier = Modifier.testTag(teamRosterImagePlaceholderTag(member.id)),
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.textBrand,
+                )
+            }
         }
         Column(
             modifier = Modifier.weight(1f),

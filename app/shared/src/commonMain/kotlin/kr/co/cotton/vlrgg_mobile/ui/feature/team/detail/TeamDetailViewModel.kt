@@ -175,6 +175,7 @@ class TeamDetailViewModel(
         name = name,
         tag = tag,
         country = country,
+        imageUrl = logoUrl,
     )
 
     @AssistedFactory

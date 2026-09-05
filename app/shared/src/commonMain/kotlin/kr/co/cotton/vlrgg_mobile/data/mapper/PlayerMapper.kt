@@ -29,6 +29,7 @@ private fun PlayerProfileDto.toDomain(): PlayerProfile = PlayerProfile(
     aliases = aliases,
     countryCode = countryCode,
     countryName = countryName,
+    imageUrl = imageUrl,
 )
 
 private fun PlayerCurrentTeamDto.toDomain(): PlayerCurrentTeam = PlayerCurrentTeam(

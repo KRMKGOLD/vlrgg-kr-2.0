@@ -24,9 +24,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -34,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import coil3.compose.AsyncImage
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerAgentStat
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
@@ -60,6 +66,8 @@ internal const val PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG = "player-detail-load
 internal const val PLAYER_DETAIL_FAVORITE_OUTLINE_TAG = "player-detail-favorite-outline"
 internal const val PLAYER_DETAIL_FAVORITE_FILLED_TAG = "player-detail-favorite-filled"
 internal const val PLAYER_DETAIL_FAVORITE_SNACKBAR_TAG = "player-detail-favorite-snackbar"
+internal fun playerHeaderImageTag(playerId: String) = "player-header-image-$playerId"
+internal fun playerHeaderImagePlaceholderTag(playerId: String) = "player-header-image-placeholder-$playerId"
 internal fun playerTeamRowTag(teamId: String) = "player-team-$teamId"
 internal fun playerMatchCardTag(matchId: String) = "player-match-$matchId"
 
@@ -217,6 +225,8 @@ private fun LazyListScope.divider(key: String) = item(key) {
 @Composable
 private fun PlayerHeader(player: PlayerDetail) {
     val profile = player.profile
+    val imageUrl = profile.imageUrl?.takeIf(String::isNotBlank)
+    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
     val country = listOfNotNull(
         profile.countryName?.takeIf(String::isNotBlank),
         profile.countryCode?.takeIf(String::isNotBlank)?.uppercase(),
@@ -230,7 +240,24 @@ private fun PlayerHeader(player: PlayerDetail) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.height(96.dp).width(96.dp).clip(CircleShape).background(VlrTheme.colors.surfaceSubtle), contentAlignment = Alignment.Center) {
-            Text(profile.handle.stablePlaceholder(), style = VlrTheme.typography.display, color = VlrTheme.colors.textBrand)
+            if (imageUrl != null && !imageFailed) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    onError = { imageFailed = true },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(playerHeaderImageTag(player.id)),
+                )
+            } else {
+                Text(
+                    text = profile.handle.stablePlaceholder(),
+                    modifier = Modifier.testTag(playerHeaderImagePlaceholderTag(player.id)),
+                    style = VlrTheme.typography.display,
+                    color = VlrTheme.colors.textBrand,
+                )
+            }
         }
         Spacer(Modifier.height(VlrDimensions.Space3))
         Text(profile.handle, style = VlrTheme.typography.display, color = VlrTheme.colors.textPrimary, textAlign = TextAlign.Center)

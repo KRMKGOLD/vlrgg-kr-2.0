@@ -19,6 +19,7 @@ internal fun TeamDetailResponseDto.toDomain(): TeamDetail = TeamDetail(
     players = players.map(TeamRosterMemberDto::toDomain),
     staff = staff.map(TeamRosterMemberDto::toDomain),
     news = news.map(TeamNewsDto::toDomain),
+    logoUrl = logoUrl,
 )
 
 private fun TeamMatchDto.toDomain(): TeamMatch = TeamMatch(
@@ -36,6 +37,7 @@ private fun TeamRosterMemberDto.toDomain(): TeamRosterMember = TeamRosterMember(
     handle = handle,
     realName = realName,
     roleLabels = roleLabels,
+    imageUrl = imageUrl,
 )
 
 private fun TeamNewsDto.toDomain(): TeamNews {

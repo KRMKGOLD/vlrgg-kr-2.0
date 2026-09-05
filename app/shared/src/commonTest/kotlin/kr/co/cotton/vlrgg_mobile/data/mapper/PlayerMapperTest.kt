@@ -24,6 +24,7 @@ class PlayerMapperTest {
         assertEquals(listOf("ClokingRb", "Rb"), detail.profile.aliases)
         assertEquals("kr", detail.profile.countryCode)
         assertEquals("SOUTH KOREA", detail.profile.countryName)
+        assertEquals("https://owcdn.net/img/rb.png", detail.profile.imageUrl)
         assertEquals(PlayerCurrentTeamDto("11060", "Nongshim RedForce", "https://owcdn.net/img/6399bb707aacb.png").id, detail.currentTeam?.id)
         assertEquals("Nongshim RedForce", detail.currentTeam?.name)
         assertEquals("https://owcdn.net/img/6399bb707aacb.png", detail.currentTeam?.imageUrl)
@@ -84,6 +85,7 @@ class PlayerMapperTest {
         assertNull(detail.profile.realName)
         assertNull(detail.profile.countryCode)
         assertNull(detail.profile.countryName)
+        assertNull(detail.profile.imageUrl)
         assertNull(detail.agentStats.single().pickRatePercent)
         assertNull(detail.agentStats.single().roundsPlayed)
         assertNull(detail.agentStats.single().rating)
@@ -162,6 +164,7 @@ class PlayerMapperTest {
             aliases = listOf("ClokingRb", "Rb"),
             countryCode = "kr",
             countryName = "SOUTH KOREA",
+            imageUrl = "https://owcdn.net/img/rb.png",
         ),
         currentTeam = PlayerCurrentTeamDto(
             "11060",

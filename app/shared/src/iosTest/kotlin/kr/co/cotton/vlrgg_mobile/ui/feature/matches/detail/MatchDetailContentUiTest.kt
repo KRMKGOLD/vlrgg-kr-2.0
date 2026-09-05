@@ -17,6 +17,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
+import coil3.intercept.Interceptor
+import coil3.request.ErrorResult
+import coil3.test.FakeImageLoaderEngine
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchMap
@@ -28,8 +34,75 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@OptIn(ExperimentalTestApi::class)
+@OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class MatchDetailContentUiTest {
+
+    @Test
+    fun heroUsesOnlyTheProvidedTeamImageUrlsAndFallsBackForFailureNullAndBlankUrls() {
+        val homeImageUrl = "https://cdn.example.com/prx.png"
+        val awayImageUrl = "https://cdn.example.com/fnatic.png"
+        val requestedUrls = mutableListOf<Any?>()
+        var imageLoader: ImageLoader? = null
+        val fakeEngine = FakeImageLoaderEngine.Builder()
+            .default(
+                Interceptor { chain ->
+                    requestedUrls += chain.request.data
+                    ErrorResult(null, chain.request, IllegalStateException("fixture failure"))
+                },
+            )
+            .build()
+        SingletonImageLoader.setUnsafe(
+            SingletonImageLoader.Factory { context ->
+                ImageLoader.Builder(context)
+                    .components { add(fakeEngine) }
+                    .build()
+                    .also { imageLoader = it }
+            },
+        )
+        try {
+            runComposeUiTest {
+                setContent {
+                    Fixture(
+                        MatchDetailUiState(
+                            contentState = MatchDetailContentState.Content(
+                                completedMatch.copy(
+                                    homeTeam = HOME_TEAM.copy(imageUrl = homeImageUrl),
+                                    awayTeam = AWAY_TEAM.copy(imageUrl = awayImageUrl),
+                                ),
+                            ),
+                        ),
+                    )
+                }
+                assertTrue(requestedUrls.containsAll(listOf(homeImageUrl, awayImageUrl)))
+                onNodeWithTag(matchDetailTeamImagePlaceholderTag("home"), useUnmergedTree = true).assertExists()
+                onNodeWithTag(matchDetailTeamImagePlaceholderTag("away"), useUnmergedTree = true).assertExists()
+                onNodeWithTag(matchDetailTeamTag("home")).assertTextContains(HOME_TEAM.name)
+                onNodeWithTag(matchDetailTeamTag("away")).assertTextContains(AWAY_TEAM.name)
+
+                setContent {
+                    Fixture(
+                        MatchDetailUiState(
+                            contentState = MatchDetailContentState.Content(
+                                completedMatch.copy(
+                                    homeTeam = HOME_TEAM.copy(imageUrl = null),
+                                    awayTeam = AWAY_TEAM.copy(imageUrl = " "),
+                                ),
+                            ),
+                        ),
+                    )
+                }
+                onNodeWithTag(matchDetailTeamImagePlaceholderTag("home"), useUnmergedTree = true).assertExists()
+                onNodeWithTag(matchDetailTeamImagePlaceholderTag("away"), useUnmergedTree = true).assertExists()
+                assertEquals(2, requestedUrls.size)
+            }
+        } finally {
+            try {
+                SingletonImageLoader.reset()
+            } finally {
+                imageLoader?.shutdown()
+            }
+        }
+    }
 
     @Test
     fun loadingKeepsBackAndSkeletonGeometryWithoutSampleMatchData() = runComposeUiTest {

@@ -24,9 +24,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -34,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchMap
@@ -58,6 +64,8 @@ internal const val MATCH_DETAIL_MAPS_SECTION_TAG = "match-detail-maps"
 internal const val MATCH_DETAIL_HEAD_TO_HEAD_SECTION_TAG = "match-detail-head-to-head"
 
 internal fun matchDetailTeamTag(side: String): String = "match-detail-team-$side"
+internal fun matchDetailTeamImageTag(side: String): String = "match-detail-team-image-$side"
+internal fun matchDetailTeamImagePlaceholderTag(side: String): String = "match-detail-team-image-placeholder-$side"
 internal fun matchDetailMapTag(name: String): String = "match-detail-map-$name"
 internal fun matchDetailHeadToHeadTag(matchId: String): String = "match-detail-head-to-head-$matchId"
 
@@ -356,6 +364,8 @@ private fun TeamIdentity(
     onTeamClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val imageUrl = team.imageUrl?.takeIf(String::isNotBlank)
+    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
     val clickModifier = team.id?.let { teamId ->
         Modifier
             .semantics { contentDescription = "팀 상세: ${team.name}" }
@@ -379,7 +389,25 @@ private fun TeamIdentity(
                     VlrTheme.colors.outline,
                     androidx.compose.foundation.shape.CircleShape,
                 ),
-        )
+        ) {
+            if (imageUrl != null && !imageFailed) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    onError = { imageFailed = true },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(matchDetailTeamImageTag(side)),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(matchDetailTeamImagePlaceholderTag(side)),
+                )
+            }
+        }
         Text(
             text = team.name,
             style = VlrTheme.typography.bodyStrong,

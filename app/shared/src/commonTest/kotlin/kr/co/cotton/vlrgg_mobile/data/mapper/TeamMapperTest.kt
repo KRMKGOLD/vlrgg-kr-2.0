@@ -18,13 +18,16 @@ class TeamMapperTest {
         assertEquals("KIWOOM DRX", team.name)
         assertEquals("KRX", team.tag)
         assertEquals("South Korea", team.country)
+        assertEquals("https://owcdn.net/img/drx.png", team.logoUrl)
         assertEquals(listOf("698887"), team.upcomingMatches.map { it.id })
         assertEquals(listOf("698100"), team.recentMatches.map { it.id })
         assertEquals(listOf("4462"), team.players.map { it.id })
         assertEquals(listOf("775"), team.staff.map { it.id })
         assertEquals("MaKo", team.players.single().handle)
+        assertEquals("https://owcdn.net/img/mako.png", team.players.single().imageUrl)
         assertEquals(listOf("player"), team.players.single().roleLabels)
         assertEquals("termi", team.staff.single().handle)
+        assertEquals("https://owcdn.net/img/termi.png", team.staff.single().imageUrl)
         assertEquals(listOf("head coach"), team.staff.single().roleLabels)
         assertEquals("700755", team.news.single().articleId)
         assertEquals("kiwoom-drx-releases-rookie-hermes", team.news.single().slug)
@@ -52,6 +55,7 @@ class TeamMapperTest {
         val team = teamDetailResponse(
             tag = null,
             country = null,
+            logoUrl = null,
             upcomingMatches = emptyList(),
             recentMatches = listOf(
                 match(
@@ -62,19 +66,28 @@ class TeamMapperTest {
                     scheduledAtText = null,
                 ),
             ),
-            players = listOf(rosterMember(id = "4462", realName = null, roleLabels = emptyList())),
+            players = listOf(
+                rosterMember(
+                    id = "4462",
+                    realName = null,
+                    roleLabels = emptyList(),
+                    imageUrl = null,
+                ),
+            ),
             staff = emptyList(),
             news = listOf(TeamNewsDto("700755/kiwoom-drx", "DRX news", null)),
         ).toDomain()
 
         assertEquals(null, team.tag)
         assertEquals(null, team.country)
+        assertEquals(null, team.logoUrl)
         assertEquals(emptyList(), team.upcomingMatches)
         assertEquals(null, team.recentMatches.single().eventName)
         assertEquals(null, team.recentMatches.single().eventStage)
         assertEquals(null, team.recentMatches.single().statusText)
         assertEquals(null, team.recentMatches.single().scheduledAtText)
         assertEquals(null, team.players.single().realName)
+        assertEquals(null, team.players.single().imageUrl)
         assertEquals(emptyList(), team.players.single().roleLabels)
         assertEquals(emptyList(), team.staff)
         assertEquals(null, team.news.single().publishedDateText)
@@ -92,6 +105,7 @@ class TeamMapperTest {
     private fun teamDetailResponse(
         tag: String? = "KRX",
         country: String? = "South Korea",
+        logoUrl: String? = "https://owcdn.net/img/drx.png",
         upcomingMatches: List<TeamMatchDto> = listOf(match("698887")),
         recentMatches: List<TeamMatchDto> = listOf(match("698100")),
         players: List<TeamRosterMemberDto> = listOf(rosterMember("4462")),
@@ -113,6 +127,7 @@ class TeamMapperTest {
         players = players,
         staff = staff,
         news = news,
+        logoUrl = logoUrl,
     )
 
     private fun match(
@@ -135,10 +150,16 @@ class TeamMapperTest {
         id: String,
         realName: String? = "Kim Myeong-kwan",
         roleLabels: List<String> = listOf("player"),
+        imageUrl: String? = if (id == "4462") {
+            "https://owcdn.net/img/mako.png"
+        } else {
+            "https://owcdn.net/img/termi.png"
+        },
     ) = TeamRosterMemberDto(
         id = id,
         handle = if (id == "4462") "MaKo" else "termi",
         realName = realName,
         roleLabels = roleLabels,
+        imageUrl = imageUrl,
     )
 }

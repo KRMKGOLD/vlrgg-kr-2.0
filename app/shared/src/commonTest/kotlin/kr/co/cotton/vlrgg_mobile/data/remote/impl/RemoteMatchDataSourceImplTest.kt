@@ -37,6 +37,8 @@ class RemoteMatchDataSourceImplTest {
             assertEquals(MatchListCategoryDto.UPCOMING, response.category)
             assertEquals(2, response.page)
             assertEquals(MatchStatusDto.LIVE, response.groups.single().matches.single().status)
+            assertEquals(null, response.groups.single().matches.single().homeTeam.imageUrl)
+            assertEquals(null, response.groups.single().matches.single().awayTeam.imageUrl)
         } finally {
             client.close()
         }
@@ -79,6 +81,8 @@ class RemoteMatchDataSourceImplTest {
             assertEquals("7000", response.id)
             assertEquals(MatchStatusDto.COMPLETED, response.status)
             assertEquals("2026-08-29T08:00:00Z", response.scheduledAt)
+            assertEquals("https://owcdn.net/img/alpha.png", response.homeTeam.imageUrl)
+            assertEquals("https://owcdn.net/img/beta.png", response.awayTeam.imageUrl)
             assertEquals(0, response.homeScore)
             assertEquals(null, response.awayScore)
             assertEquals(listOf("Lotus", "Haven"), response.maps.map { it.name })
@@ -104,6 +108,8 @@ class RemoteMatchDataSourceImplTest {
 
             assertEquals(null, response.relativeTimeLabel)
             assertEquals(null, response.scheduledAt)
+            assertEquals(null, response.homeTeam.imageUrl)
+            assertEquals(null, response.awayTeam.imageUrl)
             assertEquals(null, response.homeScore)
             assertEquals(null, response.awayScore)
             assertEquals(null, response.event.series)
@@ -218,8 +224,8 @@ class RemoteMatchDataSourceImplTest {
             {
               "id": "7000", "status": "completed", "timeLabel": "2026-08-29 17:00",
               "relativeTimeLabel": "1h ago", "scheduledAt": "2026-08-29T08:00:00Z",
-              "homeTeam": { "name": "Alpha", "id": "alpha" },
-              "awayTeam": { "name": "Beta", "id": null },
+              "homeTeam": { "name": "Alpha", "id": "alpha", "imageUrl": "https://owcdn.net/img/alpha.png" },
+              "awayTeam": { "name": "Beta", "id": null, "imageUrl": "https://owcdn.net/img/beta.png" },
               "homeScore": 0, "awayScore": null,
               "event": { "name": "Champions", "series": "Playoffs", "id": null },
               "description": "Grand final", "seriesFormat": "Bo5",

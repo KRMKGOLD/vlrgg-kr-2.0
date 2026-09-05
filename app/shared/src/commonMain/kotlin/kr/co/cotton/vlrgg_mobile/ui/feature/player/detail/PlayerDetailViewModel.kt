@@ -160,6 +160,7 @@ class PlayerDetailViewModel(
         realName = profile.realName,
         countryCode = profile.countryCode,
         countryName = profile.countryName,
+        imageUrl = profile.imageUrl,
     )
 
     private data class FavoriteMutation(

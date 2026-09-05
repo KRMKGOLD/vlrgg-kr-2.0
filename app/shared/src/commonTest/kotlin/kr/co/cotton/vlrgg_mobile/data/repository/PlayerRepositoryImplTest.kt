@@ -23,6 +23,7 @@ class PlayerRepositoryImplTest {
 
         assertEquals("488", (result as AppResult.Success).data.id)
         assertEquals("Rb", result.data.profile.handle)
+        assertEquals("https://owcdn.net/img/rb.png", result.data.profile.imageUrl)
         assertEquals(emptyList(), result.data.agentStats)
         assertEquals(emptyList(), result.data.recentMatches)
     }
@@ -52,7 +53,14 @@ class PlayerRepositoryImplTest {
 
     private fun detailResponse(playerId: String) = PlayerDetailResponseDto(
         id = playerId,
-        profile = PlayerProfileDto("Rb", null, emptyList(), null, null),
+        profile = PlayerProfileDto(
+            "Rb",
+            null,
+            emptyList(),
+            null,
+            null,
+            "https://owcdn.net/img/rb.png",
+        ),
         currentTeam = null,
         agentStats = emptyList(),
         recentMatches = emptyList(),

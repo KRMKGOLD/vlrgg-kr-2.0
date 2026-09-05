@@ -1,6 +1,6 @@
 # Team 기능 기획
 
-## 구현 상태 (2026-09-03)
+## 구현 상태 (2026-09-04)
 
 - **Backend: 구현 완료.** `GET /api/v1/teams/{teamId}`가 Team overview와 news를 요청 시점에 수집해 app-facing response로 반환하며 parser/route 테스트가 있다.
 - **App data 연동: 구현 완료.** API DTO, remote data source, Domain Model, Repository와 Metro binding이 `app/shared`에 연결되어 있다.
@@ -10,6 +10,7 @@
 - **자동화 검증: 완료.** #43 Detail favorite와 #44 MyPage Team 목록·navigation·제거 상태는 common 및 iOS Compose 자동화 검증을 통과했다. Android/iOS 실기기 screenshot 및 pixel-perfect golden 비교는 수행하지 않았다.
 - **Player Detail P1: 구현 완료.** Team Detail에서 Player Detail destination으로 이동하며, Player Detail 자체 구현도 완료되었다.
 - **#42 전체: 완료/종료.** T1 Team Detail UI/navigation과 후속 Player Detail P1 범위가 구현 완료되었다. Favorite는 #43, MyPage 집계와 제거 UI는 #44에서 구현 완료되었다.
+- **이미지 연동 #70: 구현 완료.** #68에서 확정된 nullable `logoUrl`, Player/Staff `imageUrl`을 앱 DTO와 Domain에 그대로 전달하고 Team header와 Current Roster에 표시한다. Team favorite에는 최신 logo URL 또는 `null`만 저장하며 MyPage에서도 이를 사용한다. null·blank·load failure는 기존 placeholder와 배치를 유지하고 Staff에 Player navigation을 추가하지 않는다.
 
 ## 목적과 사용자 가치
 
