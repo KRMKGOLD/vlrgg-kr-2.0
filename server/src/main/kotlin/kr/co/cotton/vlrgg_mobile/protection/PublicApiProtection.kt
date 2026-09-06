@@ -2,6 +2,7 @@ package kr.co.cotton.vlrgg_mobile.protection
 
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.util.*
 import io.ktor.server.request.*
 import io.ktor.utils.io.*
 import java.nio.charset.StandardCharsets
@@ -12,6 +13,26 @@ import kotlinx.coroutines.sync.withLock
 import kr.co.cotton.vlrgg_mobile.common.http.*
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 import kr.co.cotton.vlrgg_mobile.plugins.PublicApiObservability
+
+internal val PublicRequestStartedAtNanosKey = AttributeKey<Long>("public-request-started-at-nanos")
+internal val PublicRequestObservationRecordedKey = AttributeKey<Unit>("public-request-observation-recorded")
+
+internal fun ApplicationCall.recordPublicRequestCompletion(observability: PublicApiObservability, status: Int) {
+    val startedAt = attributes.getOrNull(PublicRequestStartedAtNanosKey) ?: return
+    if (attributes.getOrNull(PublicRequestObservationRecordedKey) != null) return
+    attributes.put(PublicRequestObservationRecordedKey, Unit)
+    observability.completed(status, (System.nanoTime() - startedAt) / 1_000_000)
+}
+
+internal fun ApplicationCall.recordPublicRequestRejection(
+    observability: PublicApiObservability,
+    failure: ServerFailure,
+) {
+    val startedAt = attributes.getOrNull(PublicRequestStartedAtNanosKey) ?: return
+    if (attributes.getOrNull(PublicRequestObservationRecordedKey) != null) return
+    attributes.put(PublicRequestObservationRecordedKey, Unit)
+    observability.rejected(failure, (System.nanoTime() - startedAt) / 1_000_000)
+}
 
 internal data class PublicApiProtectionConfig(
     val apiRequestsPerSecond: Int = 10,
@@ -193,14 +214,15 @@ internal fun Application.configurePublicRequestProtection(
         }
         protection.observability.requestStarted(protection.observability.routeClass(call.request.path()))
         val startedAt = System.nanoTime()
+        call.attributes.put(PublicRequestStartedAtNanosKey, startedAt)
         try {
             withWholeRequestDeadline(config.wholeRequestTimeoutMillis) {
                 call.validatePublicRequest(config)
                 protection.admitApi { proceed() }
             }
-            protection.observability.completed(call.response.status()?.value ?: 500, (System.nanoTime() - startedAt) / 1_000_000)
+            call.recordPublicRequestCompletion(protection.observability, call.response.status()?.value ?: 500)
         } catch (failure: ServerFailure) {
-            protection.observability.rejected(failure, (System.nanoTime() - startedAt) / 1_000_000)
+            // StatusPages owns failure accounting so handled responses are counted exactly once.
             throw failure
         }
     }

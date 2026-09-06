@@ -3,6 +3,8 @@ package kr.co.cotton.vlrgg_mobile.protection
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
+import io.ktor.http.content.*
+import io.ktor.utils.io.*
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import kotlinx.serialization.json.Json
@@ -17,16 +19,22 @@ private val publicJson = Json {
 }
 
 internal class CappedOutputStream(private val maxBytes: Int) : OutputStream() {
-    private val delegate = ByteArrayOutputStream()
-    private var count = 0
+    private val delegate = DirectByteArrayOutputStream(maxBytes)
 
     override fun write(value: Int) = write(byteArrayOf(value.toByte()))
     override fun write(bytes: ByteArray, offset: Int, length: Int) {
-        if (length > maxBytes - count) throw PublicJsonTooLargeException()
+        if (length > maxBytes - delegate.size) throw PublicJsonTooLargeException()
         delegate.write(bytes, offset, length)
-        count += length
     }
-    fun toByteArray(): ByteArray = delegate.toByteArray()
+    suspend fun writeTo(channel: ByteWriteChannel) = delegate.writeTo(channel)
+}
+
+private class DirectByteArrayOutputStream(initialSize: Int) : ByteArrayOutputStream(initialSize) {
+    val size: Int get() = count
+
+    suspend fun writeTo(channel: ByteWriteChannel) {
+        channel.writeFully(buf, 0, count)
+    }
 }
 
 internal class PublicJsonTooLargeException : RuntimeException()
@@ -39,5 +47,14 @@ internal suspend inline fun <reified T> ApplicationCall.respondPublicJson(value:
     } catch (overflow: PublicJsonTooLargeException) {
         throw PublicResponseTooLargeFailure(overflow)
     }
-    respondBytes(output.toByteArray(), ContentType.Application.Json, HttpStatusCode.OK)
+    respond(
+        object : OutgoingContent.WriteChannelContent() {
+            override val contentType: ContentType = ContentType.Application.Json
+            override val status: HttpStatusCode = HttpStatusCode.OK
+
+            override suspend fun writeTo(channel: ByteWriteChannel) {
+                output.writeTo(channel)
+            }
+        },
+    )
 }

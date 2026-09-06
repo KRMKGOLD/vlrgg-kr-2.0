@@ -50,8 +50,8 @@ internal fun Application.module(
     enableApiDocumentation: Boolean = false,
     protectionConfig: PublicApiProtectionConfig = PublicApiProtectionConfig.fromEnvironment(System.getenv()),
 ) {
-    configureSerialization(); configureErrorHandling()
     val observability = configureMonitoring()
+    configureSerialization(); configureErrorHandling(observability)
     val protection = createPublicApiProtection(protectionConfig, observability)
     configurePublicRequestProtection(protection, protectionConfig)
     val transport = createUpstreamHtmlTransport().withPublicProtection(protection)

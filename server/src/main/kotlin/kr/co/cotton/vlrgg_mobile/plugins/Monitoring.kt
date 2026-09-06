@@ -15,7 +15,6 @@ internal class PublicApiObservability(
     private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     private val requestCount = AtomicLong()
-    private val completedCount = AtomicLong()
     private val lastSummaryMillis = AtomicLong(Long.MIN_VALUE)
     private val routeClasses = AtomicLongArray(PublicRouteClass.entries.size)
     private val statusClasses = AtomicLongArray(6)
@@ -42,7 +41,7 @@ internal class PublicApiObservability(
     fun completed(status: Int, elapsedMillis: Long) {
         statusClasses.incrementAndGet(status.coerceIn(0, 599) / 100)
         latencyBuckets.incrementAndGet(when { elapsedMillis < 100 -> 0; elapsedMillis < 1_000 -> 1; elapsedMillis < 3_000 -> 2; else -> 3 })
-        if (completedCount.incrementAndGet() % SUMMARY_EVERY_REQUESTS == 0L) emitIfDue()
+        emitIfDue()
     }
 
     fun rejected(failure: ServerFailure, elapsedMillis: Long) {
@@ -90,7 +89,6 @@ internal class PublicApiObservability(
     }
 
     private companion object {
-        const val SUMMARY_EVERY_REQUESTS = 1_024L
         const val SUMMARY_MIN_INTERVAL_MILLIS = 60_000L
     }
 }

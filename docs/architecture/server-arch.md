@@ -157,6 +157,10 @@ data class ApiErrorResponse(
 | `UPSTREAM_NETWORK_FAILURE` | `502 Bad Gateway` | VLR.GG 요청·연결·timeout 등 upstream 통신 실패 |
 | `SOURCE_PARSING_FAILURE` | `502 Bad Gateway` | 응답은 받았지만 필요한 VLR.GG 구조를 해석할 수 없음 |
 | `INTERNAL_ERROR` | `500 Internal Server Error` | 위 범주 밖의 처리 실패 |
+| `RATE_LIMITED` | `429 Too Many Requests` | 프로세스의 공개 요청 rate 한도 초과, Retry-After 포함 |
+| `SERVER_BUSY` | `503 Service Unavailable` | API/upstream 동시 작업 또는 새 fetch 한도 초과, Retry-After 포함 |
+| `REQUEST_TOO_LARGE` | `413 Payload Too Large` / `431 Request Header Fields Too Large` | 입력 body 또는 header 한도 초과 |
+| `REQUEST_TIMEOUT` | `504 Gateway Timeout` | 서버 전체 요청 deadline 초과 |
 
 규칙:
 
@@ -164,7 +168,7 @@ data class ApiErrorResponse(
 - `message`는 개발 중 원인을 파악할 수 있는 안전한 요약이다. 예외 메시지, stack trace, raw HTML, selector, canonical upstream URL을 그대로 넣지 않는다.
 - parsing failure는 canonical upstream URL과 `Exception` cause를 server 내부에 반드시 보존한다. request cancellation과 JVM `Error`는 public error envelope로 변환하지 않고 전파한다.
 - 내부 failure는 sealed type 또는 focused exception으로 구현할 수 있다. 어느 방식이든 원인과 URL을 내부에서 보존하고 `ErrorHandling` 경계에서 `ApiErrorResponse`로 매핑한다.
-- 앱 Data Layer를 구현할 때 모든 non-success response는 generic `AppResult.Failure`로 변환한다. UI는 `ApiErrorCode`를 해석하지 않는다. 오류별 UI 요구가 생기면 앱 Data·Domain·UI 문서를 함께 갱신한다.
+- #52 앱 Data Layer는 인식된 429/`RATE_LIMITED`와 503/`SERVER_BUSY`만 `AppResult.Busy(retryDelay)`로, 나머지는 generic `AppResult.Failure`로 변환한다. UI는 HTTP status나 `ApiErrorCode`를 해석하지 않는다. 앱 연결 상세는 [공개 API 보호 계약](server-public-api-protection.md)을 따른다.
 - API error envelope는 `StatusPages` 등 공통 error handling plugin에서 일관되게 반환한다. Ktor는 예외 처리를 위한 `StatusPages` plugin을 제공한다. [Ktor StatusPages](https://ktor.io/docs/server-status-pages.html)
 
 ## OpenAPI and Swagger Development Documentation
@@ -181,13 +185,14 @@ data class ApiErrorResponse(
 
 - `Serialization.kt`: JSON content negotiation
 - `ErrorHandling.kt`: exception/failure를 public error envelope로 매핑
-- `Monitoring.kt`: request logging과 failure logging
+- `Monitoring.kt`: 고정 크기 운영 카운터와 빈도를 제한한 집계·실패 진단
 - CORS, authentication 등은 실제 client requirement가 생길 때만 추가
 
-첫 단계의 관측은 별도 log platform 없이 콘솔 로그를 사용한다. 현재 `logback.xml`의 console appender 위에 Ktor `CallLogging`과 공통 `StatusPages` failure logging을 적용했다.
+공개 조회의 관측은 `logback.xml`의 console appender를 사용한다. #52는 요청 폭주에 따라 로그량이 늘어나지 않도록 요청마다 기록하는 `CallLogging`을 제거하고, 고정 카운터와 시간당 출력 한도가 있는 집계·진단으로 대체한다.
 
-- `CallLogging`은 request를 INFO 수준으로 기록한다.
-- 공통 failure logging은 `ApiErrorCode`, method, request path, 제한된 canonical upstream URL과 cause class만 기록한다.
+- 고정 route class, status class, stable failure code, latency bucket, active API/upstream, in-flight join과 upstream failure를 집계한다. 카운터의 정확성은 로그 샘플링과 분리한다.
+- 실패 진단에는 제한된 canonical origin과 안전한 cause 분류만 사용한다. raw request path/query/IP/header, 예외 메시지·stack trace를 넣지 않는다.
+- `/health`는 API admission과 요청 로그에서 제외하며 상수 응답을 제공한다. probe 실패를 API 포화와 연결하지 않는다.
 - secret, FCM registration token, App Check evidence, client credential, raw HTML은 로그에 기록하지 않는다.
 
 현재 Stage 1 logger의 identifier redaction gap은 Stage 1.1 전환에서 반드시 제거한다. Stage 1.1은 secret, registration token, App Check evidence, provider message ID, intent/claim identifier와 raw provider 오류를 기록하지 않고 bounded category/state/backlog만 관측한다. 이 검증이 GREEN이 되기 전에는 Stage 1.1을 구현 완료로 표시하지 않는다.
@@ -196,9 +201,9 @@ Discord notification은 선택적인 운영 확장이다. 실제 도입할 때 w
 
 ## Configuration and Deployment
 
-현재 구현은 Kotlin/JVM 기반 Ktor 3와 Netty를 사용하며 local 실행이 기준이다. 목표 production provider는 비용 최소화를 위한 Cloud Run이고 source deploy를 Dockerfile보다 먼저 검증한다. repository root가 `server`와 직접 의존 모듈 `core`, root Gradle 설정을 함께 제공해야 한다.
+현재 구현은 Kotlin/JVM 기반 Ktor 3와 Netty를 사용하며 local 실행이 기준이다. production provider는 아직 확정하지 않았으며 상시 대기 조건에서 [배포 비용 검토](server-deployment-costs.md)와 보호 적용 후 실측으로 선택한다. repository root가 `server`와 직접 의존 모듈 `core`, root Gradle 설정을 함께 제공해야 한다.
 
-Stage 1.1은 `0.0.0.0`, `PORT`, `/health`, `:server:installDist`의 credential-free packaged smoke까지만 소유한다. Cloud Run source buildpack entrypoint, public host/base URL, no-traffic smoke, traffic 전환과 rollback은 Stage 2다. 자세한 gate는 [CI/CD 문서](../ci-cd.md)를 따른다.
+Stage 1.1은 `0.0.0.0`, `PORT`, `/health`, `:server:installDist`의 credential-free packaged smoke까지만 소유한다. #52 일반 조회 배포의 packaging, public host/base URL, 시험 배포·전환·rollback은 provider 선택 후 검증한다. 알림의 App Check/FCM/Firestore production gate는 일반 조회의 선행조건이 아니며 [CI/CD 문서](../ci-cd.md)에서 구분한다.
 
 server config와 secret은 source code에 넣지 않는다. `ServerConfig` 또는 동등한 config boundary를 실제 도입할 때 사용하고, Discord webhook 같은 secret은 environment variable로만 전달한다.
 

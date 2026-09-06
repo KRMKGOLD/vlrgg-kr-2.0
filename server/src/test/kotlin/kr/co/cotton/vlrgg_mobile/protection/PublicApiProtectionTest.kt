@@ -2,14 +2,25 @@ package kr.co.cotton.vlrgg_mobile.protection
 
 import io.ktor.http.Url
 import kotlinx.coroutines.*
+import java.util.concurrent.atomic.AtomicInteger
 import kr.co.cotton.vlrgg_mobile.common.http.RateLimitedFailure
 import kr.co.cotton.vlrgg_mobile.common.http.ServerBusyFailure
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
 import kr.co.cotton.vlrgg_mobile.plugins.PublicApiObservability
 import kr.co.cotton.vlrgg_mobile.plugins.PublicRouteClass
+import kr.co.cotton.vlrgg_mobile.plugins.FailureDiagnostics
+import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
 import kotlin.test.*
 
 class PublicApiProtectionTest {
+    private val testScopes = mutableListOf<CoroutineScope>()
+
+    @AfterTest
+    fun cancelTestScopes() {
+        testScopes.forEach { it.cancel() }
+        testScopes.clear()
+    }
+
     @Test
     fun `api burst is capped and refills from a monotonic test clock`() = runBlocking {
         val clock = TestClock()
@@ -26,20 +37,20 @@ class PublicApiProtectionTest {
     fun `same canonical in flight fetch is shared and completion is not cached`() = runBlocking {
         val gate = CompletableDeferred<Unit>()
         val started = CompletableDeferred<Unit>()
-        var fetches = 0
+        val fetches = AtomicInteger()
         val protection = protection(TestClock())
         val url = Url("https://www.vlr.gg/matches")
-        val first = async { protection.getHtml(url) { fetches += 1; started.complete(Unit); gate.await(); "html" } }
+        val first = async { protection.getHtml(url) { fetches.incrementAndGet(); started.complete(Unit); gate.await(); "html" } }
         started.await()
-        val second = async { protection.getHtml(url) { fetches += 1; gate.await(); "html" } }
+        val second = async { protection.getHtml(url) { fetches.incrementAndGet(); gate.await(); "html" } }
         yield()
-        assertEquals(1, fetches)
+        assertEquals(1, fetches.get())
         gate.complete(Unit)
         assertEquals("html", first.await())
         assertEquals("html", second.await())
 
-        assertEquals("new", protection.getHtml(url) { fetches += 1; "new" })
-        assertEquals(2, fetches)
+        assertEquals("new", protection.getHtml(url) { fetches.incrementAndGet(); "new" })
+        assertEquals(2, fetches.get())
     }
 
     @Test
@@ -134,12 +145,52 @@ class PublicApiProtectionTest {
         assertEquals(16_384L, observability.snapshot().statusClasses[4])
     }
 
+    @Test
+    fun `low traffic emits on first completion then no more than once per minute`() {
+        var now = 0L
+        val summaries = mutableListOf<PublicApiObservability.Snapshot>()
+        val observability = PublicApiObservability({ summaries.add(it) }) { now }
+
+        observability.requestStarted(PublicRouteClass.API)
+        observability.completed(200, 1)
+        now = 59_999
+        observability.requestStarted(PublicRouteClass.API)
+        observability.completed(200, 1)
+        now = 60_000
+        observability.requestStarted(PublicRouteClass.API)
+        observability.completed(200, 1)
+
+        assertEquals(2, summaries.size)
+        assertEquals(3L, observability.snapshot().statusClasses[2])
+    }
+
+    @Test
+    fun `failure diagnostics safely redact details and cap samples per minute`() {
+        var now = 0L
+        val diagnostics = FailureDiagnostics({ now }, maxSamplesPerWindow = 2)
+        val failure = UpstreamNetworkFailure(
+            Url("https://user:secret@vlr.gg/private?token=credential-sentinel"),
+            IllegalStateException("credential-sentinel"),
+        )
+
+        val first = assertNotNull(diagnostics.sample(failure))
+        assertEquals("https://www.vlr.gg/", first.canonicalUpstreamUrl)
+        assertFalse(first.toString().contains("credential-sentinel"))
+        assertNotNull(diagnostics.sample(failure))
+        assertNull(diagnostics.sample(failure))
+        now = 60_000
+        assertNotNull(diagnostics.sample(failure))
+    }
+
     private fun protection(
         clock: TestClock,
         apiRate: Int = 10,
         apiBurst: Int = 20,
         maxKeys: Int = 4,
-    ): PublicApiProtection = PublicApiProtection(
+    ): PublicApiProtection {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        testScopes += scope
+        return PublicApiProtection(
         config = PublicApiProtectionConfig(
             apiRequestsPerSecond = apiRate,
             apiBurst = apiBurst,
@@ -149,9 +200,10 @@ class PublicApiProtectionTest {
             maxActiveUpstreamRequests = 4,
             maxInFlightCanonicalUrls = maxKeys,
         ),
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+        scope = scope,
         clock = clock,
     )
+    }
 
     private class TestClock : MonotonicClock {
         private var now = 0L
