@@ -11,7 +11,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertLeftPositionInRootIsEqualTo
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -179,7 +182,11 @@ class MatchDetailContentUiTest {
             onNodeWithContentDescription("경기 상세: $longHomeName 대 $longAwayName")
                 .assertIsDisplayed()
             onNodeWithText("LIVE").assertDoesNotExist()
-            onNodeWithText("Valorant Champions 2026").assertDoesNotExist()
+            onNode(
+                hasText(EVENT.name) and
+                    hasAnyAncestor(hasTestTag(matchDetailHeadToHeadTag(relatedMatch.id))),
+                useUnmergedTree = true,
+            ).assertDoesNotExist()
         }
 
     @Test
