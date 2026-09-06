@@ -2,12 +2,15 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail
 
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertLeftPositionInRootIsEqualTo
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -16,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
@@ -142,6 +146,41 @@ class MatchDetailContentUiTest {
         onNodeWithContentDescription("즐겨찾기").assertDoesNotExist()
         onNodeWithText("구독").assertDoesNotExist()
     }
+
+    @Test
+    fun compactHeadToHeadUsesOnlyProvidedNamesScoresAndAccessibleMatchLabel() =
+        runSkikoComposeUiTest(size = Size(360f, 800f)) {
+            val longHomeName = "대한민국 발로란트 챔피언십을 대표하는 아주 긴 홈 팀 이름"
+            val longAwayName = "Pacific Championship 공식 초장문 어웨이 팀 이름"
+            val relatedMatch = RELATED_MATCH.copy(
+                homeTeamName = longHomeName,
+                awayTeamName = longAwayName,
+                homeScore = 0,
+                awayScore = null,
+            )
+            val match = completedMatch.copy(headToHead = listOf(relatedMatch))
+
+            setContent {
+                Fixture(
+                    MatchDetailUiState(
+                        contentState = MatchDetailContentState.Content(match),
+                    ),
+                )
+            }
+
+            onNodeWithTag(matchDetailHeadToHeadTag(relatedMatch.id)).performScrollTo()
+            onNodeWithTag(matchDetailHeadToHeadTag(relatedMatch.id))
+                .assertLeftPositionInRootIsEqualTo(16.dp)
+                .assertWidthIsEqualTo(328.dp)
+                .assertHeightIsAtLeast(48.dp)
+                .assertTextContains("0 - —")
+            onNodeWithText(longHomeName).assertExists()
+            onNodeWithText(longAwayName).assertExists()
+            onNodeWithContentDescription("경기 상세: $longHomeName 대 $longAwayName")
+                .assertIsDisplayed()
+            onNodeWithText("LIVE").assertDoesNotExist()
+            onNodeWithText("Valorant Champions 2026").assertDoesNotExist()
+        }
 
     @Test
     fun emptySectionsRemainIndependentFromSuccessfulHero() = runComposeUiTest {
