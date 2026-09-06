@@ -160,7 +160,6 @@ class G0LocalFakeUpstreamBenchmarkTest {
     ): String = buildString {
         appendLine("java.version=${System.getProperty("java.version")}")
         appendLine("java.vendor=${System.getProperty("java.vendor")}")
-        appendLine("jvm.inputArguments=${ManagementFactory.getRuntimeMXBean().inputArguments.joinToString(" ")}")
         appendLine("process.pid=${ProcessHandle.current().pid()}")
         appendLine("synthetic.upstream.delayMillis=$UPSTREAM_DELAY_MILLIS")
         appendLine("idle.ps=$idle")
