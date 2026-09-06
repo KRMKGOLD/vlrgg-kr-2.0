@@ -10,13 +10,14 @@ import kr.co.cotton.vlrgg_mobile.routing.canonicalDecimalPageQuery
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.newsSlugPath
 import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
+import kr.co.cotton.vlrgg_mobile.protection.respondPublicJson
 
 private val pagePattern = Regex("[1-9][0-9]{0,4}")
 
 internal fun Route.configureNewsRoutes(service: NewsService) {
     route("/api/v1/news") {
         get {
-            call.respond(service.getList(call.requireNewsPage()))
+            call.respondPublicJson(service.getList(call.requireNewsPage()))
         }.describePublicGet<NewsListResponse>(
             operationId = "getNewsList",
             summary = "Get news articles",
@@ -32,7 +33,7 @@ internal fun Route.configureNewsRoutes(service: NewsService) {
             )
         }
         get("/{articleId}/{slug}") {
-            call.respond(service.getArticle(call.requireNewsReference()))
+            call.respondPublicJson(service.getArticle(call.requireNewsReference()))
         }.describePublicGet<NewsArticleResponse>(
             operationId = "getNewsArticle",
             summary = "Get a news article",

@@ -12,17 +12,19 @@ import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
 import kr.co.cotton.vlrgg_mobile.common.http.InternalServerFailure
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.http.ServerFailure
+import kr.co.cotton.vlrgg_mobile.common.http.RetryableServerFailure
 import kr.co.cotton.vlrgg_mobile.common.http.toApiErrorResponse
 
 fun Application.configureErrorHandling() {
     install(StatusPages) {
         exception<BadRequestException> { call, cause ->
             val failure = InvalidInputFailure(cause)
-            call.application.logFailure(call, failure)
             call.respond(failure.status, failure.toApiErrorResponse())
         }
         exception<ServerFailure> { call, failure ->
-            call.application.logFailure(call, failure)
+            if (failure is RetryableServerFailure) {
+                call.response.headers.append(HttpHeaders.RetryAfter, failure.retryAfterSeconds.toString())
+            }
             call.respond(failure.status, failure.toApiErrorResponse())
         }
         exception<Exception> { call, cause ->
@@ -31,7 +33,6 @@ fun Application.configureErrorHandling() {
             }
 
             val failure = InternalServerFailure(cause)
-            call.application.logFailure(call, failure)
             call.respond(failure.status, failure.toApiErrorResponse())
         }
         status(HttpStatusCode.NotFound) { call, status ->
@@ -48,15 +49,4 @@ fun Application.configureErrorHandling() {
             )
         }
     }
-}
-
-private fun Application.logFailure(call: ApplicationCall, failure: ServerFailure) {
-    log.warn(
-        "Request failed: code={}, method={}, path={}, upstream={}, cause={}",
-        failure.errorCode,
-        call.request.httpMethod.value,
-        call.request.path(),
-        failure.canonicalUpstreamUrl ?: "none",
-        failure.cause?.javaClass?.simpleName ?: "none",
-    )
 }

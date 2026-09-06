@@ -8,6 +8,7 @@ import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_REGEX
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
+import kr.co.cotton.vlrgg_mobile.protection.respondPublicJson
 
 private val eventIdPattern = Regex(POSITIVE_DECIMAL_ID_REGEX)
 
@@ -15,7 +16,7 @@ internal fun Route.configureEventsRoutes(eventsService: EventsService) {
     route("/api/v1/events") {
         get {
             call.requireNoQueryParameters()
-            call.respond(eventsService.getEventList())
+            call.respondPublicJson(eventsService.getEventList())
         }.describePublicGet<EventListResponse>(
             operationId = "getEvents",
             summary = "Get events",
@@ -23,7 +24,7 @@ internal fun Route.configureEventsRoutes(eventsService: EventsService) {
             tag = "Events",
         )
         get("/{eventId}/matches") {
-            call.respond(eventsService.getEventMatches(call.validatedEventId()))
+            call.respondPublicJson(eventsService.getEventMatches(call.validatedEventId()))
         }.describePublicGet<EventMatchesResponse>(
             operationId = "getEventMatches",
             summary = "Get event matches",
@@ -31,7 +32,7 @@ internal fun Route.configureEventsRoutes(eventsService: EventsService) {
             tag = "Events",
         ) { eventIdParameter() }
         get("/{eventId}/news") {
-            call.respond(eventsService.getEventNews(call.validatedEventId()))
+            call.respondPublicJson(eventsService.getEventNews(call.validatedEventId()))
         }.describePublicGet<EventNewsListResponse>(
             operationId = "getEventNews",
             summary = "Get event news",
@@ -39,7 +40,7 @@ internal fun Route.configureEventsRoutes(eventsService: EventsService) {
             tag = "Events",
         ) { eventIdParameter() }
         get("/{eventId}/stats") {
-            call.respond(eventsService.getEventStats(call.validatedEventId()))
+            call.respondPublicJson(eventsService.getEventStats(call.validatedEventId()))
         }.describePublicGet<EventStatsResponse>(
             operationId = "getEventStats",
             summary = "Get event player statistics",
@@ -47,7 +48,7 @@ internal fun Route.configureEventsRoutes(eventsService: EventsService) {
             tag = "Events",
         ) { eventIdParameter() }
         get("/{eventId}") {
-            call.respond(eventsService.getEventDetail(call.validatedEventId()))
+            call.respondPublicJson(eventsService.getEventDetail(call.validatedEventId()))
         }.describePublicGet<EventDetailResponse>(
             operationId = "getEventDetail",
             summary = "Get event details",

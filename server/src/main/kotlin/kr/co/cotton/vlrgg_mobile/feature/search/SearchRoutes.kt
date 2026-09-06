@@ -7,13 +7,14 @@ import io.ktor.server.routing.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.searchQuery
+import kr.co.cotton.vlrgg_mobile.protection.respondPublicJson
 
 private const val MAX_SEARCH_QUERY_LENGTH = 80
 
 internal fun Route.configureSearchRoutes(searchService: SearchService) {
     get("/api/v1/search") {
         val query = call.validatedSearchQuery()
-        call.respond(searchService.search(query))
+        call.respondPublicJson(searchService.search(query))
     }.describePublicGet<SearchResponse>(
         operationId = "search",
         summary = "Search public resources",
