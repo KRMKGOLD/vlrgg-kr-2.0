@@ -51,6 +51,9 @@ import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItem
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemModel
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemScoreStyle
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -524,35 +527,19 @@ private fun MatchMapRow(map: MatchMap) {
 
 @Composable
 private fun RelatedMatchRow(match: RelatedMatch, onMatchClick: (String) -> Unit) {
-    FlatOutlinedRow(
-        modifier = Modifier
-            .testTag(matchDetailHeadToHeadTag(match.id))
-            .semantics { contentDescription = "경기 상세: ${match.homeTeamName} 대 ${match.awayTeamName}" }
-            .clickable(role = Role.Button) { onMatchClick(match.id) },
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = match.homeTeamName,
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = match.awayTeamName,
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Text(
-            text = "${match.homeScore.scoreText()} - ${match.awayScore.scoreText()}",
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
-        )
-    }
+    MatchContentItem(
+        item = match.toMatchContentItem(),
+        onClick = { onMatchClick(match.id) },
+        testTag = matchDetailHeadToHeadTag(match.id),
+    )
 }
+
+private fun RelatedMatch.toMatchContentItem(): MatchContentItemModel = MatchContentItemModel(
+    homeTeamName = homeTeamName,
+    awayTeamName = awayTeamName,
+    scoreLabel = "${homeScore.scoreText()} - ${awayScore.scoreText()}",
+    scoreStyle = MatchContentItemScoreStyle.BODY_STRONG,
+)
 
 @Composable
 private fun FlatOutlinedRow(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {

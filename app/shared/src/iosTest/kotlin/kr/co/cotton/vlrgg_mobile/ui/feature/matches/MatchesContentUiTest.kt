@@ -5,17 +5,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertLeftPositionInRootIsEqualTo
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
@@ -27,13 +33,33 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemScoreStyle
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.matchScoreTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.toMatchContentItem
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 @OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class MatchesContentUiTest {
+
+    @Test
+    fun matchContentItemAdapterPreservesListScoreTypography() {
+        assertEquals(
+            MatchContentItemScoreStyle.LABEL,
+            upcomingMatch.toMatchContentItem(showEventName = true).scoreStyle,
+        )
+        assertEquals(
+            MatchContentItemScoreStyle.LABEL,
+            completedMatch.copy(homeScore = null, awayScore = null)
+                .toMatchContentItem(showEventName = true)
+                .scoreStyle,
+        )
+        assertEquals(
+            MatchContentItemScoreStyle.DISPLAY,
+            completedMatch.toMatchContentItem(showEventName = true).scoreStyle,
+        )
+    }
 
     @Test
     fun upcomingLiveAndResultsListsDoNotRequestTeamImages() {
@@ -163,6 +189,33 @@ class MatchesContentUiTest {
         onNodeWithTag(matchCardTag(upcomingMatch.id)).performClick()
         assertEquals(upcomingMatch.id, clickedMatchId)
     }
+
+    @Test
+    fun compactMatchCardKeepsMetadataAndProvidesAnAccessibleMatchLabel() =
+        runSkikoComposeUiTest(size = Size(360f, 800f)) {
+            val longHomeName = "대한민국 발로란트 챔피언십을 대표하는 아주 긴 홈 팀 이름"
+            val longAwayName = "Pacific Championship 공식 초장문 어웨이 팀 이름"
+            val longEventName = "2026 발로란트 챔피언스 투어 퍼시픽 공식 국제 대회 결승전"
+            val longMatch = upcomingMatch.copy(
+                homeTeam = upcomingMatch.homeTeam.copy(name = longHomeName),
+                awayTeam = upcomingMatch.awayTeam.copy(name = longAwayName),
+                event = upcomingMatch.event.copy(name = longEventName),
+            )
+
+            setContent { MatchesContentFixture(uiState = contentState(longMatch)) }
+
+            onNodeWithTag(matchCardTag(longMatch.id))
+                .assertLeftPositionInRootIsEqualTo(16.dp)
+                .assertWidthIsEqualTo(328.dp)
+                .assertHeightIsAtLeast(48.dp)
+            onNodeWithText(longHomeName).assertExists()
+            onNodeWithText(longAwayName).assertExists()
+            onNodeWithText(longEventName).assertExists()
+            onNodeWithText("LIVE").assertExists()
+            onNodeWithText(longMatch.relativeTimeLabel!!).assertExists()
+            onNodeWithContentDescription("경기 상세: $longHomeName 대 $longAwayName")
+                .assertIsDisplayed()
+        }
 
     @Test
     fun completedCardShowsScoreInsteadOfScheduledMarker() = runComposeUiTest {
