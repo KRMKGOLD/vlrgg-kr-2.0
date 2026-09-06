@@ -1,7 +1,7 @@
 # CI/CD and Cloud Run delivery direction
 
-- Status: Stage 1.1 credential-free CI implemented, including iOS simulator coverage; Stage 2 live deployment deferred
-- Last reviewed: 2026-09-03
+- Status: Stage 1.1 credential-free CI implemented; #52 public read deployment preparation in progress; notification production deployment deferred
+- Last reviewed: 2026-09-06
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
 ## Goal and stage boundary
@@ -9,6 +9,10 @@
 작은 사이드 프로젝트에 맞춰 PR에서는 credential-free 검증만 수행하고, `main` 병합 후 서버 영향 변경만 Cloud Run으로 배포하는 구조를 목표로 한다. `.github/workflows/ci.yml`은 완료된 Stage 1.1 offline gate를 구현하며 deploy workflow는 없다.
 
 Stage 1.1은 실제 Firebase App/GCP project/Cloud Run을 연결하지 않는다. Stage 1.1 구현 PR은 Firestore Emulator와 fake provider를 포함한 offline GREEN까지만 소유한다. 실제 App Check, FCM, production Firestore, Cloud Run과 배포 health/rollback은 Stage 2에서 수행한다.
+
+#52는 Stage 2 중 **일반 조회 서버와 설치 앱 배포**를 먼저 진행한다. [공개 API 보호 계약](architecture/server-public-api-protection.md)에 따라 로그인·앱 진위 검증·FCM·production Firestore 없이 조회 서버를 준비한다. 아래 알림 관련 App Check/Target/Firestore/FCM smoke는 알림 기능을 production에 연결할 때의 별도 gate이며 #52 조회 배포의 선행 조건이 아니다. 기존 Firestore Emulator CI는 유지한다.
+
+#52 공개 전에는 일반 조회·과부하 보호·health 200·notification 404, 비용 중단과 rollback을 검증한다. 이후 Android/iOS 서명 앱의 실제 설치와 외부망 조회·수동 재시도 증거를 수집한다. 계정·배포·기기 증거 없이 이 gate를 통과한 것으로 기록하지 않는다.
 
 ## Verified repository structure
 
@@ -209,16 +213,18 @@ GitHub repository와 `main` ref 또는 protected environment를 provider attribu
 
 ## Cloud Run cost and safety defaults
 
+아래는 #52 비용·자원 검증 후보이며 실제 배포 설정이 아니다. Cloud Run·Railway·Render 비교와 메모리 실측 후 provider를 확정한다. 평상시 최소 한 개 대기는 사용자 요구이며 비상 중단 때만 공개 호출 차단과 minimum 0을 함께 적용한다.
+
 - region: `asia-northeast3`
-- min instances: `0`
+- min instances: `1` (service-level; revision별 중복 minimum 없음)
 - max instances: `1`
 - memory: `512Mi`부터 검증
 - billing: request-based
 - local filesystem/in-memory state: 영속 저장소로 사용 금지
-- database: Match 알림 state에 한정한 Firestore
-- public access: app API와 Scheduler route의 권한 설계가 완료된 뒤 결정
+- database: #52 일반 조회에는 없음; 후속 Match 알림 state에 한정한 Firestore
+- public access: #52 보호·비용 대응 검증 후 일반 조회 공개; Scheduler와 알림 route는 이번 범위에서 미연결
 
-JVM/Ktor cold start는 허용하되 `/health`와 실제 API latency를 Stage 2에서 측정한다. min instances를 비용 때문에 1로 올리지 않는다.
+JVM/Ktor 기동과 실제 API latency는 배포 환경에서 측정한다. #52는 평상시 최소 한 개 대기 조건을 포함한 총비용으로 후보를 비교하며, 비상 중단 후 복구 시에는 다시 기동 시간이 발생할 수 있다.
 
 ## Rollback
 
