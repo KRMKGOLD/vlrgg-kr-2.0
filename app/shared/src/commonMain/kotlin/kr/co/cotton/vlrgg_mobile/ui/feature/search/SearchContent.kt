@@ -94,7 +94,11 @@ fun SearchContent(
             SearchContentState.Initial -> SearchInitialState(Modifier.padding(contentPadding))
             SearchContentState.Loading -> SearchLoadingState(uiState.query, Modifier.padding(contentPadding))
             SearchContentState.Empty -> SearchEmptyState(uiState.query, Modifier.padding(contentPadding))
-            SearchContentState.Error -> SearchErrorState(onRetry, Modifier.padding(contentPadding))
+            SearchContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
+                Box(Modifier.fillMaxSize().padding(contentPadding))
+            } else {
+                SearchErrorState(onRetry, Modifier.padding(contentPadding))
+            }
             is SearchContentState.Populated -> SearchResults(
                 items = contentState.items,
                 onResultClick = onResultClick,

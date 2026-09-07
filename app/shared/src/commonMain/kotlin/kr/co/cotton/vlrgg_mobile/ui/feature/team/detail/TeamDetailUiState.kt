@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.team.detail
 
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 
 sealed interface TeamDetailContentState {
     data object Loading : TeamDetailContentState
@@ -28,4 +29,5 @@ data class TeamFavoriteUiState(
 data class TeamDetailUiState(
     val contentState: TeamDetailContentState = TeamDetailContentState.Loading,
     val favorite: TeamFavoriteUiState = TeamFavoriteUiState(),
+    val busyRetry: BusyRetryState? = null,
 )

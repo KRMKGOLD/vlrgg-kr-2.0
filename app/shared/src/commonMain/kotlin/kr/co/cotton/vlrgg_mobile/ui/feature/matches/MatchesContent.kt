@@ -141,13 +141,17 @@ fun MatchesContent(
                     }
 
                     MatchesFeedContentState.Error -> item(key = "error") {
-                        MatchesStateMessage(
-                            message = "경기 목록을 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
-                            actionText = "재시도",
-                            actionTag = MATCHES_INITIAL_RETRY_TAG,
-                            onAction = onRetryInitial,
-                            modifier = Modifier.fillParentMaxSize(),
-                        )
+                        if (uiState.busyRetry?.isDialogVisible == true) {
+                            Box(Modifier.fillParentMaxSize())
+                        } else {
+                            MatchesStateMessage(
+                                message = "경기 목록을 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
+                                actionText = "재시도",
+                                actionTag = MATCHES_INITIAL_RETRY_TAG,
+                                onAction = onRetryInitial,
+                                modifier = Modifier.fillParentMaxSize(),
+                            )
+                        }
                     }
 
                     is MatchesFeedContentState.Content -> {

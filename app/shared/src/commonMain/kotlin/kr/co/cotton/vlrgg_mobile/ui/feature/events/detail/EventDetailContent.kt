@@ -91,15 +91,19 @@ fun EventDetailContent(
                     .testTag(EVENT_DETAIL_LOADING_TAG),
             )
 
-            EventIdentityContentState.Error -> EventStateMessage(
-                message = "이벤트 정보를 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
-                actionText = "재시도",
-                actionTag = EVENT_DETAIL_IDENTITY_RETRY_TAG,
-                onAction = onRetryIdentity,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding),
-            )
+            EventIdentityContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
+                Box(Modifier.fillMaxSize().padding(contentPadding))
+            } else {
+                EventStateMessage(
+                    message = "이벤트 정보를 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
+                    actionText = "재시도",
+                    actionTag = EVENT_DETAIL_IDENTITY_RETRY_TAG,
+                    onAction = onRetryIdentity,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding),
+                )
+            }
 
             is EventIdentityContentState.Content -> Column(
                 modifier = Modifier
@@ -115,6 +119,7 @@ fun EventDetailContent(
                             listState = matchesListState,
                             onMatchClick = onMatchClick,
                             onRetry = onRetrySelectedTab,
+                            suppressError = uiState.busyRetry?.isDialogVisible == true,
                         )
 
                         EventDetailTab.NEWS -> NewsTabContent(
@@ -122,6 +127,7 @@ fun EventDetailContent(
                             listState = newsListState,
                             onNewsClick = onNewsClick,
                             onRetry = onRetrySelectedTab,
+                            suppressError = uiState.busyRetry?.isDialogVisible == true,
                         )
 
                         EventDetailTab.STATS -> StatsTabContent(
@@ -130,6 +136,7 @@ fun EventDetailContent(
                             horizontalScrollState = statsHorizontalScrollState,
                             onPlayerClick = onPlayerClick,
                             onRetry = onRetrySelectedTab,
+                            suppressError = uiState.busyRetry?.isDialogVisible == true,
                         )
                     }
                 }
@@ -255,11 +262,12 @@ private fun MatchesTabContent(
     listState: LazyListState,
     onMatchClick: (String) -> Unit,
     onRetry: () -> Unit,
+    suppressError: Boolean,
 ) {
     when (state) {
         EventMatchesContentState.Loading -> EventStateMessage("경기를 불러오는 중", loading = true)
         EventMatchesContentState.Empty -> EventStateMessage("표시할 경기가 없어요.")
-        EventMatchesContentState.Error -> EventTabError("경기를 불러오지 못했습니다.", onRetry)
+        EventMatchesContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("경기를 불러오지 못했습니다.", onRetry)
         is EventMatchesContentState.Content -> LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -283,11 +291,12 @@ private fun NewsTabContent(
     listState: LazyListState,
     onNewsClick: (String, String) -> Unit,
     onRetry: () -> Unit,
+    suppressError: Boolean,
 ) {
     when (state) {
         EventNewsContentState.Loading -> EventStateMessage("뉴스를 불러오는 중", loading = true)
         EventNewsContentState.Empty -> EventStateMessage("표시할 뉴스가 없어요.")
-        EventNewsContentState.Error -> EventTabError("뉴스를 불러오지 못했습니다.", onRetry)
+        EventNewsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("뉴스를 불러오지 못했습니다.", onRetry)
         is EventNewsContentState.Content -> LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -313,11 +322,12 @@ private fun StatsTabContent(
     horizontalScrollState: ScrollState,
     onPlayerClick: (String) -> Unit,
     onRetry: () -> Unit,
+    suppressError: Boolean,
 ) {
     when (state) {
         EventStatsContentState.Loading -> EventStateMessage("통계를 불러오는 중", loading = true)
         EventStatsContentState.Empty -> EventStateMessage("아직 제공되는 통계가 없어요.")
-        EventStatsContentState.Error -> EventTabError("통계를 불러오지 못했습니다.", onRetry)
+        EventStatsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("통계를 불러오지 못했습니다.", onRetry)
         is EventStatsContentState.Content -> StatsTable(
             stats = state.stats,
             listState = listState,

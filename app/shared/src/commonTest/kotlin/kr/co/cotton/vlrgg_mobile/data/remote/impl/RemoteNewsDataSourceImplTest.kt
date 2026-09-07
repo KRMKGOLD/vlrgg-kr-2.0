@@ -3,7 +3,6 @@ package kr.co.cotton.vlrgg_mobile.data.remote.impl
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.http.ContentType
@@ -13,6 +12,7 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kr.co.cotton.vlrgg_mobile.data.remote.PublicApiResponseException
 import kr.co.cotton.vlrgg_mobile.data.remote.model.news.NewsArticleBlockDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.news.NewsArticleInlineDto
 import kotlin.test.Test
@@ -70,7 +70,7 @@ class RemoteNewsDataSourceImplTest {
     }
 
     @Test
-    fun nonSuccessfulResponseThrowsKtorResponseException() = runTest {
+    fun nonSuccessfulResponseThrowsGenericPublicApiException() = runTest {
         val client = createClient(
             MockEngine {
                 respondJson(
@@ -81,7 +81,7 @@ class RemoteNewsDataSourceImplTest {
         )
 
         try {
-            assertFailsWith<ClientRequestException> {
+            assertFailsWith<PublicApiResponseException> {
                 RemoteNewsDataSourceImpl(client).getNewsPage(page = 0)
             }
         } finally {

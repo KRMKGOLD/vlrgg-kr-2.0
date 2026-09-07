@@ -15,9 +15,12 @@ import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticle
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsPage
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
 import kr.co.cotton.vlrgg_mobile.domain.repository.NewsRepository
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NewsListViewModelTest {
@@ -222,6 +225,87 @@ class NewsListViewModelTest {
         assertEquals(
             NewsListUiState(
                 contentState = NewsListContentState.Content(listOf(first, second)),
+            ),
+            viewModel.uiState.value,
+        )
+    }
+
+    @Test
+    fun retryBusyPaginationKeepsLoadMorePendingAndRejectsAnImmediateDuplicateRequest() = runViewModelTest {
+        val existing = newsSummary(articleId = "existing-id", slug = "existing-slug")
+        val next = newsSummary(articleId = "next-id", slug = "next-slug")
+        val retryResult = CompletableDeferred<AppResult<NewsPage>>()
+        val clock = TestTimeSource()
+        val repository = FakeNewsRepository { page, callIndex ->
+            when (callIndex) {
+                0 -> AppResult.Success(newsPage(items = listOf(existing), nextPage = 2))
+                1 -> AppResult.Busy(1.seconds)
+                2 -> retryResult.await()
+                else -> error("Unexpected request for page $page")
+            }
+        }
+        val viewModel = NewsListViewModel(repository, BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.loadMore()
+        advanceUntilIdle()
+        assertEquals(listOf(1, 2), repository.requestedPages)
+
+        viewModel.retryBusy()
+        runCurrent()
+        assertEquals(listOf(1, 2), repository.requestedPages)
+
+        clock += 1.seconds
+        viewModel.retryBusy()
+        viewModel.loadMore()
+        runCurrent()
+
+        assertEquals(listOf(1, 2, 2), repository.requestedPages)
+        assertTrue(viewModel.uiState.value.isLoadingMore)
+        retryResult.complete(AppResult.Success(newsPage(page = 2, items = listOf(next), nextPage = null)))
+        advanceUntilIdle()
+        assertEquals(
+            NewsListUiState(
+                contentState = NewsListContentState.Content(listOf(existing, next)),
+            ),
+            viewModel.uiState.value,
+        )
+    }
+
+    @Test
+    fun retryBusyRefreshKeepsRefreshPendingAndRejectsAnImmediateRefresh() = runViewModelTest {
+        val existing = newsSummary(articleId = "existing-id", slug = "existing-slug")
+        val refreshed = newsSummary(articleId = "refreshed-id", slug = "refreshed-slug")
+        val retryResult = CompletableDeferred<AppResult<NewsPage>>()
+        val clock = TestTimeSource()
+        val repository = FakeNewsRepository { page, callIndex ->
+            when (callIndex) {
+                0 -> AppResult.Success(newsPage(items = listOf(existing), nextPage = 2))
+                1 -> AppResult.Busy(1.seconds)
+                2 -> retryResult.await()
+                else -> error("Unexpected request for page $page")
+            }
+        }
+        val viewModel = NewsListViewModel(repository, BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(NewsListContentState.Content(listOf(existing)), viewModel.uiState.value.contentState)
+
+        clock += 1.seconds
+        viewModel.retryBusy()
+        runCurrent()
+        assertTrue(viewModel.uiState.value.isRefreshing)
+
+        viewModel.refresh()
+        runCurrent()
+        assertEquals(listOf(1, 1, 1), repository.requestedPages)
+        retryResult.complete(AppResult.Success(newsPage(items = listOf(refreshed), nextPage = null)))
+        advanceUntilIdle()
+        assertEquals(
+            NewsListUiState(
+                contentState = NewsListContentState.Content(listOf(refreshed)),
             ),
             viewModel.uiState.value,
         )

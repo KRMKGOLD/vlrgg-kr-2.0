@@ -20,8 +20,12 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.ZERO
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EventDetailViewModelTest {
@@ -65,6 +69,47 @@ class EventDetailViewModelTest {
 
         assertEquals(EventIdentityContentState.Content(eventDetail), viewModel.uiState.value.identity)
         assertEquals(listOf("identity", "identity", "matches"), repository.requests)
+    }
+
+    @Test
+    fun busyIdentityUsesClockGuardAndManualRetryWithoutLoadingTabsEarly() = runViewModelTest {
+        val repository = FakeEventRepository(
+            identityResults = ArrayDeque(listOf(AppResult.Busy(ZERO), AppResult.Success(eventDetail))),
+        )
+        val viewModel = EventDetailViewModel(
+            repository,
+            EVENT_ID,
+            SavedStateHandle(),
+            BusyRetryStateFactory.forTest(TestTimeSource()),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf("identity"), repository.requests)
+        assertTrue(viewModel.uiState.value.busyRetry?.canRetry() == true)
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(listOf("identity", "identity", "matches"), repository.requests)
+        assertEquals(EventIdentityContentState.Content(eventDetail), viewModel.uiState.value.identity)
+    }
+
+    @Test
+    fun busyTabIsInvalidatedWhenSelectionChanges() = runViewModelTest {
+        val repository = FakeEventRepository(
+            matchesResults = ArrayDeque(listOf(AppResult.Busy(ZERO))),
+        )
+        val viewModel = EventDetailViewModel(repository, EVENT_ID, SavedStateHandle())
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.busyRetry != null)
+        viewModel.selectTab(EventDetailTab.NEWS)
+        advanceUntilIdle()
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.requests.count { it == "matches" })
+        assertEquals(1, repository.requests.count { it == "news" })
+        assertEquals(EventDetailTab.NEWS, viewModel.uiState.value.selectedTab)
     }
 
     @Test

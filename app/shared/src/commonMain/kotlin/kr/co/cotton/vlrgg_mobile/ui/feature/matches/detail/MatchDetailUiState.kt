@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail
 
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDetail
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 
 sealed interface MatchDetailContentState {
     data object Loading : MatchDetailContentState
@@ -14,4 +15,5 @@ sealed interface MatchDetailContentState {
 
 data class MatchDetailUiState(
     val contentState: MatchDetailContentState = MatchDetailContentState.Loading,
+    val busyRetry: BusyRetryState? = null,
 )

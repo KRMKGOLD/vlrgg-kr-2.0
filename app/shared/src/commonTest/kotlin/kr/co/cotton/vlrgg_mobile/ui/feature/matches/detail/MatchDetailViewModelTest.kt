@@ -16,9 +16,13 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.RelatedMatch
 import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MatchDetailViewModelTest {
@@ -97,6 +101,27 @@ class MatchDetailViewModelTest {
         assertFalse(viewModel.uiState.value.toString().contains("exception", ignoreCase = true))
         assertFalse(viewModel.uiState.value.toString().contains("message", ignoreCase = true))
         assertFalse(viewModel.uiState.value.toString().contains("status", ignoreCase = true))
+    }
+
+    @Test
+    fun initialBusyDismissesToRetryableErrorOnlyAfterItsCooldown() = runViewModelTest {
+        val clock = TestTimeSource()
+        val repository = FakeMatchRepository(listOf(AppResult.Busy(1.seconds), AppResult.Success(matchDetail())))
+        val viewModel = MatchDetailViewModel(repository, MATCH_ID, BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        assertEquals(MatchDetailContentState.Error, viewModel.uiState.value.contentState)
+        viewModel.dismissBusy()
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(listOf(MATCH_ID), repository.requestedMatchIds)
+        clock += 1.seconds
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertEquals(listOf(MATCH_ID, MATCH_ID), repository.requestedMatchIds)
+        assertTrue(viewModel.uiState.value.contentState is MatchDetailContentState.Content)
     }
 
     @Test

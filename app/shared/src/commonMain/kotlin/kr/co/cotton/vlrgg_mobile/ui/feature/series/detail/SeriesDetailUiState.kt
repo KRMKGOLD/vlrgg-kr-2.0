@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.series.detail
 
 import kr.co.cotton.vlrgg_mobile.domain.model.series.SeriesDetail
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 
 sealed interface SeriesDetailContentState {
     data object Loading : SeriesDetailContentState
@@ -14,4 +15,5 @@ sealed interface SeriesDetailContentState {
 
 data class SeriesDetailUiState(
     val contentState: SeriesDetailContentState = SeriesDetailContentState.Loading,
+    val busyRetry: BusyRetryState? = null,
 )

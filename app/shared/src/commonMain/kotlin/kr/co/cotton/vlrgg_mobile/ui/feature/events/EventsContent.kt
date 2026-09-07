@@ -100,10 +100,14 @@ fun EventsContent(
                     }
 
                     EventsContentState.Error -> item(key = "error") {
-                        EventsErrorState(
-                            onRetry = onRetry,
-                            modifier = Modifier.fillParentMaxSize(),
-                        )
+                        if (uiState.busyRetry?.isDialogVisible == true) {
+                            Box(Modifier.fillParentMaxSize())
+                        } else {
+                            EventsErrorState(
+                                onRetry = onRetry,
+                                modifier = Modifier.fillParentMaxSize(),
+                            )
+                        }
                     }
 
                     is EventsContentState.Content -> {

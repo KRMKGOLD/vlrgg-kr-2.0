@@ -4,6 +4,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.events.EventDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStats
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 
 enum class EventDetailTab(
     val savedStateId: String,
@@ -52,4 +53,5 @@ data class EventDetailUiState(
     val matches: EventMatchesContentState = EventMatchesContentState.Loading,
     val news: EventNewsContentState = EventNewsContentState.Loading,
     val stats: EventStatsContentState = EventStatsContentState.Loading,
+    val busyRetry: BusyRetryState? = null,
 )

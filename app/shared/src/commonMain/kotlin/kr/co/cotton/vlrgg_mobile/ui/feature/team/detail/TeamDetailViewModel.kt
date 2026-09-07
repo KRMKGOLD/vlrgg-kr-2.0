@@ -9,28 +9,35 @@ import dev.zacsweers.metro.AssistedInject
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kr.co.cotton.vlrgg_mobile.domain.onFailure
+import kr.co.cotton.vlrgg_mobile.domain.onBusy
 import kr.co.cotton.vlrgg_mobile.domain.onSuccess
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
 import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.TeamRepository
+import kr.co.cotton.vlrgg_mobile.domain.AppResult
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 
 @AssistedInject
 class TeamDetailViewModel(
     private val teamRepository: TeamRepository,
     private val favoriteRepository: FavoriteRepository,
     @Assisted private val teamId: String,
+    private val busyRetryStateFactory: BusyRetryStateFactory = BusyRetryStateFactory(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(TeamDetailUiState())
     val uiState: StateFlow<TeamDetailUiState> = _uiState.asStateFlow()
     private var failedFavoriteMutation: FavoriteMutation? = null
     private var isFavoriteRestoreInProgress = false
+    private var teamDetailJob: Job? = null
 
     init {
         loadTeamDetail()
@@ -38,16 +45,29 @@ class TeamDetailViewModel(
     }
 
     fun retry() {
+        if (teamDetailJob?.isActive == true) return
+        if (isBusyCooldown()) return
         if (_uiState.value.contentState != TeamDetailContentState.Error) return
 
         _uiState.value = _uiState.value.copy(
             contentState = TeamDetailContentState.Loading,
+            busyRetry = null,
         )
         loadTeamDetail()
         if (!_uiState.value.favorite.isRestored) {
             restoreFavorite()
         }
     }
+
+    fun retryBusy() {
+        if (teamDetailJob?.isActive == true) return
+        val busy = _uiState.value.busyRetry ?: return
+        if (busy.operationId != OPERATION_ID || !busy.canRetry()) return
+        _uiState.value = _uiState.value.copy(contentState = TeamDetailContentState.Loading, busyRetry = null)
+        loadTeamDetail()
+    }
+
+    fun dismissBusy() { _uiState.value = _uiState.value.copy(busyRetry = _uiState.value.busyRetry?.dismiss()) }
 
     fun toggleFavorite() {
         val favorite = _uiState.value.favorite
@@ -86,18 +106,26 @@ class TeamDetailViewModel(
         )
     }
 
-    private fun loadTeamDetail() = viewModelScope.launch {
-        teamRepository.getTeamDetail(teamId)
-            .onSuccess { team ->
-                _uiState.value = _uiState.value.copy(
-                    contentState = TeamDetailContentState.Content(team),
-                )
-            }
-            .onFailure {
-                _uiState.value = _uiState.value.copy(
+    private fun loadTeamDetail() {
+        if (teamDetailJob?.isActive == true) return
+        teamDetailJob = viewModelScope.launch {
+            when (val result = teamRepository.getTeamDetail(teamId)) {
+                is AppResult.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        contentState = TeamDetailContentState.Content(result.data),
+                    )
+                }
+                AppResult.Failure -> {
+                    _uiState.value = _uiState.value.copy(
+                        contentState = TeamDetailContentState.Error,
+                    )
+                }
+                is AppResult.Busy -> _uiState.value = _uiState.value.copy(
                     contentState = TeamDetailContentState.Error,
+                    busyRetry = busyRetryStateFactory.create(OPERATION_ID, result.retryDelay),
                 )
             }
+        }
     }
 
     private fun restoreFavorite() {
@@ -121,6 +149,11 @@ class TeamDetailViewModel(
                             isRestored = false,
                             hasRestoreFailure = true,
                         )
+                    }
+                }
+                .onBusy {
+                    updateFavorite { favoriteState ->
+                        favoriteState.copy(isRestored = false, hasRestoreFailure = true)
                     }
                 }
             isFavoriteRestoreInProgress = false
@@ -156,6 +189,16 @@ class TeamDetailViewModel(
                         )
                     }
                 }
+                .onBusy {
+                    failedFavoriteMutation = mutation
+                    updateFavorite {
+                        it.copy(
+                            isFavorite = mutation.intent == TeamFavoriteMutationIntent.Remove,
+                            isMutationInProgress = false,
+                            failedIntent = mutation.intent,
+                        )
+                    }
+                }
         }
     }
 
@@ -164,6 +207,10 @@ class TeamDetailViewModel(
             state.copy(favorite = transform(state.favorite))
         }
     }
+
+    private fun isBusyCooldown(): Boolean = _uiState.value.busyRetry
+        ?.takeIf { it.operationId == OPERATION_ID }
+        ?.canRetry() == false
 
     private data class FavoriteMutation(
         val intent: TeamFavoriteMutationIntent,
@@ -177,6 +224,8 @@ class TeamDetailViewModel(
         country = country,
         imageUrl = logoUrl,
     )
+
+    private companion object { const val OPERATION_ID = "team-detail" }
 
     @AssistedFactory
     @ManualViewModelAssistedFactoryKey

@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryDialog
 
 @Composable
 fun EventDetailScreen(
@@ -40,4 +41,5 @@ fun EventDetailScreen(
         onRetrySelectedTab = viewModel::retrySelectedTab,
         modifier = modifier,
     )
+    BusyRetryDialog(uiState.busyRetry, viewModel::retryBusy, viewModel::dismissBusy)
 }

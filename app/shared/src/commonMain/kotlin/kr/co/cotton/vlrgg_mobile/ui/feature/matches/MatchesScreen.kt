@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zacsweers.metrox.viewmodel.metroViewModel
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryDialog
 
 @Composable
 fun MatchesScreen(
@@ -31,4 +32,5 @@ fun MatchesScreen(
         onRetryLoadMore = { viewModel.retryLoadMore(uiState.selectedTab) },
         modifier = modifier,
     )
+    BusyRetryDialog(uiState.busyRetry, viewModel::retryBusy, viewModel::dismissBusy)
 }

@@ -91,12 +91,16 @@ fun NewsDetailContent(
                     .padding(contentPadding),
             )
 
-            NewsDetailContentState.Error -> NewsDetailError(
-                onRetry = onRetry,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding),
-            )
+            NewsDetailContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
+                Box(Modifier.fillMaxSize().padding(contentPadding))
+            } else {
+                NewsDetailError(
+                    onRetry = onRetry,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding),
+                )
+            }
         }
     }
 }

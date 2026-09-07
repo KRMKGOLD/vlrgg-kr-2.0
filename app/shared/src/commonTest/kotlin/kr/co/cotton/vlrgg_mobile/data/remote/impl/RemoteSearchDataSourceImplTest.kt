@@ -3,7 +3,6 @@ package kr.co.cotton.vlrgg_mobile.data.remote.impl
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.http.ContentType
@@ -13,6 +12,7 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kr.co.cotton.vlrgg_mobile.data.remote.PublicApiResponseException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -41,7 +41,7 @@ class RemoteSearchDataSourceImplTest {
     }
 
     @Test
-    fun nonSuccessfulResponseThrowsKtorResponseException() = runTest {
+    fun nonSuccessfulResponseThrowsGenericPublicApiException() = runTest {
         val client = createClient(
             MockEngine {
                 respondJson(
@@ -52,7 +52,7 @@ class RemoteSearchDataSourceImplTest {
         )
 
         try {
-            assertFailsWith<ResponseException> {
+            assertFailsWith<PublicApiResponseException> {
                 RemoteSearchDataSourceImpl(client).getSearch("T1")
             }
         } finally {

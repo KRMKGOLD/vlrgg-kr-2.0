@@ -163,7 +163,7 @@ fun TeamDetailContent(
         }
     }
 
-    if (uiState.contentState == TeamDetailContentState.Error) {
+    if (uiState.contentState == TeamDetailContentState.Error && uiState.busyRetry?.isDialogVisible != true) {
         TeamDetailErrorDialog(
             onRetry = onRetry,
             onBack = onBack,

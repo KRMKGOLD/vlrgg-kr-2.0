@@ -106,12 +106,16 @@ fun MatchDetailContent(
                     .padding(contentPadding),
             )
 
-            MatchDetailContentState.Error -> MatchDetailError(
-                onRetry = onRetry,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding),
-            )
+            MatchDetailContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
+                Box(Modifier.fillMaxSize().padding(contentPadding))
+            } else {
+                MatchDetailError(
+                    onRetry = onRetry,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding),
+                )
+            }
         }
     }
 }

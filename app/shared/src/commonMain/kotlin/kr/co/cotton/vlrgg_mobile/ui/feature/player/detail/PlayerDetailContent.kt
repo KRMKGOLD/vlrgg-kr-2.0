@@ -131,7 +131,7 @@ fun PlayerDetailContent(
             PlayerDetailContentState.Error -> Box(Modifier.fillMaxSize().padding(padding))
         }
     }
-    if (uiState.contentState == PlayerDetailContentState.Error) {
+    if (uiState.contentState == PlayerDetailContentState.Error && uiState.busyRetry?.isDialogVisible != true) {
         AlertDialog(
             onDismissRequest = {},
             title = { Text("정보를 불러오지 못했습니다") },

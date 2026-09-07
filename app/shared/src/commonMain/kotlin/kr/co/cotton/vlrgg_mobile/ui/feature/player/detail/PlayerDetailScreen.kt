@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryDialog
 
 @Composable
 fun PlayerDetailScreen(
@@ -32,4 +33,5 @@ fun PlayerDetailScreen(
         onFavoriteErrorDismiss = viewModel::dismissFavoriteError,
         modifier = modifier,
     )
+    BusyRetryDialog(uiState.busyRetry, viewModel::retryBusy, viewModel::dismissBusy)
 }

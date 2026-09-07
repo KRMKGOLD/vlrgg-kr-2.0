@@ -3,7 +3,6 @@ package kr.co.cotton.vlrgg_mobile.data.remote.impl
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.serialization.JsonConvertException
@@ -16,6 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kr.co.cotton.vlrgg_mobile.data.remote.PublicApiResponseException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -67,7 +67,7 @@ class RemotePlayerDataSourceImplTest {
     }
 
     @Test
-    fun nonSuccessfulResponseThrowsKtorResponseException() = runTest {
+    fun nonSuccessfulResponseThrowsGenericPublicApiException() = runTest {
         val client = createClient(
             MockEngine {
                 respondJson("{\"code\":\"UPSTREAM_NETWORK_FAILURE\"}", HttpStatusCode.BadGateway)
@@ -75,7 +75,7 @@ class RemotePlayerDataSourceImplTest {
         )
 
         try {
-            assertFailsWith<ResponseException> {
+            assertFailsWith<PublicApiResponseException> {
                 RemotePlayerDataSourceImpl(client).getPlayerDetail("488")
             }
         } finally {

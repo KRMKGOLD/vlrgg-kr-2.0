@@ -87,10 +87,14 @@ fun SeriesDetailContent(
                 modifier = Modifier.fillMaxSize().padding(contentPadding),
             )
 
-            SeriesDetailContentState.Error -> SeriesDetailError(
-                onRetry = onRetry,
-                modifier = Modifier.fillMaxSize().padding(contentPadding),
-            )
+            SeriesDetailContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
+                Box(Modifier.fillMaxSize().padding(contentPadding))
+            } else {
+                SeriesDetailError(
+                    onRetry = onRetry,
+                    modifier = Modifier.fillMaxSize().padding(contentPadding),
+                )
+            }
         }
     }
 }

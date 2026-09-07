@@ -58,6 +58,7 @@ fun NewsContent(
         LoadMoreEffect(
             listState = listState,
             itemCount = contentState.items.size,
+            enabled = !uiState.isRefreshing && !uiState.isLoadingMore && !uiState.hasPaginationError,
             onLoadMore = onLoadMore,
         )
     }
@@ -95,12 +96,16 @@ fun NewsContent(
                     }
 
                     NewsListContentState.Error -> item(key = "error") {
-                        NewsStateMessage(
-                            message = "뉴스를 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
-                            actionText = "재시도",
-                            onAction = onRetryInitial,
-                            modifier = Modifier.fillParentMaxSize(),
-                        )
+                        if (uiState.busyRetry?.isDialogVisible == true) {
+                            Box(Modifier.fillParentMaxSize())
+                        } else {
+                            NewsStateMessage(
+                                message = "뉴스를 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
+                                actionText = "재시도",
+                                onAction = onRetryInitial,
+                                modifier = Modifier.fillParentMaxSize(),
+                            )
+                        }
                     }
 
                     is NewsListContentState.Content -> {
@@ -237,9 +242,11 @@ private fun NewsPaginationFooter(
 private fun LoadMoreEffect(
     listState: LazyListState,
     itemCount: Int,
+    enabled: Boolean,
     onLoadMore: () -> Unit,
 ) {
-    LaunchedEffect(listState, itemCount) {
+    LaunchedEffect(listState, itemCount, enabled) {
+        if (!enabled) return@LaunchedEffect
         snapshotFlow {
             listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
         }

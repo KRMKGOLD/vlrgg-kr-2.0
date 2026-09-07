@@ -3,10 +3,12 @@ package kr.co.cotton.vlrgg_mobile.data.repository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
+import kr.co.cotton.vlrgg_mobile.data.remote.PublicApiBusyException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
+import kotlin.time.Duration.Companion.seconds
 
 class RepositoryResultTest {
 
@@ -37,5 +39,14 @@ class RepositoryResultTest {
         }
 
         assertSame(cancellation, thrown)
+    }
+
+    @Test
+    fun publicApiBusyExceptionReturnsBusyWithItsSafeDelay() = runTest {
+        val result = wrapAsAppResult<String> {
+            throw PublicApiBusyException(5.seconds)
+        }
+
+        assertEquals(AppResult.Busy(5.seconds), result)
     }
 }

@@ -22,10 +22,14 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.ZERO
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MatchesViewModelTest {
@@ -229,6 +233,74 @@ class MatchesViewModelTest {
         assertEquals(listOf(1, 2, 2), repository.requestedUpcomingPages)
         assertEquals(listOf("existing", "recovered"), viewModel.uiState.value.upcomingLive.matchIds())
         assertFalse(viewModel.uiState.value.upcomingLive.hasPaginationError)
+    }
+
+    @Test
+    fun busyPaginationPreservesExistingGroupsAndRetriesOnlyTheFailedPage() = runViewModelTest {
+        val existing = matchSummary(id = "existing")
+        val next = matchSummary(id = "next")
+        val repository = FakeMatchRepository(
+            upcomingResults = listOf(
+                successPage(matches = listOf(existing)),
+                AppResult.Busy(ZERO),
+                successPage(page = 2, matches = listOf(next)),
+            ),
+        )
+        val viewModel = MatchesViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.loadMore()
+        advanceUntilIdle()
+        assertEquals(listOf("existing"), viewModel.uiState.value.upcomingLive.matchIds())
+        assertTrue(viewModel.uiState.value.busyRetry?.operationId?.endsWith(":2") == true)
+        viewModel.dismissBusy()
+        assertTrue(viewModel.uiState.value.upcomingLive.hasPaginationError)
+        assertEquals(listOf(1, 2), repository.requestedUpcomingPages)
+
+        viewModel.retryLoadMore()
+        advanceUntilIdle()
+        assertEquals(listOf(1, 2, 2), repository.requestedUpcomingPages)
+        assertEquals(listOf("existing", "next"), viewModel.uiState.value.upcomingLive.matchIds())
+    }
+
+    @Test
+    fun retryBusyRefreshKeepsRefreshPendingAndRejectsAnImmediateRefresh() = runViewModelTest {
+        val existing = matchSummary(id = "existing")
+        val refreshed = matchSummary(id = "refreshed")
+        val retryResult = CompletableDeferred<AppResult<MatchPage>>()
+        val clock = TestTimeSource()
+        val repository = FakeMatchRepository { feed, page, callIndex ->
+            check(feed == Feed.UPCOMING)
+            when (callIndex) {
+                0 -> successPage(matches = listOf(existing))
+                1 -> AppResult.Busy(1.seconds)
+                2 -> retryResult.await()
+                else -> error("Unexpected request for page $page")
+            }
+        }
+        val viewModel = MatchesViewModel(
+            repository,
+            SavedStateHandle(),
+            BusyRetryStateFactory.forTest(clock),
+        )
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(listOf("existing"), viewModel.uiState.value.upcomingLive.matchIds())
+
+        clock += 1.seconds
+        viewModel.retryBusy()
+        runCurrent()
+        assertTrue(viewModel.uiState.value.upcomingLive.isRefreshing)
+
+        viewModel.refresh()
+        runCurrent()
+        assertEquals(listOf(1, 1, 1), repository.requestedUpcomingPages)
+        retryResult.complete(successPage(matches = listOf(refreshed)))
+        advanceUntilIdle()
+        assertEquals(listOf("refreshed"), viewModel.uiState.value.upcomingLive.matchIds())
+        assertFalse(viewModel.uiState.value.upcomingLive.isRefreshing)
     }
 
     @Test

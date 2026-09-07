@@ -2,12 +2,11 @@ package kr.co.cotton.vlrgg_mobile.data.remote.impl
 
 import dev.zacsweers.metro.Inject
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteMatchDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchesPageResponseDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDetailResponseDto
+import kr.co.cotton.vlrgg_mobile.network.getPublicJson
 
 @Inject
 internal class RemoteMatchDataSourceImpl(
@@ -21,14 +20,14 @@ internal class RemoteMatchDataSourceImpl(
         getMatchPage(path = RESULTS_PATH, page = page)
 
     override suspend fun getMatchDetail(matchId: String): MatchDetailResponseDto =
-        httpClient.get("$MATCHES_PATH/$matchId").body()
+        httpClient.getPublicJson("$MATCHES_PATH/$matchId")
 
     private suspend fun getMatchPage(
         path: String,
         page: Int,
-    ): MatchesPageResponseDto = httpClient.get(path) {
+    ): MatchesPageResponseDto = httpClient.getPublicJson(path) {
         parameter("page", page)
-    }.body()
+    }
 
     private companion object {
         const val MATCHES_PATH = "/api/v1/matches"

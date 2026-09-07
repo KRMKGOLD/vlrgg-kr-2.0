@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.search
 
 import kr.co.cotton.vlrgg_mobile.domain.model.search.SearchResult
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 
 sealed interface SearchContentState {
     data object Initial : SearchContentState
@@ -19,6 +20,7 @@ sealed interface SearchContentState {
 data class SearchUiState(
     val query: String = "",
     val contentState: SearchContentState = SearchContentState.Initial,
+    val busyRetry: BusyRetryState? = null,
 ) {
     val canSubmit: Boolean
         get() = isSearchQueryValid(query)
