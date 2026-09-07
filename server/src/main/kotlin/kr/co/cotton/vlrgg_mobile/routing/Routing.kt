@@ -3,7 +3,6 @@ package kr.co.cotton.vlrgg_mobile.routing
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.serialization.Serializable
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 import kr.co.cotton.vlrgg_mobile.feature.events.EventsService
 import kr.co.cotton.vlrgg_mobile.feature.events.configureEventsRoutes
@@ -36,7 +35,7 @@ internal fun Application.configureRouting(
     }
     routing {
         get("/health") {
-            call.respond(HealthResponse(status = "ok"))
+            call.respondText("{\"status\":\"ok\"}", io.ktor.http.ContentType.Application.Json)
         }.hideFromOpenApi()
         configureNewsRoutes(newsService)
         configureEventsRoutes(eventsService)
@@ -47,8 +46,3 @@ internal fun Application.configureRouting(
     }
     configureMatchesFeature(upstreamHtmlTransport, matchesService)
 }
-
-@Serializable
-private data class HealthResponse(
-    val status: String,
-)

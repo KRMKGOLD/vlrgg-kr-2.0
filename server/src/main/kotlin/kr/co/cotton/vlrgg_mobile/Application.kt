@@ -24,6 +24,10 @@ import kr.co.cotton.vlrgg_mobile.feature.teams.TeamDetailService
 import kr.co.cotton.vlrgg_mobile.plugins.configureErrorHandling
 import kr.co.cotton.vlrgg_mobile.plugins.configureMonitoring
 import kr.co.cotton.vlrgg_mobile.plugins.configureSerialization
+import kr.co.cotton.vlrgg_mobile.protection.PublicApiProtectionConfig
+import kr.co.cotton.vlrgg_mobile.protection.configurePublicRequestProtection
+import kr.co.cotton.vlrgg_mobile.protection.createPublicApiProtection
+import kr.co.cotton.vlrgg_mobile.protection.withPublicProtection
 import kr.co.cotton.vlrgg_mobile.routing.configureRouting
 
 private const val API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE = "VLRGG_ENABLE_API_DOCUMENTATION"
@@ -44,9 +48,13 @@ internal fun Application.module(
     teamDetailService: TeamDetailService? = null,
     playerDetailService: PlayerDetailService? = null,
     enableApiDocumentation: Boolean = false,
+    protectionConfig: PublicApiProtectionConfig = PublicApiProtectionConfig.fromEnvironment(System.getenv()),
 ) {
-    configureSerialization(); configureMonitoring(); configureErrorHandling()
-    val transport = createUpstreamHtmlTransport()
+    val observability = configureMonitoring()
+    configureSerialization(); configureErrorHandling(observability)
+    val protection = createPublicApiProtection(protectionConfig, observability)
+    configurePublicRequestProtection(protection, protectionConfig)
+    val transport = createUpstreamHtmlTransport().withPublicProtection(protection)
     val matches = DefaultMatchesService(VlrMatchesScraper(transport), VlrMatchesParser(), MatchesMapper())
     configureRouting(
         upstreamHtmlTransport = transport,
