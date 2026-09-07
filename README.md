@@ -194,6 +194,17 @@ Android는 Android Studio에서 `app/androidApp`을 실행하고, iOS는 Xcode�
 
 GitHub Actions는 앱 테스트·lint, 서버 테스트·build, packaged health smoke를 PR과 `main` push에서 검증합니다.
 
+### 로컬 G0 측정 baseline
+
+G0 benchmark는 production route나 VLR.GG에 요청하지 않고, loopback의 synthetic upstream을 사용해 paced/burst 요청의 로컬 기준선을 기록하는 opt-in 테스트입니다. 기본 `:server:test`에서는 `G0_BENCH_REPORT_PATH`가 없으므로 skip되며, synthetic 지연·개발 장비·JVM 상태의 영향을 받기 때문에 성능 보장이나 실제 upstream 측정으로 해석하면 안 됩니다. 보고서는 커밋하지 않으며, `server`를 test working directory로 사용하므로 존재하는 무시 경로인 절대 `/tmp`에 기록하고 `--rerun-tasks`로 이전 skip 결과가 측정 성공처럼 보이지 않도록 강제 재실행합니다.
+
+```bash
+G0_BENCH_REPORT_PATH=/tmp/vlrgg-g0-benchmark.txt \
+  ./gradlew :server:test \
+  --tests 'kr.co.cotton.vlrgg_mobile.benchmark.G0LocalFakeUpstreamBenchmarkTest' \
+  --rerun-tasks
+```
+
 ## 디자인과 문서
 
 | 문서 | 내용 |

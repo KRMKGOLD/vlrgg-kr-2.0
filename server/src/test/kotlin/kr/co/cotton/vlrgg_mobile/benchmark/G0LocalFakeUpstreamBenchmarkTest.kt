@@ -33,7 +33,13 @@ class G0LocalFakeUpstreamBenchmarkTest {
     fun `records bounded fake upstream local baseline`() {
         val reportPath = System.getenv(REPORT_PATH_ENV)
         assumeTrue("$REPORT_PATH_ENV must be set for the opt-in local benchmark.", !reportPath.isNullOrBlank())
-        val evidencePath = checkNotNull(reportPath)
+        val evidencePath = Path.of(checkNotNull(reportPath))
+        val evidenceParent = requireNotNull(evidencePath.parent) {
+            "$REPORT_PATH_ENV must include a parent directory."
+        }
+        require(Files.isDirectory(evidenceParent)) {
+            "$REPORT_PATH_ENV parent directory must already exist."
+        }
         val upstreamRequests = AtomicInteger()
         val client = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(2)).build()
         val upstream = embeddedServer(Netty, host = LOOPBACK, port = 0) {
@@ -84,14 +90,17 @@ class G0LocalFakeUpstreamBenchmarkTest {
             val burstStart = System.nanoTime()
             val burstCpuStart = processCpuNanos()
             val gate = CountDownLatch(1)
+            val ready = CountDownLatch(BURST_REQUESTS)
             val executor = Executors.newFixedThreadPool(BURST_REQUESTS)
             try {
                 val futures = (1..BURST_REQUESTS).map {
                     executor.submit<Int> {
-                        gate.await(2, TimeUnit.SECONDS)
+                        ready.countDown()
+                        assertTrue(gate.await(2, TimeUnit.SECONDS), "Timed out waiting for burst start gate.")
                         client.send(request(endpoint), HttpResponse.BodyHandlers.ofString()).statusCode()
                     }
                 }
+                assertTrue(ready.await(2, TimeUnit.SECONDS), "Burst workers did not all reach the start gate.")
                 gate.countDown()
                 futures.forEach { assertEquals(200, it.get(5, TimeUnit.SECONDS)) }
             } finally {
@@ -105,7 +114,7 @@ class G0LocalFakeUpstreamBenchmarkTest {
             val burst = captureMetrics()
 
             Files.writeString(
-                Path.of(evidencePath),
+                evidencePath,
                 renderReport(
                     idle = idle,
                     paced = paced,
