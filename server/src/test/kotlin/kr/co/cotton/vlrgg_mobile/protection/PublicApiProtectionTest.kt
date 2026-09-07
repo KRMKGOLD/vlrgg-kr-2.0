@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.protection
 
 import io.ktor.http.Url
+import io.ktor.http.headersOf
 import kotlinx.coroutines.*
 import java.util.concurrent.atomic.AtomicInteger
 import kr.co.cotton.vlrgg_mobile.common.http.RateLimitedFailure
@@ -9,6 +10,7 @@ import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
 import kr.co.cotton.vlrgg_mobile.plugins.PublicApiObservability
 import kr.co.cotton.vlrgg_mobile.plugins.PublicRouteClass
 import kr.co.cotton.vlrgg_mobile.plugins.FailureDiagnostics
+import kr.co.cotton.vlrgg_mobile.plugins.formatPublicApiSummary
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
 import kotlin.test.*
 
@@ -162,6 +164,49 @@ class PublicApiProtectionTest {
 
         assertEquals(2, summaries.size)
         assertEquals(3L, observability.snapshot().statusClasses[2])
+    }
+
+    @Test
+    fun `emitted public summary has bounded named labels and exact latency boundaries`() {
+        val emitted = mutableListOf<String>()
+        var now = 0L
+        val observability = PublicApiObservability({ emitted += formatPublicApiSummary(it) }) { now }
+
+        observability.requestStarted(observability.routeClass("/api/v1/matches"))
+        observability.completed(status = 200, elapsedMillis = 99)
+        observability.requestStarted(observability.routeClass("/attacker/path?token=credential-sentinel"))
+        observability.completed(status = 404, elapsedMillis = 100)
+        observability.requestStarted(PublicRouteClass.OTHER)
+        observability.completed(status = 500, elapsedMillis = 999)
+        observability.requestStarted(PublicRouteClass.OTHER)
+        observability.completed(status = 503, elapsedMillis = 1_000)
+        now = 60_000
+        observability.requestStarted(PublicRouteClass.OTHER)
+        observability.completed(status = 503, elapsedMillis = 3_000)
+
+        assertEquals(2, emitted.size)
+        val summary = emitted.last()
+        assertContains(summary, "routes={api=1,other=4}")
+        assertContains(summary, "status={0xx=0,1xx=0,2xx=1,3xx=0,4xx=1,5xx=3}")
+        assertContains(summary, "rejections={INVALID_REQUEST=0")
+        assertContains(summary, "RESPONSE_TOO_LARGE=0")
+        assertContains(summary, "} latency={")
+        assertContains(summary, "latency={lt_100ms=1,100ms_to_lt_1s=2,1s_to_lt_3s=1,gte_3s=1}")
+        assertFalse(summary.contains("credential-sentinel"))
+    }
+
+    @Test
+    fun `repeated header fields charge each field name and honor exact limit`() {
+        val name = "X-Repeated"
+        val values = arrayOf("first", "second")
+        val headers = headersOf(name, values.toList())
+        val legacyGroupedBytes = name.toByteArray().size.toLong() + values.sumOf { it.toByteArray().size.toLong() + 4L }
+        val actualBytes = headers.publicHeaderBytes()
+
+        assertTrue(actualBytes > legacyGroupedBytes)
+        assertTrue(headers.exceedsPublicHeaderByteLimit(legacyGroupedBytes.toInt()))
+        assertFalse(headers.exceedsPublicHeaderByteLimit(actualBytes.toInt()))
+        assertTrue(headers.exceedsPublicHeaderByteLimit(actualBytes.toInt() - 1))
     }
 
     @Test

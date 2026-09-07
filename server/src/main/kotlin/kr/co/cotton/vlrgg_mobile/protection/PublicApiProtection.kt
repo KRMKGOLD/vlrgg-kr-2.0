@@ -243,12 +243,9 @@ internal suspend fun ApplicationCall.validatePublicRequest(config: PublicApiProt
     if (request.local.uri.toByteArray(StandardCharsets.UTF_8).size > config.maxRequestTargetBytes) {
         throw InvalidInputFailure()
     }
-    val headerBytes = request.headers.entries().sumOf { (name, values) ->
-        name.toByteArray(StandardCharsets.UTF_8).size.toLong() + values.sumOf {
-            it.toByteArray(StandardCharsets.UTF_8).size.toLong() + 4L // ": " plus CRLF on the wire
-        }
+    if (request.headers.exceedsPublicHeaderByteLimit(config.maxRequestHeaderBytes)) {
+        throw RequestHeadersTooLargeFailure()
     }
-    if (headerBytes > config.maxRequestHeaderBytes.toLong()) throw RequestHeadersTooLargeFailure()
     val length = request.header(HttpHeaders.ContentLength)?.toLongOrNull()
     if (request.header(HttpHeaders.ContentLength) != null && length == null) throw InvalidInputFailure()
     if (length != null && length < 0) throw InvalidInputFailure()
@@ -261,5 +258,17 @@ internal suspend fun ApplicationCall.validatePublicRequest(config: PublicApiProt
         if (read <= 0) continue
         total += read
         if (total > config.maxRequestBodyBytes) throw RequestTooLargeFailure()
+    }
+}
+
+/** Each value is a separate HTTP header field, including its own name, delimiter, and CRLF. */
+internal fun Headers.exceedsPublicHeaderByteLimit(maxBytes: Int): Boolean =
+    publicHeaderBytes() > maxBytes.toLong()
+
+internal fun Headers.publicHeaderBytes(): Long = entries().sumOf { (name, values) ->
+    values.sumOf { value ->
+        name.toByteArray(StandardCharsets.UTF_8).size.toLong() +
+            value.toByteArray(StandardCharsets.UTF_8).size.toLong() +
+            4L // ": " plus CRLF on the wire
     }
 }

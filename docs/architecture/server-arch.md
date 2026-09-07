@@ -156,6 +156,7 @@ data class ApiErrorResponse(
 | `NOT_FOUND` | `404 Not Found` | 요청한 route가 존재하지 않음 |
 | `UPSTREAM_NETWORK_FAILURE` | `502 Bad Gateway` | VLR.GG 요청·연결·timeout 등 upstream 통신 실패 |
 | `SOURCE_PARSING_FAILURE` | `502 Bad Gateway` | 응답은 받았지만 필요한 VLR.GG 구조를 해석할 수 없음 |
+| `RESPONSE_TOO_LARGE` | `502 Bad Gateway` | server가 공개 성공 JSON의 안전한 크기 제한을 넘김 |
 | `INTERNAL_ERROR` | `500 Internal Server Error` | 위 범주 밖의 처리 실패 |
 | `RATE_LIMITED` | `429 Too Many Requests` | 프로세스의 공개 요청 rate 한도 초과, Retry-After 포함 |
 | `SERVER_BUSY` | `503 Service Unavailable` | API/upstream 동시 작업 또는 새 fetch 한도 초과, Retry-After 포함 |
@@ -190,7 +191,7 @@ data class ApiErrorResponse(
 
 공개 조회의 관측은 `logback.xml`의 console appender를 사용한다. #52는 요청 폭주에 따라 로그량이 늘어나지 않도록 요청마다 기록하는 `CallLogging`을 제거하고, 고정 카운터와 시간당 출력 한도가 있는 집계·진단으로 대체한다.
 
-- 고정 route class, status class, stable failure code, latency bucket, active API/upstream, in-flight join과 upstream failure를 집계한다. 카운터의 정확성은 로그 샘플링과 분리한다.
+- 고정 route class, status class, stable failure code, latency bucket, active API/upstream, in-flight join과 upstream failure를 집계한다. upstream failure는 `UPSTREAM_NETWORK_FAILURE`와 `SOURCE_PARSING_FAILURE`만 세며 local 성공 JSON 제한의 `RESPONSE_TOO_LARGE`는 제외한다. summary에는 `api`/`other`, `0xx`~`5xx`, 각 error code, 고정 latency bucket의 이름과 count를 함께 출력하며, 카운터의 정확성은 로그 샘플링과 분리한다.
 - 실패 진단에는 제한된 canonical origin과 안전한 cause 분류만 사용한다. raw request path/query/IP/header, 예외 메시지·stack trace를 넣지 않는다.
 - `/health`는 API admission과 요청 로그에서 제외하며 상수 응답을 제공한다. probe 실패를 API 포화와 연결하지 않는다.
 - secret, FCM registration token, App Check evidence, client credential, raw HTML은 로그에 기록하지 않는다.

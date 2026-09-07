@@ -20,7 +20,7 @@ Android와 iOS에 실제 설치한 앱에서 기존 조회 API를 사용한다. 
 | 진행 중 canonical key | 최대 4개 | 추가 key는 즉시 거절 |
 | 요청 시간 | upstream 10초 < 서버 전체 15초 < 플랫폼 20초 < 앱 30초 | 안전한 오류와 작업 취소 |
 | 요청 target / headers / read body | 4KiB / 16KiB / 1KiB | 앱 경계에서 400·413·431; 플랫폼/엔진 응답은 별도 |
-| upstream HTML / 성공 JSON | 1MiB / 2MiB | 안전한 502 |
+| upstream HTML / 성공 JSON | 1MiB / 2MiB | 안전한 502 (`RESPONSE_TOO_LARGE`는 성공 JSON 제한 초과) |
 
 과부하 응답은 기존 `{code, message}` 형식을 사용하며 `Retry-After`에 정수 초를 보낸다. 서버 내부 예외, HTML, selector, 원본 URL을 응답에 넣지 않는다. 잘못된 한도 설정은 서버 시작 시 거절한다.
 
@@ -67,7 +67,7 @@ Cloud Run request-based warm 1개를 우선 견적 후보로 검토하고 Railwa
 
 경고 5만 원·중단 8만 원은 잠정값이다. 최대 예상 소모율과 관측·집행 지연, 진행 작업, 부대요금·세금을 계산하여 남은 2만 원 안에 대응 여유가 있는지 확인한다. 지연 근거와 대응 여유가 불충분하면 trigger 또는 provider를 재검토하기 전 공개하지 않는다.
 
-관측 값은 고정 route·status class·거절 사유·활성 작업 수에 한정한다. 요청마다 달라지는 path·query·IP·token·HTML을 label로 쓰지 않으며 공격 요청 수에 비례하는 로그를 피한다.
+관측 값은 고정 route·status class·거절 사유·활성 작업 수에 한정한다. 집계 summary는 `api`/`other`, `0xx`~`5xx`, stable error code, 고정 latency bucket을 name-to-count 형태로 출력한다. upstream failure counter는 실제 network·parsing failure만 포함하고 local 성공 JSON 제한의 `RESPONSE_TOO_LARGE`는 포함하지 않는다. 요청마다 달라지는 path·query·IP·token·HTML을 label로 쓰지 않으며 공격 요청 수에 비례하는 로그를 피한다.
 
 ## 완료 증거
 

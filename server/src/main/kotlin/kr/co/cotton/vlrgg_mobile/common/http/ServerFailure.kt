@@ -87,9 +87,9 @@ internal class RequestDeadlineFailure : ServerFailure() {
 }
 
 internal class PublicResponseTooLargeFailure(cause: Exception) : ServerFailure(cause = cause) {
-    override val errorCode = ApiErrorCode.UPSTREAM_NETWORK_FAILURE
+    override val errorCode = ApiErrorCode.RESPONSE_TOO_LARGE
     override val status = HttpStatusCode.BadGateway
-    override val safeMessage = "Unable to retrieve data from the upstream source."
+    override val safeMessage = "Response data is too large."
 }
 
 internal fun ServerFailure.toApiErrorResponse() = ApiErrorResponse(

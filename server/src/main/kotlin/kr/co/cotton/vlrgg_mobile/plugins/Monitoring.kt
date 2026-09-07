@@ -94,16 +94,15 @@ internal class PublicApiObservability(
 }
 
 internal fun Application.configureMonitoring(): PublicApiObservability = PublicApiObservability(emit = { summary ->
-    log.info(
-        "public_api_summary requests={} routes={} status={} rejection={} latency={} active_api={} active_upstream={} joins={} upstream_failures={}",
-        summary.requests,
-        summary.routeClasses,
-        summary.statusClasses,
-        summary.rejections.values,
-        summary.latencyBuckets,
-        summary.activeApi,
-        summary.activeUpstream,
-        summary.singleFlightJoins,
-        summary.upstreamFailures,
-    )
+    log.info(formatPublicApiSummary(summary))
 })
+
+/** The emitted summary uses only fixed labels, never request-derived values. */
+internal fun formatPublicApiSummary(summary: PublicApiObservability.Snapshot): String =
+    "public_api_summary requests=${summary.requests} " +
+        "routes={api=${summary.routeClasses[PublicRouteClass.API.ordinal]},other=${summary.routeClasses[PublicRouteClass.OTHER.ordinal]}} " +
+        "status={0xx=${summary.statusClasses[0]},1xx=${summary.statusClasses[1]},2xx=${summary.statusClasses[2]},3xx=${summary.statusClasses[3]},4xx=${summary.statusClasses[4]},5xx=${summary.statusClasses[5]}} " +
+        "rejections={${ApiErrorCode.entries.joinToString(",") { code -> "${code.name}=${summary.rejections.getValue(code)}" }}} " +
+        "latency={lt_100ms=${summary.latencyBuckets[0]},100ms_to_lt_1s=${summary.latencyBuckets[1]},1s_to_lt_3s=${summary.latencyBuckets[2]},gte_3s=${summary.latencyBuckets[3]}} " +
+        "active_api=${summary.activeApi} active_upstream=${summary.activeUpstream} " +
+        "joins=${summary.singleFlightJoins} upstream_failures=${summary.upstreamFailures}"
