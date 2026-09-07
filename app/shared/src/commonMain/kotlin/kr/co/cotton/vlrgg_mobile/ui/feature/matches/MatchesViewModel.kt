@@ -82,10 +82,13 @@ class MatchesViewModel @AssistedInject constructor(
         if (runtime(operation.tab).hasActiveRequest()) return
         _uiState.value = _uiState.value.copy(busyRetry = null)
         if (operation.page == FIRST_PAGE) {
-            runtime(operation.tab).resetForFirstPage()
-            if (feedState(operation.tab).contentState == MatchesFeedContentState.Error) {
+            val runtime = runtime(operation.tab)
+            val state = feedState(operation.tab)
+            runtime.resetForFirstPage()
+            if (state.contentState == MatchesFeedContentState.Error) {
                 updateFeed(operation.tab) { MatchesFeedUiState() }
             } else {
+                runtime.refreshContent = state.contentState
                 updateFeed(operation.tab) { it.copy(isRefreshing = true) }
             }
             requestFirstPage(operation.tab)
@@ -192,7 +195,11 @@ class MatchesViewModel @AssistedInject constructor(
                     if (runtime.generation != generation) return@launch
                     runtime.refreshContent = null
                     updateFeed(tab) {
-                        MatchesFeedUiState(contentState = MatchesFeedContentState.Error)
+                        if (it.contentState == MatchesFeedContentState.Loading) {
+                            MatchesFeedUiState(contentState = MatchesFeedContentState.Error)
+                        } else {
+                            it.copy(isRefreshing = false)
+                        }
                     }
                 }
 

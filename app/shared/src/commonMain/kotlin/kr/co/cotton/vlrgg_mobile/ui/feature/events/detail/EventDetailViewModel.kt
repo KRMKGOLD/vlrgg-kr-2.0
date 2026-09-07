@@ -33,6 +33,7 @@ class EventDetailViewModel(
     val uiState: StateFlow<EventDetailUiState> = _uiState.asStateFlow()
 
     private val loadedTabs = mutableSetOf<EventDetailTab>()
+    private val busyRetries = mutableMapOf<String, BusyRetryState>()
     private val tabJobs = mutableMapOf<EventDetailTab, Job>()
     private val tabGenerations = mutableMapOf<EventDetailTab, Int>()
     private var identityJob: Job? = null
@@ -45,13 +46,14 @@ class EventDetailViewModel(
         if (previous == tab) return
         cancelTabIfInFlight(previous)
         savedStateHandle[SELECTED_TAB_KEY] = tab.savedStateId
-        _uiState.value = _uiState.value.copy(selectedTab = tab, busyRetry = null)
+        _uiState.value = _uiState.value.copy(selectedTab = tab, busyRetry = visibleBusyRetry(tab))
         if (_uiState.value.identity is EventIdentityContentState.Content) ensureTabLoaded(tab)
     }
 
     fun retryIdentity() {
         if (identityJob?.isActive == true) return
         if (isBusyCooldown(IDENTITY_OPERATION) || _uiState.value.identity != EventIdentityContentState.Error) return
+        busyRetries.remove(IDENTITY_OPERATION)
         _uiState.value = _uiState.value.copy(identity = EventIdentityContentState.Loading, busyRetry = null)
         loadIdentity()
     }
@@ -61,15 +63,9 @@ class EventDetailViewModel(
         if (tabJobs[tab]?.isActive == true) return
         if (isBusyCooldown(operationId(tab))) return
         when (tab) {
-            EventDetailTab.MATCHES -> if (_uiState.value.matches == EventMatchesContentState.Error) {
-                _uiState.value = _uiState.value.copy(matches = EventMatchesContentState.Loading, busyRetry = null); loadMatches()
-            }
-            EventDetailTab.NEWS -> if (_uiState.value.news == EventNewsContentState.Error) {
-                _uiState.value = _uiState.value.copy(news = EventNewsContentState.Loading, busyRetry = null); loadNews()
-            }
-            EventDetailTab.STATS -> if (_uiState.value.stats == EventStatsContentState.Error) {
-                _uiState.value = _uiState.value.copy(stats = EventStatsContentState.Loading, busyRetry = null); loadStats()
-            }
+            EventDetailTab.MATCHES -> if (_uiState.value.matches == EventMatchesContentState.Error) retryTab(tab) { loadMatches() }
+            EventDetailTab.NEWS -> if (_uiState.value.news == EventNewsContentState.Error) retryTab(tab) { loadNews() }
+            EventDetailTab.STATS -> if (_uiState.value.stats == EventStatsContentState.Error) retryTab(tab) { loadStats() }
         }
     }
 
@@ -79,20 +75,34 @@ class EventDetailViewModel(
         when (busy.operationId) {
             IDENTITY_OPERATION -> {
                 if (identityJob?.isActive == true) return
+                if (busyRetries[IDENTITY_OPERATION] != busy) return
+                busyRetries.remove(IDENTITY_OPERATION)
                 _uiState.value = _uiState.value.copy(identity = EventIdentityContentState.Loading, busyRetry = null)
                 loadIdentity()
             }
-            operationId(EventDetailTab.MATCHES) -> retryTabBusy(EventDetailTab.MATCHES) { loadMatches() }
-            operationId(EventDetailTab.NEWS) -> retryTabBusy(EventDetailTab.NEWS) { loadNews() }
-            operationId(EventDetailTab.STATS) -> retryTabBusy(EventDetailTab.STATS) { loadStats() }
+            operationId(EventDetailTab.MATCHES) -> retryTabBusy(EventDetailTab.MATCHES, busy) { loadMatches() }
+            operationId(EventDetailTab.NEWS) -> retryTabBusy(EventDetailTab.NEWS, busy) { loadNews() }
+            operationId(EventDetailTab.STATS) -> retryTabBusy(EventDetailTab.STATS, busy) { loadStats() }
         }
     }
 
-    fun dismissBusy() { _uiState.value = _uiState.value.copy(busyRetry = _uiState.value.busyRetry?.dismiss()) }
+    fun dismissBusy() {
+        val busy = _uiState.value.busyRetry ?: return
+        val dismissed = busy.dismiss()
+        busyRetries[busy.operationId] = dismissed
+        _uiState.value = _uiState.value.copy(busyRetry = dismissed)
+    }
 
-    private fun retryTabBusy(tab: EventDetailTab, load: () -> Unit) {
+    private fun retryTabBusy(tab: EventDetailTab, busy: BusyRetryState, load: () -> Unit) {
         if (_uiState.value.selectedTab != tab) return
         if (tabJobs[tab]?.isActive == true) return
+        if (busyRetries[operationId(tab)] != busy) return
+        retryTab(tab, load)
+    }
+
+    private fun retryTab(tab: EventDetailTab, load: () -> Unit) {
+        loadedTabs.add(tab)
+        busyRetries.remove(operationId(tab))
         _uiState.value = when (tab) {
             EventDetailTab.MATCHES -> _uiState.value.copy(matches = EventMatchesContentState.Loading)
             EventDetailTab.NEWS -> _uiState.value.copy(news = EventNewsContentState.Loading)
@@ -107,20 +117,34 @@ class EventDetailViewModel(
         identityJob = viewModelScope.launch {
             when (val result = eventRepository.getEventDetail(eventId)) {
                 is AppResult.Success -> if (generation == identityGeneration) {
+                    busyRetries.remove(IDENTITY_OPERATION)
                     _uiState.value = _uiState.value.copy(identity = EventIdentityContentState.Content(result.data))
                     ensureTabLoaded(_uiState.value.selectedTab)
                 }
-                AppResult.Failure -> if (generation == identityGeneration) _uiState.value = _uiState.value.copy(identity = EventIdentityContentState.Error)
-                is AppResult.Busy -> if (generation == identityGeneration) _uiState.value = _uiState.value.copy(
-                    identity = EventIdentityContentState.Error,
-                    busyRetry = busyRetryStateFactory.create(IDENTITY_OPERATION, result.retryDelay),
-                )
+                AppResult.Failure -> if (generation == identityGeneration) {
+                    busyRetries.remove(IDENTITY_OPERATION)
+                    _uiState.value = _uiState.value.copy(identity = EventIdentityContentState.Error)
+                }
+                is AppResult.Busy -> if (generation == identityGeneration) {
+                    busyRetries[IDENTITY_OPERATION] = busyRetryStateFactory.create(IDENTITY_OPERATION, result.retryDelay)
+                    _uiState.value = _uiState.value.copy(
+                        identity = EventIdentityContentState.Error,
+                        busyRetry = visibleBusyRetry(),
+                    )
+                }
             }
         }
     }
 
     private fun ensureTabLoaded(tab: EventDetailTab) {
+        if (isBusyCooldown(operationId(tab))) return
         if (!loadedTabs.add(tab)) return
+        busyRetries.remove(operationId(tab))
+        _uiState.value = when (tab) {
+            EventDetailTab.MATCHES -> _uiState.value.copy(matches = EventMatchesContentState.Loading)
+            EventDetailTab.NEWS -> _uiState.value.copy(news = EventNewsContentState.Loading)
+            EventDetailTab.STATS -> _uiState.value.copy(stats = EventStatsContentState.Loading)
+        }.copy(busyRetry = visibleBusyRetry())
         when (tab) {
             EventDetailTab.MATCHES -> loadMatches()
             EventDetailTab.NEWS -> loadNews()
@@ -130,24 +154,42 @@ class EventDetailViewModel(
 
     private fun loadMatches() = launchTab(EventDetailTab.MATCHES) { generation ->
         when (val result = eventRepository.getEventMatches(eventId)) {
-            is AppResult.Success -> ifCurrent(EventDetailTab.MATCHES, generation) { _uiState.value = _uiState.value.copy(matches = result.data.toMatchesContent()) }
-            AppResult.Failure -> ifCurrent(EventDetailTab.MATCHES, generation) { _uiState.value = _uiState.value.copy(matches = EventMatchesContentState.Error) }
+            is AppResult.Success -> ifCurrent(EventDetailTab.MATCHES, generation) {
+                busyRetries.remove(operationId(EventDetailTab.MATCHES))
+                _uiState.value = _uiState.value.copy(matches = result.data.toMatchesContent())
+            }
+            AppResult.Failure -> ifCurrent(EventDetailTab.MATCHES, generation) {
+                busyRetries.remove(operationId(EventDetailTab.MATCHES))
+                _uiState.value = _uiState.value.copy(matches = EventMatchesContentState.Error)
+            }
             is AppResult.Busy -> onTabBusy(EventDetailTab.MATCHES, generation, result.retryDelay)
         }
     }
 
     private fun loadNews() = launchTab(EventDetailTab.NEWS) { generation ->
         when (val result = eventRepository.getEventNews(eventId)) {
-            is AppResult.Success -> ifCurrent(EventDetailTab.NEWS, generation) { _uiState.value = _uiState.value.copy(news = result.data.toNewsContent()) }
-            AppResult.Failure -> ifCurrent(EventDetailTab.NEWS, generation) { _uiState.value = _uiState.value.copy(news = EventNewsContentState.Error) }
+            is AppResult.Success -> ifCurrent(EventDetailTab.NEWS, generation) {
+                busyRetries.remove(operationId(EventDetailTab.NEWS))
+                _uiState.value = _uiState.value.copy(news = result.data.toNewsContent())
+            }
+            AppResult.Failure -> ifCurrent(EventDetailTab.NEWS, generation) {
+                busyRetries.remove(operationId(EventDetailTab.NEWS))
+                _uiState.value = _uiState.value.copy(news = EventNewsContentState.Error)
+            }
             is AppResult.Busy -> onTabBusy(EventDetailTab.NEWS, generation, result.retryDelay)
         }
     }
 
     private fun loadStats() = launchTab(EventDetailTab.STATS) { generation ->
         when (val result = eventRepository.getEventStats(eventId)) {
-            is AppResult.Success -> ifCurrent(EventDetailTab.STATS, generation) { _uiState.value = _uiState.value.copy(stats = result.data.toStatsContent()) }
-            AppResult.Failure -> ifCurrent(EventDetailTab.STATS, generation) { _uiState.value = _uiState.value.copy(stats = EventStatsContentState.Error) }
+            is AppResult.Success -> ifCurrent(EventDetailTab.STATS, generation) {
+                busyRetries.remove(operationId(EventDetailTab.STATS))
+                _uiState.value = _uiState.value.copy(stats = result.data.toStatsContent())
+            }
+            AppResult.Failure -> ifCurrent(EventDetailTab.STATS, generation) {
+                busyRetries.remove(operationId(EventDetailTab.STATS))
+                _uiState.value = _uiState.value.copy(stats = EventStatsContentState.Error)
+            }
             is AppResult.Busy -> onTabBusy(EventDetailTab.STATS, generation, result.retryDelay)
         }
     }
@@ -165,11 +207,12 @@ class EventDetailViewModel(
 
     private fun onTabBusy(tab: EventDetailTab, generation: Int, retryDelay: kotlin.time.Duration) = ifCurrent(tab, generation) {
         loadedTabs.remove(tab)
+        busyRetries[operationId(tab)] = busyRetryStateFactory.create(operationId(tab), retryDelay)
         _uiState.value = when (tab) {
             EventDetailTab.MATCHES -> _uiState.value.copy(matches = EventMatchesContentState.Error)
             EventDetailTab.NEWS -> _uiState.value.copy(news = EventNewsContentState.Error)
             EventDetailTab.STATS -> _uiState.value.copy(stats = EventStatsContentState.Error)
-        }.copy(busyRetry = busyRetryStateFactory.create(operationId(tab), retryDelay))
+        }.copy(busyRetry = visibleBusyRetry())
     }
 
     private fun cancelTabIfInFlight(tab: EventDetailTab) {
@@ -181,7 +224,10 @@ class EventDetailViewModel(
         }
     }
 
-    private fun isBusyCooldown(operationId: String): Boolean = _uiState.value.busyRetry?.takeIf { it.operationId == operationId }?.canRetry() == false
+    private fun visibleBusyRetry(tab: EventDetailTab = _uiState.value.selectedTab): BusyRetryState? =
+        busyRetries[IDENTITY_OPERATION] ?: busyRetries[operationId(tab)]
+
+    private fun isBusyCooldown(operationId: String): Boolean = busyRetries[operationId]?.canRetry() == false
 
     @AssistedFactory
     @ManualViewModelAssistedFactoryKey

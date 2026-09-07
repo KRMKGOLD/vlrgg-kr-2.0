@@ -312,6 +312,34 @@ class NewsListViewModelTest {
     }
 
     @Test
+    fun retryBusyRefreshFailureKeepsExistingItemsWithoutPaginationError() = runViewModelTest {
+        val existing = newsSummary(articleId = "existing-id", slug = "existing-slug")
+        val clock = TestTimeSource()
+        val repository = FakeNewsRepository(
+            pageResults = listOf(
+                AppResult.Success(newsPage(items = listOf(existing), nextPage = 2)),
+                AppResult.Busy(1.seconds),
+                AppResult.Failure,
+            ),
+        )
+        val viewModel = NewsListViewModel(repository, BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        clock += 1.seconds
+
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 1, 1), repository.requestedPages)
+        assertEquals(
+            NewsListUiState(contentState = NewsListContentState.Content(listOf(existing))),
+            viewModel.uiState.value,
+        )
+    }
+
+    @Test
     fun concurrentLoadMoreRequestsRepositoryOnce() = runViewModelTest {
         val first = newsSummary(articleId = "first-id", slug = "first-slug")
         val second = newsSummary(articleId = "second-id", slug = "second-slug")

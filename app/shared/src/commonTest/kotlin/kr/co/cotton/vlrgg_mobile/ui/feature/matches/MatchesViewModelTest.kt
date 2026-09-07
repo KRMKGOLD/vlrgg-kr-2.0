@@ -304,6 +304,46 @@ class MatchesViewModelTest {
     }
 
     @Test
+    fun repeatedBusyRefreshRetryThenFailureKeepsExistingGroups() = runViewModelTest {
+        val existing = matchSummary(id = "existing")
+        val clock = TestTimeSource()
+        val repository = FakeMatchRepository { feed, page, callIndex ->
+            check(feed == Feed.UPCOMING)
+            check(page == 1)
+            when (callIndex) {
+                0 -> successPage(matches = listOf(existing))
+                1, 2 -> AppResult.Busy(1.seconds)
+                3 -> AppResult.Failure
+                else -> error("Unexpected request")
+            }
+        }
+        val viewModel = MatchesViewModel(
+            repository,
+            SavedStateHandle(),
+            BusyRetryStateFactory.forTest(clock),
+        )
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        clock += 1.seconds
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(listOf("existing"), viewModel.uiState.value.upcomingLive.matchIds())
+        assertTrue(viewModel.uiState.value.busyRetry?.operationId?.endsWith(":1") == true)
+
+        clock += 1.seconds
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 1, 1, 1), repository.requestedUpcomingPages)
+        assertEquals(listOf("existing"), viewModel.uiState.value.upcomingLive.matchIds())
+        assertFalse(viewModel.uiState.value.upcomingLive.isRefreshing)
+        assertFalse(viewModel.uiState.value.upcomingLive.hasPaginationError)
+    }
+
+    @Test
     fun successfulEmptyPaginationPageStopsFurtherRequests() = runViewModelTest {
         val repository = FakeMatchRepository(
             upcomingResults = listOf(

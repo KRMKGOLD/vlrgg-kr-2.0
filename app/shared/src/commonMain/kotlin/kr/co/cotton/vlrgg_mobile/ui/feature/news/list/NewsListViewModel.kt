@@ -113,7 +113,11 @@ class NewsListViewModel(
                 if (generation != requestGeneration) return@launch
                 val state = uiState.value
 
-                _uiState.value = if (state.contentState is NewsListContentState.Content) {
+                _uiState.value = if (page == 1 && state.contentState is NewsListContentState.Content) {
+                    state.copy(
+                        isRefreshing = false,
+                    )
+                } else if (state.contentState is NewsListContentState.Content) {
                     state.copy(
                         isLoadingMore = false,
                         hasPaginationError = true,
