@@ -20,8 +20,13 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.ZERO
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EventDetailViewModelTest {
@@ -65,6 +70,223 @@ class EventDetailViewModelTest {
 
         assertEquals(EventIdentityContentState.Content(eventDetail), viewModel.uiState.value.identity)
         assertEquals(listOf("identity", "identity", "matches"), repository.requests)
+    }
+
+    @Test
+    fun busyIdentityUsesClockGuardAndManualRetryWithoutLoadingTabsEarly() = runViewModelTest {
+        val repository = FakeEventRepository(
+            identityResults = ArrayDeque(listOf(AppResult.Busy(ZERO), AppResult.Success(eventDetail))),
+        )
+        val viewModel = EventDetailViewModel(
+            repository,
+            EVENT_ID,
+            SavedStateHandle(),
+            BusyRetryStateFactory.forTest(TestTimeSource()),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf("identity"), repository.requests)
+        assertTrue(viewModel.uiState.value.busyRetry?.canRetry() == true)
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(listOf("identity", "identity", "matches"), repository.requests)
+        assertEquals(EventIdentityContentState.Content(eventDetail), viewModel.uiState.value.identity)
+    }
+
+    @Test
+    fun staleBusyTabRetryDoesNotRunAfterSwitchingToAnUnrelatedTab() = runViewModelTest {
+        val clock = TestTimeSource()
+        val repository = FakeEventRepository(
+            matchesResults = ArrayDeque(listOf(AppResult.Busy(10.seconds))),
+        )
+        val viewModel = EventDetailViewModel(
+            repository,
+            EVENT_ID,
+            SavedStateHandle(),
+            BusyRetryStateFactory.forTest(clock),
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.busyRetry != null)
+        viewModel.selectTab(EventDetailTab.NEWS)
+        advanceUntilIdle()
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.requests.count { it == "matches" })
+        assertEquals(1, repository.requests.count { it == "news" })
+        assertEquals(EventDetailTab.NEWS, viewModel.uiState.value.selectedTab)
+    }
+
+    @Test
+    fun busyTabCooldownSurvivesSwitchingAwayAndBackBeforeItsDeadline() = runViewModelTest {
+        val clock = TestTimeSource()
+        val repository = FakeEventRepository(
+            matchesResults = ArrayDeque(listOf(AppResult.Busy(10.seconds))),
+        )
+        val viewModel = EventDetailViewModel(
+            repository,
+            EVENT_ID,
+            SavedStateHandle(),
+            BusyRetryStateFactory.forTest(clock),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectTab(EventDetailTab.NEWS)
+        advanceUntilIdle()
+        viewModel.selectTab(EventDetailTab.MATCHES)
+        advanceUntilIdle()
+
+        assertEquals(1, repository.requests.count { it == "matches" })
+        assertEquals("event:matches", viewModel.uiState.value.busyRetry?.operationId)
+        assertTrue(viewModel.uiState.value.busyRetry?.canRetry() == false)
+    }
+
+    @Test
+    fun expiredBusyTabReloadsWithoutKeepingItsRetryDialog() = runViewModelTest {
+        val clock = TestTimeSource()
+        val repository = FakeEventRepository(
+            matchesResults = ArrayDeque(
+                listOf(
+                    AppResult.Busy(10.seconds),
+                    AppResult.Success(listOf(match)),
+                ),
+            ),
+        )
+        val viewModel = EventDetailViewModel(
+            repository,
+            EVENT_ID,
+            SavedStateHandle(),
+            BusyRetryStateFactory.forTest(clock),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectTab(EventDetailTab.NEWS)
+        advanceUntilIdle()
+        clock += 10.seconds
+        viewModel.selectTab(EventDetailTab.MATCHES)
+
+        assertEquals(EventMatchesContentState.Loading, viewModel.uiState.value.matches)
+        assertEquals(null, viewModel.uiState.value.busyRetry)
+        advanceUntilIdle()
+
+        assertEquals(EventMatchesContentState.Content(listOf(match)), viewModel.uiState.value.matches)
+        assertEquals(null, viewModel.uiState.value.busyRetry)
+        assertEquals(2, repository.requests.count { it == "matches" })
+
+        viewModel.selectTab(EventDetailTab.NEWS)
+        viewModel.selectTab(EventDetailTab.MATCHES)
+        advanceUntilIdle()
+
+        assertEquals(2, repository.requests.count { it == "matches" })
+    }
+
+    @Test
+    fun twoBusyTabsKeepIndependentCooldownsWhileOnlyTheSelectedTabIsVisible() = runViewModelTest {
+        val clock = TestTimeSource()
+        val repository = FakeEventRepository(
+            matchesResults = ArrayDeque(listOf(AppResult.Busy(10.seconds))),
+            newsResults = ArrayDeque(listOf(AppResult.Busy(20.seconds))),
+        )
+        val viewModel = EventDetailViewModel(
+            repository,
+            EVENT_ID,
+            SavedStateHandle(),
+            BusyRetryStateFactory.forTest(clock),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectTab(EventDetailTab.NEWS)
+        advanceUntilIdle()
+        assertEquals("event:news", viewModel.uiState.value.busyRetry?.operationId)
+
+        viewModel.selectTab(EventDetailTab.MATCHES)
+        assertEquals("event:matches", viewModel.uiState.value.busyRetry?.operationId)
+
+        viewModel.selectTab(EventDetailTab.NEWS)
+        assertEquals("event:news", viewModel.uiState.value.busyRetry?.operationId)
+        assertEquals(1, repository.requests.count { it == "matches" })
+        assertEquals(1, repository.requests.count { it == "news" })
+    }
+
+    @Test
+    fun identityBusyRemainsTheVisibleRetryAcrossTabSwitches() = runViewModelTest {
+        val clock = TestTimeSource()
+        val repository = FakeEventRepository(
+            identityResults = ArrayDeque(
+                listOf(
+                    AppResult.Busy(10.seconds),
+                    AppResult.Success(eventDetail),
+                ),
+            ),
+        )
+        val viewModel = EventDetailViewModel(
+            repository,
+            EVENT_ID,
+            SavedStateHandle(),
+            BusyRetryStateFactory.forTest(clock),
+        )
+        advanceUntilIdle()
+
+        viewModel.selectTab(EventDetailTab.NEWS)
+
+        assertEquals("event:identity", viewModel.uiState.value.busyRetry?.operationId)
+        assertTrue(viewModel.uiState.value.busyRetry?.canRetry() == false)
+
+        clock += 10.seconds
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(listOf("identity", "identity", "news"), repository.requests)
+        assertEquals(EventIdentityContentState.Content(eventDetail), viewModel.uiState.value.identity)
+    }
+
+    @Test
+    fun successfulBusyDialogRetryKeepsTabLoadedWhenItIsRevisited() = runViewModelTest {
+        val repository = FakeEventRepository(
+            matchesResults = ArrayDeque(
+                listOf(
+                    AppResult.Busy(ZERO),
+                    AppResult.Success(listOf(match)),
+                ),
+            ),
+        )
+        val viewModel = EventDetailViewModel(repository, EVENT_ID, SavedStateHandle())
+        advanceUntilIdle()
+
+        viewModel.retryBusy()
+        advanceUntilIdle()
+        viewModel.selectTab(EventDetailTab.NEWS)
+        advanceUntilIdle()
+        viewModel.selectTab(EventDetailTab.MATCHES)
+        advanceUntilIdle()
+
+        assertEquals(2, repository.requests.count { it == "matches" })
+    }
+
+    @Test
+    fun successfulInlineBusyRetryKeepsTabLoadedWhenItIsRevisited() = runViewModelTest {
+        val repository = FakeEventRepository(
+            matchesResults = ArrayDeque(
+                listOf(
+                    AppResult.Busy(ZERO),
+                    AppResult.Success(listOf(match)),
+                ),
+            ),
+        )
+        val viewModel = EventDetailViewModel(repository, EVENT_ID, SavedStateHandle())
+        advanceUntilIdle()
+
+        viewModel.dismissBusy()
+        viewModel.retrySelectedTab()
+        advanceUntilIdle()
+        viewModel.selectTab(EventDetailTab.NEWS)
+        advanceUntilIdle()
+        viewModel.selectTab(EventDetailTab.MATCHES)
+        advanceUntilIdle()
+
+        assertEquals(2, repository.requests.count { it == "matches" })
     }
 
     @Test

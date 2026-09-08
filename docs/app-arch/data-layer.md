@@ -158,9 +158,10 @@ RepositoryImpl은 `commonMain/data/repository`에 둔다.
 ## Public Failure Contract
 
 - HTTP, network, serialization, cache miss, local persistence 실패의 상세 분류는 Data Layer 내부의 처리·관측을 위한 정보다.
-- RepositoryImpl은 non-cancellation loading failure를 `domain/AppResult.Failure`로 변환한다. coroutine cancellation은 변환하지 않고 전파한다.
+- RepositoryImpl은 인식된 공개 API 과부하를 `domain/AppResult.Busy(retryDelay)`로, 나머지 non-cancellation loading failure를 `domain/AppResult.Failure`로 변환한다. coroutine cancellation은 변환하지 않고 전파한다.
 - raw exception, HTTP code, server 내부 메시지, storage implementation detail을 repository contract·ViewModel·UI로 직접 노출하지 않는다.
-- 초기 scraping 범위에서는 failure category, 자동 재시도, 오류별 UI 분기를 구현하지 않는다. 이러한 요구가 생기면 shared error model의 필요성을 Domain·Data·UI 경계에서 다시 검토한다.
+- #52 공개 조회 helper는 호출별 `expectSuccess=false`와 streaming response를 사용하여 status를 먼저 확인한다. 오류 body는 8KiB와 초과 판별용 1byte 이내에서 읽고 남은 channel을 취소한다. 429/`RATE_LIMITED` 또는 503/`SERVER_BUSY`만 Busy로 변환하며 플랫폼 HTML·알 수 없는 code·초과 body는 일반 실패다.
+- `Retry-After`의 정수 1~60초만 대기 시간으로 전달하고 누락·잘못된 값은 2초를 사용한다. Data Layer는 자동 재시도하지 않으며 화면 다이얼로그 상태를 소유하지 않는다. 기존 공통 HTTP client의 다른 소비자 설정은 유지한다.
 
 ## Mapper and Model Rules
 

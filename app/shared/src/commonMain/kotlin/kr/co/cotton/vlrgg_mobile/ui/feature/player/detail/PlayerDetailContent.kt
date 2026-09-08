@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.delay
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerAgentStat
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
@@ -56,6 +58,7 @@ import vlrggmobile.app.shared.generated.resources.ic_match
 import vlrggmobile.app.shared.generated.resources.ic_person
 import vlrggmobile.app.shared.generated.resources.ic_star_filled
 import vlrggmobile.app.shared.generated.resources.ic_star_outline
+import kotlin.time.Duration.Companion.ZERO
 
 internal const val PLAYER_DETAIL_LOADING_TAG = "player-detail-loading"
 internal const val PLAYER_DETAIL_HEADER_TAG = "player-detail-header"
@@ -87,6 +90,19 @@ fun PlayerDetailContent(
 ) {
     DisposableEffect(Unit) {
         onDispose { onFavoriteErrorDismiss() }
+    }
+    val dismissedBusy = uiState.busyRetry?.takeUnless { it.isDialogVisible }
+    var isBusyCooldownActive by remember(dismissedBusy) {
+        mutableStateOf(dismissedBusy?.canRetry() == false)
+    }
+
+    LaunchedEffect(dismissedBusy) {
+        val busy = dismissedBusy ?: return@LaunchedEffect
+        val remaining = busy.remainingDelay()
+        if (remaining > ZERO) {
+            delay(remaining)
+        }
+        isBusyCooldownActive = false
     }
 
     Scaffold(
@@ -131,7 +147,11 @@ fun PlayerDetailContent(
             PlayerDetailContentState.Error -> Box(Modifier.fillMaxSize().padding(padding))
         }
     }
-    if (uiState.contentState == PlayerDetailContentState.Error) {
+    if (
+        uiState.contentState == PlayerDetailContentState.Error &&
+        uiState.busyRetry?.isDialogVisible != true &&
+        !isBusyCooldownActive
+    ) {
         AlertDialog(
             onDismissRequest = {},
             title = { Text("정보를 불러오지 못했습니다") },

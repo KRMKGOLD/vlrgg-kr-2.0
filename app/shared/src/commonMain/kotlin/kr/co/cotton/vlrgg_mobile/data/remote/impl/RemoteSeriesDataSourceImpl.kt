@@ -2,10 +2,9 @@ package kr.co.cotton.vlrgg_mobile.data.remote.impl
 
 import dev.zacsweers.metro.Inject
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
 import kr.co.cotton.vlrgg_mobile.data.remote.RemoteSeriesDataSource
 import kr.co.cotton.vlrgg_mobile.data.remote.model.series.SeriesDetailResponseDto
+import kr.co.cotton.vlrgg_mobile.network.getPublicJson
 
 @Inject
 internal class RemoteSeriesDataSourceImpl(
@@ -13,7 +12,7 @@ internal class RemoteSeriesDataSourceImpl(
 ) : RemoteSeriesDataSource {
 
     override suspend fun getSeriesDetail(seriesId: String): SeriesDetailResponseDto =
-        httpClient.get("$SERIES_PATH/$seriesId").body()
+        httpClient.getPublicJson("$SERIES_PATH/$seriesId")
 
     private companion object {
         const val SERIES_PATH = "/api/v1/series"

@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
@@ -65,6 +67,7 @@ import vlrggmobile.app.shared.generated.resources.ic_news
 import vlrggmobile.app.shared.generated.resources.ic_person
 import vlrggmobile.app.shared.generated.resources.ic_star_filled
 import vlrggmobile.app.shared.generated.resources.ic_star_outline
+import kotlin.time.Duration.Companion.ZERO
 
 internal const val TEAM_DETAIL_LOADING_TAG = "team-detail-loading"
 internal const val TEAM_DETAIL_HEADER_TAG = "team-detail-header"
@@ -104,6 +107,19 @@ fun TeamDetailContent(
 ) {
     DisposableEffect(Unit) {
         onDispose { onFavoriteErrorDismiss() }
+    }
+    val dismissedBusy = uiState.busyRetry?.takeUnless { it.isDialogVisible }
+    var isBusyCooldownActive by remember(dismissedBusy) {
+        mutableStateOf(dismissedBusy?.canRetry() == false)
+    }
+
+    LaunchedEffect(dismissedBusy) {
+        val busy = dismissedBusy ?: return@LaunchedEffect
+        val remaining = busy.remainingDelay()
+        if (remaining > ZERO) {
+            delay(remaining)
+        }
+        isBusyCooldownActive = false
     }
 
     Scaffold(
@@ -163,7 +179,11 @@ fun TeamDetailContent(
         }
     }
 
-    if (uiState.contentState == TeamDetailContentState.Error) {
+    if (
+        uiState.contentState == TeamDetailContentState.Error &&
+        uiState.busyRetry?.isDialogVisible != true &&
+        !isBusyCooldownActive
+    ) {
         TeamDetailErrorDialog(
             onRetry = onRetry,
             onBack = onBack,

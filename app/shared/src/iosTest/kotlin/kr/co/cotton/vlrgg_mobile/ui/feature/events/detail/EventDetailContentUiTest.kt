@@ -2,8 +2,11 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.events.detail
 
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -17,10 +20,13 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.matchCardTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalTestApi::class)
 class EventDetailContentUiTest {
@@ -101,6 +107,33 @@ class EventDetailContentUiTest {
         onNodeWithTag(EVENT_DETAIL_TAB_RETRY_TAG).performClick()
         assertEquals(1, identityRetries)
         assertEquals(1, tabRetries)
+    }
+
+    @Test
+    fun dismissedBusyCooldownReenablesInlineRetryAfterExpiry() = runComposeUiTest {
+        val clock = TestTimeSource()
+        val state = mutableStateOf(
+            EventDetailUiState(
+                identity = EventIdentityContentState.Error,
+                busyRetry = BusyRetryStateFactory.forTest(clock)
+                    .create("event:identity", 1.seconds)
+                    .dismiss(),
+            ),
+        )
+        var retries = 0
+        mainClock.autoAdvance = false
+        setContent {
+            Fixture(
+                uiState = state.value,
+                onRetryIdentity = { retries += 1 },
+            )
+        }
+
+        onNodeWithTag(EVENT_DETAIL_IDENTITY_RETRY_TAG).assertIsNotEnabled()
+        clock += 1.seconds
+        mainClock.advanceTimeBy(1_000)
+        onNodeWithTag(EVENT_DETAIL_IDENTITY_RETRY_TAG).assertIsEnabled().performClick()
+        assertEquals(1, retries)
     }
 
     @androidx.compose.runtime.Composable

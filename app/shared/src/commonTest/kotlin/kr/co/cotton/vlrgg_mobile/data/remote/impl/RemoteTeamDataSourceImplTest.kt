@@ -3,7 +3,6 @@ package kr.co.cotton.vlrgg_mobile.data.remote.impl
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.http.ContentType
@@ -15,6 +14,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kr.co.cotton.vlrgg_mobile.data.remote.PublicApiResponseException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -85,7 +85,7 @@ class RemoteTeamDataSourceImplTest {
     }
 
     @Test
-    fun nonSuccessfulResponseThrowsKtorResponseException() = runTest {
+    fun nonSuccessfulResponseThrowsGenericPublicApiException() = runTest {
         val client = createClient(
             MockEngine {
                 respondJson(
@@ -96,7 +96,7 @@ class RemoteTeamDataSourceImplTest {
         )
 
         try {
-            assertFailsWith<ResponseException> {
+            assertFailsWith<PublicApiResponseException> {
                 RemoteTeamDataSourceImpl(client).getTeamDetail("8185")
             }
         } finally {

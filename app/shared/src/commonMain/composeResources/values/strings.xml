@@ -1,0 +1,6 @@
+<resources>
+    <string name="busy_dialog_title">잠시 후 다시 시도해 주세요</string>
+    <string name="busy_dialog_message">요청이 많아 지금 처리할 수 없습니다. 잠시 후 수동으로 다시 시도해 주세요.</string>
+    <string name="busy_dialog_retry">재시도</string>
+    <string name="busy_dialog_close">닫기</string>
+</resources>

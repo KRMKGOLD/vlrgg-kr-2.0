@@ -16,10 +16,13 @@ import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.SearchResults
 import kr.co.cotton.vlrgg_mobile.domain.model.search.TeamSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.repository.SearchRepository
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelTest {
@@ -102,6 +105,32 @@ class SearchViewModelTest {
         advanceUntilIdle()
 
         assertEquals(2, repository.requestCount)
+        assertEquals(SearchContentState.Populated(results().items), viewModel.uiState.value.contentState)
+    }
+
+    @Test
+    fun initialBusyDismissesToRetryableErrorAfterCooldownWithoutLosingTheSubmittedQuery() = runViewModelTest {
+        val clock = TestTimeSource()
+        val repository = FakeSearchRepository(listOf(AppResult.Busy(1.seconds), AppResult.Success(results())))
+        val viewModel = SearchViewModel(repository, BusyRetryStateFactory.forTest(clock))
+
+        viewModel.onQueryChange("T1")
+        viewModel.submit()
+        advanceUntilIdle()
+        assertEquals(SearchContentState.Error, viewModel.uiState.value.contentState)
+        assertTrue(viewModel.uiState.value.busyRetry?.canRetry() == false)
+
+        viewModel.dismissBusy()
+        assertFalse(viewModel.uiState.value.busyRetry?.isDialogVisible ?: true)
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(listOf("T1"), repository.queries)
+        clock += 1.seconds
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(listOf("T1", "T1"), repository.queries)
         assertEquals(SearchContentState.Populated(results().items), viewModel.uiState.value.contentState)
     }
 

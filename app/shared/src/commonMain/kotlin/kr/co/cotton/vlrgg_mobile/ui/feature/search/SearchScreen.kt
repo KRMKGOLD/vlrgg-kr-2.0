@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kr.co.cotton.vlrgg_mobile.domain.model.search.SearchResult
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryDialog
 
 @Composable
 fun SearchScreen(
@@ -24,4 +25,5 @@ fun SearchScreen(
         onResultClick = onResultClick,
         modifier = modifier,
     )
+    BusyRetryDialog(uiState.busyRetry, viewModel::retryBusy, viewModel::dismissBusy)
 }

@@ -58,7 +58,8 @@ Repository가 데이터를 불러오는 public contract에는 공통 `AppResult<
 ```kotlin
 sealed interface AppResult<out T> {
     data class Success<out T>(val data: T) : AppResult<T>
-    object Failure : AppResult<Nothing>
+    data object Failure : AppResult<Nothing>
+    data class Busy(val retryDelay: kotlin.time.Duration) : AppResult<Nothing>
 }
 ```
 
@@ -67,10 +68,11 @@ sealed interface AppResult<out T> {
 규칙:
 
 - 초기 `Failure`는 단일 generic failure다. error category, HTTP code, raw exception, server message, retry flag를 포함하지 않는다.
-- Data Layer는 non-cancellation loading failure를 repository boundary에서 `Failure`로 변환한다.
+- Data Layer는 인식된 공개 API 과부하만 `Busy(retryDelay)`로, 나머지 non-cancellation loading failure는 `Failure`로 변환한다. #52 수동 재시도 요구로 추가된 `Busy`는 HTTP code나 서버 message를 포함하지 않는다.
+- `onFailure`는 일반 `Failure`만 처리하고 `onBusy`는 `Busy`만 처리한다. 새로운 결과 분기를 모든 소비자에서 확인하며 하나의 결과에 두 오류 UI를 표시하지 않는다.
 - coroutine cancellation은 failure로 변환하지 않고 전파한다.
 - ViewModel은 `AppResult`를 UI가 소비할 `UiState`로 변환한다. UI는 raw exception이나 Data Layer failure type을 해석하지 않는다.
-- 오류별 분기, 자동 재시도, failure category가 실제 기능 요구가 될 때만 shared error model을 설계하고 Domain·Data·UI 문서를 함께 갱신한다.
+- `Busy`의 대기 시간은 자동 재시도 지시가 아니다. 화면의 작업 identity와 monotonic deadline, 사용자 재시도는 UI 소유다. 자세한 범위는 [공개 API 보호 계약](../architecture/server-public-api-protection.md)을 따른다.
 
 ## Repository Interface
 
@@ -116,6 +118,7 @@ class GetUpcomingMatchesUseCase(
                 result.data.filter { it.status != MatchStatus.Finished },
             )
             AppResult.Failure -> AppResult.Failure
+            is AppResult.Busy -> result
         }
     }
 }

@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.matches
 
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 
 enum class MatchesTab(
     val savedStateId: String,
@@ -38,4 +39,5 @@ data class MatchesUiState(
     val selectedTab: MatchesTab = MatchesTab.UPCOMING_LIVE,
     val upcomingLive: MatchesFeedUiState = MatchesFeedUiState(),
     val results: MatchesFeedUiState = MatchesFeedUiState(),
+    val busyRetry: BusyRetryState? = null,
 )

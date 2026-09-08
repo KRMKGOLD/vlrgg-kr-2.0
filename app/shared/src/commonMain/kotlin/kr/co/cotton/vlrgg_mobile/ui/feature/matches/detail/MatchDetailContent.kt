@@ -51,6 +51,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItem
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemScoreStyle
@@ -83,6 +84,7 @@ fun MatchDetailContent(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isBusyCooldownActive = rememberBusyRetryCooldown(uiState.busyRetry)
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
@@ -106,12 +108,16 @@ fun MatchDetailContent(
                     .padding(contentPadding),
             )
 
-            MatchDetailContentState.Error -> MatchDetailError(
-                onRetry = onRetry,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding),
-            )
+            MatchDetailContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
+                Box(Modifier.fillMaxSize().padding(contentPadding))
+            } else {
+                MatchDetailError(
+                    onRetry = onRetry,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding),
+                )
+            }
         }
     }
 }

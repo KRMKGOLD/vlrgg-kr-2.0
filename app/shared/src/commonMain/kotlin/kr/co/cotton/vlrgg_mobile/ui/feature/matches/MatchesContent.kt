@@ -41,6 +41,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchesSkeleton
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
@@ -73,6 +74,7 @@ fun MatchesContent(
     onRetryLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isBusyCooldownActive = rememberBusyRetryCooldown(uiState.busyRetry)
     val feedState = when (uiState.selectedTab) {
         MatchesTab.UPCOMING_LIVE -> uiState.upcomingLive
         MatchesTab.RESULTS -> uiState.results
@@ -88,7 +90,8 @@ fun MatchesContent(
             listState = listState,
             enabled = !feedState.isRefreshing &&
                 !feedState.isLoadingMore &&
-                !feedState.hasPaginationError,
+                !feedState.hasPaginationError &&
+                uiState.busyRetry?.isDialogVisible != true,
             onLoadMore = onLoadMore,
         )
     }
@@ -141,13 +144,17 @@ fun MatchesContent(
                     }
 
                     MatchesFeedContentState.Error -> item(key = "error") {
-                        MatchesStateMessage(
-                            message = "경기 목록을 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
-                            actionText = "재시도",
-                            actionTag = MATCHES_INITIAL_RETRY_TAG,
-                            onAction = onRetryInitial,
-                            modifier = Modifier.fillParentMaxSize(),
-                        )
+                        if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
+                            Box(Modifier.fillParentMaxSize())
+                        } else {
+                            MatchesStateMessage(
+                                message = "경기 목록을 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
+                                actionText = "재시도",
+                                actionTag = MATCHES_INITIAL_RETRY_TAG,
+                                onAction = onRetryInitial,
+                                modifier = Modifier.fillParentMaxSize(),
+                            )
+                        }
                     }
 
                     is MatchesFeedContentState.Content -> {

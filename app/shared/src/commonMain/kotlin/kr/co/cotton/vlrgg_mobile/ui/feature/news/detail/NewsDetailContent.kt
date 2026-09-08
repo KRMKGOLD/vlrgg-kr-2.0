@@ -46,6 +46,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleInline
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsLinkKind
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -63,6 +64,7 @@ fun NewsDetailContent(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isBusyCooldownActive = rememberBusyRetryCooldown(uiState.busyRetry)
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
@@ -91,12 +93,16 @@ fun NewsDetailContent(
                     .padding(contentPadding),
             )
 
-            NewsDetailContentState.Error -> NewsDetailError(
-                onRetry = onRetry,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding),
-            )
+            NewsDetailContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
+                Box(Modifier.fillMaxSize().padding(contentPadding))
+            } else {
+                NewsDetailError(
+                    onRetry = onRetry,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding),
+                )
+            }
         }
     }
 }

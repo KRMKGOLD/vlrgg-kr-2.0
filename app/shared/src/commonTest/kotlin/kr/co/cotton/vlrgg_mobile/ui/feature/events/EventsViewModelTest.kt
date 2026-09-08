@@ -17,9 +17,12 @@ import kr.co.cotton.vlrgg_mobile.domain.model.events.EventList
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EventsViewModelTest {
@@ -78,6 +81,88 @@ class EventsViewModelTest {
     }
 
     @Test
+    fun busyKeepsContentAndRequiresManualRetry() = runViewModelTest {
+        val initial = EventList(listOf(event(id = "initial")), emptyList(), emptyList())
+        val clock = TestTimeSource()
+        val repository = FakeEventRepository(listOf(AppResult.Success(initial), AppResult.Busy(1.seconds), AppResult.Success(emptyEventList())))
+        val viewModel = EventsViewModel(repository, BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertEquals(EventsContentState.Content(initial), viewModel.uiState.value.contentState)
+        assertTrue(viewModel.uiState.value.busyRetry?.canRetry() == false)
+
+        viewModel.retryBusy()
+        advanceUntilIdle()
+        assertEquals(2, repository.requestCount)
+
+        clock += 1.seconds
+        viewModel.retryBusy()
+        advanceUntilIdle()
+        assertEquals(3, repository.requestCount)
+        assertEquals(EventsContentState.Empty, viewModel.uiState.value.contentState)
+    }
+
+    @Test
+    fun retryBusyAfterRefreshKeepsContentWhenRetryFails() = runViewModelTest {
+        val initial = EventList(listOf(event(id = "initial")), emptyList(), emptyList())
+        val clock = TestTimeSource()
+        val repository = FakeEventRepository(
+            listOf(AppResult.Success(initial), AppResult.Busy(1.seconds), AppResult.Failure),
+        )
+        val viewModel = EventsViewModel(repository, BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        clock += 1.seconds
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(3, repository.requestCount)
+        assertEquals(EventsUiState(EventsContentState.Content(initial)), viewModel.uiState.value)
+    }
+
+    @Test
+    fun retryBusyAfterRefreshKeepsEmptyWhenRetryFails() = runViewModelTest {
+        val clock = TestTimeSource()
+        val pendingRetry = CompletableDeferred<AppResult<EventList>>()
+        val repository = FakeEventRepository { callIndex ->
+            when (callIndex) {
+                0 -> AppResult.Success(emptyEventList())
+                1 -> AppResult.Busy(1.seconds)
+                2 -> pendingRetry.await()
+                else -> error("Unexpected event list request")
+            }
+        }
+        val viewModel = EventsViewModel(repository, BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        viewModel.retryBusy()
+        advanceUntilIdle()
+        assertEquals(2, repository.requestCount)
+
+        clock += 1.seconds
+        viewModel.retryBusy()
+        runCurrent()
+
+        assertEquals(3, repository.requestCount)
+        assertEquals(
+            EventsUiState(EventsContentState.Empty, isRefreshing = true),
+            viewModel.uiState.value,
+        )
+
+        pendingRetry.complete(AppResult.Failure)
+        advanceUntilIdle()
+
+        assertEquals(EventsUiState(EventsContentState.Empty), viewModel.uiState.value)
+    }
+
+    @Test
     fun retryOutsideErrorDoesNotRequestAgain() = runViewModelTest {
         val repository = FakeEventRepository(
             results = listOf(AppResult.Success(EventList(listOf(event()), emptyList(), emptyList()))),
@@ -133,6 +218,21 @@ class EventsViewModelTest {
             EventsUiState(EventsContentState.Content(initial)),
             viewModel.uiState.value,
         )
+    }
+
+    @Test
+    fun refreshFailureKeepsExistingEmptyAndStopsRefreshing() = runViewModelTest {
+        val repository = FakeEventRepository(
+            results = listOf(AppResult.Success(emptyEventList()), AppResult.Failure),
+        )
+        val viewModel = EventsViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.requestCount)
+        assertEquals(EventsUiState(EventsContentState.Empty), viewModel.uiState.value)
     }
 
     @Test

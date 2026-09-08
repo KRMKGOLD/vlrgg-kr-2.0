@@ -3,7 +3,6 @@ package kr.co.cotton.vlrgg_mobile.data.remote.impl
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.http.ContentType
@@ -13,6 +12,7 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kr.co.cotton.vlrgg_mobile.data.remote.PublicApiResponseException
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchListCategoryDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchStatusDto
 import kotlin.test.Test
@@ -125,7 +125,7 @@ class RemoteMatchDataSourceImplTest {
     }
 
     @Test
-    fun nonSuccessfulResponseThrowsKtorResponseException() = runTest {
+    fun nonSuccessfulResponseThrowsGenericPublicApiException() = runTest {
         val client = createClient(
             MockEngine {
                 respondJson(
@@ -136,7 +136,7 @@ class RemoteMatchDataSourceImplTest {
         )
 
         try {
-            assertFailsWith<ResponseException> {
+            assertFailsWith<PublicApiResponseException> {
                 RemoteMatchDataSourceImpl(client).getUpcomingMatches(page = 1)
             }
         } finally {

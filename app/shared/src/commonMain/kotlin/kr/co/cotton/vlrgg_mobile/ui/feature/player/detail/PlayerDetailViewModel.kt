@@ -9,29 +9,36 @@ import dev.zacsweers.metro.AssistedInject
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kr.co.cotton.vlrgg_mobile.domain.onFailure
+import kr.co.cotton.vlrgg_mobile.domain.onBusy
 import kr.co.cotton.vlrgg_mobile.domain.onSuccess
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoritePlayer
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
 import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
 import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
+import kr.co.cotton.vlrgg_mobile.domain.AppResult
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 
 @AssistedInject
 class PlayerDetailViewModel(
     private val playerRepository: PlayerRepository,
     private val favoriteRepository: FavoriteRepository,
     @Assisted private val playerId: String,
+    private val busyRetryStateFactory: BusyRetryStateFactory = BusyRetryStateFactory(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PlayerDetailUiState())
     val uiState: StateFlow<PlayerDetailUiState> = _uiState.asStateFlow()
 
     private var failedFavoriteMutation: FavoriteMutation? = null
     private var isFavoriteRestoreInProgress = false
+    private var playerDetailJob: Job? = null
 
     init {
         loadPlayerDetail()
@@ -39,26 +46,46 @@ class PlayerDetailViewModel(
     }
 
     fun retry() {
+        if (playerDetailJob?.isActive == true) return
+        if (isBusyCooldown()) return
         if (_uiState.value.contentState != PlayerDetailContentState.Error) return
-        _uiState.value = _uiState.value.copy(contentState = PlayerDetailContentState.Loading)
+        _uiState.value = _uiState.value.copy(contentState = PlayerDetailContentState.Loading, busyRetry = null)
         loadPlayerDetail()
         if (!_uiState.value.favorite.isRestored) {
             restoreFavorite()
         }
     }
 
-    private fun loadPlayerDetail() = viewModelScope.launch {
-        playerRepository.getPlayerDetail(playerId)
-            .onSuccess { player ->
-                _uiState.value = _uiState.value.copy(
-                    contentState = PlayerDetailContentState.Content(player),
-                )
-            }
-            .onFailure {
-                _uiState.value = _uiState.value.copy(
+    fun retryBusy() {
+        if (playerDetailJob?.isActive == true) return
+        val busy = _uiState.value.busyRetry ?: return
+        if (busy.operationId != OPERATION_ID || !busy.canRetry()) return
+        _uiState.value = _uiState.value.copy(contentState = PlayerDetailContentState.Loading, busyRetry = null)
+        loadPlayerDetail()
+    }
+
+    fun dismissBusy() { _uiState.value = _uiState.value.copy(busyRetry = _uiState.value.busyRetry?.dismiss()) }
+
+    private fun loadPlayerDetail() {
+        if (playerDetailJob?.isActive == true) return
+        playerDetailJob = viewModelScope.launch {
+            when (val result = playerRepository.getPlayerDetail(playerId)) {
+                is AppResult.Success -> {
+                    _uiState.value = _uiState.value.copy(
+                        contentState = PlayerDetailContentState.Content(result.data),
+                    )
+                }
+                AppResult.Failure -> {
+                    _uiState.value = _uiState.value.copy(
+                        contentState = PlayerDetailContentState.Error,
+                    )
+                }
+                is AppResult.Busy -> _uiState.value = _uiState.value.copy(
                     contentState = PlayerDetailContentState.Error,
+                    busyRetry = busyRetryStateFactory.create(OPERATION_ID, result.retryDelay),
                 )
             }
+        }
     }
 
     fun toggleFavorite() {
@@ -115,6 +142,11 @@ class PlayerDetailViewModel(
                         )
                     }
                 }
+                .onBusy {
+                    updateFavorite { favoriteState ->
+                        favoriteState.copy(isRestored = false, hasRestoreFailure = true)
+                    }
+                }
             isFavoriteRestoreInProgress = false
         }
     }
@@ -144,6 +176,15 @@ class PlayerDetailViewModel(
                         failedIntent = mutation.intent,
                     )
                 }
+            }.onBusy {
+                failedFavoriteMutation = mutation
+                updateFavorite {
+                    it.copy(
+                        isFavorite = mutation.intent == PlayerFavoriteMutationIntent.Remove,
+                        isMutationInProgress = false,
+                        failedIntent = mutation.intent,
+                    )
+                }
             }
         }
     }
@@ -154,6 +195,10 @@ class PlayerDetailViewModel(
         }
     }
 
+    private fun isBusyCooldown(): Boolean = _uiState.value.busyRetry
+        ?.takeIf { it.operationId == OPERATION_ID }
+        ?.canRetry() == false
+
     private fun PlayerDetail.toFavoritePlayer() = FavoritePlayer(
         id = id,
         handle = profile.handle,
@@ -162,6 +207,8 @@ class PlayerDetailViewModel(
         countryName = profile.countryName,
         imageUrl = profile.imageUrl,
     )
+
+    private companion object { const val OPERATION_ID = "player-detail" }
 
     private data class FavoriteMutation(
         val intent: PlayerFavoriteMutationIntent,

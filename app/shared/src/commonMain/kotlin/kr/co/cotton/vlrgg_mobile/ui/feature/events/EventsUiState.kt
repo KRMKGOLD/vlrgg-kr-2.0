@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.events
 
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventList
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 
 sealed interface EventsContentState {
     data object Loading : EventsContentState
@@ -17,4 +18,5 @@ sealed interface EventsContentState {
 data class EventsUiState(
     val contentState: EventsContentState = EventsContentState.Loading,
     val isRefreshing: Boolean = false,
+    val busyRetry: BusyRetryState? = null,
 )

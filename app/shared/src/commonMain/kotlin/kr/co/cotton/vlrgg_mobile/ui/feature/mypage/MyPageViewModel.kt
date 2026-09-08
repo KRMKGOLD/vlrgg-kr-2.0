@@ -177,7 +177,7 @@ class MyPageViewModel(
                 }
             }
 
-            AppResult.Failure -> _uiState.update { state ->
+            AppResult.Failure, is AppResult.Busy -> _uiState.update { state ->
                 state.copy(favoriteTeams = FavoriteSectionState.Error)
             }
         }
@@ -197,7 +197,7 @@ class MyPageViewModel(
                 }
             }
 
-            AppResult.Failure -> _uiState.update { state ->
+            AppResult.Failure, is AppResult.Busy -> _uiState.update { state ->
                 state.copy(favoritePlayers = FavoriteSectionState.Error)
             }
         }
@@ -241,7 +241,7 @@ class MyPageViewModel(
             when (result) {
                 is AppResult.Success -> completeSuccessfulRemoval(request)
 
-                AppResult.Failure -> {
+                AppResult.Failure, is AppResult.Busy -> {
                     val shouldRetry = restoreLatestFavorites(request)
                     failedRemovalRequest = request.takeIf { shouldRetry }
                     _uiState.update {
