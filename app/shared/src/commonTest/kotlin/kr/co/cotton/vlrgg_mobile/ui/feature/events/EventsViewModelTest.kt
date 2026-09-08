@@ -125,6 +125,44 @@ class EventsViewModelTest {
     }
 
     @Test
+    fun retryBusyAfterRefreshKeepsEmptyWhenRetryFails() = runViewModelTest {
+        val clock = TestTimeSource()
+        val pendingRetry = CompletableDeferred<AppResult<EventList>>()
+        val repository = FakeEventRepository { callIndex ->
+            when (callIndex) {
+                0 -> AppResult.Success(emptyEventList())
+                1 -> AppResult.Busy(1.seconds)
+                2 -> pendingRetry.await()
+                else -> error("Unexpected event list request")
+            }
+        }
+        val viewModel = EventsViewModel(repository, BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        viewModel.retryBusy()
+        advanceUntilIdle()
+        assertEquals(2, repository.requestCount)
+
+        clock += 1.seconds
+        viewModel.retryBusy()
+        runCurrent()
+
+        assertEquals(3, repository.requestCount)
+        assertEquals(
+            EventsUiState(EventsContentState.Empty, isRefreshing = true),
+            viewModel.uiState.value,
+        )
+
+        pendingRetry.complete(AppResult.Failure)
+        advanceUntilIdle()
+
+        assertEquals(EventsUiState(EventsContentState.Empty), viewModel.uiState.value)
+    }
+
+    @Test
     fun retryOutsideErrorDoesNotRequestAgain() = runViewModelTest {
         val repository = FakeEventRepository(
             results = listOf(AppResult.Success(EventList(listOf(event()), emptyList(), emptyList()))),
@@ -180,6 +218,21 @@ class EventsViewModelTest {
             EventsUiState(EventsContentState.Content(initial)),
             viewModel.uiState.value,
         )
+    }
+
+    @Test
+    fun refreshFailureKeepsExistingEmptyAndStopsRefreshing() = runViewModelTest {
+        val repository = FakeEventRepository(
+            results = listOf(AppResult.Success(emptyEventList()), AppResult.Failure),
+        )
+        val viewModel = EventsViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.requestCount)
+        assertEquals(EventsUiState(EventsContentState.Empty), viewModel.uiState.value)
     }
 
     @Test

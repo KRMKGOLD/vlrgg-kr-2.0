@@ -46,7 +46,8 @@ class EventsViewModel(
         if (requestJob?.isActive == true) return
         val busy = _uiState.value.busyRetry ?: return
         if (busy.operationId != OPERATION_ID || !busy.canRetry()) return
-        val isRefresh = _uiState.value.contentState is EventsContentState.Content
+        val isRefresh = _uiState.value.contentState is EventsContentState.Content ||
+            _uiState.value.contentState is EventsContentState.Empty
         _uiState.value = _uiState.value.copy(busyRetry = null, isRefreshing = isRefresh)
         requestEvents(isRefresh = isRefresh)
     }
@@ -76,7 +77,11 @@ class EventsViewModel(
                 AppResult.Failure -> {
                     if (requestGeneration != generation) return@launch
                     val state = _uiState.value
-                    _uiState.value = if (isRefresh && state.contentState is EventsContentState.Content) {
+                    _uiState.value = if (isRefresh && (
+                            state.contentState is EventsContentState.Content ||
+                                state.contentState is EventsContentState.Empty
+                        )
+                    ) {
                         state.copy(isRefreshing = false)
                     } else {
                         EventsUiState(contentState = EventsContentState.Error)
