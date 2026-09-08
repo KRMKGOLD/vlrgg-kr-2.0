@@ -44,6 +44,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrSearchField
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrSearchFieldVariant
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -66,6 +67,7 @@ fun SearchContent(
     onResultClick: (SearchResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isBusyCooldownActive = rememberBusyRetryCooldown(uiState.busyRetry)
     val focusRequester = remember { FocusRequester() }
     var hasRequestedInitialFocus by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(focusRequester) {
@@ -94,7 +96,7 @@ fun SearchContent(
             SearchContentState.Initial -> SearchInitialState(Modifier.padding(contentPadding))
             SearchContentState.Loading -> SearchLoadingState(uiState.query, Modifier.padding(contentPadding))
             SearchContentState.Empty -> SearchEmptyState(uiState.query, Modifier.padding(contentPadding))
-            SearchContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
+            SearchContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
                 Box(Modifier.fillMaxSize().padding(contentPadding))
             } else {
                 SearchErrorState(onRetry, Modifier.padding(contentPadding))

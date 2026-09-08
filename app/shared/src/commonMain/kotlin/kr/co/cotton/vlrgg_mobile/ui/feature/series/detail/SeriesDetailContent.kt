@@ -42,6 +42,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -69,6 +70,7 @@ fun SeriesDetailContent(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isBusyCooldownActive = rememberBusyRetryCooldown(uiState.busyRetry)
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
@@ -87,7 +89,7 @@ fun SeriesDetailContent(
                 modifier = Modifier.fillMaxSize().padding(contentPadding),
             )
 
-            SeriesDetailContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
+            SeriesDetailContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
                 Box(Modifier.fillMaxSize().padding(contentPadding))
             } else {
                 SeriesDetailError(

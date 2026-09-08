@@ -21,6 +21,7 @@ import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchPage
 import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
+import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
 
 class MatchesViewModel @AssistedInject constructor(
@@ -38,6 +39,7 @@ class MatchesViewModel @AssistedInject constructor(
 
     private val upcomingRuntime = FeedRuntime()
     private val resultsRuntime = FeedRuntime()
+    private val busyRetries = mutableMapOf<String, BusyRetryState>()
 
     init {
         savedStateHandle[MATCHES_SELECTED_TAB_KEY] = initialTab.savedStateId
@@ -53,7 +55,7 @@ class MatchesViewModel @AssistedInject constructor(
                     runtime.initialRequested = false
                 }
             }
-            _uiState.value = _uiState.value.copy(selectedTab = tab, busyRetry = null)
+            _uiState.value = _uiState.value.copy(selectedTab = tab, busyRetry = visibleBusyRetry(tab))
         }
 
         if (!runtime(tab).initialRequested) {
@@ -69,8 +71,8 @@ class MatchesViewModel @AssistedInject constructor(
         val runtime = runtime(tab)
         runtime.cancelRequests()
         runtime.resetForFirstPage()
+        clearBusyRetry(operationId(tab, FIRST_PAGE))
         updateFeed(tab) { MatchesFeedUiState() }
-        _uiState.value = _uiState.value.copy(busyRetry = null)
         requestInitial(tab)
     }
 
@@ -80,7 +82,8 @@ class MatchesViewModel @AssistedInject constructor(
         val operation = parseOperation(busy.operationId) ?: return
         if (_uiState.value.selectedTab != operation.tab) return
         if (runtime(operation.tab).hasActiveRequest()) return
-        _uiState.value = _uiState.value.copy(busyRetry = null)
+        if (busyRetries[busy.operationId] != busy) return
+        clearBusyRetry(busy.operationId)
         if (operation.page == FIRST_PAGE) {
             val runtime = runtime(operation.tab)
             val state = feedState(operation.tab)
@@ -100,7 +103,9 @@ class MatchesViewModel @AssistedInject constructor(
     fun dismissBusy() {
         val busy = _uiState.value.busyRetry ?: return
         val operation = parseOperation(busy.operationId)
-        _uiState.value = _uiState.value.copy(busyRetry = busy.dismiss())
+        val dismissed = busy.dismiss()
+        busyRetries[busy.operationId] = dismissed
+        _uiState.value = _uiState.value.copy(busyRetry = dismissed)
         if (operation != null && operation.page != FIRST_PAGE) {
             updateFeed(operation.tab) { it.copy(hasPaginationError = true) }
         }
@@ -116,7 +121,7 @@ class MatchesViewModel @AssistedInject constructor(
         runtime.cancelRequests()
         runtime.resetForFirstPage()
 
-        _uiState.value = _uiState.value.copy(busyRetry = null)
+        clearBusyRetry(operationId(tab, FIRST_PAGE))
         updateFeed(tab) { MatchesFeedUiState(contentState = MatchesFeedContentState.Loading, isRefreshing = true) }
         requestFirstPage(tab)
     }
@@ -130,6 +135,7 @@ class MatchesViewModel @AssistedInject constructor(
 
         val requestedPage = runtime.currentPage + 1
         if (isBusyCooldown(operationId(tab, requestedPage))) return
+        clearBusyRetry(operationId(tab, requestedPage))
         val generation = runtime.generation
         updateFeed(tab) {
             it.copy(
@@ -159,9 +165,10 @@ class MatchesViewModel @AssistedInject constructor(
                 is AppResult.Busy -> {
                     if (runtime.generation != generation) return@launch
                     updateFeed(tab) { it.copy(isLoadingMore = false) }
-                    _uiState.value = _uiState.value.copy(
-                        busyRetry = busyRetryStateFactory.create(operationId(tab, requestedPage), result.retryDelay),
+                    busyRetries[operationId(tab, requestedPage)] = busyRetryStateFactory.create(
+                        operationId(tab, requestedPage), result.retryDelay,
                     )
+                    _uiState.value = _uiState.value.copy(busyRetry = visibleBusyRetry())
                 }
             }
         }
@@ -171,7 +178,7 @@ class MatchesViewModel @AssistedInject constructor(
         if (!feedState(tab).hasPaginationError) return
         if (runtime(tab).hasActiveRequest()) return
         if (isBusyCooldown(operationId(tab, runtime(tab).currentPage + 1))) return
-        _uiState.value = _uiState.value.copy(busyRetry = null)
+        clearBusyRetry(operationId(tab, runtime(tab).currentPage + 1))
         loadMore(tab)
     }
 
@@ -182,17 +189,22 @@ class MatchesViewModel @AssistedInject constructor(
 
     private fun requestFirstPage(tab: MatchesTab) {
         val runtime = runtime(tab)
+        val operationId = operationId(tab, FIRST_PAGE)
+        if (isBusyCooldown(operationId)) return
+        clearBusyRetry(operationId)
         runtime.initialRequested = true
         val generation = runtime.generation
         runtime.firstPageJob = viewModelScope.launch {
             when (val result = requestPage(tab, FIRST_PAGE)) {
                 is AppResult.Success -> {
                     if (runtime.generation != generation) return@launch
+                    clearBusyRetry(operationId)
                     applyFirstPageSuccess(tab, result.data)
                 }
 
                 AppResult.Failure -> {
                     if (runtime.generation != generation) return@launch
+                    clearBusyRetry(operationId)
                     runtime.refreshContent = null
                     updateFeed(tab) {
                         if (it.contentState == MatchesFeedContentState.Loading) {
@@ -210,9 +222,8 @@ class MatchesViewModel @AssistedInject constructor(
                         MatchesFeedUiState(contentState = preservedContent ?: MatchesFeedContentState.Error)
                     }
                     runtime.refreshContent = null
-                    _uiState.value = _uiState.value.copy(
-                        busyRetry = busyRetryStateFactory.create(operationId(tab, FIRST_PAGE), result.retryDelay),
-                    )
+                    busyRetries[operationId] = busyRetryStateFactory.create(operationId, result.retryDelay)
+                    _uiState.value = _uiState.value.copy(busyRetry = visibleBusyRetry())
                 }
             }
         }
@@ -284,9 +295,17 @@ class MatchesViewModel @AssistedInject constructor(
         MatchesTab.RESULTS -> resultsRuntime
     }
 
-    private fun isBusyCooldown(operationId: String): Boolean = _uiState.value.busyRetry
-        ?.takeIf { it.operationId == operationId }
-        ?.canRetry() == false
+    private fun isBusyCooldown(operationId: String): Boolean = busyRetries[operationId]?.canRetry() == false
+
+    private fun clearBusyRetry(operationId: String) {
+        busyRetries.remove(operationId)
+        if (_uiState.value.busyRetry?.operationId == operationId) {
+            _uiState.value = _uiState.value.copy(busyRetry = visibleBusyRetry())
+        }
+    }
+
+    private fun visibleBusyRetry(tab: MatchesTab = _uiState.value.selectedTab): BusyRetryState? =
+        busyRetries[operationId(tab, FIRST_PAGE)] ?: busyRetries[operationId(tab, runtime(tab).currentPage + 1)]
 
     private fun operationId(tab: MatchesTab, page: Int): String = "$OPERATION_PREFIX${tab.savedStateId}:$page"
 

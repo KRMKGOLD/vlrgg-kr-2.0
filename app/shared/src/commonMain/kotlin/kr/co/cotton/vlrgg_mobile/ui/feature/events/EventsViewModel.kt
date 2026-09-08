@@ -46,8 +46,9 @@ class EventsViewModel(
         if (requestJob?.isActive == true) return
         val busy = _uiState.value.busyRetry ?: return
         if (busy.operationId != OPERATION_ID || !busy.canRetry()) return
-        _uiState.value = _uiState.value.copy(busyRetry = null)
-        requestEvents()
+        val isRefresh = _uiState.value.contentState is EventsContentState.Content
+        _uiState.value = _uiState.value.copy(busyRetry = null, isRefreshing = isRefresh)
+        requestEvents(isRefresh = isRefresh)
     }
 
     fun dismissBusy() { _uiState.value = _uiState.value.copy(busyRetry = _uiState.value.busyRetry?.dismiss()) }

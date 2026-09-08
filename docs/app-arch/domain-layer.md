@@ -118,6 +118,7 @@ class GetUpcomingMatchesUseCase(
                 result.data.filter { it.status != MatchStatus.Finished },
             )
             AppResult.Failure -> AppResult.Failure
+            is AppResult.Busy -> result
         }
     }
 }

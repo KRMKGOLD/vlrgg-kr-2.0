@@ -304,6 +304,78 @@ class MatchesViewModelTest {
     }
 
     @Test
+    fun busyCooldownSurvivesTabRoundTripAndBlocksFirstPageRequest() = runViewModelTest {
+        val clock = TestTimeSource()
+        val repository = FakeMatchRepository(
+            upcomingResults = listOf(AppResult.Busy(10.seconds)),
+            resultsResults = listOf(successPage(category = MatchListCategory.RESULTS)),
+        )
+        val viewModel = MatchesViewModel(repository, SavedStateHandle(), BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.selectTab(MatchesTab.RESULTS)
+        advanceUntilIdle()
+        viewModel.selectTab(MatchesTab.UPCOMING_LIVE)
+        viewModel.refresh()
+        viewModel.retryInitial()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1), repository.requestedUpcomingPages)
+        assertEquals("matches:upcoming_live:1", viewModel.uiState.value.busyRetry?.operationId)
+        assertTrue(viewModel.uiState.value.busyRetry?.canRetry() == false)
+    }
+
+    @Test
+    fun paginationBusySurvivesTabRoundTripAndRefreshWithoutBypassingItsDeadline() = runViewModelTest {
+        val clock = TestTimeSource()
+        val repository = FakeMatchRepository(
+            upcomingResults = listOf(
+                successPage(matches = listOf(matchSummary(id = "first"))),
+                AppResult.Busy(10.seconds),
+                successPage(matches = listOf(matchSummary(id = "refreshed"))),
+            ),
+            resultsResults = listOf(successPage(category = MatchListCategory.RESULTS)),
+        )
+        val viewModel = MatchesViewModel(repository, SavedStateHandle(), BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.loadMore()
+        advanceUntilIdle()
+        viewModel.selectTab(MatchesTab.RESULTS)
+        advanceUntilIdle()
+        viewModel.selectTab(MatchesTab.UPCOMING_LIVE)
+        viewModel.loadMore()
+        viewModel.refresh()
+        advanceUntilIdle()
+        viewModel.loadMore()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2, 1), repository.requestedUpcomingPages)
+        assertEquals("matches:upcoming_live:2", viewModel.uiState.value.busyRetry?.operationId)
+    }
+
+    @Test
+    fun expiredBusyPaginationClearsItsVisibleStateBeforeLoadingAgain() = runViewModelTest {
+        val repository = FakeMatchRepository(
+            upcomingResults = listOf(
+                successPage(matches = listOf(matchSummary(id = "first"))),
+                AppResult.Busy(ZERO),
+                successPage(page = 2, matches = listOf(matchSummary(id = "second"))),
+            ),
+        )
+        val viewModel = MatchesViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.loadMore()
+        advanceUntilIdle()
+        viewModel.loadMore()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2, 2), repository.requestedUpcomingPages)
+        assertEquals(null, viewModel.uiState.value.busyRetry)
+    }
+
+    @Test
     fun repeatedBusyRefreshRetryThenFailureKeepsExistingGroups() = runViewModelTest {
         val existing = matchSummary(id = "existing")
         val clock = TestTimeSource()

@@ -25,9 +25,12 @@ class BusyRetryStateTest {
 
     @Test
     fun dismissingTheDialogKeepsTheCooldownActive() {
-        val busy = BusyRetryState.create("news:page:2", 1.seconds)
+        val clock = TestTimeSource()
+        val busy = BusyRetryStateFactory.forTest(clock).create("news:page:2", 1.seconds)
 
         assertFalse(busy.dismiss().isDialogVisible)
         assertFalse(busy.dismiss().canRetry())
+        clock += 1.seconds
+        assertTrue(busy.dismiss().canRetry())
     }
 }

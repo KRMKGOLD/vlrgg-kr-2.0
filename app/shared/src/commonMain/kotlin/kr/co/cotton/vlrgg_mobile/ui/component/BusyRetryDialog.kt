@@ -95,3 +95,17 @@ fun BusyRetryDialog(
         },
     )
 }
+
+/** Keeps inline retry controls hidden until a dismissed busy cooldown expires. */
+@Composable
+fun rememberBusyRetryCooldown(busy: BusyRetryState?): Boolean {
+    var isActive by remember(busy) { mutableStateOf(busy?.canRetry() == false) }
+
+    LaunchedEffect(busy) {
+        val remaining = busy?.remainingDelay() ?: return@LaunchedEffect
+        if (remaining > ZERO) delay(remaining)
+        isActive = false
+    }
+
+    return isActive
+}

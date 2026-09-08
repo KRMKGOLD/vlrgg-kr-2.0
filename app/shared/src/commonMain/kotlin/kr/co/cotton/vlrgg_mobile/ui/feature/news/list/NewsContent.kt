@@ -32,6 +32,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsListItem
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsSkeleton
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
@@ -53,12 +54,14 @@ fun NewsContent(
     modifier: Modifier = Modifier,
 ) {
     val contentState = uiState.contentState
+    val isBusyCooldownActive = rememberBusyRetryCooldown(uiState.busyRetry)
 
     if (contentState is NewsListContentState.Content) {
         LoadMoreEffect(
             listState = listState,
             itemCount = contentState.items.size,
-            enabled = !uiState.isRefreshing && !uiState.isLoadingMore && !uiState.hasPaginationError,
+            enabled = !uiState.isRefreshing && !uiState.isLoadingMore && !uiState.hasPaginationError &&
+                uiState.busyRetry?.isDialogVisible != true,
             onLoadMore = onLoadMore,
         )
     }
@@ -96,7 +99,7 @@ fun NewsContent(
                     }
 
                     NewsListContentState.Error -> item(key = "error") {
-                        if (uiState.busyRetry?.isDialogVisible == true) {
+                        if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
                             Box(Modifier.fillParentMaxSize())
                         } else {
                             NewsStateMessage(

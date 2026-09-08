@@ -45,6 +45,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsListItem
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
@@ -76,6 +77,7 @@ fun EventDetailContent(
     onRetrySelectedTab: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val retryEnabled = !rememberBusyRetryCooldown(uiState.busyRetry)
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
@@ -98,6 +100,7 @@ fun EventDetailContent(
                     message = "이벤트 정보를 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
                     actionText = "재시도",
                     actionTag = EVENT_DETAIL_IDENTITY_RETRY_TAG,
+                    actionEnabled = retryEnabled,
                     onAction = onRetryIdentity,
                     modifier = Modifier
                         .fillMaxSize()
@@ -120,6 +123,7 @@ fun EventDetailContent(
                             onMatchClick = onMatchClick,
                             onRetry = onRetrySelectedTab,
                             suppressError = uiState.busyRetry?.isDialogVisible == true,
+                            retryEnabled = retryEnabled,
                         )
 
                         EventDetailTab.NEWS -> NewsTabContent(
@@ -128,6 +132,7 @@ fun EventDetailContent(
                             onNewsClick = onNewsClick,
                             onRetry = onRetrySelectedTab,
                             suppressError = uiState.busyRetry?.isDialogVisible == true,
+                            retryEnabled = retryEnabled,
                         )
 
                         EventDetailTab.STATS -> StatsTabContent(
@@ -137,6 +142,7 @@ fun EventDetailContent(
                             onPlayerClick = onPlayerClick,
                             onRetry = onRetrySelectedTab,
                             suppressError = uiState.busyRetry?.isDialogVisible == true,
+                            retryEnabled = retryEnabled,
                         )
                     }
                 }
@@ -263,11 +269,12 @@ private fun MatchesTabContent(
     onMatchClick: (String) -> Unit,
     onRetry: () -> Unit,
     suppressError: Boolean,
+    retryEnabled: Boolean,
 ) {
     when (state) {
         EventMatchesContentState.Loading -> EventStateMessage("경기를 불러오는 중", loading = true)
         EventMatchesContentState.Empty -> EventStateMessage("표시할 경기가 없어요.")
-        EventMatchesContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("경기를 불러오지 못했습니다.", onRetry)
+        EventMatchesContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("경기를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventMatchesContentState.Content -> LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -292,11 +299,12 @@ private fun NewsTabContent(
     onNewsClick: (String, String) -> Unit,
     onRetry: () -> Unit,
     suppressError: Boolean,
+    retryEnabled: Boolean,
 ) {
     when (state) {
         EventNewsContentState.Loading -> EventStateMessage("뉴스를 불러오는 중", loading = true)
         EventNewsContentState.Empty -> EventStateMessage("표시할 뉴스가 없어요.")
-        EventNewsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("뉴스를 불러오지 못했습니다.", onRetry)
+        EventNewsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("뉴스를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventNewsContentState.Content -> LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -323,11 +331,12 @@ private fun StatsTabContent(
     onPlayerClick: (String) -> Unit,
     onRetry: () -> Unit,
     suppressError: Boolean,
+    retryEnabled: Boolean,
 ) {
     when (state) {
         EventStatsContentState.Loading -> EventStateMessage("통계를 불러오는 중", loading = true)
         EventStatsContentState.Empty -> EventStateMessage("아직 제공되는 통계가 없어요.")
-        EventStatsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("통계를 불러오지 못했습니다.", onRetry)
+        EventStatsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("통계를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventStatsContentState.Content -> StatsTable(
             stats = state.stats,
             listState = listState,
@@ -435,11 +444,12 @@ private fun StatsRow(
 }
 
 @Composable
-private fun EventTabError(message: String, onRetry: () -> Unit) {
+private fun EventTabError(message: String, onRetry: () -> Unit, enabled: Boolean) {
     EventStateMessage(
         message = message,
         actionText = "재시도",
         actionTag = EVENT_DETAIL_TAB_RETRY_TAG,
+        actionEnabled = enabled,
         onAction = onRetry,
     )
 }
@@ -451,6 +461,7 @@ private fun EventStateMessage(
     loading: Boolean = false,
     actionText: String? = null,
     actionTag: String? = null,
+    actionEnabled: Boolean = true,
     onAction: () -> Unit = {},
 ) {
     Column(
@@ -475,6 +486,7 @@ private fun EventStateMessage(
             VlrButton(
                 text = text,
                 onClick = onAction,
+                enabled = actionEnabled,
                 modifier = Modifier
                     .padding(top = VlrDimensions.Space4)
                     .then(if (actionTag != null) Modifier.testTag(actionTag) else Modifier),

@@ -105,6 +105,26 @@ class EventsViewModelTest {
     }
 
     @Test
+    fun retryBusyAfterRefreshKeepsContentWhenRetryFails() = runViewModelTest {
+        val initial = EventList(listOf(event(id = "initial")), emptyList(), emptyList())
+        val clock = TestTimeSource()
+        val repository = FakeEventRepository(
+            listOf(AppResult.Success(initial), AppResult.Busy(1.seconds), AppResult.Failure),
+        )
+        val viewModel = EventsViewModel(repository, BusyRetryStateFactory.forTest(clock))
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+        clock += 1.seconds
+        viewModel.retryBusy()
+        advanceUntilIdle()
+
+        assertEquals(3, repository.requestCount)
+        assertEquals(EventsUiState(EventsContentState.Content(initial)), viewModel.uiState.value)
+    }
+
+    @Test
     fun retryOutsideErrorDoesNotRequestAgain() = runViewModelTest {
         val repository = FakeEventRepository(
             results = listOf(AppResult.Success(EventList(listOf(event()), emptyList(), emptyList()))),

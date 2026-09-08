@@ -43,6 +43,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -66,6 +67,7 @@ fun EventsContent(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isBusyCooldownActive = rememberBusyRetryCooldown(uiState.busyRetry)
     val contentState = uiState.contentState
     Scaffold(
         modifier = modifier,
@@ -100,7 +102,7 @@ fun EventsContent(
                     }
 
                     EventsContentState.Error -> item(key = "error") {
-                        if (uiState.busyRetry?.isDialogVisible == true) {
+                        if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
                             Box(Modifier.fillParentMaxSize())
                         } else {
                             EventsErrorState(
