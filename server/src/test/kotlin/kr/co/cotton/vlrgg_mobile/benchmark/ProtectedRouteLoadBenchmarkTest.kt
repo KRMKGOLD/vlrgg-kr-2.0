@@ -357,7 +357,7 @@ class ProtectedRouteLoadBenchmarkTest {
         appendLine("burst.contract=four distinct valid detail IDs; all 200; exactly four fixture fetches after refill")
         appendLine("saturation.targetRateReqPerSecond=$SATURATION_RATE_PER_SECOND")
         appendLine("saturation.targetDurationSeconds=$SATURATION_DURATION_SECONDS")
-        appendLine("saturation.uniqueCanonicalWorkload=$SATURATION_REQUESTS")
+        appendLine("saturation.targetUniqueCanonicalRequests=$SATURATION_REQUESTS")
         appendLine("saturation.clientMaxInFlight=$CLIENT_MAX_IN_FLIGHT")
         appendLine("saturation.clientQueue=0; full client slots are generatorDropped")
         appendLine("saturation.elapsedMillis=${millis(saturation.elapsedNanos)}")
