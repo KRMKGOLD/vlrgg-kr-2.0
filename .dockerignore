@@ -1,0 +1,66 @@
+# The Docker build context is an allowlist.  This keeps the root multi-project
+# configuration inputs while preventing unrelated app, test, local, and secret
+# material from reaching the builder.
+*
+
+!Dockerfile
+!.dockerignore
+!gradlew
+!settings.gradle.kts
+!build.gradle.kts
+!gradle.properties
+
+!gradle/
+!gradle/wrapper/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!gradle/gradle-daemon-jvm.properties
+!gradle/libs.versions.toml
+
+!app/
+!app/androidApp/
+!app/androidApp/build.gradle.kts
+!app/shared/
+!app/shared/build.gradle.kts
+
+!core/
+!core/build.gradle.kts
+!core/src/
+!core/src/commonMain/
+!core/src/commonMain/**
+!core/src/jvmMain/
+!core/src/jvmMain/**
+
+!server/
+!server/build.gradle.kts
+!server/src/
+!server/src/main/
+!server/src/main/**
+
+# These exclusions intentionally follow the allowlist so a misplaced secret,
+# local configuration file, generated output, log, or signing artifact cannot
+# enter through an otherwise allowed source directory.
+**/.env
+**/.env.*
+**/local.properties
+**/google-services.json
+**/GoogleService-Info.plist
+**/*service-account*.json
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.jceks
+**/*.der
+**/*.crt
+**/*.p12
+**/*.jks
+**/*.keystore
+**/build/**
+**/out/**
+**/*.log
+**/.git/**
+**/.gradle/**
+**/.idea/**
+**/.kotlin/**
+**/.svn/**
+**/.hg/**
