@@ -1,6 +1,6 @@
-# 공개 조회 API 보호와 설치 앱 배포 (#52)
+# 공개 조회 API 보호 계약 (#52)
 
-상태: 구현 진행 중. 아래 수치는 초기 검증 기준이며 운영 실측값이나 배포 완료 증거가 아니다.
+상태: 보호 구현·부하 검증 기록이 있으며 #110의 최종 리뷰·병합 확인 전이다. #52는 OPEN으로 유지한다. 실제 서버 배포는 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111), 앱 배포는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)로 이관했다. 아래 수치는 초기 검증 기준이며 운영 실측값이나 배포 완료 증거가 아니다.
 
 ## 범위
 
@@ -69,14 +69,18 @@ Android와 iOS에 실제 설치한 앱에서 기존 조회 API를 사용한다. 
 
 관측 값은 고정 route·status class·거절 사유·활성 작업 수에 한정한다. 집계 summary는 `api`/`other`, `0xx`~`5xx`, stable error code, 고정 latency bucket을 name-to-count 형태로 출력한다. upstream failure counter는 실제 network·parsing failure만 포함하고 local 성공 JSON 제한의 `RESPONSE_TOO_LARGE`는 포함하지 않는다. 요청마다 달라지는 path·query·IP·token·HTML을 label로 쓰지 않으며 공격 요청 수에 비례하는 로그를 피한다.
 
-## 완료 증거
+## 완료 증거와 이슈별 책임
 
-코드와 배포 완료를 구분한다. 다음 증거가 모두 있어야 #52를 완료한다.
+보호 계약은 유지하며 구현 완료와 실제 배포 완료를 각각 추적한다. #52 종료 전에는 다음을 확인한다.
 
 1. 현재 성공·취소·안전 오류 회귀 및 한도·경합·직렬화 테스트.
 2. 모든 대상 화면의 Busy mapping·대기 시간·단일 수동 재시도 검증.
-3. provider 비용표, 자원 실측, least-privilege 배포 구성과 비상 중단·복구 검증.
-4. packaged 및 원격 health 200·notification 404, 배포 전 smoke와 rollback.
-5. 서명된 Android와 iOS 앱의 실제 기기 fresh install, 외부망 조회와 오류 복구.
+3. packaged smoke와 배포 workflow 코드·정적/모의 검증, #110의 최종 커밋에 대한 실제 리뷰·지적 처리·CI 및 병합.
+4. 잔여 배포 항목이 #111·#112의 완료 조건에 연결되고 관련 문서가 같은 범위를 반영함.
 
-계정·결제·서명·기기 증거가 없으면 해당 release gate는 미완료로 남긴다. FCM production smoke와 이번 일반 조회 release gate를 혼동하지 않는다. 상세 실행 상태와 테스트별 증거는 `.omx/plans/issue52-native-goal-execution.md`에서 관리한다.
+| 후속 이슈 | 이관한 실제 배포 완료 증거 |
+| --- | --- |
+| #111 Server | provider 비용·자원 실측, least-privilege 구성, 비공개 검증 service를 통한 후속 배포, 원격 health/query·notification 404, rollback, 비용 중단·복구, 기본 `run.app` HTTPS 공개 조회 |
+| #112 App | Release URL 주입·서명·Fastlane/Actions, Android 내부 테스트·TestFlight 업로드, 실제 기기 fresh install, 외부망 조회와 오류/과부하 후 수동 재시도 |
+
+#52 종료만으로 Stage 1 배포 완료를 선언하지 않는다. 계정·배포·서명·기기 증거가 없으면 해당 후속 이슈는 미완료로 남긴다. #49·#62·#74와 Stage 2는 보류하며 #112의 설치 smoke가 전체 접근성/E2E 완료를 뜻하지 않는다. 기존 상세 실행 기록은 `.omx/plans/issue52-native-goal-execution.md`에 보존하고, 이후 배포 상태는 #111·#112에서 추적한다.

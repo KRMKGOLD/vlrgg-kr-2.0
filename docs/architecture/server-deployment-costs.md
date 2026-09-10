@@ -1,6 +1,6 @@
-# #52 배포 비용 검토
+# 조회 서버 배포 비용 검토 (#111)
 
-검토일: 2026-09-07, 결정 갱신일: 2026-09-10. 아래 표와 계산은 결제 계정 견적이나 실제 청구액이 아닌 당시 후보 비교다. 조회 서버 provider는 후속 FCM·Firestore 운영 경로까지 고려해 서울 `asia-northeast3`의 Cloud Run으로 선택했다. 현재 GCP 인증 계정·프로젝트·결제·live deployment가 없어 실제 비용은 `NOT RUN`이다.
+검토일: 2026-09-07, 결정 갱신일: 2026-09-10. 아래 표와 계산은 결제 계정 견적이나 실제 청구액이 아닌 당시 후보 비교다. 조회 서버 provider는 후속 FCM·Firestore 운영 경로까지 고려해 서울 `asia-northeast3`의 Cloud Run으로 선택했다. GCP 계정·프로젝트·결제와 첫 비공개 배포는 완료했으며 실제 청구액과 현재 구성의 운영 비용 확인은 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에 남아 있다.
 
 ## 같은 조건으로 비교하기
 
@@ -21,7 +21,7 @@ Railway의 C는 예약 CPU가 아니라 평균 **실제 사용 vCPU**, M은 평�
 
 ## Cloud Run 계산과 잔여 위험
 
-이 절의 1vCPU/512MiB 계산은 2026-09-07 당시 비교 기록이다. 준비 중인 첫 배포는 CPU 1, memory 768 MiB 후보이므로 아래 약 54,300원을 그 구성의 예측값으로 사용하지 않는다. 계정 요금·무료량과 최초 원격 지표를 확인한 뒤 768 MiB 기준 운영 견적을 별도로 갱신한다.
+이 절의 1vCPU/512MiB 계산은 2026-09-07 당시 비교 기록이다. 첫 비공개 배포는 CPU 1, memory 768 MiB로 기동·조회에 성공했으므로 아래 약 54,300원을 그 구성의 예측값으로 사용하지 않는다. 계정 요금·무료량과 원격 지표를 확인한 뒤 768 MiB 운영 service와 minimum 0 검증 service의 비용을 반영해 견적을 갱신한다.
 
 2026-09-07 기준 서울(`asia-northeast3`)은 Cloud Run Tier 2다. 공식 [Cloud Run 가격](https://cloud.google.com/run/pricing)에서 **Services (Requests-based billing)**의 지역 선택기를 `Seoul (asia-northeast3)`로 바꾸고, CUD 열이 아닌 `Default (USD)` 열을 사용한다. 이 조합의 활성 CPU는 0.0000336 USD/vCPU초, min instance 유휴 CPU는 0.0000035 USD/vCPU초, RAM(활성·유휴 모두)은 0.0000035 USD/GiB초다. 기본으로 렌더링되는 Iowa 표(0.000024/0.0000025)나 CUD 가격을 서울 온디맨드 견적에 사용하지 않는다.
 
@@ -41,16 +41,16 @@ macOS ARM64·Java 21에서 packaged 서버의 첫 health 응답은 약 1.2~1.4�
 
 사용자가 서버 개발과 부하 테스트를 완료로 판단했으므로 기존 측정을 다시 배포 선행 조건으로 두지 않는다.
 
-1. GCP 프로젝트와 결제를 연결하고 서울 Cloud Run·Artifact Registry의 계정 요금과 무료량을 확인한다.
-2. CPU 1, memory 768 MiB, service min/max `1/1` 후보로 private revision을 기동해 idle/대표 조회의 기본 CPU·memory와 전송량을 확인한다.
+1. 연결된 GCP 프로젝트·결제의 서울 Cloud Run·Artifact Registry 계정 요금과 무료량을 확인한다.
+2. 기동한 CPU 1, memory 768 MiB, service min/max `1/1` private revision의 idle/대표 조회 CPU·memory와 전송량을 확인한다.
 3. 확인한 값으로 월 5만 원 목표와 최대 10만 원 대응 여유를 다시 계산한다. 필요하면 memory만 실제 기동 여유 안에서 조정한다.
 4. 예산 알림·Spend cap과 수동 비용 중단·복구를 검증한 뒤 공개한다.
 
-현재 환경에는 GCP 결제·실제 provider invoice·지역 배포·물리 기기 설치 증거가 없다. 코드 구현은 계속하되 공개 배포 완료로 보고하지 않는다.
+첫 비공개 배포 증거는 [서버 배포 문서](server-container-deployment.md)에 있다. 실제 provider invoice, 운영 비용 산정과 비용 중단·복구는 #111에서 확인하며 공개 배포 완료로 보고하지 않는다. 물리 기기 설치는 #112에서 별도로 검증한다.
 
 ## 예산 중단
 
-5만 원 경고·8만 원 중단은 잠정값이다. 관측·집행 지연 동안의 비용과 진행 작업·저장·log·세금을 고려하여 10만 원까지의 여유가 충분한지 검증해야 한다. 일반 budget alert는 지출을 중단하지 않는다. Cloud Billing spend cap은 Preview이며 적용 지연과 진행 요청·Artifact Registry·log 등 잔여 비용이 존재하므로 고정된 최종 청구 상한으로 표현하지 않는다.
+월 지출 알림은 1만·3만·5만·8만·10만 원으로 설정됐다. 8만 원 중단은 잠정 대응 기준이며 Spend cap 자동 중단의 활성화 증거는 없다. 관측·집행 지연 동안의 비용과 진행 작업·저장·log·세금을 고려하여 10만 원까지의 여유가 충분한지 #111에서 검증해야 한다. 일반 budget alert는 지출을 중단하지 않는다. Cloud Billing spend cap은 Preview이며 적용 지연과 진행 요청·Artifact Registry·log 등 잔여 비용이 존재하므로 고정된 최종 청구 상한으로 표현하지 않는다.
 
 비용 중단은 GitHub `CLOUD_RUN_DEPLOY_ENABLED=false` → 진행 중인 배포 취소·종료 확인 → public invoker 제거 → 모든 service/revision minimum 0 → drain → default/tagged URL 공개 거절 확인 순서로 수행한다. minimum 0만 설정하면 외부 요청이 다시 기동할 수 있다. 원인·비용을 확인한 뒤 minimum 1과 public invoker를 복구하고 smoke를 통과한 다음 enable 변수를 마지막에 되돌린다. 자세한 보호 경계는 [공개 API 보호 계약](server-public-api-protection.md)을 따른다.
 
