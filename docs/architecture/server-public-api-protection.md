@@ -59,7 +59,7 @@ Android와 iOS에 실제 설치한 앱에서 기존 조회 API를 사용한다. 
 
 ## 배포 판단과 운영 경계
 
-Cloud Run request-based warm 1개를 우선 견적 후보로 검토하고 Railway·Render의 같은 조건과 비교한다. provider 확정에는 idle, 평균 0.2회/초, 1시간 포화 시나리오의 메모리·CPU와 리전 요금·환율·세금·무료량·전송·build·artifact·log 비용이 필요하다. 현재 문서는 특정 provider가 최저가이거나 512MiB가 충분하다고 확정하지 않는다.
+조회 서버는 후속 FCM·Firestore 운영 경로까지 고려해 서울 `asia-northeast3`의 Cloud Run에 배포한다. 초기 후보는 request-based billing, CPU 1, memory 768 MiB, service min/max `1/1`이며, 768 MiB 적합성과 비용은 private 첫 배포의 기본 지표로 확인한다. 기존 512 MiB 후보 비교는 과거 계산으로 유지하며 Cloud Run이 최저가라고 주장하지 않는다.
 
 직접 공개 endpoint의 XFF·Forwarded·앱 header·peer IP를 검증된 사용자 신원으로 사용하지 않는다. 프로세스별 한도는 분산 전역 한도가 아니며 한 사용자가 다른 사용자의 요청까지 거절되게 만들 수 있다. 플랫폼의 인스턴스 한도와 별도로 이 잔여 위험을 기록한다.
 

@@ -56,6 +56,7 @@ build/
 # Local configuration file
 local.properties
 app/iosApp/Configuration/Config.local.xcconfig
+gha-creds-*.json
 
 # Firebase Emulator runtime logs
 firebase-debug.log

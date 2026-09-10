@@ -1,0 +1,204 @@
+name: Deploy query server
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: cloud-run-query-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      REGION: asia-northeast3
+      SERVICE: vlrgg-query
+      REGISTRY_REPOSITORY: vlrgg-server
+      RUNTIME_SERVICE_ACCOUNT: ${{ secrets.GCP_RUNTIME_SERVICE_ACCOUNT }}
+    steps:
+      - name: Require enabled deployment and successful CI for this main commit
+        env:
+          DEPLOY_ENABLED: ${{ vars.CLOUD_RUN_DEPLOY_ENABLED }}
+          WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+          DEPLOY_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          test "$DEPLOY_ENABLED" = true || { echo "::error::Deployment is disabled."; exit 1; }
+          for variable in PROJECT_ID WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT RUNTIME_SERVICE_ACCOUNT; do
+            test -n "${!variable}" || { echo "::error::Missing $variable."; exit 1; }
+          done
+          test "$GITHUB_SHA" = "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=push&branch=main&head_sha=$GITHUB_SHA&per_page=1" \
+            | jq --exit-status --arg sha "$GITHUB_SHA" \
+              '.workflow_runs[0] | .head_sha == $sha and .head_branch == "main" and .event == "push" and .conclusion == "success"'
+
+      - name: Check out the verified commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Build the existing server image before requesting cloud credentials
+        shell: bash
+        run: |
+          image="$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY_REPOSITORY/query:$GITHUB_SHA"
+          docker build --tag "$image" .
+          echo "IMAGE_TAG=$image" >> "$GITHUB_ENV"
+
+      - name: Authenticate deployment through Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Push the image and resolve its immutable digest
+        id: image
+        shell: bash
+        run: |
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker push "$IMAGE_TAG"
+          image="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE_TAG")"
+          [[ "$image" == "$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY_REPOSITORY/query@sha256:"* ]]
+          echo "digest=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy a private first service or a candidate revision
+        id: deploy
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          services="$(gcloud run services list --project "$PROJECT_ID" --region "$REGION" --filter "metadata.name=$SERVICE" --format=json)"
+          flags=()
+          if test "$(jq 'length' <<< "$services")" = 0; then
+            # New services require IAM authentication by default. Public access is a separate operator action.
+            echo "first_deployment=true" >> "$GITHUB_OUTPUT"
+          else
+            previous="$(jq --exit-status --raw-output '
+              .[0].status.traffic | map(select((.percent // 0) > 0)) |
+              if length == 1 and .[0].percent == 100 and .[0].revisionName != null
+              then .[0].revisionName else error("Expected one serving revision at 100% traffic") end
+            ' <<< "$services")"
+            test -n "$previous"
+            echo "previous_revision=$previous" >> "$GITHUB_OUTPUT"
+            flags=(--no-traffic --tag=candidate)
+          fi
+          gcloud run deploy "$SERVICE" --quiet --project "$PROJECT_ID" --region "$REGION" \
+            --image "$IMAGE_DIGEST" --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --revision-suffix "r$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --port=8080 --cpu=1 --memory=768Mi --concurrency=32 --timeout=30s \
+            --min=1 --max=1 --min-instances=0 --max-instances=1 --cpu-throttling \
+            --update-env-vars=VLRGG_ENABLE_API_DOCUMENTATION=false "${flags[@]}" \
+            > "$RUNNER_TEMP/cloud-run-deploy.log" 2>&1
+          service="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format=json)"
+          url="$(jq --exit-status --raw-output '.status.url' <<< "$service")"
+          revision="$(jq --exit-status --raw-output '.status.latestReadyRevisionName' <<< "$service")"
+          test -n "$url"
+          test -n "$revision"
+          candidate="$url"
+          if test "${#flags[@]}" != 0; then
+            candidate="$(jq --exit-status --raw-output --arg revision "$revision" \
+              '.status.traffic[] | select(.tag == "candidate" and .revisionName == $revision) | .url' <<< "$service")"
+          fi
+          test -n "$candidate"
+          # Same-job outputs remain usable; mask addresses before later actions print their inputs.
+          echo "::add-mask::$url"
+          echo "::add-mask::${url#https://}"
+          echo "::add-mask::$candidate"
+          echo "::add-mask::${candidate#https://}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "candidate_url=$candidate" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Obtain an ID token for the base service audience
+        id: smoke-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ steps.deploy.outputs.url }}
+
+      - name: Verify candidate health, queries, errors and disabled routes
+        env:
+          SMOKE_URL: ${{ steps.deploy.outputs.candidate_url }}
+          SMOKE_ID_TOKEN: ${{ steps.smoke-auth.outputs.id_token }}
+          EXPECT_PRIVATE: ${{ steps.deploy.outputs.first_deployment }}
+        run: bash .github/scripts/smoke-query-server.sh
+
+      - name: Promote the verified revision
+        id: promote
+        if: steps.deploy.outputs.previous_revision != ''
+        env:
+          REVISION: ${{ steps.deploy.outputs.revision }}
+        run: >-
+          gcloud run services update-traffic "$SERVICE" --quiet
+          --project "$PROJECT_ID" --region "$REGION" --to-revisions "$REVISION=100"
+          > "$RUNNER_TEMP/cloud-run-promote.log" 2>&1
+
+      - name: Verify the serving URL after promotion
+        if: steps.deploy.outputs.previous_revision != ''
+        env:
+          SMOKE_URL: ${{ steps.deploy.outputs.url }}
+          SMOKE_ID_TOKEN: ${{ steps.smoke-auth.outputs.id_token }}
+        run: bash .github/scripts/smoke-query-server.sh
+
+      - name: Restore previous traffic if promotion or serving checks fail
+        if: failure() && steps.deploy.outputs.previous_revision != '' && steps.promote.outcome != 'skipped'
+        env:
+          PREVIOUS_REVISION: ${{ steps.deploy.outputs.previous_revision }}
+        run: >-
+          gcloud run services update-traffic "$SERVICE" --quiet
+          --project "$PROJECT_ID" --region "$REGION" --to-revisions "$PREVIOUS_REVISION=100"
+          > "$RUNNER_TEMP/cloud-run-rollback.log" 2>&1
+
+      - name: Remove the temporary candidate URL
+        if: always() && steps.deploy.outputs.previous_revision != ''
+        run: >-
+          gcloud run services update-traffic "$SERVICE" --quiet
+          --project "$PROJECT_ID" --region "$REGION" --remove-tags=candidate
+          > "$RUNNER_TEMP/cloud-run-remove-tag.log" 2>&1
+
+      - name: Remove warm capacity after a failed first deployment
+        if: failure() && steps.deploy.outputs.first_deployment == 'true'
+        run: >-
+          gcloud run services update "$SERVICE" --quiet
+          --project "$PROJECT_ID" --region "$REGION" --min=0
+          > "$RUNNER_TEMP/cloud-run-scale-down.log" 2>&1
+
+      - name: Show sanitized Cloud Run diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          for log in "$RUNNER_TEMP"/cloud-run-*.log; do
+            test -f "$log" || continue
+            echo "${log##*/}"
+            sed -E \
+              -e 's#(https?://)?[[:alnum:].-]+\.run\.app#***#g' \
+              -e 's#[[:alnum:]-]+-docker\.pkg\.dev/[^[:space:]"<>]+#***#g' \
+              "$log" | tail -n 80
+          done
+
+      - name: Record the deployed release
+        run: |
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo "Query deployment and smoke checks passed."
+            echo "A first deployment remains private. Public access and cost-stop verification are separate operator steps."
+          } >> "$GITHUB_STEP_SUMMARY"

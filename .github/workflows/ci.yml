@@ -81,7 +81,7 @@ jobs:
             cat server-health.log
             exit 1
           fi
-          test "$(curl --connect-timeout 1 --max-time 1 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/v1/notification-targets)" = '404'
+          bash .github/scripts/smoke-query-server.sh --local
 
       - name: Check event patch formatting
         env:
