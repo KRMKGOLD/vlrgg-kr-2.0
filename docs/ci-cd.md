@@ -123,6 +123,8 @@ GitHub Actions는 루트 `Dockerfile`을 Linux에서 빌드하고 commit SHA로 
 
 Cloud Run은 새 service 생성에 `--no-traffic`을 지원하지 않는다. 첫 production은 public invoker 없이 기본 traffic으로 만들고 새 revision 100%와 무인증 거절을 확인한다. 후속 production만 tag 없이 `--no-traffic`으로 새 revision을 만들고, 해당 revision 이름을 명시해 traffic 100%로 승격한다. production base URL용 별도 ID token으로 첫·후속 배포 모두 smoke하며, 후속 승격 실패 시 workflow 시작 때 기록한 이전 serving revision으로 rollback한다. 첫 production 실패 시 minimum을 0으로 내려 불필요한 warm 비용을 줄이며 rollback 대상은 없다.
 
+최초 배포 실패로 service만 남고 양수 traffic과 `latestReadyRevisionName`이 모두 없으면, 배포 전 비공개 IAM을 확인한 뒤 첫 배포 경로로 재시도한다. 이때도 `--no-traffic`을 생략하고 배포 후 비공개 IAM·새 revision 100%와 무인증 거절을 확인한다. 50/50 분할·부분 traffic 또는 과거 ready revision이 있는 상태를 첫 배포로 취급하지 않는다. `bash .github/scripts/test-query-production-deploy.sh`는 실제 workflow step을 로컬 gcloud stub으로 실행해 이 분기를 검증하며 credential-free CI에서도 실행한다.
+
 공개 저장소의 Draft PR도 소스와 변경 내역이 공개되고 Actions 로그·요약도 외부에서 볼 수 있다. 배포 URL과 이미지 경로를 job summary에 기록하지 않는다. 생성된 검증/production service URL과 host를 후속 step 전에 마스킹한다. Cloud Run 변경 명령 출력은 runner 임시 파일로 받고, 실패 시 Cloud Run 주소와 이미지 경로를 치환한 진단 로그만 출력한다. 원본 로그는 artifact로 올리지 않는다. 실제 운영 URL은 권한이 있는 Google Cloud Console에서 확인한다. 이 조치는 불필요한 메타데이터 공개를 줄이며, 공개 API 주소 자체를 비밀이나 접근 제어 수단으로 만들지는 않는다.
 
 배포 검증은 `.github/scripts/smoke-query-server.sh`의 `curl`·`jq`로 수행한다. Python 파일은 필요하지 않다. 같은 script의 `--local` 경로를 credential-free CI의 packaged smoke에서 실행해 health·안전한 400·문서/알림 404를 확인한다. 로컬 경로는 토큰 입력을 거절하고 실제 upstream 조회를 하지 않는다. 배포 경로는 HTTPS Cloud Run URL만 허용하고 redirect를 따라가지 않으며 토큰은 curl 인자 대신 stdin header로 전달한다.

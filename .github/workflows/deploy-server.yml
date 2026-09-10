@@ -174,20 +174,49 @@ jobs:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         shell: bash
         run: |
+          require_private_service() {
+            local service_json="$1" policy
+            jq --exit-status \
+              '(.metadata.annotations["run.googleapis.com/invoker-iam-disabled"] // "false") != "true"' \
+              <<< "$service_json" > /dev/null
+            policy="$(gcloud run services get-iam-policy "$SERVICE" \
+              --project "$PROJECT_ID" --region "$REGION" --format=json)"
+            jq --exit-status '
+              [.bindings[]? |
+                select(.role == "roles/run.invoker") |
+                .members[]? |
+                select(. == "allUsers" or . == "allAuthenticatedUsers")] |
+              length == 0
+            ' <<< "$policy" > /dev/null
+          }
+
           services="$(gcloud run services list --project "$PROJECT_ID" --region "$REGION" \
             --filter "metadata.name=$SERVICE" --format=json)"
           jq --exit-status --arg name "$SERVICE" \
             'length <= 1 and all(.[]; .metadata.name == $name)' <<< "$services" > /dev/null
+          previous="$(jq --exit-status --raw-output '
+            (.[0].status.traffic // []) | map(select((.percent // 0) > 0)) |
+            if length == 0 then ""
+            elif length == 1 and .[0].percent == 100 and
+              (.[0].revisionName | type == "string" and length > 0)
+            then .[0].revisionName else error("Expected one serving revision at 100% traffic") end
+          ' <<< "$services")"
           flags=()
-          if test "$(jq 'length' <<< "$services")" = 0; then
+          first_deployment=false
+          if test -z "$previous"; then
+            if test "$(jq 'length' <<< "$services")" = 1; then
+              existing="$(gcloud run services describe "$SERVICE" \
+                --project "$PROJECT_ID" --region "$REGION" --format=json)"
+              jq --exit-status --arg name "$SERVICE" '
+                .metadata.name == $name and
+                (.status.latestReadyRevisionName // "") == "" and
+                ((.status.traffic // []) | map(select((.percent // 0) > 0)) | length == 0)
+              ' <<< "$existing" > /dev/null
+              require_private_service "$existing"
+            fi
+            first_deployment=true
             echo "first_deployment=true" >> "$GITHUB_OUTPUT"
           else
-            previous="$(jq --exit-status --raw-output '
-              .[0].status.traffic | map(select((.percent // 0) > 0)) |
-              if length == 1 and .[0].percent == 100 and .[0].revisionName != null
-              then .[0].revisionName else error("Expected one serving revision at 100% traffic") end
-            ' <<< "$services")"
-            test -n "$previous"
             echo "previous_revision=$previous" >> "$GITHUB_OUTPUT"
             flags=(--no-traffic)
           fi
@@ -212,19 +241,8 @@ jobs:
           revision="$(jq --exit-status --raw-output '.status.latestReadyRevisionName' <<< "$service")"
           test -n "$url"
           test -n "$revision"
-          if test "$(jq 'length' <<< "$services")" = 0; then
-            jq --exit-status \
-              '(.metadata.annotations["run.googleapis.com/invoker-iam-disabled"] // "false") != "true"' \
-              <<< "$service" > /dev/null
-            policy="$(gcloud run services get-iam-policy "$SERVICE" \
-              --project "$PROJECT_ID" --region "$REGION" --format=json)"
-            jq --exit-status '
-              [.bindings[]? |
-                select(.role == "roles/run.invoker") |
-                .members[]? |
-                select(. == "allUsers" or . == "allAuthenticatedUsers")] |
-              length == 0
-            ' <<< "$policy" > /dev/null
+          if test "$first_deployment" = true; then
+            require_private_service "$service"
             jq --exit-status --arg revision "$revision" '
               [.status.traffic[]? | select((.percent // 0) > 0)] |
               length == 1 and .[0].percent == 100 and .[0].revisionName == $revision
