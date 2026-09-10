@@ -1,6 +1,6 @@
 # CI/CD delivery direction — Cloud Run query server
 
-- Status: Stage 1.1 credential-free CI implemented; Cloud Run deployment workflow prepared but disabled; GCP bootstrap and live deployment not run; notification production deployment deferred
+- Status: Stage 1.1 credential-free CI implemented; Cloud Run deployment workflow prepared but disabled; IAM/WIF bootstrap and live deployment not run; notification production deployment deferred
 - Last reviewed: 2026-09-10
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
@@ -31,7 +31,7 @@ server           Ktor 3 Netty application
 - listener는 `0.0.0.0`과 platform `PORT`를 지원하며 legacy `VLRGG_SERVER_PORT` fallback 및 packaged `/health` smoke가 검증됐다.
 - Stage 1.1 알림 runtime은 Firestore 기반 request-bound 계약으로 교체됐고, 일반 runtime의 production provider·알림 route는 Stage 2까지 disabled/fail-closed다.
 - 루트 `Dockerfile`은 `:server:installDist` 결과를 non-root Java 21 runtime으로 패키징하고 `PORT`를 지원한다.
-- deploy workflow는 명시적 enable 변수와 production environment로 보호하며, 아직 GCP 로그인·프로젝트·결제·WIF·원격 서비스가 없어 실행 증거는 없다.
+- deploy workflow는 명시적 enable 변수와 production environment로 보호한다. 실제 배포는 결제 연결과 IAM/WIF 설정 후 원격 실행 증거로 확인한다.
 
 남은 작업은 GCP bootstrap, workflow 변수 연결, 비공개 첫 배포, 공개 전환과 비용 중단·복구 검증이다. 사용자가 서버 개발과 부하 테스트를 완료로 판단했으므로 이를 다시 선행 조건으로 요구하지 않는다.
 
@@ -176,7 +176,7 @@ CI workflow가 안정된 뒤 `main` Ruleset에 다음을 적용한다.
 
 ## GCP bootstrap runbook
 
-Google 계정 로그인과 결제 계정 연결이 필요하다. 그 뒤 운영 프로젝트 생성과 아래 설정을 진행한다. 아래 placeholder는 실제 값으로 바꾸고, 실행 결과는 secret 없이 운영 증거에 기록한다. 현재 로컬 `gcloud auth list`에는 활성 계정이 없으므로 아직 실행하지 않았다.
+Google 계정 로그인, 운영 프로젝트와 결제 계정 연결을 준비한 뒤 아래 설정을 진행한다. placeholder는 실제 값으로 바꾸고, 실행 결과는 secret 없이 운영 증거에 기록한다. 아래 명령은 설정 절차이며 실행 완료의 증거가 아니다.
 
 ```bash
 GCP_PROJECT_ID="your-project-id"
@@ -266,5 +266,5 @@ Cloud Run revision이 rollback 단위다. candidate 검증 전에는 기존 serv
 | App Android/iOS Firebase integration | NOT RUN — Stage 2 | not required | required |
 | Real App Check/FCM | NOT RUN — Stage 2 | not required | required |
 | Production Firestore/IAM/index | NOT RUN — Stage 2 | not required | required |
-| Cloud Run identity/CD | NOT RUN — no active gcloud account/project | required | notification deployment gate required |
+| Cloud Run identity/CD | NOT RUN — IAM/WIF and deployment pending | required | notification deployment gate required |
 | Live health/query protection/cost-stop/rollback | NOT RUN — Stage 2 | required | notification gate requirements apply separately |

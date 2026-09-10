@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포 경로
 
-기록일: 2026-09-06, 갱신일: 2026-09-10. Issue #52 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. 현재 GCP 인증 계정·프로젝트·결제 자원과 live deployment는 없다.
+기록일: 2026-09-06, 갱신일: 2026-09-10. Issue #52 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. 결제 연결과 IAM/WIF 설정 후 실제 배포를 검증해야 한다.
 
 ## 이미지 계약
 
@@ -37,7 +37,7 @@ root multi-project configuration이 Android SDK 또는 `local.properties` 없이
 5. 비용 중단을 연습한다. enable 변수를 `false`로 바꾸고 진행 중인 배포를 취소·종료한 뒤 public invoker 제거, service/revision minimum 0, drain, default/tagged URL 공개 거절과 잔여 image/log 비용을 확인한다. 복구 후 같은 stable URL을 다시 smoke한다.
 6. 검증된 revision에 public invoker를 부여하고 외부망 조회를 확인한 뒤 stable URL을 Android/iOS `API_BASE_URL` 입력으로 전달한다.
 
-GCP 계정·결제·원격 revision·공개 endpoint가 없는 현재 상태에서는 workflow 준비와 실제 release 완료를 구분한다. 앱 서명, 기기 설치와 스토어 출시, FCM·Firestore·App Check·Scheduler는 조회 서버 배포의 후속 범위다. 별도 SDK, 로그인, 앱 진위 검증 또는 앱에 내장하는 server key는 공개 조회의 접근 제어 전제로 추가하지 않는다.
+workflow 준비와 실제 release 완료를 구분한다. 결제와 IAM/WIF 설정, 원격 revision·공개 endpoint 검증을 마쳐야 조회 서버 배포 완료다. 앱 서명, 기기 설치와 스토어 출시, FCM·Firestore·App Check·Scheduler는 후속 범위다. 별도 SDK, 로그인, 앱 진위 검증 또는 앱에 내장하는 server key는 공개 조회의 접근 제어 전제로 추가하지 않는다.
 
 ## 로컬 보호 경로 부하 결과 — 2026-09-07
 
