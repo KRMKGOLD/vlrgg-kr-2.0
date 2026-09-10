@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포 경로
 
-기록일: 2026-09-06. Issue #52의 provider는 아직 확정하지 않았다. 이 문서는 Railway, Render 또는 image deploy를 선택했을 때 사용할 단일 portable Docker 경로만 정의하며, Cloud Run buildpack용 `project.toml`이나 provider 설정 파일을 함께 추가하지 않는다.
+기록일: 2026-09-06, 갱신일: 2026-09-10. Issue #52 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. 현재 GCP 인증 계정·프로젝트·결제 자원과 live deployment는 없다.
 
 ## 이미지 계약
 
@@ -14,37 +14,30 @@
 
 server와 app의 test source, iOS source, 모든 build/out output, IDE/VCS/Gradle state, env/local properties, Firebase/service-account files, PEM/key/certificate/signing files와 logs는 context에 포함되지 않는다. 파일명 denylist는 임의의 secret을 탐지한다는 보장이 아니며, 새 source 경로 또는 Gradle configuration input이 생기면 allowlist를 넓히기 전에 해당 파일이 packaging input인지와 secret/output 배제 패턴을 검토한다.
 
-## 검증 순서와 미해결 gate
+## 빌드와 Cloud Run runtime 계약
 
-Docker, Pack, Railway CLI는 현재 환경에 없으므로 image build나 provider 배포 성공을 주장하지 않는다. Docker가 있는 Linux-compatible builder에서 다음을 실행해 image/health baseline을 남긴다.
+로컬 환경에는 Docker가 없으므로 local image build를 배포 gate로 추가하지 않는다. 기존 CI를 성공한 정확한 `main` SHA만 `.github/workflows/deploy-server.yml`의 수동 실행 대상으로 삼고, GitHub Linux runner에서 image build/push를 확인한다. workflow와 문서만 있는 현재 상태는 배포 성공 증거가 아니다.
 
-```bash
-docker build --tag vlrgg-server:local .
-docker run --rm --name vlrgg-server \
-  --env PORT=18080 \
-  --publish 18080:18080 \
-  vlrgg-server:local
-curl --fail --silent http://127.0.0.1:18080/health
-```
+초기 Cloud Run 후보 설정은 CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling, service-level min/max `1/1`, revision-level min/max `0/1`이다. `JAVA_OPTS`는 위 이미지 계약의 값을 유지한다. CPU와 memory는 원격 기동과 기본 지표 확인 전의 후보값이며, 아래 과거 512 MiB 비용 계산을 768 MiB 예측으로 읽지 않는다.
 
-이 명령은 image build와 local health 확인만 한다. provider 선택 후에도 Linux image architecture, selected provider의 health check (`/health`), injected `PORT`, startup, SIGTERM drain, protected-route load, cgroup RSS/GC 및 비용을 실측해야 한다.
+첫 service는 public invoker 없이 만들고 stable service URL에 WIF로 발급한 Cloud Run ID token을 보내 smoke한다. 후속 배포는 `candidate` tag와 `--no-traffic`으로 생성하고 tag URL을 smoke한 뒤 traffic을 전환한다. 인증 token의 audience는 base service URL을 사용한다. 배포 환경에서는 injected `PORT`, `/health`, 정상 조회, 안전한 오류, docs/notification 404, 기동 로그와 OOM 여부만 확인하며 완료된 부하 테스트를 다시 선행 조건으로 두지 않는다.
 
-그 전에 root multi-project configuration이 Android SDK 또는 `local.properties` 없이 `:server:installDist`를 수행하는지 별도 `/private/tmp` allowlisted snapshot에서 증명한다. 해당 snapshot은 tracked-file export가 아니라 working tree의 allowlisted `server/src/main/**`을 복사해야 새 보호 구현도 검증한다. 실패하면 Gradle 모듈을 수정하지 않고 정확한 failure와 최소 repair를 기록한다.
+root multi-project configuration이 Android SDK 또는 `local.properties` 없이 `:server:installDist`를 수행하는지 별도 `/private/tmp` allowlisted snapshot에서 확인한 기록은 아래와 같다.
 
 이 prerequisite는 2026-09-06에 snapshot commit `ec3a1bc`, SDK 환경 변수 unset, snapshot-local Gradle cache 및 명시적 `--project-dir`로 확인했다. 포함된 Gradle daemon toolchain descriptor가 isolated Amazon Corretto 21 daemon을 선택했고, `:server:installDist`는 14초에 성공하여 `server/build/install/server/bin/server`를 만들었다. 재현 명령과 전체 경계는 `.omx/evidence/issue52/packaging-implementation/isolated-install-dist.md`에 기록한다.
 
-현재 root `gradle.properties`의 4 GiB Gradle/3 GiB Kotlin daemon JVM 값은 container build의 memory contract가 아니다. 저비용 builder에 적용할 build JVM cap은 먼저 isolated `installDist` compile에서 적합성을 검증한 다음 별도 evidence로 확정한다.
+현재 root `gradle.properties`의 4 GiB Gradle/3 GiB Kotlin daemon JVM 값은 container runtime memory contract가 아니다. GitHub builder의 build memory와 Cloud Run runtime 768 MiB를 같은 한도로 취급하지 않는다.
 
 ## 공개 배포와 앱 설치 진행 순서
 
-1. `server-deployment-costs.md`의 동일 트래픽 가정을 기준으로 provider와 계정에서 실제 제공하는 리소스·요금 제한을 확정한다. 월 목표 5만원, 최대 허용 10만원은 예산 기준이며 애플리케이션의 rate limit이 청구 상한을 보장하지 않는다.
-2. Linux builder에서 위 이미지를 빌드하고 768 MiB 후보 한도로 정상·과부하 상황의 cgroup 메모리와 종료/복구를 확인한다. macOS의 JUnit·클라이언트 포함 프로세스 RSS를 운영 서버 RSS로 사용하지 않는다.
-3. 계정의 예산 알림과 비상 정지/복구를 합성 이벤트로 검증한다. 공개 접근 차단, 실행 중인 모든 인스턴스 종료, 재배포에 의한 무단 복구 방지 및 잔여 비용을 확인한 뒤 공개한다. 평상시에는 warm 인스턴스 1개를 유지하고 과부하는 오류로 처리한다.
-4. HTTPS endpoint를 배포하고 `/health`, 정상 조회, 안전한 오류 응답, docs/notification 비활성화, SIGTERM, rollback을 확인한다. 먼저 별도 smoke 대상으로 확인한 뒤 사용자 트래픽을 연결한다.
-5. Android Release의 `API_BASE_URL` Gradle 입력과 iOS Release의 `API_BASE_URL`/`TEAM_ID`를 외부 주입하고 서명한다. Android 입력은 현재 BuildConfig 표현식 계약에 맞는 따옴표 포함 문자열을 사용한다. 서명 키와 로컬 설정은 저장소에 넣지 않는다.
-6. 실제 Android와 iPhone에 새로 설치하고 외부망에서 목록·상세·탭, 과부하 안내→수동 재시도, 비상 정지 오류→복구를 확인한다. simulator 테스트나 debug APK 빌드만으로 실제 설치 완료로 판정하지 않는다.
+1. GCP 프로젝트·결제, Artifact Registry, runtime/deploy Service Account와 GitHub WIF를 준비한다. runtime Service Account에는 조회 서버에 필요 없는 DB·Firebase 권한을 주지 않는다.
+2. GitHub `production` environment와 필수 변수를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED=true` 전에는 workflow가 cloud write를 하지 않아야 한다.
+3. 수동 workflow로 private 첫 revision을 배포하고 authenticated `/health`, 대표 조회, 안전한 400, docs/notification 404를 확인한다.
+4. 후속 candidate revision에서 no-traffic smoke, traffic 승격과 이전 revision rollback을 확인한다. 첫 revision만으로 rollback 검증 완료를 주장하지 않는다.
+5. 비용 중단을 연습한다. enable 변수를 `false`로 바꾸고 진행 중인 배포를 취소·종료한 뒤 public invoker 제거, service/revision minimum 0, drain, default/tagged URL 공개 거절과 잔여 image/log 비용을 확인한다. 복구 후 같은 stable URL을 다시 smoke한다.
+6. 검증된 revision에 public invoker를 부여하고 외부망 조회를 확인한 뒤 stable URL을 Android/iOS `API_BASE_URL` 입력으로 전달한다.
 
-계정/provider, Linux 컨테이너 실행 환경, 공개 endpoint, Android 서명 및 iOS provisioning/배포 채널이 준비되지 않은 현재 상태에서는 코드 PR과 실제 release 완료를 구분한다. 별도 SDK, 로그인, 앱 진위 검증 또는 앱에 내장하는 server key는 이 배포의 접근 제어 전제로 추가하지 않는다.
+GCP 계정·결제·원격 revision·공개 endpoint가 없는 현재 상태에서는 workflow 준비와 실제 release 완료를 구분한다. 앱 서명, 기기 설치와 스토어 출시, FCM·Firestore·App Check·Scheduler는 조회 서버 배포의 후속 범위다. 별도 SDK, 로그인, 앱 진위 검증 또는 앱에 내장하는 server key는 공개 조회의 접근 제어 전제로 추가하지 않는다.
 
 ## 로컬 보호 경로 부하 결과 — 2026-09-07
 

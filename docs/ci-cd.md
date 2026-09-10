@@ -1,12 +1,12 @@
-# CI/CD delivery direction (provider selection pending)
+# CI/CD delivery direction — Cloud Run query server
 
-- Status: Stage 1.1 credential-free CI implemented; #52 public read deployment preparation in progress; notification production deployment deferred
-- Last reviewed: 2026-09-06
+- Status: Stage 1.1 credential-free CI implemented; Cloud Run deployment workflow prepared but disabled; GCP bootstrap and live deployment not run; notification production deployment deferred
+- Last reviewed: 2026-09-10
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
 ## Goal and stage boundary
 
-작은 사이드 프로젝트에 맞춰 PR에서는 credential-free 검증만 수행하고, `main` 병합 후 서버 영향 변경만 **선정된 provider**로 배포하는 구조를 목표로 한다. `.github/workflows/ci.yml`은 완료된 Stage 1.1 offline gate를 구현하며 deploy workflow는 없다. provider, packaging 방식, public host와 base URL은 아직 확정하지 않았다.
+작은 사이드 프로젝트에 맞춰 PR에서는 credential-free 검증만 수행하고, 검증된 `main` commit을 Cloud Run에 수동 배포한다. `.github/workflows/ci.yml`은 완료된 Stage 1.1 offline gate이고, `.github/workflows/deploy-server.yml`은 기존 루트 `Dockerfile`을 GitHub Linux runner에서 빌드해 Artifact Registry와 Cloud Run으로 전달한다. Cloud Build와 source deploy용 buildpack은 사용하지 않는다.
 
 Stage 1.1은 실제 Firebase App/production provider를 연결하지 않는다. Stage 1.1 구현 PR은 Firestore Emulator와 fake provider를 포함한 offline GREEN까지만 소유한다. 실제 App Check, FCM, production Firestore와 원격 배포 health/rollback은 Stage 2에서 수행한다.
 
@@ -26,14 +26,14 @@ server           Ktor 3 Netty application
 
 `server`는 `core`에 직접 의존한다. 현재 server plugin은 Kotlin JVM, Kotlin Serialization, Ktor plugin이고 `application.mainClass`는 `kr.co.cotton.vlrgg_mobile.ApplicationKt`다. 확인된 server task는 `:server:test`, `:server:build`, `:server:installDist`, `:server:run`이다.
 
-현재 Stage 1.1 구현과 Stage 2 provider 선택·배포 전 남은 항목은 다음과 같다.
+현재 코드 준비 상태와 외부 실행 경계는 다음과 같다.
 
 - listener는 `0.0.0.0`과 platform `PORT`를 지원하며 legacy `VLRGG_SERVER_PORT` fallback 및 packaged `/health` smoke가 검증됐다.
 - Stage 1.1 알림 runtime은 Firestore 기반 request-bound 계약으로 교체됐고, 일반 runtime의 production provider·알림 route는 Stage 2까지 disabled/fail-closed다.
-- 선택 provider의 artifact/source packaging 방식과 `:server:installDist` entrypoint 계약이 아직 없다.
-- `.github/workflows/ci.yml`은 존재하지만 provider 선택 뒤 추가할 deploy workflow와 packaging config는 아직 없다.
+- 루트 `Dockerfile`은 `:server:installDist` 결과를 non-root Java 21 runtime으로 패키징하고 `PORT`를 지원한다.
+- deploy workflow는 명시적 enable 변수와 production environment로 보호하며, 아직 GCP 로그인·프로젝트·결제·WIF·원격 서비스가 없어 실행 증거는 없다.
 
-남은 packaging entrypoint, deploy workflow 및 실제 provider 동작은 Stage 2에서 검증한다.
+남은 작업은 GCP bootstrap, workflow 변수 연결, 비공개 첫 배포, 공개 전환과 비용 중단·복구 검증이다. 사용자가 서버 개발과 부하 테스트를 완료로 판단했으므로 이를 다시 선행 조건으로 요구하지 않는다.
 
 확인된 app task는 다음과 같다.
 
@@ -55,12 +55,13 @@ Developer
         -> KMP/Android checks
         -> server unit + Firestore Emulator + build
   -> main merge
-     -> GitHub Actions CD (server-impacting paths only)
-        -> final server checks
-        -> selected provider's supported deployment identity
-        -> selected packaging / isolated candidate release when supported
+     -> manual GitHub Actions CD for the exact main SHA
+        -> confirm the same SHA passed main CI
+        -> GitHub OIDC -> GCP WIF -> deploy Service Account
+        -> Docker build -> Artifact Registry image digest
+        -> private first revision / no-traffic candidate revision
         -> read-only query release gates
-        -> controlled promotion or rollback
+        -> controlled Cloud Run traffic promotion or rollback
   -> Mobile App
 ```
 
@@ -92,7 +93,7 @@ Trigger:
 
 Jobs:
 
-1. checkout and Gradle Wrapper validation
+1. checkout와 deployment smoke gate 테스트
 2. JDK setup and Gradle dependency/build cache
 3. `:app:shared:testAndroidHostTest`
 4. `:app:androidApp:testDebugUnitTest :app:androidApp:lintDebug`
@@ -104,42 +105,40 @@ macOS iOS job은 Android/server Linux job과 별도로 모든 `pull_request` 및
 
 `ci.yml`은 Node 22, Java 21, pinned `firebase-tools@15.25.1`의 foreground `emulators:exec`로 Firestore를 시작·ready 확인·`:server:test :server:firestoreEmulatorTest :server:build :server:installDist` 실행·cleanup한다. Linux job의 KMP Android host, Android unit/lint, packaged `/health`와 notification-route fail-closed smoke와 macOS job의 iOS simulator test/compile 모두 credential 없이 실행한다. Patch whitespace 검사는 PR에서는 base SHA와 head SHA의 범위, `main` push에서는 event before와 head SHA의 범위를 검사하며, `app/**` zero-touch는 이 Stage 1.1 branch evidence이지 향후 app PR을 막는 permanent CI rule이 아니다.
 
-## Planned `deploy-server.yml`
+## Prepared `deploy-server.yml`
 
-Stage 2에서만 추가한다. Trigger는 `push` to `main`과 server 영향 path 조건이며, provider를 선택하고 최소 권한·비용·rollback 계약을 검증한 뒤에만 구현한다.
+배포 workflow는 `workflow_dispatch` 전용이며 `main`에서만 실행한다. 같은 SHA의 `main` push CI가 성공했는지 확인한 뒤에만 cloud write를 시작한다. GitHub `production` environment와 repository variable `CLOUD_RUN_DEPLOY_ENABLED=true`가 모두 준비돼야 하며, 변수 누락 또는 다른 값은 모든 cloud write를 차단한다. 중단 상태에서는 이 변수를 먼저 `false`로 바꿔 자동 또는 실수로 재개되지 않게 한다.
+
+고정 배포 대상은 서울 `asia-northeast3`, Cloud Run service `vlrgg-query`, Artifact Registry repository `vlrgg-server`다. 다음 값은 GitHub repository/environment variable로 연결하고 private key JSON은 저장하지 않는다.
 
 ```text
-server/**
-core/**
-gradle/**
-gradle.properties
-settings.gradle.kts
-build.gradle.kts
-gradlew
-gradlew.bat
-.github/workflows/deploy-server.yml
-<selected-provider packaging/config files>
+GCP_PROJECT_ID
+GCP_WIF_PROVIDER
+GCP_DEPLOY_SERVICE_ACCOUNT
+GCP_RUNTIME_SERVICE_ACCOUNT
 ```
 
-현재 `server`의 직접 공용 모듈 의존성은 `core`이므로 `app/**`와 다른 workflow 전체는 server deploy path에 포함하지 않는다. 선택한 packaging 파일만 path filter에 포함하며, provider가 source deploy를 쓰지 않으면 source-deploy config를 추가하지 않는다. 향후 server 의존성이 바뀌면 path도 함께 갱신한다.
+GitHub Actions는 루트 `Dockerfile`을 Linux에서 빌드하고 commit SHA로 tag한 이미지를 Artifact Registry에 push한다. push 뒤 digest를 얻어 Cloud Run에 digest로 배포한다. 최초 service는 private이며 stable service URL에서 인증 smoke를 수행한다. 기존 service가 있으면 `candidate` tag와 `--no-traffic`으로 새 revision을 검증하고, 성공한 revision만 traffic 100%로 승격한다. 승격 뒤 smoke 실패 시 workflow 시작 때 기록한 이전 serving revision으로 rollback한다.
+
+공개 service의 candidate URL에도 같은 service IAM 정책이 적용되므로 비공개 URL로 간주하지 않는다. workflow 종료 시 candidate tag를 제거한다. 첫 배포 실패 시 service를 private 상태로 두고 minimum을 0으로 내려 불필요한 warm 비용을 줄인다. 실패한 첫 배포에는 rollback 대상이 없다.
+
+초기 runtime은 request-based billing, service-level min/max `1/1`, revision-level min/max `0/1`, CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling 사용이다. CPU·memory는 최초 원격 기동과 기본 지표를 확인한 뒤 조정할 후보값이다. API documentation은 계속 disabled다.
 
 ### #52 read-only query deployment path
 
 이 경로는 #52의 일반 조회 공개에만 적용한다. App Check, Target, production Firestore, FCM은 이 경로의 선행 조건이 아니며 기존 credential-free Firestore Emulator CI를 변경하지 않는다.
 
-Deploy identity는 provider가 지원할 때 short-lived identity를 우선한다. 지원하지 않는 provider에서는 그 provider가 지원하는 최소 권한의 narrowly scoped credential을 사용하며, 모든 provider에 Workload Identity Federation이 있다고 가정하지 않는다.
+Deploy identity는 GitHub OIDC와 GCP Workload Identity Federation으로 deploy Service Account를 impersonate한다. 장기 Service Account key는 만들거나 GitHub에 저장하지 않는다.
 
-1. checkout
-2. JDK와 Gradle cache 설정
-3. final `:server:test :server:firestoreEmulatorTest :server:build :server:installDist`
-4. 선택 provider가 지원하면 short-lived, least-privilege deployment identity로, 지원하지 않으면 그 provider가 지원하는 최소 권한의 narrowly scoped credential로 candidate artifact 또는 release를 준비하고 현재 serving release를 기록
-5. provider가 isolated candidate endpoint를 지원하면 그 endpoint에서, 지원하지 않으면 provider가 보장하는 가장 작은 비공개 범위에서 `/health` 200과 notification route 404를 확인
-6. [공개 API 보호 계약](architecture/server-public-api-protection.md)의 query protection을 원격 환경에서 확인한다. 여기에는 request/upstream admission의 거절 응답, 안전한 오류 경계, upstream fetch 비용 제한이 포함된다.
-7. provider별 공개 호출 차단·진행 작업 drain·재기동 방지·저장/build/log 비용을 포함한 cost-stop 절차를 실제로 실행하고 복구 전후 상태를 기록
-8. promotion 전 실패는 candidate를 공개하지 않고 workflow를 실패 처리한다. promotion 후 health 또는 query protection 검증이 실패하면 기록한 이전 serving release로 rollback하고 workflow를 실패 처리한다.
-9. 서명된 Android와 iOS 앱을 실제 기기에 fresh install한 뒤 외부망 조회와 Busy 수동 재시도까지 확인한다. 계정·원격 환경·기기 증거가 없으면 이 gate를 GREEN으로 기록하지 않는다.
+1. enable 변수와 production environment의 main branch 제한 확인
+2. exact `main` SHA와 같은 SHA의 성공한 CI push run 확인
+3. 검증된 SHA checkout과 Docker build
+4. WIF 인증, Artifact Registry push와 image digest 기록
+5. private first revision 또는 no-traffic candidate revision 배포
+6. WIF로 다시 발급한 Cloud Run ID token으로 `/health` 200, notification route 404와 대표 query를 확인
+7. candidate 성공 시 traffic 승격, 승격 후 smoke 실패 시 이전 revision rollback
 
-동시 배포는 선택 provider의 application/service 단위 `concurrency.group`으로 고정하고 `cancel-in-progress: false`로 직렬화한다. candidate endpoint, promotion, traffic 같은 용어와 구현은 provider가 지원하는 배포 모델에 맞춰 선택 후 확정한다.
+동시 배포는 service 단위 `concurrency.group`과 `cancel-in-progress: false`로 직렬화한다. workflow는 기존 CI 전체나 부하 테스트를 다시 실행하지 않는다.
 
 ### Future notification release gate
 
@@ -165,84 +164,107 @@ CI workflow가 안정된 뒤 `main` Ruleset에 다음을 적용한다.
 
 ## Release packaging and runtime gates
 
-선택 provider가 source deploy, container image, prebuilt artifact 중 무엇을 받는지 확정하기 전에는 packaging 방식을 기본값으로 정하지 않는다. 어떤 방식을 고르더라도 repository root를 build context로 써야 하는지와 artifact의 실제 entrypoint를 검증한다. `server`가 `core`와 root Gradle/version catalog/wrapper에 의존하므로 `server/`만 context로 써서는 독립 빌드가 되지 않을 수 있다.
+루트 `Dockerfile`과 `.dockerignore`를 단일 packaging 경로로 사용한다. repository root가 build context이며 `server`가 의존하는 `core`, root Gradle wrapper와 version catalog를 포함한다. Cloud Build API, buildpack, `project.toml`, `Procfile`, shadow JAR는 추가하지 않는다.
 
-선택한 packaging 방식의 성공 조건:
+성공 조건:
 
 - 필요한 Gradle wrapper, root settings/version catalog, `server`, `core`, 선택한 packaging config가 입력에 포함됨
 - `.git`, `.gradle`, 모든 `**/build`, IDE 설정, `.env*`, Service Account JSON, Firebase platform config, token/secret 파일, local-only config, runtime log와 local DB 파일은 입력에서 제외됨
 - `:server:installDist` 또는 선택한 동등 artifact가 실제 launcher를 생성하고, server가 `0.0.0.0`과 platform `PORT`로 기동함
-- `/health`는 external credential과 무관하게 응답함
-- build/packaging 로그와 isolated candidate 또는 controlled release의 검증 결과가 있어야 하며, 문서의 후보 절차만으로 배포 성공을 주장하지 않음
+- 애플리케이션 `/health`는 별도 앱 secret 없이 응답하며 private Cloud Run에서는 platform ID token으로 호출됨
+- GitHub Linux builder의 build/push log, image digest와 Cloud Run revision의 검증 결과가 있어야 하며, 문서와 workflow 존재만으로 배포 성공을 주장하지 않음
 
-### Conditional example: Cloud Run source deploy
+## GCP bootstrap runbook
 
-**Cloud Run을 provider로 선택한 경우에만** Dockerfile 없이 repository root를 source로 전달하는 방식을 검증 후보로 삼는다. 아래 명령과 GCP-specific config는 선택·실행·검증 전에는 배포 구현이나 배포 증거가 아니다.
+Google 계정 로그인과 결제 계정 연결이 필요하다. 그 뒤 운영 프로젝트 생성과 아래 설정을 진행한다. 아래 placeholder는 실제 값으로 바꾸고, 실행 결과는 secret 없이 운영 증거에 기록한다. 현재 로컬 `gcloud auth list`에는 활성 계정이 없으므로 아직 실행하지 않았다.
 
 ```bash
-gcloud run deploy "$SERVICE_NAME" \
-  --source . \
-  --region asia-northeast3
+GCP_PROJECT_ID="your-project-id"
+GCP_PROJECT_NUMBER="your-project-number"
+GITHUB_REPOSITORY="KRMKGOLD/vlrgg-kr-2.0"
+GITHUB_REPOSITORY_ID="$(gh api "repos/$GITHUB_REPOSITORY" --jq '.id')"
+GITHUB_OWNER_ID="$(gh api "repos/$GITHUB_REPOSITORY" --jq '.owner.id')"
+GCP_REGION="asia-northeast3"
+GCP_ARTIFACT_REPOSITORY="vlrgg-server"
+GCP_WIF_POOL_ID="github"
+GCP_WIF_PROVIDER_ID="vlrgg-main"
+GCP_RUNTIME_SERVICE_ACCOUNT="vlrgg-query-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+GCP_DEPLOY_SERVICE_ACCOUNT="vlrgg-query-deploy@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+
+gcloud config set project "$GCP_PROJECT_ID"
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com iam.googleapis.com iamcredentials.googleapis.com sts.googleapis.com
+gcloud artifacts repositories create "$GCP_ARTIFACT_REPOSITORY" --repository-format=docker --location="$GCP_REGION"
+gcloud iam service-accounts create vlrgg-query-runtime
+gcloud iam service-accounts create vlrgg-query-deploy
+gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" \
+  --member="serviceAccount:$GCP_DEPLOY_SERVICE_ACCOUNT" --role=roles/run.developer
+gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" \
+  --member="serviceAccount:$GCP_DEPLOY_SERVICE_ACCOUNT" --role=roles/run.invoker
+gcloud artifacts repositories add-iam-policy-binding "$GCP_ARTIFACT_REPOSITORY" \
+  --location="$GCP_REGION" --member="serviceAccount:$GCP_DEPLOY_SERVICE_ACCOUNT" \
+  --role=roles/artifactregistry.writer
+gcloud iam service-accounts add-iam-policy-binding "$GCP_RUNTIME_SERVICE_ACCOUNT" \
+  --member="serviceAccount:$GCP_DEPLOY_SERVICE_ACCOUNT" --role=roles/iam.serviceAccountUser
+
+gcloud iam workload-identity-pools create "$GCP_WIF_POOL_ID" \
+  --project="$GCP_PROJECT_ID" --location=global --display-name="GitHub Actions"
+gcloud iam workload-identity-pools providers create-oidc "$GCP_WIF_PROVIDER_ID" \
+  --project="$GCP_PROJECT_ID" --location=global \
+  --workload-identity-pool="$GCP_WIF_POOL_ID" \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository_id=assertion.repository_id" \
+  --attribute-condition="assertion.repository_id == '$GITHUB_REPOSITORY_ID' && assertion.repository_owner_id == '$GITHUB_OWNER_ID' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '$GITHUB_REPOSITORY/.github/workflows/deploy-server.yml@refs/heads/main' && assertion.environment == 'production'"
+gcloud iam service-accounts add-iam-policy-binding "$GCP_DEPLOY_SERVICE_ACCOUNT" \
+  --member="principalSet://iam.googleapis.com/projects/$GCP_PROJECT_NUMBER/locations/global/workloadIdentityPools/$GCP_WIF_POOL_ID/attribute.repository_id/$GITHUB_REPOSITORY_ID" \
+  --role=roles/iam.workloadIdentityUser
+gcloud iam workload-identity-pools providers describe "$GCP_WIF_PROVIDER_ID" \
+  --project="$GCP_PROJECT_ID" --location=global \
+  --workload-identity-pool="$GCP_WIF_POOL_ID" --format='value(name)'
 ```
 
-- Cloud Run source deploy를 선택하면 repository root의 `project.toml`에 `GOOGLE_RUNTIME_VERSION=21`, `GOOGLE_GRADLE_BUILD_ARGS=clean :server:installDist --no-daemon`, `GOOGLE_ENTRYPOINT=./server/build/install/server/bin/server`를 고정하고 source build log에서 세 값의 적용을 확인한다.
-- Buildpacks가 root Gradle wrapper에 위 build args를 전달하고 `:server:installDist` launcher를 실행하는지 확인한다. `.gcloudignore`와 `gcloud meta list-files-for-upload`으로 위 일반 입력·제외 계약도 검증한다.
-- `GOOGLE_ENTRYPOINT`가 실제 build 환경에서 적용되지 않을 때만 같은 launcher를 지정한 root `Procfile`을 대안으로 검증한다. 그 뒤에도 buildpack이 멀티모듈 entrypoint를 안정적으로 실행하지 못한다는 build log가 있을 때만 shadowJar 또는 Dockerfile ADR을 작성한다.
+deploy Service Account에는 project의 `roles/run.developer`와 첫 private service 생성 직후 자동 smoke에 필요한 `roles/run.invoker`, Artifact Registry repository의 `roles/artifactregistry.writer`, runtime Service Account의 `roles/iam.serviceAccountUser`를 부여한다. runtime Service Account에는 조회 배포에서 DB·Firebase 권한을 주지 않는다. bootstrap 인간 계정이 이 binding을 설정할 권한은 별도로 보유해야 한다.
 
-### Conditional example: GCP OIDC and Workload Identity Federation
+WIF provider는 GitHub issuer를 사용하고 변하지 않는 repository/owner ID, `main` ref, 지정 deploy workflow와 `production` environment로 신뢰 범위를 제한한다. 이 principalSet에 deploy Service Account의 `roles/iam.workloadIdentityUser`만 부여한다. action이 WIF를 통해 ID token을 발급하므로 self `roles/iam.serviceAccountTokenCreator`는 필요하지 않다. [Google WIF 가이드](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines), [auth action](https://github.com/google-github-actions/auth)
 
-**Cloud Run/GCP를 선택한 경우에만** 장기 Service Account JSON key를 GitHub Secret에 저장하지 않고 다음 인증 경로를 검증한다.
+설정 후 GitHub `production` environment의 허용 branch를 `main`으로 제한하고 위 변수를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED`는 repository variable 한 곳에서만 관리하고 environment에 동명 변수를 만들지 않는다. 비용 통제 설정을 확인한 뒤 첫 실행 직전에만 `true`로 바꾼다. 별도의 필수 승인자를 추가하지 않는다.
 
-```text
-GitHub Actions OIDC
-  -> Workload Identity Pool/Provider
-  -> repository/ref attribute condition
-  -> deploy-only Service Account impersonation
+### Public access and cost stop
+
+비공개 smoke가 통과한 첫 service를 공개할 때만 bootstrap 인간 계정으로 다음 IAM binding을 추가한다.
+
+```bash
+gcloud run services add-iam-policy-binding vlrgg-query \
+  --project="$GCP_PROJECT_ID" \
+  --region=asia-northeast3 \
+  --member=allUsers \
+  --role=roles/run.invoker
 ```
 
-Cloud Run source deploy를 선택한 #52 bootstrap에서는 다음 API만 배포 필요 항목으로 검토·활성화한다.
+비용 중단은 `CLOUD_RUN_DEPLOY_ENABLED=false` 설정 후 대기·실행 중인 배포를 취소하고 종료를 확인하는 것부터 시작한다. workflow가 시작할 때 읽은 변수는 실행 도중 갱신되지 않으므로 변수 변경만으로 진행 중인 배포가 멈추지는 않는다. 다음으로 `allUsers` invoker 제거, service minimum 0, 진행 요청 drain과 default/tagged URL의 공개 거절을 확인한다. 이 workflow가 만든 revision의 minimum은 이미 0이다.
 
-- `run.googleapis.com`
-- `cloudbuild.googleapis.com`
-- `artifactregistry.googleapis.com`
-- `iamcredentials.googleapis.com`
-- `sts.googleapis.com`
+```bash
+gh variable set CLOUD_RUN_DEPLOY_ENABLED --repo KRMKGOLD/vlrgg-kr-2.0 --body false
+# GitHub Actions에서 대기/실행 중인 Deploy query server run을 취소하고 종료를 확인한다.
+gcloud run services remove-iam-policy-binding vlrgg-query \
+  --project="$GCP_PROJECT_ID" --region=asia-northeast3 \
+  --member=allUsers --role=roles/run.invoker
+gcloud run services update vlrgg-query \
+  --project="$GCP_PROJECT_ID" --region=asia-northeast3 --min=0
+```
 
-다음은 future notification deployment 전용이며 #52 조회 배포에는 필요하지 않다.
+Artifact Registry image와 로그 비용은 계속 발생할 수 있다. 복구는 비용 원인을 확인한 뒤 `gcloud run services update vlrgg-query --project="$GCP_PROJECT_ID" --region=asia-northeast3 --min=1`, 위 public invoker 추가, 외부망 smoke 순으로 수행하고 enable 변수는 마지막에 되돌린다. Billing budget alert는 지출을 중단하지 않으며 Cloud Run spend cap은 Preview이고 집행 지연·잔여 비용이 있어 고정 청구 상한으로 보지 않는다.
 
-- `firestore.googleapis.com`
-- `cloudscheduler.googleapis.com`
-- FCM에 필요한 Firebase/Google API는 notification deployment 시점에 당시 공식 Admin SDK 문서로 재확인
-
-GitHub repository와 `main` ref 또는 protected environment를 provider attribute condition으로 제한한다. GitHub에는 provider resource name, deploy Service Account email, GCP project ID, region, Cloud Run service name을 repository/environment variable로 두며 JSON private key는 두지 않는다.
-
-정확한 IAM role은 선택 뒤 positive/negative test와 함께 확정한다. 넓은 Owner/Editor는 사용하지 않고 deploy SA, Cloud Build execution, runtime SA, Scheduler invocation 역할을 분리한다.
-
-### Conditional example: Cloud Run revisions, tags, and traffic
-
-**Cloud Run을 선택한 경우에만** commit SHA를 포함한 새 revision을 `--no-traffic`과 고유 tag로 배포하고, Cloud Run이 반환한 tagged revision URL에서 smoke한다. 기본 service URL로 대체하지 않는다. private service이면 deploy SA Cloud Run ID token을 `X-Serverless-Authorization`에 넣고 `aud`는 tag URL이 아닌 base service URL로 고정하며, app의 `Authorization: Target ...` header를 덮어쓰지 않는다.
-
-Cloud Run candidate smoke는 read-only query deployment path의 `/health` 200, notification 404, query protection만 수행한다. 성공하면 traffic을 전환하고, traffic 전 실패는 기존 serving revision을 유지한다. 전환 후 검증 실패는 기록한 이전 revision으로 자동 복원하며, 자동 복원까지 실패한 경우에만 이전 revision 이름과 수동 복원 절차를 안전하게 출력한다. commit SHA tag, Cloud Run source packaging, tagged revision URL과 traffic switch는 provider 선택 전에는 구현·검증된 것으로 기록하지 않는다.
-
-## Provider cost, safety, and rollback gates
-
-Cloud Run·Railway·Render 등 후보 비교와 실측 후 provider를 확정한다. 평상시 최소 한 개 대기는 사용자 요구지만, 구체 instance/CPU/memory/region/billing 설정은 선택된 provider에서 실제 JVM/Ktor 기동과 API latency·비용을 측정한 뒤 정한다. local filesystem/in-memory state는 영속 저장소로 사용하지 않으며, #52 일반 조회에는 DB를 추가하지 않는다.
-
-cost-stop은 provider의 billing/account control에만 의존하지 않는다. 공개 호출 차단, provider가 지원하는 compute/service disable 또는 scale-down, 진행 작업 drain, public endpoint 재기동/수신 거절, build·artifact·storage·log의 잔여 비용 확인을 하나의 절차로 검증한다. 자동 배포가 중단 상태를 되돌리지 않게 하고 원인과 비용 검토 후에만 수동 복구한다.
-
-rollback 단위와 promotion 방식은 provider 선택 후 정한다. candidate 검증 중 실패하면 기존 serving release를 유지하고, promotion 뒤 read-only query gate가 실패하면 기록한 이전 serving release로 rollback한다. rollback 자동화가 실패하면 release 식별자와 안전한 수동 복원 절차만 남기며, 첫 운영 배포 뒤 반복 필요성을 보고 별도 `workflow_dispatch` rollback을 검토한다.
-
-Cloud Run 선택 시에만 revision을 rollback 단위로 쓰고 `--no-traffic`, tag, traffic split을 위 conditional example대로 적용한다. 다른 provider의 release/version/instance 구조를 Cloud Run revision으로 가정하지 않는다.
+Cloud Run revision이 rollback 단위다. candidate 검증 전에는 기존 serving revision을 유지하고, 승격 후 실패하면 기록한 revision으로 traffic을 복원한다. 첫 배포에는 이전 revision이 없으므로 후속 revision에서 rollback을 한 번 검증해야 완료 증거가 된다.
 
 ## Stage evidence matrix
 
 | Evidence | Stage 1.1 | #52 query deployment | Future notification deployment |
 | --- | --- | --- | --- |
-| Server unit/build/installDist | GREEN — 2026-07-31 | final rerun required | final rerun required |
+| Server unit/build/installDist | GREEN — 2026-09-10 | existing CI success for exact SHA required | final rerun required |
 | Firestore SDK + Emulator | GREEN — 2026-07-31 | credential-free Emulator CI retained | production smoke required |
 | Fake App Check/FCM | GREEN — 2026-07-31 | retained CI; real adapters not required | replaced by real adapters |
 | App Android/iOS Firebase integration | NOT RUN — Stage 2 | not required | required |
 | Real App Check/FCM | NOT RUN — Stage 2 | not required | required |
 | Production Firestore/IAM/index | NOT RUN — Stage 2 | not required | required |
-| Selected provider/identity/CD | NOT RUN — Stage 2 | required after provider decision | notification deployment gate required |
+| Cloud Run identity/CD | NOT RUN — no active gcloud account/project | required | notification deployment gate required |
 | Live health/query protection/cost-stop/rollback | NOT RUN — Stage 2 | required | notification gate requirements apply separately |
