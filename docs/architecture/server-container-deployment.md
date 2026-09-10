@@ -31,7 +31,7 @@ root multi-project configuration이 Android SDK 또는 `local.properties` 없이
 ## 공개 배포와 앱 설치 진행 순서
 
 1. GCP 프로젝트·결제, Artifact Registry, runtime/deploy Service Account와 GitHub WIF를 준비한다. runtime Service Account에는 조회 서버에 필요 없는 DB·Firebase 권한을 주지 않는다.
-2. GitHub `production` environment와 필수 변수를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED=true` 전에는 workflow가 cloud write를 하지 않아야 한다.
+2. GitHub `production` environment의 운영 식별자 secrets와 repository의 enable 변수를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED=true` 전에는 workflow가 cloud write를 하지 않아야 한다.
 3. 수동 workflow로 private 첫 revision을 배포하고 authenticated `/health`, 대표 조회, 안전한 400, docs/notification 404를 확인한다.
 4. 후속 candidate revision에서 no-traffic smoke, traffic 승격과 이전 revision rollback을 확인한다. 첫 revision만으로 rollback 검증 완료를 주장하지 않는다.
 5. 비용 중단을 연습한다. enable 변수를 `false`로 바꾸고 진행 중인 배포를 취소·종료한 뒤 public invoker 제거, service/revision minimum 0, drain, default/tagged URL 공개 거절과 잔여 image/log 비용을 확인한다. 복구 후 같은 stable URL을 다시 smoke한다.

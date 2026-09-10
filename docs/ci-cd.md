@@ -93,7 +93,7 @@ Trigger:
 
 Jobs:
 
-1. checkout와 deployment smoke gate 테스트
+1. checkout
 2. JDK setup and Gradle dependency/build cache
 3. `:app:shared:testAndroidHostTest`
 4. `:app:androidApp:testDebugUnitTest :app:androidApp:lintDebug`
@@ -109,7 +109,7 @@ macOS iOS job은 Android/server Linux job과 별도로 모든 `pull_request` 및
 
 배포 workflow는 `workflow_dispatch` 전용이며 `main`에서만 실행한다. 같은 SHA의 `main` push CI가 성공했는지 확인한 뒤에만 cloud write를 시작한다. GitHub `production` environment와 repository variable `CLOUD_RUN_DEPLOY_ENABLED=true`가 모두 준비돼야 하며, 변수 누락 또는 다른 값은 모든 cloud write를 차단한다. 중단 상태에서는 이 변수를 먼저 `false`로 바꿔 자동 또는 실수로 재개되지 않게 한다.
 
-고정 배포 대상은 서울 `asia-northeast3`, Cloud Run service `vlrgg-query`, Artifact Registry repository `vlrgg-server`다. 다음 값은 GitHub repository/environment variable로 연결하고 private key JSON은 저장하지 않는다.
+고정 배포 대상은 서울 `asia-northeast3`, Cloud Run service `vlrgg-query`, Artifact Registry repository `vlrgg-server`다. 다음 값은 GitHub `production` environment secrets로 연결하고 private key JSON은 저장하지 않는다. 이 값들은 식별자지만 공개 Actions 로그에서 그대로 출력되지 않도록 secrets의 마스킹을 사용한다.
 
 ```text
 GCP_PROJECT_ID
@@ -121,6 +121,10 @@ GCP_RUNTIME_SERVICE_ACCOUNT
 GitHub Actions는 루트 `Dockerfile`을 Linux에서 빌드하고 commit SHA로 tag한 이미지를 Artifact Registry에 push한다. push 뒤 digest를 얻어 Cloud Run에 digest로 배포한다. 최초 service는 private이며 stable service URL에서 인증 smoke를 수행한다. 기존 service가 있으면 `candidate` tag와 `--no-traffic`으로 새 revision을 검증하고, 성공한 revision만 traffic 100%로 승격한다. 승격 뒤 smoke 실패 시 workflow 시작 때 기록한 이전 serving revision으로 rollback한다.
 
 공개 service의 candidate URL에도 같은 service IAM 정책이 적용되므로 비공개 URL로 간주하지 않는다. workflow 종료 시 candidate tag를 제거한다. 첫 배포 실패 시 service를 private 상태로 두고 minimum을 0으로 내려 불필요한 warm 비용을 줄인다. 실패한 첫 배포에는 rollback 대상이 없다.
+
+공개 저장소의 Draft PR도 소스와 변경 내역이 공개되고 Actions 로그·요약도 외부에서 볼 수 있다. 배포 URL과 이미지 경로를 job summary에 기록하지 않는다. 생성된 service/candidate URL과 host를 후속 step 전에 마스킹한다. Cloud Run 변경 명령 출력은 runner 임시 파일로 받고, 실패 시 Cloud Run 주소와 이미지 경로를 치환한 진단 로그만 출력한다. 원본 로그는 artifact로 올리지 않는다. 실제 운영 URL은 권한이 있는 Google Cloud Console에서 확인한다. 이 조치는 불필요한 메타데이터 공개를 줄이며, 공개 API 주소 자체를 비밀이나 접근 제어 수단으로 만들지는 않는다.
+
+배포 검증은 `.github/scripts/smoke-query-server.sh`의 `curl`·`jq`로 수행한다. Python 파일은 필요하지 않다. 같은 script의 `--local` 경로를 credential-free CI의 packaged smoke에서 실행해 health·안전한 400·문서/알림 404를 확인한다. 로컬 경로는 토큰 입력을 거절하고 실제 upstream 조회를 하지 않는다. 배포 경로는 HTTPS Cloud Run URL만 허용하고 redirect를 따라가지 않으며 토큰은 curl 인자 대신 stdin header로 전달한다.
 
 초기 runtime은 request-based billing, service-level min/max `1/1`, revision-level min/max `0/1`, CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling 사용이다. CPU·memory는 최초 원격 기동과 기본 지표를 확인한 뒤 조정할 후보값이다. API documentation은 계속 disabled다.
 
@@ -226,7 +230,7 @@ deploy Service Account에는 project의 `roles/run.developer`와 첫 private ser
 
 WIF provider는 GitHub issuer를 사용하고 변하지 않는 repository/owner ID, `main` ref, 지정 deploy workflow와 `production` environment로 신뢰 범위를 제한한다. 이 principalSet에 deploy Service Account의 `roles/iam.workloadIdentityUser`만 부여한다. action이 WIF를 통해 ID token을 발급하므로 self `roles/iam.serviceAccountTokenCreator`는 필요하지 않다. [Google WIF 가이드](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines), [auth action](https://github.com/google-github-actions/auth)
 
-설정 후 GitHub `production` environment의 허용 branch를 `main`으로 제한하고 위 변수를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED`는 repository variable 한 곳에서만 관리하고 environment에 동명 변수를 만들지 않는다. 비용 통제 설정을 확인한 뒤 첫 실행 직전에만 `true`로 바꾼다. 별도의 필수 승인자를 추가하지 않는다.
+설정 후 GitHub `production` environment의 허용 branch를 `main`으로 제한하고 위 secrets를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED`는 repository variable 한 곳에서만 관리하고 environment에 동명 변수를 만들지 않는다. 비용 통제 설정을 확인한 뒤 첫 실행 직전에만 `true`로 바꾼다. 별도의 필수 승인자를 추가하지 않는다.
 
 ### Public access and cost stop
 
