@@ -59,8 +59,9 @@ Developer
         -> confirm the same SHA passed main CI
         -> GitHub OIDC -> GCP WIF -> deploy Service Account
         -> Docker build -> Artifact Registry image digest
-        -> private first revision / no-traffic candidate revision
+        -> fixed private validation service
         -> read-only query release gates
+        -> private first / no-traffic subsequent production revision
         -> controlled Cloud Run traffic promotion or rollback
   -> Mobile App
 ```
@@ -109,7 +110,7 @@ macOS iOS job은 Android/server Linux job과 별도로 모든 `pull_request` 및
 
 배포 workflow는 `workflow_dispatch` 전용이며 `main`에서만 실행한다. 같은 SHA의 `main` push CI가 성공했는지 확인한 뒤에만 cloud write를 시작한다. GitHub `production` environment와 repository variable `CLOUD_RUN_DEPLOY_ENABLED=true`가 모두 준비돼야 하며, 변수 누락 또는 다른 값은 모든 cloud write를 차단한다. 중단 상태에서는 이 변수를 먼저 `false`로 바꿔 자동 또는 실수로 재개되지 않게 한다.
 
-고정 배포 대상은 서울 `asia-northeast3`, Cloud Run service `vlrgg-query`, Artifact Registry repository `vlrgg-server`다. 다음 값은 GitHub `production` environment secrets로 연결하고 private key JSON은 저장하지 않는다. 이 값들은 식별자지만 공개 Actions 로그에서 그대로 출력되지 않도록 secrets의 마스킹을 사용한다.
+고정 배포 대상은 서울 `asia-northeast3`, private 검증 service `vlrgg-query-check`, production service `vlrgg-query`, Artifact Registry repository `vlrgg-server`다. 다음 값은 GitHub `production` environment secrets로 연결하고 private key JSON은 저장하지 않는다. 이 값들은 식별자지만 공개 Actions 로그에서 그대로 출력되지 않도록 secrets의 마스킹을 사용한다.
 
 ```text
 GCP_PROJECT_ID
@@ -118,11 +119,11 @@ GCP_DEPLOY_SERVICE_ACCOUNT
 GCP_RUNTIME_SERVICE_ACCOUNT
 ```
 
-GitHub Actions는 루트 `Dockerfile`을 Linux에서 빌드하고 commit SHA로 tag한 이미지를 Artifact Registry에 push한다. push 뒤 digest를 얻어 Cloud Run에 digest로 배포한다. 최초 service는 private이며 stable service URL에서 인증 smoke를 수행한다. 기존 service가 있으면 `candidate` tag와 `--no-traffic`으로 새 revision을 검증하고, 성공한 revision만 traffic 100%로 승격한다. 승격 뒤 smoke 실패 시 workflow 시작 때 기록한 이전 serving revision으로 rollback한다.
+GitHub Actions는 루트 `Dockerfile`을 Linux에서 빌드하고 commit SHA로 tag한 이미지를 Artifact Registry에 push한다. push 뒤 digest를 얻어 service-level minimum 0인 고정 검증 service `vlrgg-query-check`에 먼저 배포한다. 기존 검증 service와 배포 직후 상태에서 `allUsers`/`allAuthenticatedUsers` invoker가 없고 Invoker IAM check가 켜져 있는지 확인한다. 이 private service에서 무인증 거절과 인증 smoke가 모두 끝나야 같은 digest를 production에 배포한다.
 
-공개 service의 candidate URL에도 같은 service IAM 정책이 적용되므로 비공개 URL로 간주하지 않는다. workflow 종료 시 candidate tag를 제거한다. 첫 배포 실패 시 service를 private 상태로 두고 minimum을 0으로 내려 불필요한 warm 비용을 줄인다. 실패한 첫 배포에는 rollback 대상이 없다.
+Cloud Run은 새 service 생성에 `--no-traffic`을 지원하지 않는다. 첫 production은 public invoker 없이 기본 traffic으로 만들고 새 revision 100%와 무인증 거절을 확인한다. 후속 production만 tag 없이 `--no-traffic`으로 새 revision을 만들고, 해당 revision 이름을 명시해 traffic 100%로 승격한다. production base URL용 별도 ID token으로 첫·후속 배포 모두 smoke하며, 후속 승격 실패 시 workflow 시작 때 기록한 이전 serving revision으로 rollback한다. 첫 production 실패 시 minimum을 0으로 내려 불필요한 warm 비용을 줄이며 rollback 대상은 없다.
 
-공개 저장소의 Draft PR도 소스와 변경 내역이 공개되고 Actions 로그·요약도 외부에서 볼 수 있다. 배포 URL과 이미지 경로를 job summary에 기록하지 않는다. 생성된 service/candidate URL과 host를 후속 step 전에 마스킹한다. Cloud Run 변경 명령 출력은 runner 임시 파일로 받고, 실패 시 Cloud Run 주소와 이미지 경로를 치환한 진단 로그만 출력한다. 원본 로그는 artifact로 올리지 않는다. 실제 운영 URL은 권한이 있는 Google Cloud Console에서 확인한다. 이 조치는 불필요한 메타데이터 공개를 줄이며, 공개 API 주소 자체를 비밀이나 접근 제어 수단으로 만들지는 않는다.
+공개 저장소의 Draft PR도 소스와 변경 내역이 공개되고 Actions 로그·요약도 외부에서 볼 수 있다. 배포 URL과 이미지 경로를 job summary에 기록하지 않는다. 생성된 검증/production service URL과 host를 후속 step 전에 마스킹한다. Cloud Run 변경 명령 출력은 runner 임시 파일로 받고, 실패 시 Cloud Run 주소와 이미지 경로를 치환한 진단 로그만 출력한다. 원본 로그는 artifact로 올리지 않는다. 실제 운영 URL은 권한이 있는 Google Cloud Console에서 확인한다. 이 조치는 불필요한 메타데이터 공개를 줄이며, 공개 API 주소 자체를 비밀이나 접근 제어 수단으로 만들지는 않는다.
 
 배포 검증은 `.github/scripts/smoke-query-server.sh`의 `curl`·`jq`로 수행한다. Python 파일은 필요하지 않다. 같은 script의 `--local` 경로를 credential-free CI의 packaged smoke에서 실행해 health·안전한 400·문서/알림 404를 확인한다. 로컬 경로는 토큰 입력을 거절하고 실제 upstream 조회를 하지 않는다. 배포 경로는 HTTPS Cloud Run URL만 허용하고 redirect를 따라가지 않으며 토큰은 curl 인자 대신 stdin header로 전달한다.
 
@@ -138,9 +139,10 @@ Deploy identity는 GitHub OIDC와 GCP Workload Identity Federation으로 deploy 
 2. exact `main` SHA와 같은 SHA의 성공한 CI push run 확인
 3. 검증된 SHA checkout과 Docker build
 4. WIF 인증, Artifact Registry push와 image digest 기록
-5. private first revision 또는 no-traffic candidate revision 배포
-6. WIF로 다시 발급한 Cloud Run ID token으로 `/health` 200, notification route 404와 대표 query를 확인
-7. candidate 성공 시 traffic 승격, 승격 후 smoke 실패 시 이전 revision rollback
+5. private 검증 service의 IAM fail-closed 확인과 동일 digest 배포
+6. 검증 service용 ID token으로 무인증 거절, `/health` 200, notification route 404와 대표 query를 확인
+7. 첫 production은 private 기본 traffic, 후속은 tag 없는 no-traffic revision으로 배포하고 production URL용 별도 ID token 발급
+8. 후속 revision traffic 승격, production base URL smoke와 실패 시 이전 revision rollback
 
 동시 배포는 service 단위 `concurrency.group`과 `cancel-in-progress: false`로 직렬화한다. workflow는 기존 CI 전체나 부하 테스트를 다시 실행하지 않는다.
 
@@ -258,7 +260,7 @@ gcloud run services update vlrgg-query \
 
 Artifact Registry image와 로그 비용은 계속 발생할 수 있다. 복구는 비용 원인을 확인한 뒤 `gcloud run services update vlrgg-query --project="$GCP_PROJECT_ID" --region=asia-northeast3 --min=1`, 위 public invoker 추가, 외부망 smoke 순으로 수행하고 enable 변수는 마지막에 되돌린다. Billing budget alert는 지출을 중단하지 않으며 Cloud Run spend cap은 Preview이고 집행 지연·잔여 비용이 있어 고정 청구 상한으로 보지 않는다.
 
-Cloud Run revision이 rollback 단위다. candidate 검증 전에는 기존 serving revision을 유지하고, 승격 후 실패하면 기록한 revision으로 traffic을 복원한다. 첫 배포에는 이전 revision이 없으므로 후속 revision에서 rollback을 한 번 검증해야 완료 증거가 된다.
+Cloud Run revision이 rollback 단위다. private 검증 service가 실패하면 production에는 배포하지 않는다. 첫 production은 이전 revision이 없어 기본 traffic으로 생성하고 private smoke를 수행한다. 후속 production의 no-traffic 배포 중에는 기존 serving revision을 유지하고, 승격 후 실패하면 기록한 revision으로 traffic을 복원한다. 따라서 후속 revision에서 rollback을 한 번 검증해야 완료 증거가 된다.
 
 ## Stage evidence matrix
 
@@ -270,5 +272,5 @@ Cloud Run revision이 rollback 단위다. candidate 검증 전에는 기존 serv
 | App Android/iOS Firebase integration | NOT RUN — Stage 2 | not required | required |
 | Real App Check/FCM | NOT RUN — Stage 2 | not required | required |
 | Production Firestore/IAM/index | NOT RUN — Stage 2 | not required | required |
-| Cloud Run identity/CD | NOT RUN — IAM/WIF and deployment pending | required | notification deployment gate required |
-| Live health/query protection/cost-stop/rollback | NOT RUN — Stage 2 | required | notification gate requirements apply separately |
+| Cloud Run identity/CD | NOT RUN — Stage 1.1 범위 제외 | PARTIAL — WIF·첫 private 배포 GREEN, 별도 검증 service 경로는 원격 검증 대기 | notification deployment gate required |
+| Live health/query protection/cost-stop/rollback | NOT RUN — Stage 1.1 범위 제외 | PARTIAL — private health/query GREEN, 공개·비용 중단·rollback 검증 대기 | notification gate requirements apply separately |

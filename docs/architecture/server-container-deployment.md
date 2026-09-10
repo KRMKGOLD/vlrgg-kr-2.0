@@ -1,12 +1,12 @@
 # 서버 컨테이너 배포 경로
 
-기록일: 2026-09-06, 갱신일: 2026-09-10. Issue #52 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. 결제 연결과 IAM/WIF 설정 후 실제 배포를 검증해야 한다.
+기록일: 2026-09-06, 갱신일: 2026-09-10. Issue #52 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. 첫 비공개 배포와 대표 조회 검증을 완료했으며 공개 전환과 후속 배포 검증은 남아 있다.
 
 ## 이미지 계약
 
 루트 `Dockerfile`은 Java 21 build stage에서 기존 root Gradle wrapper의 `:server:installDist`만 실행하고, runtime stage에는 생성된 `server` distribution만 복사한다. runtime은 `app` non-root 사용자로 `/app/bin/server`를 PID 1로 실행하며, `PORT`는 기본값 `8080`을 제공하되 provider가 환경 변수로 덮어쓴다.
 
-초기 runtime memory 후보는 768 MiB container 검증을 위한 `JAVA_OPTS=-Xms128m -Xmx384m -XX:+ExitOnOutOfMemoryError`이다. 이 값은 Java heap만 제한할 뿐 native memory, metaspace, thread stack, JIT/code cache 또는 Linux cgroup RSS를 제한하거나 보장하지 않는다.
+초기 runtime은 768 MiB container와 `JAVA_OPTS=-Xms128m -Xmx384m -XX:+ExitOnOutOfMemoryError`를 사용한다. 이 값은 Java heap만 제한할 뿐 native memory, metaspace, thread stack, JIT/code cache 또는 Linux cgroup RSS를 제한하거나 보장하지 않는다.
 
 ## 빌드 컨텍스트 경계
 
@@ -16,11 +16,11 @@ server와 app의 test source, iOS source, 모든 build/out output, IDE/VCS/Gradl
 
 ## 빌드와 Cloud Run runtime 계약
 
-로컬 환경에는 Docker가 없으므로 local image build를 배포 gate로 추가하지 않는다. 기존 CI를 성공한 정확한 `main` SHA만 `.github/workflows/deploy-server.yml`의 수동 실행 대상으로 삼고, GitHub Linux runner에서 image build/push를 확인한다. workflow와 문서만 있는 현재 상태는 배포 성공 증거가 아니다.
+로컬 환경에는 Docker가 없으므로 local image build를 배포 gate로 추가하지 않는다. 기존 CI를 성공한 정확한 `main` SHA만 `.github/workflows/deploy-server.yml`의 수동 실행 대상으로 삼고, GitHub Linux runner에서 image build/push를 확인한다. 원격 실행 로그와 검증 결과를 실제 배포 근거로 사용한다.
 
-초기 Cloud Run 후보 설정은 CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling, service-level min/max `1/1`, revision-level min/max `0/1`이다. `JAVA_OPTS`는 위 이미지 계약의 값을 유지한다. CPU와 memory는 원격 기동과 기본 지표 확인 전의 후보값이며, 아래 과거 512 MiB 비용 계산을 768 MiB 예측으로 읽지 않는다.
+초기 Cloud Run 설정은 CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling, service-level min/max `1/1`, revision-level min/max `0/1`이다. `JAVA_OPTS`는 위 이미지 계약의 값을 유지한다. 이 설정으로 첫 원격 기동과 대표 조회가 통과했으며, 아래 과거 512 MiB 비용 계산을 768 MiB 예측으로 읽지 않는다.
 
-첫 service는 public invoker 없이 만들고 stable service URL에 WIF로 발급한 Cloud Run ID token을 보내 smoke한다. 후속 배포는 `candidate` tag와 `--no-traffic`으로 생성하고 tag URL을 smoke한 뒤 traffic을 전환한다. 인증 token의 audience는 base service URL을 사용한다. 배포 환경에서는 injected `PORT`, `/health`, 정상 조회, 안전한 오류, docs/notification 404, 기동 로그와 OOM 여부만 확인하며 완료된 부하 테스트를 다시 선행 조건으로 두지 않는다.
+같은 image digest를 service-level minimum 0인 고정 private 검증 service `vlrgg-query-check`에 먼저 배포하고 새 revision을 100%로 명시한다. 검증 service에 `allUsers`/`allAuthenticatedUsers` invoker가 있거나 Invoker IAM check가 꺼져 있으면 production 배포 전에 실패한다. 검증 service의 base URL과 그 URL을 audience로 발급한 ID token으로 smoke가 끝난 뒤에만 production `vlrgg-query`에 배포한다. Cloud Run은 새 service 생성에 `--no-traffic`을 지원하지 않으므로 첫 production은 private 기본 traffic으로 만들고 무인증 거절을 확인한다. 후속 production만 tag 없이 `--no-traffic`으로 만들고 명시된 새 revision을 승격한다. production base URL용 별도 ID token으로 다시 smoke하며 실패하면 시작 때 기록한 serving revision으로 복구한다. 배포 환경에서는 injected `PORT`, `/health`, 정상 조회, 안전한 오류, docs/notification 404, 기동 로그와 OOM 여부만 확인하며 완료된 부하 테스트를 다시 선행 조건으로 두지 않는다.
 
 root multi-project configuration이 Android SDK 또는 `local.properties` 없이 `:server:installDist`를 수행하는지 별도 `/private/tmp` allowlisted snapshot에서 확인한 기록은 아래와 같다.
 
@@ -28,12 +28,20 @@ root multi-project configuration이 Android SDK 또는 `local.properties` 없이
 
 현재 root `gradle.properties`의 4 GiB Gradle/3 GiB Kotlin daemon JVM 값은 container runtime memory contract가 아니다. GitHub builder의 build memory와 Cloud Run runtime 768 MiB를 같은 한도로 취급하지 않는다.
 
+## 첫 비공개 배포 증거 — 2026-09-10
+
+`main` commit `24cc1dc05c3339f0cdc1a1ab894c9d4c7ba62006`의 [CI](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34466760913)와 [첫 배포](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34467788354)가 통과했다. 기존 Dockerfile 빌드, WIF 인증, image digest 배포와 비공개 IAM을 확인했다. 무인증 요청은 거절되고, 인증 후 health·경기·뉴스는 200, 잘못된 page는 400, 문서·알림 경로는 404였다.
+
+실제 service의 Ready, runtime identity와 위 자원 설정을 확인했고 기동 이후 ERROR 이상 로그는 없었다. 공개 Actions 로그의 Gitleaks 검출은 0건이며 실제 운영 주소와 GCP 식별자가 마스킹됐는지도 별도로 확인했다. 주소·운영 metadata 원본은 저장소에 넣지 않는다.
+
+이 실행은 별도 검증 service를 도입하기 전의 첫 private 배포다. 비공개 검증 service를 통한 후속 배포, rollback, 공개 전환과 비용 중단·복구는 아직 원격 검증하지 않았다. 프로젝트의 월 지출 알림은 1만·3만·5만·8만·10만 원으로 설정됐으며, Spend cap 자동 중단의 활성화 증거는 없다.
+
 ## 공개 배포와 앱 설치 진행 순서
 
 1. GCP 프로젝트·결제, Artifact Registry, runtime/deploy Service Account와 GitHub WIF를 준비한다. runtime Service Account에는 조회 서버에 필요 없는 DB·Firebase 권한을 주지 않는다.
 2. GitHub `production` environment의 운영 식별자 secrets와 repository의 enable 변수를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED=true` 전에는 workflow가 cloud write를 하지 않아야 한다.
-3. 수동 workflow로 private 첫 revision을 배포하고 authenticated `/health`, 대표 조회, 안전한 400, docs/notification 404를 확인한다.
-4. 후속 candidate revision에서 no-traffic smoke, traffic 승격과 이전 revision rollback을 확인한다. 첫 revision만으로 rollback 검증 완료를 주장하지 않는다.
+3. 수동 workflow로 private 검증 service에서 authenticated `/health`, 대표 조회, 안전한 400, docs/notification 404와 무인증 거절을 확인한 뒤 production 첫 revision을 승격한다.
+4. 후속 production revision은 tag 없이 no-traffic 배포하고, traffic 승격과 이전 revision rollback을 확인한다. 첫 revision만으로 rollback 검증 완료를 주장하지 않는다.
 5. 비용 중단을 연습한다. enable 변수를 `false`로 바꾸고 진행 중인 배포를 취소·종료한 뒤 public invoker 제거, service/revision minimum 0, drain, default/tagged URL 공개 거절과 잔여 image/log 비용을 확인한다. 복구 후 같은 stable URL을 다시 smoke한다.
 6. 검증된 revision에 public invoker를 부여하고 외부망 조회를 확인한 뒤 stable URL을 Android/iOS `API_BASE_URL` 입력으로 전달한다.
 
