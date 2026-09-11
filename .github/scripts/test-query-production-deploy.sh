@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
-# Runs the production workflow step against a local gcloud stub; no cloud access.
+# Runs deployment workflow steps against a local gcloud stub; no cloud access.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 mkdir -p "$work_dir/bin"
+
+awk '
+  /^      - name: Deploy and inspect the private validation service$/ { step = 1; next }
+  step && /^      - name:/ { exit }
+  step && /^        run: \|$/ { code = 1; next }
+  code { sub(/^          /, ""); print }
+' "$repo_root/.github/workflows/deploy-server.yml" > "$work_dir/validation.sh"
+test -s "$work_dir/validation.sh"
+bash -n "$work_dir/validation.sh"
 
 awk '
   /^      - name: Deploy the verified image to production$/ { step = 1; next }
@@ -23,18 +32,23 @@ printf '%s\n' "$*" >> "$CASE_DIR/calls"
 case "$1 $2 ${3:-}" in
   'run services list') cat "$CASE_DIR/before.json" ;;
   'run services describe')
-    if test -f "$CASE_DIR/deployed"; then cat "$CASE_DIR/after.json"
+    if test -f "$CASE_DIR/promoted"; then cat "$CASE_DIR/after-traffic.json"
+    elif test -f "$CASE_DIR/deployed"; then cat "$CASE_DIR/after.json"
     else jq '.[0]' "$CASE_DIR/before.json"; fi ;;
   'run revisions describe') cat "$CASE_DIR/revision.json" ;;
   'run services get-iam-policy')
-    if test -f "$CASE_DIR/deployed"; then cat "$CASE_DIR/after-policy.json"
+    if test -f "$CASE_DIR/promoted"; then cat "$CASE_DIR/after-traffic-policy.json"
+    elif test -f "$CASE_DIR/deployed"; then cat "$CASE_DIR/after-policy.json"
     else cat "$CASE_DIR/before-policy.json"; fi ;;
-  "run deploy $SERVICE")
+  run\ deploy\ *)
     if test "$(jq length "$CASE_DIR/before.json")" = 0 && [[ " $* " == *' --no-traffic '* ]]; then
       echo 'Cannot use --no-traffic for a new service.' >&2
       exit 1
     fi
     touch "$CASE_DIR/deployed" ;;
+  'run services update-traffic')
+    test ! -f "$CASE_DIR/fail-promotion" || exit 1
+    touch "$CASE_DIR/promoted" ;;
   *) echo 'Unexpected gcloud call.' >&2; exit 1 ;;
 esac
 STUB
@@ -68,6 +82,7 @@ run_case() {
   printf '%s\n' "$fixture" > "$case_dir/before.json"
   printf '%s\n' "$policy" > "$case_dir/before-policy.json"
   printf '%s\n' '{"bindings":[]}' > "$case_dir/after-policy.json"
+  printf '%s\n' '{"bindings":[]}' > "$case_dir/after-traffic-policy.json"
   # A successful untagged --no-traffic deploy can leave latestReady on the
   # serving revision even though the newly created revision itself is Ready.
   if [[ "$scenario" == serving ]]; then
@@ -162,6 +177,105 @@ done
 for scenario in post-public post-disabled post-not-ready post-digest-mismatch; do
   run_case "$scenario" reject-after-deploy
 done
+
+run_validation_case() {
+  local scenario="$1" expected="$2" result=0
+  local case_dir="$work_dir/validation-$scenario"
+  local fixture latest_ready=old policy='{"bindings":[]}'
+  local traffic='[{"percent":100,"revisionName":"old"}]'
+  mkdir -p "$case_dir"
+  : > "$case_dir/calls"
+  : > "$case_dir/output"
+  fixture='[{"metadata":{"name":"validation-test","annotations":{}},"status":{"latestReadyRevisionName":"old","traffic":[{"percent":100,"revisionName":"old"}]}}]'
+  if [[ "$scenario" == first ]]; then
+    fixture='[]'
+    latest_ready=validation-test-r123-1
+    traffic='[]'
+  elif [[ "$scenario" == public-existing ]]; then
+    policy='{"bindings":[{"role":"roles/run.invoker","members":["allUsers"]}]}'
+  elif [[ "$scenario" == disabled-existing ]]; then
+    fixture="$(jq '.[0].metadata.annotations["run.googleapis.com/invoker-iam-disabled"] = "true"' <<< "$fixture")"
+  fi
+  printf '%s\n' "$fixture" > "$case_dir/before.json"
+  printf '%s\n' "$policy" > "$case_dir/before-policy.json"
+  printf '%s\n' '{"bindings":[]}' > "$case_dir/after-policy.json"
+  printf '%s\n' '{"bindings":[]}' > "$case_dir/after-traffic-policy.json"
+
+  jq -n --arg latest_ready "$latest_ready" --argjson traffic "$traffic" '
+    {metadata:{name:"validation-test",annotations:{}},
+     spec:{template:{spec:{containers:[{image:"test@sha256:fixture"}]}}},
+     status:{url:"https://validation.example.invalid",
+             latestCreatedRevisionName:"validation-test-r123-1",
+             latestReadyRevisionName:$latest_ready,
+             traffic:$traffic}}
+  ' > "$case_dir/after.json"
+  jq '.status.traffic = [{percent:100,revisionName:"validation-test-r123-1"}]' \
+    "$case_dir/after.json" > "$case_dir/after-traffic.json"
+  jq -n '
+    {metadata:{name:"validation-test-r123-1"},
+     spec:{containers:[{image:"test@sha256:fixture"}]},
+     status:{imageDigest:"test@sha256:fixture",conditions:[{type:"Ready",status:"True"}]}}
+  ' > "$case_dir/revision.json"
+
+  case "$scenario" in
+    not-ready) jq '.status.conditions[0].status = "False"' "$case_dir/revision.json" > "$case_dir/changed.json" ;;
+    digest-mismatch) jq '.status.imageDigest = "test@sha256:other"' "$case_dir/revision.json" > "$case_dir/changed.json" ;;
+    promotion-failure) : > "$case_dir/fail-promotion" ;;
+    post-public) printf '%s\n' '{"bindings":[{"role":"roles/run.invoker","members":["allUsers"]}]}' > "$case_dir/after-policy.json" ;;
+    post-disabled) jq '.metadata.annotations["run.googleapis.com/invoker-iam-disabled"] = "true"' "$case_dir/after.json" > "$case_dir/changed.json" ;;
+    post-traffic-public) printf '%s\n' '{"bindings":[{"role":"roles/run.invoker","members":["allUsers"]}]}' > "$case_dir/after-traffic-policy.json" ;;
+    first|repeated|public-existing|disabled-existing) ;;
+  esac
+  if test -f "$case_dir/changed.json"; then
+    if [[ "$scenario" == not-ready || "$scenario" == digest-mismatch ]]; then
+      mv "$case_dir/changed.json" "$case_dir/revision.json"
+    else
+      mv "$case_dir/changed.json" "$case_dir/after.json"
+    fi
+  fi
+
+  env PATH="$work_dir/bin:$PATH" CASE_DIR="$case_dir" RUNNER_TEMP="$case_dir" \
+    GITHUB_OUTPUT="$case_dir/output" PROJECT_ID=test REGION=test SERVICE=query-test \
+    VALIDATION_SERVICE=validation-test IMAGE_DIGEST=test@sha256:fixture \
+    RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_RUN_ID=123 GITHUB_RUN_ATTEMPT=1 \
+    bash --noprofile --norc -e -o pipefail "$work_dir/validation.sh" \
+      > "$case_dir/stdout" 2> "$case_dir/stderr" || result=$?
+
+  if [[ "$expected" == accept ]]; then
+    test "$result" = 0
+    test -f "$case_dir/promoted"
+    grep -q -- '--to-revisions validation-test-r123-1=100' "$case_dir/calls"
+    grep -qx 'url=https://validation.example.invalid' "$case_dir/output"
+  else
+    test "$result" != 0 || { echo "FAIL: validation $scenario was accepted" >&2; exit 1; }
+    test ! -s "$case_dir/output"
+    if [[ "$expected" == reject-before-deploy ]]; then
+      test ! -f "$case_dir/deployed"
+    elif [[ "$expected" == reject-before-traffic ]]; then
+      test -f "$case_dir/deployed"
+      test ! -f "$case_dir/promoted"
+      ! grep -q 'run services update-traffic' "$case_dir/calls"
+    elif [[ "$expected" == reject-promotion ]]; then
+      test ! -f "$case_dir/promoted"
+      grep -q 'run services update-traffic' "$case_dir/calls"
+    else
+      test -f "$case_dir/promoted"
+    fi
+  fi
+  echo "PASS: validation $scenario"
+}
+
+for scenario in first repeated; do
+  run_validation_case "$scenario" accept
+done
+for scenario in public-existing disabled-existing; do
+  run_validation_case "$scenario" reject-before-deploy
+done
+for scenario in not-ready digest-mismatch post-public post-disabled; do
+  run_validation_case "$scenario" reject-before-traffic
+done
+run_validation_case promotion-failure reject-promotion
+run_validation_case post-traffic-public reject-after-traffic
 
 awk '
   /^      - name: Show sanitized Cloud Run diagnostics on failure$/ { step = 1; next }
