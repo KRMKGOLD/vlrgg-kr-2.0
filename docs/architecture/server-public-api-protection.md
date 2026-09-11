@@ -1,6 +1,6 @@
 # 공개 조회 API 보호 계약 (#52)
 
-상태: 보호 구현·부하 검증 기록이 있으며 #110의 최종 리뷰·병합 확인 전이다. #52는 OPEN으로 유지한다. 실제 서버 배포는 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111), 앱 배포는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)로 이관했다. 아래 수치는 초기 검증 기준이며 운영 실측값이나 배포 완료 증거가 아니다.
+상태: 보호 구현·부하 검증 기록이 있으며 #110은 APPROVED 후 merge SHA `5997aae12d995239031aedf78c0589e86b6e65d2`로 병합됐고 해당 main CI가 성공했다. #52는 구현·검증 완료와 잔여 배포 항목 이관을 확인하여 종료했다. 실제 서버 배포는 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111), 앱 배포는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)로 이관했다. 후속 private validation deployment, rollback, 비용 중단/복구, public smoke는 아직 원격 검증하지 않았으며 아래 수치는 운영 실측값이나 배포 완료 증거가 아니다.
 
 ## 범위
 
@@ -63,7 +63,7 @@ Android와 iOS에 실제 설치한 앱에서 기존 조회 API를 사용한다. 
 
 직접 공개 endpoint의 XFF·Forwarded·앱 header·peer IP를 검증된 사용자 신원으로 사용하지 않는다. 프로세스별 한도는 분산 전역 한도가 아니며 한 사용자가 다른 사용자의 요청까지 거절되게 만들 수 있다. 플랫폼의 인스턴스 한도와 별도로 이 잔여 위험을 기록한다.
 
-비용 중단은 공개 호출 차단, service와 revision의 minimum 0, 진행 작업 drain, default/tagged URL 거절 확인까지 포함한다. minimum 0만 설정하면 공개 요청으로 재기동할 수 있다. build·저장·log 비용도 별도 확인한다. 재배포가 중단 상태를 자동 해제하지 않게 하고 원인과 비용 확인 후 수동 복구한다.
+비용 중단은 repository enable을 먼저 `false`로 잠그고 진행 배포 종료를 확인한 뒤, production `allUsers` invoker 제거, production/validation service와 revision minimum 0, 진행 작업 drain, default/tagged URL 무인증 거절 확인까지 포함한다. validation service는 끝까지 private/minimum 0이며 production만 정상 복구 시 공개한다. minimum 0만 설정하면 공개 요청으로 재기동할 수 있다. build·저장·log 비용도 별도 확인한다. 재배포가 중단 상태를 자동 해제하지 않게 하고 원인과 비용 확인 후 수동 복구하며, public smoke·IAM·traffic·digest·자원 확인이 끝난 뒤에만 enable을 마지막으로 복구한다.
 
 경고 5만 원·중단 8만 원은 잠정값이다. 최대 예상 소모율과 관측·집행 지연, 진행 작업, 부대요금·세금을 계산하여 남은 2만 원 안에 대응 여유가 있는지 확인한다. 지연 근거와 대응 여유가 불충분하면 trigger 또는 provider를 재검토하기 전 공개하지 않는다.
 

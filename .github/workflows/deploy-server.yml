@@ -309,6 +309,7 @@ jobs:
             test -f "$log" || continue
             echo "${log##*/}"
             sed -E \
+              -e 's#https?://[^[:space:]"<>]+#***#g' \
               -e 's#(https?://)?[[:alnum:].-]+\.run\.app#***#g' \
               -e 's#[[:alnum:]-]+-docker\.pkg\.dev/[^[:space:]"<>]+#***#g' \
               "$log" | tail -n 80
