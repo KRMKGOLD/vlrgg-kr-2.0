@@ -25,6 +25,7 @@ case "$1 $2 ${3:-}" in
   'run services describe')
     if test -f "$CASE_DIR/deployed"; then cat "$CASE_DIR/after.json"
     else jq '.[0]' "$CASE_DIR/before.json"; fi ;;
+  'run revisions describe') cat "$CASE_DIR/revision.json" ;;
   'run services get-iam-policy')
     if test -f "$CASE_DIR/deployed"; then cat "$CASE_DIR/after-policy.json"
     else cat "$CASE_DIR/before-policy.json"; fi ;;
@@ -40,7 +41,8 @@ STUB
 chmod +x "$work_dir/bin/gcloud"
 
 run_case() {
-  local scenario="$1" expected="$2" fixture policy='{"bindings":[]}'
+  local scenario="$1" expected="$2" fixture latest_ready='query-test-r123-1'
+  local traffic_revision='query-test-r123-1' policy='{"bindings":[]}'
   local case_dir="$work_dir/$scenario" result=0
   mkdir -p "$case_dir"
   : > "$case_dir/calls"
@@ -51,7 +53,7 @@ run_case() {
     missing-traffic) fixture="$(jq 'del(.[0].status.traffic)' <<< "$fixture")" ;;
     null-traffic) fixture="$(jq '.[0].status.traffic = null' <<< "$fixture")" ;;
     zero-traffic) fixture="$(jq '.[0].status.traffic = [{percent:0,revisionName:"failed"}]' <<< "$fixture")" ;;
-    serving)
+    serving|staged|post-not-ready|post-digest-mismatch)
       fixture="$(jq '.[0].status = {latestReadyRevisionName:"old",traffic:[{percent:100,revisionName:"old"}]}' <<< "$fixture")" ;;
     split)
       fixture="$(jq '.[0].status.traffic = [{percent:50,revisionName:"old"},{percent:50,revisionName:"other"}]' <<< "$fixture")" ;;
@@ -66,12 +68,35 @@ run_case() {
   printf '%s\n' "$fixture" > "$case_dir/before.json"
   printf '%s\n' "$policy" > "$case_dir/before-policy.json"
   printf '%s\n' '{"bindings":[]}' > "$case_dir/after-policy.json"
-  jq -n --arg traffic_revision "$([[ "$scenario" == serving ]] && echo old || echo query-test-r123-1)" '
+  # A successful untagged --no-traffic deploy can leave latestReady on the
+  # serving revision even though the newly created revision itself is Ready.
+  if [[ "$scenario" == serving ]]; then
+    traffic_revision=old
+  elif [[ "$scenario" == staged || "$scenario" == post-not-ready || "$scenario" == post-digest-mismatch ]]; then
+    latest_ready=old
+    traffic_revision=old
+  fi
+  jq -n --arg latest_ready "$latest_ready" --arg traffic_revision "$traffic_revision" '
     {metadata:{name:"query-test",annotations:{}},
      spec:{template:{spec:{containers:[{image:"test@sha256:fixture"}]}}},
-     status:{url:"https://query.example.invalid",latestReadyRevisionName:"query-test-r123-1",
+     status:{url:"https://query.example.invalid",latestCreatedRevisionName:"query-test-r123-1",
+             latestReadyRevisionName:$latest_ready,
              traffic:[{percent:100,revisionName:$traffic_revision}]}}
   ' > "$case_dir/after.json"
+  jq -n '
+    {metadata:{name:"query-test-r123-1"},
+     spec:{containers:[{image:"test@sha256:fixture"}]},
+     status:{imageDigest:"test@sha256:fixture",conditions:[{type:"Ready",status:"True"}]}}
+  ' > "$case_dir/revision.json"
+  if [[ "$scenario" == post-not-ready ]]; then
+    jq '.status.conditions[0].status = "False"' "$case_dir/revision.json" \
+      > "$case_dir/changed.json"
+    mv "$case_dir/changed.json" "$case_dir/revision.json"
+  elif [[ "$scenario" == post-digest-mismatch ]]; then
+    jq '.status.imageDigest = "test@sha256:other"' "$case_dir/revision.json" \
+      > "$case_dir/changed.json"
+    mv "$case_dir/changed.json" "$case_dir/revision.json"
+  fi
   if [[ "$scenario" == post-public ]]; then
     printf '%s\n' '{"bindings":[{"role":"roles/run.invoker","members":["allUsers"]}]}' > "$case_dir/after-policy.json"
   elif [[ "$scenario" == post-disabled ]]; then
@@ -105,7 +130,7 @@ run_case() {
       exit 1
     fi
     test -f "$case_dir/deployed"
-    if [[ "$scenario" == serving ]]; then
+    if [[ "$scenario" == serving || "$scenario" == staged ]]; then
       grep -qx 'previous_revision=old' "$case_dir/output"
       if grep -q '^first_deployment=' "$case_dir/output"; then
         echo "FAIL: $scenario emitted first_deployment" >&2
@@ -128,13 +153,13 @@ run_case() {
   echo "PASS: $scenario"
 }
 
-for scenario in empty-traffic missing-traffic null-traffic zero-traffic new serving; do
+for scenario in empty-traffic missing-traffic null-traffic zero-traffic new serving staged; do
   run_case "$scenario" accept
 done
 for scenario in split partial ready-without-traffic public authenticated disabled; do
   run_case "$scenario" reject-before-deploy
 done
-for scenario in post-public post-disabled; do
+for scenario in post-public post-disabled post-not-ready post-digest-mismatch; do
   run_case "$scenario" reject-after-deploy
 done
 
