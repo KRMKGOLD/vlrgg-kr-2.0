@@ -1,6 +1,6 @@
 # CI/CD delivery direction — Cloud Run query server
 
-- Status: Stage 1.1 credential-free CI implemented; Cloud Run deployment workflow prepared but disabled; IAM/WIF bootstrap and live deployment not run; notification production deployment deferred
+- Status: Stage 1.1 credential-free CI and first private Cloud Run deployment verified; #110 review/merge pending; server release tracked in #111, app release in #112; deployment disabled; notification production deployment deferred
 - Last reviewed: 2026-09-10
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
@@ -8,11 +8,11 @@
 
 작은 사이드 프로젝트에 맞춰 PR에서는 credential-free 검증만 수행하고, 검증된 `main` commit을 Cloud Run에 수동 배포한다. `.github/workflows/ci.yml`은 완료된 Stage 1.1 offline gate이고, `.github/workflows/deploy-server.yml`은 기존 루트 `Dockerfile`을 GitHub Linux runner에서 빌드해 Artifact Registry와 Cloud Run으로 전달한다. Cloud Build와 source deploy용 buildpack은 사용하지 않는다.
 
-Stage 1.1은 실제 Firebase App/production provider를 연결하지 않는다. Stage 1.1 구현 PR은 Firestore Emulator와 fake provider를 포함한 offline GREEN까지만 소유한다. 실제 App Check, FCM, production Firestore와 원격 배포 health/rollback은 Stage 2에서 수행한다.
+Stage 1.1은 실제 Firebase App/production provider를 연결하지 않는다. Stage 1.1 구현 PR은 Firestore Emulator와 fake provider를 포함한 offline GREEN까지만 소유한다. 실제 App Check, FCM, production Firestore와 알림 서버의 원격 배포 health/rollback은 Stage 2에서 수행한다.
 
-#52는 Stage 2 중 **일반 조회 서버와 설치 앱 배포**를 먼저 진행한다. [공개 API 보호 계약](architecture/server-public-api-protection.md)에 따라 로그인·앱 진위 검증·FCM·production Firestore 없이 조회 서버를 준비한다. 아래 알림 관련 App Check/Target/Firestore/FCM smoke는 알림 기능을 production에 연결할 때의 별도 gate이며 #52 조회 배포의 선행 조건이 아니다. 기존 Firestore Emulator CI는 유지한다.
+#52는 [공개 API 보호 계약](architecture/server-public-api-protection.md)의 구현·검증을 소유하며, Stage 1(MVP)의 서버 배포는 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111), App 배포는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)로 이관한다. 로그인·앱 진위 검증·FCM·production Firestore 없이 일반 조회를 배포한다. 아래 알림 관련 App Check/Target/Firestore/FCM smoke는 별도 Stage 2 gate이며 Stage 1 조회 배포의 선행 조건이 아니다. 기존 Firestore Emulator CI는 유지한다.
 
-#52 공개 전에는 일반 조회·과부하 보호·health 200·notification 404, 비용 중단과 rollback을 검증한다. 이후 Android/iOS 서명 앱의 실제 설치와 외부망 조회·수동 재시도 증거를 수집한다. 계정·배포·기기 증거 없이 이 gate를 통과한 것으로 기록하지 않는다.
+#111 공개 전에는 일반 조회·과부하 보호·health 200·notification 404, 비용 중단과 rollback을 검증한다. #112는 Android/iOS 서명 앱의 실제 설치와 외부망 조회·수동 재시도 증거를 수집한다. #52 종료만으로 이 release gate를 통과한 것으로 기록하지 않는다. #110의 최종 리뷰·CI 확인과 병합, #52 범위 정리 후 후속 배포를 진행하며 #49·#62·#74는 보류한다.
 
 ## Verified repository structure
 
@@ -33,7 +33,7 @@ server           Ktor 3 Netty application
 - 루트 `Dockerfile`은 `:server:installDist` 결과를 non-root Java 21 runtime으로 패키징하고 `PORT`를 지원한다.
 - deploy workflow는 명시적 enable 변수와 production environment로 보호한다. 실제 배포는 결제 연결과 IAM/WIF 설정 후 원격 실행 증거로 확인한다.
 
-남은 작업은 GCP bootstrap, workflow 변수 연결, 비공개 첫 배포, 공개 전환과 비용 중단·복구 검증이다. 사용자가 서버 개발과 부하 테스트를 완료로 판단했으므로 이를 다시 선행 조건으로 요구하지 않는다.
+GCP bootstrap·workflow secrets 연결·첫 비공개 배포는 완료했다. 남은 서버 작업은 별도 검증 service를 통한 후속 배포, rollback, 공개 전환과 비용 중단·복구 검증이며 #111에서 수행한다. 사용자가 서버 개발과 부하 테스트를 완료로 판단했으므로 이를 다시 선행 조건으로 요구하지 않는다.
 
 확인된 app task는 다음과 같다.
 
@@ -59,8 +59,9 @@ Developer
         -> confirm the same SHA passed main CI
         -> GitHub OIDC -> GCP WIF -> deploy Service Account
         -> Docker build -> Artifact Registry image digest
-        -> private first revision / no-traffic candidate revision
+        -> fixed private validation service
         -> read-only query release gates
+        -> private first / no-traffic subsequent production revision
         -> controlled Cloud Run traffic promotion or rollback
   -> Mobile App
 ```
@@ -109,7 +110,7 @@ macOS iOS job은 Android/server Linux job과 별도로 모든 `pull_request` 및
 
 배포 workflow는 `workflow_dispatch` 전용이며 `main`에서만 실행한다. 같은 SHA의 `main` push CI가 성공했는지 확인한 뒤에만 cloud write를 시작한다. GitHub `production` environment와 repository variable `CLOUD_RUN_DEPLOY_ENABLED=true`가 모두 준비돼야 하며, 변수 누락 또는 다른 값은 모든 cloud write를 차단한다. 중단 상태에서는 이 변수를 먼저 `false`로 바꿔 자동 또는 실수로 재개되지 않게 한다.
 
-고정 배포 대상은 서울 `asia-northeast3`, Cloud Run service `vlrgg-query`, Artifact Registry repository `vlrgg-server`다. 다음 값은 GitHub `production` environment secrets로 연결하고 private key JSON은 저장하지 않는다. 이 값들은 식별자지만 공개 Actions 로그에서 그대로 출력되지 않도록 secrets의 마스킹을 사용한다.
+고정 배포 대상은 서울 `asia-northeast3`, private 검증 service `vlrgg-query-check`, production service `vlrgg-query`, Artifact Registry repository `vlrgg-server`다. 다음 값은 GitHub `production` environment secrets로 연결하고 private key JSON은 저장하지 않는다. 이 값들은 식별자지만 공개 Actions 로그에서 그대로 출력되지 않도록 secrets의 마스킹을 사용한다.
 
 ```text
 GCP_PROJECT_ID
@@ -118,19 +119,21 @@ GCP_DEPLOY_SERVICE_ACCOUNT
 GCP_RUNTIME_SERVICE_ACCOUNT
 ```
 
-GitHub Actions는 루트 `Dockerfile`을 Linux에서 빌드하고 commit SHA로 tag한 이미지를 Artifact Registry에 push한다. push 뒤 digest를 얻어 Cloud Run에 digest로 배포한다. 최초 service는 private이며 stable service URL에서 인증 smoke를 수행한다. 기존 service가 있으면 `candidate` tag와 `--no-traffic`으로 새 revision을 검증하고, 성공한 revision만 traffic 100%로 승격한다. 승격 뒤 smoke 실패 시 workflow 시작 때 기록한 이전 serving revision으로 rollback한다.
+GitHub Actions는 루트 `Dockerfile`을 Linux에서 빌드하고 commit SHA로 tag한 이미지를 Artifact Registry에 push한다. push 뒤 digest를 얻어 service-level minimum 0인 고정 검증 service `vlrgg-query-check`에 먼저 배포한다. 기존 검증 service와 배포 직후 상태에서 `allUsers`/`allAuthenticatedUsers` invoker가 없고 Invoker IAM check가 켜져 있는지 확인한다. 이 private service에서 무인증 거절과 인증 smoke가 모두 끝나야 같은 digest를 production에 배포한다.
 
-공개 service의 candidate URL에도 같은 service IAM 정책이 적용되므로 비공개 URL로 간주하지 않는다. workflow 종료 시 candidate tag를 제거한다. 첫 배포 실패 시 service를 private 상태로 두고 minimum을 0으로 내려 불필요한 warm 비용을 줄인다. 실패한 첫 배포에는 rollback 대상이 없다.
+Cloud Run은 새 service 생성에 `--no-traffic`을 지원하지 않는다. 첫 production은 public invoker 없이 기본 traffic으로 만들고 새 revision 100%와 무인증 거절을 확인한다. 후속 production만 tag 없이 `--no-traffic`으로 새 revision을 만들고, 해당 revision 이름을 명시해 traffic 100%로 승격한다. production base URL용 별도 ID token으로 첫·후속 배포 모두 smoke하며, 후속 승격 실패 시 workflow 시작 때 기록한 이전 serving revision으로 rollback한다. 첫 production 실패 시 minimum을 0으로 내려 불필요한 warm 비용을 줄이며 rollback 대상은 없다.
 
-공개 저장소의 Draft PR도 소스와 변경 내역이 공개되고 Actions 로그·요약도 외부에서 볼 수 있다. 배포 URL과 이미지 경로를 job summary에 기록하지 않는다. 생성된 service/candidate URL과 host를 후속 step 전에 마스킹한다. Cloud Run 변경 명령 출력은 runner 임시 파일로 받고, 실패 시 Cloud Run 주소와 이미지 경로를 치환한 진단 로그만 출력한다. 원본 로그는 artifact로 올리지 않는다. 실제 운영 URL은 권한이 있는 Google Cloud Console에서 확인한다. 이 조치는 불필요한 메타데이터 공개를 줄이며, 공개 API 주소 자체를 비밀이나 접근 제어 수단으로 만들지는 않는다.
+최초 배포 실패로 service만 남고 양수 traffic과 `latestReadyRevisionName`이 모두 없으면, 배포 전 비공개 IAM을 확인한 뒤 첫 배포 경로로 재시도한다. 이때도 `--no-traffic`을 생략하고 배포 후 비공개 IAM·새 revision 100%와 무인증 거절을 확인한다. 50/50 분할·부분 traffic 또는 과거 ready revision이 있는 상태를 첫 배포로 취급하지 않는다. `bash .github/scripts/test-query-production-deploy.sh`는 실제 workflow step을 로컬 gcloud stub으로 실행해 이 분기를 검증하며 credential-free CI에서도 실행한다.
+
+공개 저장소의 Draft PR도 소스와 변경 내역이 공개되고 Actions 로그·요약도 외부에서 볼 수 있다. 배포 URL과 이미지 경로를 job summary에 기록하지 않는다. 생성된 검증/production service URL과 host를 후속 step 전에 마스킹한다. Cloud Run 변경 명령 출력은 runner 임시 파일로 받고, 실패 시 Cloud Run 주소와 이미지 경로를 치환한 진단 로그만 출력한다. 원본 로그는 artifact로 올리지 않는다. 실제 운영 URL은 권한이 있는 Google Cloud Console에서 확인한다. 이 조치는 불필요한 메타데이터 공개를 줄이며, 공개 API 주소 자체를 비밀이나 접근 제어 수단으로 만들지는 않는다.
 
 배포 검증은 `.github/scripts/smoke-query-server.sh`의 `curl`·`jq`로 수행한다. Python 파일은 필요하지 않다. 같은 script의 `--local` 경로를 credential-free CI의 packaged smoke에서 실행해 health·안전한 400·문서/알림 404를 확인한다. 로컬 경로는 토큰 입력을 거절하고 실제 upstream 조회를 하지 않는다. 배포 경로는 HTTPS Cloud Run URL만 허용하고 redirect를 따라가지 않으며 토큰은 curl 인자 대신 stdin header로 전달한다.
 
-초기 runtime은 request-based billing, service-level min/max `1/1`, revision-level min/max `0/1`, CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling 사용이다. CPU·memory는 최초 원격 기동과 기본 지표를 확인한 뒤 조정할 후보값이다. API documentation은 계속 disabled다.
+초기 runtime은 request-based billing, service-level min/max `1/1`, revision-level min/max `0/1`, CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling 사용이다. 이 구성의 첫 원격 기동과 대표 조회는 통과했으며 운영 비용·지표 확인은 #111에서 이어간다. API documentation은 계속 disabled다.
 
-### #52 read-only query deployment path
+### #111 read-only query deployment path
 
-이 경로는 #52의 일반 조회 공개에만 적용한다. App Check, Target, production Firestore, FCM은 이 경로의 선행 조건이 아니며 기존 credential-free Firestore Emulator CI를 변경하지 않는다.
+이 경로는 #52의 보호 구현을 적용한 #111의 일반 조회 공개에만 적용한다. App Check, Target, production Firestore, FCM은 이 경로의 선행 조건이 아니며 기존 credential-free Firestore Emulator CI를 변경하지 않는다.
 
 Deploy identity는 GitHub OIDC와 GCP Workload Identity Federation으로 deploy Service Account를 impersonate한다. 장기 Service Account key는 만들거나 GitHub에 저장하지 않는다.
 
@@ -138,15 +141,24 @@ Deploy identity는 GitHub OIDC와 GCP Workload Identity Federation으로 deploy 
 2. exact `main` SHA와 같은 SHA의 성공한 CI push run 확인
 3. 검증된 SHA checkout과 Docker build
 4. WIF 인증, Artifact Registry push와 image digest 기록
-5. private first revision 또는 no-traffic candidate revision 배포
-6. WIF로 다시 발급한 Cloud Run ID token으로 `/health` 200, notification route 404와 대표 query를 확인
-7. candidate 성공 시 traffic 승격, 승격 후 smoke 실패 시 이전 revision rollback
+5. private 검증 service의 IAM fail-closed 확인과 동일 digest 배포
+6. 검증 service용 ID token으로 무인증 거절, `/health` 200, notification route 404와 대표 query를 확인
+7. 첫 production은 private 기본 traffic, 후속은 tag 없는 no-traffic revision으로 배포하고 production URL용 별도 ID token 발급
+8. 후속 revision traffic 승격, production base URL smoke와 실패 시 이전 revision rollback
 
 동시 배포는 service 단위 `concurrency.group`과 `cancel-in-progress: false`로 직렬화한다. workflow는 기존 CI 전체나 부하 테스트를 다시 실행하지 않는다.
 
+### #112 app release — planned
+
+현재 앱 release workflow와 Fastlane은 미구현이다. #112에서 Android/iOS Release HTTPS URL 주입과 빌드 단계 입력 검증, 계정·서명·버전 설정, Fastlane의 signed AAB → Play 내부 테스트와 archive/IPA → TestFlight 경로를 구현한다. `main` 기반 앱 배포 PR을 리뷰·CI 후 병합하고 실제 업로드·설치 검증까지 완료해야 이 이슈를 종료한다. 서버와 독립적인 준비는 병렬로 진행할 수 있고 최종 외부망 조회는 #111 공개 이후 수행한다.
+
+배포 Actions는 검증된 `main` SHA의 `workflow_dispatch`와 플랫폼별 environment/소유자 승인으로 제한한다. PR/fork 이벤트에 배포 자격 증명을 연결하지 않으며 서명 자료·인증 값은 environment secrets로 관리한다. public 저장소의 로그·Actions artifact는 비공개 경계가 아니므로 원본 운영 로그·서명 자료·AAB/IPA를 공개 artifact나 Release 첨부로 올리지 않고 스토어 테스트 채널로 직접 전달한다. API 주소 자체는 앱 binary에서 확인할 수 있으며 실제 host를 tracked 기본값으로 두지 않는다.
+
+1차 완료는 Android 내부 테스트와 TestFlight의 실제 설치·조회·오류 복구까지다. 정식 스토어 공개 출시, #49의 전체 접근성 검증, #62 Maestro, #74 UI 개선과 Stage 2 알림 기능은 별도 범위다.
+
 ### Future notification release gate
 
-Match notification을 production에 연결하는 별도 release/manual gate다. #52 read-only query deployment path의 통과 조건도, 일반 조회 release의 promotion 조건도 아니다.
+Match notification을 production에 연결하는 별도 release/manual gate다. #111 read-only query deployment path의 통과 조건도, 일반 조회 release의 promotion 조건도 아니다.
 
 - Stage 2 ADR이 확정한 just-in-time credential source가 short-lived App Check evidence와 non-production disposable registration value를 제공한다. source가 구현되기 전에는 이 gate를 GREEN으로 간주하지 않는다.
 - disposable Target을 등록하고 Target ID와 one-time Target Secret은 실행 메모리의 masked value로만 보관한다. 같은 Target auth로 read, expected revision을 이용한 registration value 교체, 재조회를 수행해 production Firestore create/read/update를 확인하되 실제 경기 구독이나 발송 대상에는 포함하지 않는다.
@@ -258,11 +270,11 @@ gcloud run services update vlrgg-query \
 
 Artifact Registry image와 로그 비용은 계속 발생할 수 있다. 복구는 비용 원인을 확인한 뒤 `gcloud run services update vlrgg-query --project="$GCP_PROJECT_ID" --region=asia-northeast3 --min=1`, 위 public invoker 추가, 외부망 smoke 순으로 수행하고 enable 변수는 마지막에 되돌린다. Billing budget alert는 지출을 중단하지 않으며 Cloud Run spend cap은 Preview이고 집행 지연·잔여 비용이 있어 고정 청구 상한으로 보지 않는다.
 
-Cloud Run revision이 rollback 단위다. candidate 검증 전에는 기존 serving revision을 유지하고, 승격 후 실패하면 기록한 revision으로 traffic을 복원한다. 첫 배포에는 이전 revision이 없으므로 후속 revision에서 rollback을 한 번 검증해야 완료 증거가 된다.
+Cloud Run revision이 rollback 단위다. private 검증 service가 실패하면 production에는 배포하지 않는다. 첫 production은 이전 revision이 없어 기본 traffic으로 생성하고 private smoke를 수행한다. 후속 production의 no-traffic 배포 중에는 기존 serving revision을 유지하고, 승격 후 실패하면 기록한 revision으로 traffic을 복원한다. 따라서 후속 revision에서 rollback을 한 번 검증해야 완료 증거가 된다.
 
 ## Stage evidence matrix
 
-| Evidence | Stage 1.1 | #52 query deployment | Future notification deployment |
+| Evidence | Stage 1.1 | #111 query deployment | Future notification deployment |
 | --- | --- | --- | --- |
 | Server unit/build/installDist | GREEN — 2026-09-10 | existing CI success for exact SHA required | final rerun required |
 | Firestore SDK + Emulator | GREEN — 2026-07-31 | credential-free Emulator CI retained | production smoke required |
@@ -270,5 +282,5 @@ Cloud Run revision이 rollback 단위다. candidate 검증 전에는 기존 serv
 | App Android/iOS Firebase integration | NOT RUN — Stage 2 | not required | required |
 | Real App Check/FCM | NOT RUN — Stage 2 | not required | required |
 | Production Firestore/IAM/index | NOT RUN — Stage 2 | not required | required |
-| Cloud Run identity/CD | NOT RUN — IAM/WIF and deployment pending | required | notification deployment gate required |
-| Live health/query protection/cost-stop/rollback | NOT RUN — Stage 2 | required | notification gate requirements apply separately |
+| Cloud Run identity/CD | NOT RUN — Stage 1.1 범위 제외 | PARTIAL — WIF·첫 private 배포 GREEN, 별도 검증 service 경로는 원격 검증 대기 | notification deployment gate required |
+| Live health/query protection/cost-stop/rollback | NOT RUN — Stage 1.1 범위 제외 | PARTIAL — private health/query GREEN, 공개·비용 중단·rollback 검증 대기 | notification gate requirements apply separately |
