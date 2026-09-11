@@ -244,6 +244,8 @@ run_validation_case() {
   if [[ "$expected" == accept ]]; then
     test "$result" = 0
     test -f "$case_dir/promoted"
+    grep -Eq '^run deploy validation-test .* --revision-suffix r123-1( |$)' "$case_dir/calls"
+    grep -Eq '^run revisions describe validation-test-r123-1( |$)' "$case_dir/calls"
     grep -q -- '--to-revisions validation-test-r123-1=100' "$case_dir/calls"
     grep -qx 'url=https://validation.example.invalid' "$case_dir/output"
   else
