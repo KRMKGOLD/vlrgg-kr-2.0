@@ -91,7 +91,10 @@ run_case() {
     test "$result" != 0 || { echo "FAIL: $scenario was accepted" >&2; exit 1; }
     if [[ "$expected" == reject-before-deploy ]]; then
       test ! -f "$case_dir/deployed"
-      ! grep -q '^first_deployment=' "$case_dir/output"
+      if grep -q '^first_deployment=' "$case_dir/output"; then
+        echo "FAIL: $scenario emitted first_deployment" >&2
+        exit 1
+      fi
     else
       test -f "$case_dir/deployed"
     fi
@@ -104,12 +107,21 @@ run_case() {
     test -f "$case_dir/deployed"
     if [[ "$scenario" == serving ]]; then
       grep -qx 'previous_revision=old' "$case_dir/output"
-      ! grep -q '^first_deployment=' "$case_dir/output"
+      if grep -q '^first_deployment=' "$case_dir/output"; then
+        echo "FAIL: $scenario emitted first_deployment" >&2
+        exit 1
+      fi
       grep -q -- '--no-traffic' "$case_dir/calls"
     else
       grep -qx 'first_deployment=true' "$case_dir/output"
-      ! grep -q '^previous_revision=' "$case_dir/output"
-      ! grep -q -- '--no-traffic' "$case_dir/calls"
+      if grep -q '^previous_revision=' "$case_dir/output"; then
+        echo "FAIL: $scenario emitted previous_revision" >&2
+        exit 1
+      fi
+      if grep -q -- '--no-traffic' "$case_dir/calls"; then
+        echo "FAIL: $scenario used --no-traffic" >&2
+        exit 1
+      fi
     fi
     grep -qx 'revision=query-test-r123-1' "$case_dir/output"
   fi
