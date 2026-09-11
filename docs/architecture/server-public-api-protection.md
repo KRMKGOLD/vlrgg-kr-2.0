@@ -1,6 +1,6 @@
 # 공개 조회 API 보호 계약 (#52)
 
-상태: 보호 구현·부하 검증 기록이 있으며 #110은 APPROVED 후 merge SHA `5997aae12d995239031aedf78c0589e86b6e65d2`로 병합됐고 해당 main CI가 성공했다. #52는 구현·검증 완료와 잔여 배포 항목 이관을 확인하여 종료했다. 실제 서버 배포는 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111), 앱 배포는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)로 이관했다. 후속 private validation deployment, rollback, 비용 중단/복구, public smoke는 아직 원격 검증하지 않았으며 아래 수치는 운영 실측값이나 배포 완료 증거가 아니다.
+상태(2026-09-11): #52 보호 구현·부하 검증과 #110 APPROVED·병합은 선행 이력이며 #52는 잔여 배포 항목 이관 후 종료했다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)은 PR115 main `74a565ab959b1d5499405979a582aa5789625f4d`의 [CI 34625097062](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34625097062)·[deploy 34627000600](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34627000600) success와 실제 rollback·비용 중단 실패 후 복구·public smoke 및 G 독립 검증 PASS를 확인했다. 실행 시각·검토 출처·최종 설정은 [운영 결과](server-container-deployment.md)에 기록한다. 앱 배포는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)이며 아래 한도는 보호 계약이지 월 비용 실측값이 아니다.
 
 ## 범위
 
@@ -18,7 +18,7 @@ Android와 iOS에 실제 설치한 앱에서 기존 조회 API를 사용한다. 
 | 처리 중 API | 8개, 내부 대기열 없음 | 503 `SERVER_BUSY` |
 | 새 upstream fetch | 2회/초, burst 4, 동시 4개 | 503 `SERVER_BUSY` |
 | 진행 중 canonical key | 최대 4개 | 추가 key는 즉시 거절 |
-| 요청 시간 | upstream 10초 < 서버 전체 15초 < 플랫폼 20초 < 앱 30초 | 안전한 오류와 작업 취소 |
+| 요청 시간 | upstream 10초 < 서버 전체 15초; 실제 Cloud Run timeout 30초, 앱 30초 | 안전한 오류와 작업 취소 |
 | 요청 target / headers / read body | 4KiB / 16KiB / 1KiB | 앱 경계에서 400·413·431; 플랫폼/엔진 응답은 별도 |
 | upstream HTML / 성공 JSON | 1MiB / 2MiB | 안전한 502 (`RESPONSE_TOO_LARGE`는 성공 JSON 제한 초과) |
 
@@ -59,13 +59,17 @@ Android와 iOS에 실제 설치한 앱에서 기존 조회 API를 사용한다. 
 
 ## 배포 판단과 운영 경계
 
-조회 서버는 후속 FCM·Firestore 운영 경로까지 고려해 서울 `asia-northeast3`의 Cloud Run에 배포한다. 초기 후보는 request-based billing, CPU 1, memory 768 MiB, service min/max `1/1`이며, 768 MiB 적합성과 비용은 private 첫 배포의 기본 지표로 확인한다. 기존 512 MiB 후보 비교는 과거 계산으로 유지하며 Cloud Run이 최저가라고 주장하지 않는다.
+조회 서버의 최종 구성은 서울 `asia-northeast3` Cloud Run request-based billing, CPU 1, memory 768 MiB, concurrency 32, timeout 30초, CPU throttling이다. Production service min/max `1/1`, validation `0/1`, 관련 revision 전부 `0/1`이며 동일 digest의 검증된 revision 단독 100%·tag 없음이다. Production은 public, validation은 private이고 양 Invoker IAM check와 기존 identity 권한을 유지한다. G가 17:58:49–17:58:55Z 설정, 18:00:34–18:00:37Z 공개 health·경기·뉴스 200/안전한 400/docs·notification 404 및 validation 403을 확인했다. Repository enable=true, environment 동명 override 없음, active deploy 0이며 배포는 수동이다. 현재 Catalog compute와 실제 invoice는 [비용 검토](server-deployment-costs.md)에서 구분하며 512 MiB 후보 계산은 과거 기록이다.
 
 직접 공개 endpoint의 XFF·Forwarded·앱 header·peer IP를 검증된 사용자 신원으로 사용하지 않는다. 프로세스별 한도는 분산 전역 한도가 아니며 한 사용자가 다른 사용자의 요청까지 거절되게 만들 수 있다. 플랫폼의 인스턴스 한도와 별도로 이 잔여 위험을 기록한다.
 
-비용 중단은 repository enable을 먼저 `false`로 잠그고 진행 배포 종료를 확인한 뒤, production `allUsers` invoker 제거, production/validation service와 revision minimum 0, 진행 작업 drain, default/tagged URL 무인증 거절 확인까지 포함한다. validation service는 끝까지 private/minimum 0이며 production만 정상 복구 시 공개한다. minimum 0만 설정하면 공개 요청으로 재기동할 수 있다. build·저장·log 비용도 별도 확인한다. 재배포가 중단 상태를 자동 해제하지 않게 하고 원인과 비용 확인 후 수동 복구하며, public smoke·IAM·traffic·digest·자원 확인이 끝난 뒤에만 enable을 마지막으로 복구한다.
+비용 중단은 repository enable=false와 production environment 동명 변수 부재 또는 false 확인 → 대기/진행 deploy가 있으면 취소·종료 확인 → production `allUsers` invoker 제거 → 양 service min0 → drain·default/존재 tag URL 무인증 거절 확인 순서다. 기존 immutable revision의 minimum 0을 먼저 전수 조회하며 template의 `--min-instances=0`만으로 기존 revision을 바꿀 수 없다. 양수 minimum이 남으면 traffic/tag와 실제 인스턴스를 확인해 절차를 조정한다. Environment 값이 true이거나 조회가 실패하면 먼저 해당 scope를 바로잡는다. Production service와 상속되는 project IAM에서 `allAuthenticatedUsers` invoker 부재를 중단 전후 확인하고, 중단 후 `allUsers` 호출 권한도 없어야 한다. 무인증 403만으로 인증된 외부 사용자의 권한까지 차단됐다고 판단하지 않으며 기존 운영 identity 권한은 보존한다. Validation은 끝까지 private/min0이다. IAM readback 외 상한을 둔 실제 403 확인이 필요하고, 표본 누락은 unknown이다. 최소값 0만으로 접근 차단·비용 0을 뜻하지 않으며 저장·log·늦은 청구가 남는다. 정상 revision 100%·production min1·public·외부 smoke·IAM/자원 확인 후 enable을 마지막에 복구한다.
 
-경고 5만 원·중단 8만 원은 잠정값이다. 최대 예상 소모율과 관측·집행 지연, 진행 작업, 부대요금·세금을 계산하여 남은 2만 원 안에 대응 여유가 있는지 확인한다. 지연 근거와 대응 여유가 불충분하면 trigger 또는 provider를 재검토하기 전 공개하지 않는다.
+이번 중단 첫 시도는 IAM 제거 직후 health 200으로 실패했다. 같은 차단 구간에서 양 default 403·min0을 확인하고 양수 baseline 세 revision의 개별 active+idle 1→0을 약 1,019초 뒤 확인한 후 정상 공개 복구했다. 미관측 revision 둘과 baseline 0 이후 표본 없는 하나를 0으로 합산하지 않았으며 서비스 전체 동시각 0·비용 0은 증명하지 않았다. Active deploy와 tag URL이 없어 실제 취소·tag 거절 대상도 없었다.
+
+비용 대응은 **1만 원 점검·3만 원 추세 점검·5만 원 도달 또는 더 이른 초과 예상 시 수동 차단/중단**, 8·10만 원은 후속 경고로 앞당겼다. 월 10만 원 Budget과 10/30/50/80/100% 알림 resource는 변경하지 않았다. 실제 알림 수신·관측 청구액·Spend cap 활성화는 미확인이며 확인된 자동 상한은 없다. 보고·수신 지연과 전송·잔여 비용으로 5만 원 대응 여유도 소진될 수 있어 최대 10만 원을 보장하지 않는다.
+
+원본 digest/revision/IAM·로그는 Git ignored 보호 경로 `.omx/evidence/issue111/20260911T164328Z/F/`, `G/`에 보존한다. 실제 stable URL은 공개 문서에 쓰지 않고 repository 외부 `~/.config/vlrgg-mobile/release-api-url`(디렉터리 0700/파일 0600)로만 인계한다. G의 공개 로그·diff 등 누출 검출은 0건이며 렌더링된 Actions summary를 직접 취득한 것은 아니다. 정확한 배포 summary writer와 성공 step을 확인·검사한 한계는 운영 결과에 남긴다.
 
 관측 값은 고정 route·status class·거절 사유·활성 작업 수에 한정한다. 집계 summary는 `api`/`other`, `0xx`~`5xx`, stable error code, 고정 latency bucket을 name-to-count 형태로 출력한다. upstream failure counter는 실제 network·parsing failure만 포함하고 local 성공 JSON 제한의 `RESPONSE_TOO_LARGE`는 포함하지 않는다. 요청마다 달라지는 path·query·IP·token·HTML을 label로 쓰지 않으며 공격 요청 수에 비례하는 로그를 피한다.
 
