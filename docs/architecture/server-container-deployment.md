@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포 경로
 
-기록일: 2026-09-06, 갱신일: 2026-09-10. Issue #52의 보호 구현을 적용한 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. 첫 비공개 배포와 대표 조회 검증을 완료했으며 공개 전환과 후속 배포 검증은 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 추적한다. 1차 배포는 커스텀 도메인 없이 기본 `run.app` HTTPS 주소를 사용한다.
+기록일: 2026-09-06, 갱신일: 2026-09-11. Issue #52의 보호 구현을 적용한 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. 첫 비공개 배포와 대표 조회 검증을 완료했고 #110 merge SHA `5997aae12d995239031aedf78c0589e86b6e65d2`의 main CI도 성공했다. 그러나 private validation service를 통한 후속 배포, rollback, 비용 중단/복구, 공개 전환과 외부 smoke는 아직 미실행이며 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 추적한다. 1차 배포는 커스텀 도메인 없이 기본 `run.app` HTTPS 주소를 사용한다.
 
 ## 이미지 계약
 
@@ -38,14 +38,14 @@ root multi-project configuration이 Android SDK 또는 `local.properties` 없이
 
 ## 공개 배포와 앱 설치 진행 순서
 
-#110의 최종 리뷰·CI와 병합을 확인하고 #52의 구현 완료·잔여 항목 이관을 정리한 뒤 실제 후속 배포를 진행한다. bootstrap과 기존 첫 비공개 배포의 근거는 위 절에 있으며, 아래 별도 검증 service를 통한 후속 실행은 #111에서 확인한다.
+#110의 최종 리뷰·CI와 병합은 확인됐다. bootstrap과 기존 첫 비공개 배포의 근거는 위 절에 있으며, 아래 별도 검증 service를 통한 후속 실행은 #111에서 확인한다. 실행 전 `CLOUD_RUN_DEPLOY_ENABLED`의 repository 값과 production environment 동명 값 부재를 모두 확인한다. environment 변수가 있으면 우선하므로 repository의 `true`만 보고 실행하지 않는다.
 
 1. GCP 프로젝트·결제, Artifact Registry, runtime/deploy Service Account와 GitHub WIF를 준비한다. runtime Service Account에는 조회 서버에 필요 없는 DB·Firebase 권한을 주지 않는다.
 2. GitHub `production` environment의 운영 식별자 secrets와 repository의 enable 변수를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED=true` 전에는 workflow가 cloud write를 하지 않아야 한다.
 3. 수동 workflow로 private 검증 service에서 authenticated `/health`, 대표 조회, 안전한 400, docs/notification 404와 무인증 거절을 확인한 뒤 production 첫 revision을 private 기본 traffic으로 배포한다.
 4. 후속 production revision은 tag 없이 no-traffic 배포하고, traffic 승격과 이전 revision rollback을 확인한다. 첫 revision만으로 rollback 검증 완료를 주장하지 않는다.
-5. 비용 중단을 연습한다. enable 변수를 `false`로 바꾸고 진행 중인 배포를 취소·종료한 뒤 public invoker 제거, service/revision minimum 0, drain, default/tagged URL 공개 거절과 잔여 image/log 비용을 확인한다. 복구 후 같은 stable URL을 다시 smoke한다.
-6. 검증된 revision에 public invoker를 부여하고 외부망 조회를 확인한 뒤 stable URL을 Android/iOS `API_BASE_URL` 입력으로 전달한다.
+5. 비용 중단을 연습한다. enable 변수를 `false`로 바꾸고 진행 중인 배포를 취소·종료한 뒤 production public invoker 제거, production/validation service와 revision minimum 0, drain, default/tagged URL 공개 거절과 잔여 image/log 비용을 확인한다.
+6. 정상 복구는 기록한 production revision/digest 100%, production service min/max `1/1`·revision min/max `0/1`, validation service private/minimum 0, production public invoker, 외부 smoke 순서다. IAM·traffic·digest·자원을 재확인한 뒤에만 enable을 마지막으로 복구한다. stable URL 원문은 repository 밖의 보호 파일 `~/.config/vlrgg-mobile/release-api-url`(0700/0600)로만 #112에 전달한다.
 
 workflow 준비와 실제 release 완료를 구분한다. #111은 후속 배포·rollback·비용 중단/복구와 원격 공개 endpoint 검증까지 소유한다. [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)는 URL 주입·앱 서명·Fastlane/Actions·Android 내부 테스트/TestFlight와 설치 앱 조회 검증을 소유한다. 정식 스토어 공개 출시와 Stage 2의 FCM·Firestore·App Check·Scheduler는 이번 완료 조건에 포함하지 않는다. 별도 SDK, 로그인, 앱 진위 검증 또는 앱에 내장하는 server key는 공개 조회의 접근 제어 전제로 추가하지 않는다.
 

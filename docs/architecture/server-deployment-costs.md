@@ -1,6 +1,6 @@
 # 조회 서버 배포 비용 검토 (#111)
 
-검토일: 2026-09-07, 결정 갱신일: 2026-09-10. 아래 표와 계산은 결제 계정 견적이나 실제 청구액이 아닌 당시 후보 비교다. 조회 서버 provider는 후속 FCM·Firestore 운영 경로까지 고려해 서울 `asia-northeast3`의 Cloud Run으로 선택했다. GCP 계정·프로젝트·결제와 첫 비공개 배포는 완료했으며 실제 청구액과 현재 구성의 운영 비용 확인은 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에 남아 있다.
+검토일: 2026-09-07, 결정 갱신일: 2026-09-11. 아래 표와 계산은 결제 계정 견적이나 실제 청구액이 아닌 당시 후보 비교다. 조회 서버 provider는 후속 FCM·Firestore 운영 경로까지 고려해 서울 `asia-northeast3`의 Cloud Run으로 선택했다. GCP 계정·프로젝트·결제와 첫 비공개 배포는 완료했고 #110 merge SHA `5997aae12d995239031aedf78c0589e86b6e65d2`의 main CI도 성공했다. 실제 청구액, 768 MiB 운영 service와 minimum 0 validation service의 지표, Spend cap 지원/활성화, 비용 중단/정상복구는 아직 원격 검증하지 않았으며 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에 남아 있다.
 
 ## 같은 조건으로 비교하기
 
@@ -52,6 +52,6 @@ macOS ARM64·Java 21에서 packaged 서버의 첫 health 응답은 약 1.2~1.4�
 
 월 지출 알림은 1만·3만·5만·8만·10만 원으로 설정됐다. 8만 원 중단은 잠정 대응 기준이며 Spend cap 자동 중단의 활성화 증거는 없다. 관측·집행 지연 동안의 비용과 진행 작업·저장·log·세금을 고려하여 10만 원까지의 여유가 충분한지 #111에서 검증해야 한다. 일반 budget alert는 지출을 중단하지 않는다. Cloud Billing spend cap은 Preview이며 적용 지연과 진행 요청·Artifact Registry·log 등 잔여 비용이 존재하므로 고정된 최종 청구 상한으로 표현하지 않는다.
 
-비용 중단은 GitHub `CLOUD_RUN_DEPLOY_ENABLED=false` → 진행 중인 배포 취소·종료 확인 → public invoker 제거 → 모든 service/revision minimum 0 → drain → default/tagged URL 공개 거절 확인 순서로 수행한다. minimum 0만 설정하면 외부 요청이 다시 기동할 수 있다. 원인·비용을 확인한 뒤 minimum 1과 public invoker를 복구하고 smoke를 통과한 다음 enable 변수를 마지막에 되돌린다. 자세한 보호 경계는 [공개 API 보호 계약](server-public-api-protection.md)을 따른다.
+비용 중단은 GitHub `CLOUD_RUN_DEPLOY_ENABLED=false` → 진행 중인 배포 취소·종료 확인 → production public invoker 제거 → production/validation service와 revision minimum 0 → drain → default/tagged URL 공개 거절 확인 순서로 수행한다. minimum 0만 설정하면 외부 요청이 다시 기동할 수 있다. 원인·비용을 확인한 뒤 기록한 production revision/digest 100%, production min/max `1/1`·revision min/max `0/1`, validation private/minimum 0, production public invoker와 외부 smoke를 복구하고 IAM·traffic·자원을 다시 확인한 다음 enable 변수를 **마지막**에 되돌린다. 자세한 보호 경계는 [공개 API 보호 계약](server-public-api-protection.md)을 따른다.
 
 근거: [Cloud Billing budget](https://cloud.google.com/billing/docs/how-to/budgets), [Cloud Billing spend cap](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps), [Cloud Run minimum instances](https://docs.cloud.google.com/run/docs/configuring/min-instances).

@@ -137,3 +137,29 @@ done
 for scenario in post-public post-disabled; do
   run_case "$scenario" reject-after-deploy
 done
+
+awk '
+  /^      - name: Show sanitized Cloud Run diagnostics on failure$/ { step = 1; next }
+  step && /^      - name:/ { exit }
+  step && /^        run: \|$/ { code = 1; next }
+  code { sub(/^          /, ""); print }
+' "$repo_root/.github/workflows/deploy-server.yml" > "$work_dir/diagnostics.sh"
+test -s "$work_dir/diagnostics.sh"
+bash -n "$work_dir/diagnostics.sh"
+
+diagnostics_dir="$work_dir/diagnostics"
+mkdir -p "$diagnostics_dir"
+printf '%s\n' \
+  'ERROR: Logs URL: https://console.example.invalid/logs?project=sample' \
+  'Service: https://sample.run.app' \
+  'Image: region-docker.pkg.dev/sample/repository/image@sha256:fixture' \
+  'Revision sample failed safely.' \
+  > "$diagnostics_dir/cloud-run-synthetic.log"
+RUNNER_TEMP="$diagnostics_dir" bash --noprofile --norc -e -o pipefail \
+  "$work_dir/diagnostics.sh" > "$diagnostics_dir/output"
+if grep -Eq 'https?://|\.run\.app|-docker\.pkg\.dev/' "$diagnostics_dir/output"; then
+  echo 'FAIL: diagnostics exposed an operational URL or image path' >&2
+  exit 1
+fi
+grep -Fq 'Revision sample failed safely.' "$diagnostics_dir/output"
+echo 'PASS: sanitized diagnostics'

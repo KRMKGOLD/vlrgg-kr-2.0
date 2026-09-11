@@ -1,7 +1,7 @@
 # CI/CD delivery direction — Cloud Run query server
 
-- Status: Stage 1.1 credential-free CI and first private Cloud Run deployment verified; #110 review/merge pending; server release tracked in #111, app release in #112; deployment disabled; notification production deployment deferred
-- Last reviewed: 2026-09-10
+- Status: Stage 1.1 credential-free CI와 첫 private Cloud Run 배포는 검증됨; #110은 APPROVED 후 병합됐고 해당 main CI도 성공함; #111의 후속 배포·rollback·공개/중단/복구 원격 검증은 아직 미실행이며 deployment는 disabled; notification production deployment deferred
+- Last reviewed: 2026-09-11
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
 ## Goal and stage boundary
@@ -12,7 +12,7 @@ Stage 1.1은 실제 Firebase App/production provider를 연결하지 않는다. 
 
 #52는 [공개 API 보호 계약](architecture/server-public-api-protection.md)의 구현·검증을 소유하며, Stage 1(MVP)의 서버 배포는 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111), App 배포는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)로 이관한다. 로그인·앱 진위 검증·FCM·production Firestore 없이 일반 조회를 배포한다. 아래 알림 관련 App Check/Target/Firestore/FCM smoke는 별도 Stage 2 gate이며 Stage 1 조회 배포의 선행 조건이 아니다. 기존 Firestore Emulator CI는 유지한다.
 
-#111 공개 전에는 일반 조회·과부하 보호·health 200·notification 404, 비용 중단과 rollback을 검증한다. #112는 Android/iOS 서명 앱의 실제 설치와 외부망 조회·수동 재시도 증거를 수집한다. #52 종료만으로 이 release gate를 통과한 것으로 기록하지 않는다. #110의 최종 리뷰·CI 확인과 병합, #52 범위 정리 후 후속 배포를 진행하며 #49·#62·#74는 보류한다.
+#111 공개 전에는 일반 조회·과부하 보호·health 200·notification 404, 비용 중단과 rollback을 검증한다. #112는 Android/iOS 서명 앱의 실제 설치와 외부망 조회·수동 재시도 증거를 수집한다. #52 종료만으로 이 release gate를 통과한 것으로 기록하지 않는다. #110의 최종 head는 `22e4ce209a45bd21de88a153d4c683af2902b9ec`, merge SHA는 `5997aae12d995239031aedf78c0589e86b6e65d2`이며, 해당 main CI run `34579642498`은 success다. 이 사실은 후속 원격 배포의 선행 근거일 뿐, #111의 실제 운영 검증 완료를 뜻하지 않는다.
 
 ## Verified repository structure
 
@@ -242,7 +242,7 @@ deploy Service Account에는 project의 `roles/run.developer`와 첫 private ser
 
 WIF provider는 GitHub issuer를 사용하고 변하지 않는 repository/owner ID, `main` ref, 지정 deploy workflow와 `production` environment로 신뢰 범위를 제한한다. 이 principalSet에 deploy Service Account의 `roles/iam.workloadIdentityUser`만 부여한다. action이 WIF를 통해 ID token을 발급하므로 self `roles/iam.serviceAccountTokenCreator`는 필요하지 않다. [Google WIF 가이드](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines), [auth action](https://github.com/google-github-actions/auth)
 
-설정 후 GitHub `production` environment의 허용 branch를 `main`으로 제한하고 위 secrets를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED`는 repository variable 한 곳에서만 관리하고 environment에 동명 변수를 만들지 않는다. 비용 통제 설정을 확인한 뒤 첫 실행 직전에만 `true`로 바꾼다. 별도의 필수 승인자를 추가하지 않는다.
+설정 후 GitHub `production` environment의 허용 branch를 `main`으로 제한하고 위 secrets를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED`는 repository variable 한 곳에서만 관리하고 environment에 동명 변수를 만들지 않는다. GitHub configuration variable은 environment 값이 repository 값보다 우선하므로, 동명 environment 변수가 있으면 workflow의 `vars.CLOUD_RUN_DEPLOY_ENABLED`가 repository 값을 따르지 않을 수 있다([GitHub precedence](https://docs.github.com/actions/writing-workflows/choosing-what-your-workflow-does/using-variables#configuration-variable-precedence)). 실행 전에는 두 범위를 모두 조회해 environment 동명 값이 없고 repository 값만 의도한 값인지 확인한다. 비용 통제 설정을 확인한 뒤 첫 실행 직전에만 `true`로 바꾸며, 정상 복구 때는 모든 smoke와 최종 설정 확인 뒤 **마지막**에만 `true`로 되돌린다. 별도의 필수 승인자를 추가하지 않는다.
 
 ### Public access and cost stop
 
@@ -256,7 +256,7 @@ gcloud run services add-iam-policy-binding vlrgg-query \
   --role=roles/run.invoker
 ```
 
-비용 중단은 `CLOUD_RUN_DEPLOY_ENABLED=false` 설정 후 대기·실행 중인 배포를 취소하고 종료를 확인하는 것부터 시작한다. workflow가 시작할 때 읽은 변수는 실행 도중 갱신되지 않으므로 변수 변경만으로 진행 중인 배포가 멈추지는 않는다. 다음으로 `allUsers` invoker 제거, service minimum 0, 진행 요청 drain과 default/tagged URL의 공개 거절을 확인한다. 이 workflow가 만든 revision의 minimum은 이미 0이다.
+비용 중단은 `CLOUD_RUN_DEPLOY_ENABLED=false` 설정 후 대기·실행 중인 배포를 취소하고 종료를 확인하는 것부터 시작한다. workflow가 시작할 때 읽은 변수는 실행 도중 갱신되지 않으므로 변수 변경만으로 진행 중인 배포가 멈추지는 않는다. 다음으로 production의 `allUsers` invoker를 제거하고 production과 validation service 모두 service/revision minimum을 0으로 맞춘 뒤 drain을 확인한다. 마지막으로 default URL과 존재하는 tag URL 각각의 무인증 요청이 거절되는지 확인한다. minimum 0만으로 요청 재기동·public 접근 차단 또는 비용 0을 뜻하지 않는다.
 
 ```bash
 gh variable set CLOUD_RUN_DEPLOY_ENABLED --repo KRMKGOLD/vlrgg-kr-2.0 --body false
@@ -266,9 +266,13 @@ gcloud run services remove-iam-policy-binding vlrgg-query \
   --member=allUsers --role=roles/run.invoker
 gcloud run services update vlrgg-query \
   --project="$GCP_PROJECT_ID" --region=asia-northeast3 --min=0
+gcloud run services update vlrgg-query-check \
+  --project="$GCP_PROJECT_ID" --region=asia-northeast3 --min=0
 ```
 
-Artifact Registry image와 로그 비용은 계속 발생할 수 있다. 복구는 비용 원인을 확인한 뒤 `gcloud run services update vlrgg-query --project="$GCP_PROJECT_ID" --region=asia-northeast3 --min=1`, 위 public invoker 추가, 외부망 smoke 순으로 수행하고 enable 변수는 마지막에 되돌린다. Billing budget alert는 지출을 중단하지 않으며 Cloud Run spend cap은 Preview이고 집행 지연·잔여 비용이 있어 고정 청구 상한으로 보지 않는다.
+위 명령은 관련 revision의 minimum이 모두 0임을 조회한 뒤 사용한다. `--min`은 service minimum이고 `--min-instances`는 이후 revision template 설정이므로, template 변경만으로 기존 revision의 minimum이 변경됐다고 판단하지 않는다. 기존 revision에 minimum이 남아 있으면 traffic/tag와 실제 인스턴스 상태를 함께 확인하고 중단 절차를 조정한다.
+
+Artifact Registry image와 로그 비용은 계속 발생할 수 있다. 정상 복구는 비용 원인을 확인한 뒤 (1) 기록한 serving revision/digest를 production 100%로 복원, (2) production service min/max를 `1/1`과 revision min/max를 `0/1`로, validation service는 private/minimum 0으로 확인, (3) production에만 `allUsers` invoker를 다시 부여, (4) stable URL의 외부망 `/health`·대표 조회·안전한 400·문서/알림 404를 smoke, (5) IAM·traffic·digest·자원 설정을 재확인, (6) enable 변수를 **마지막**에 `true`로 복구하는 순서다. 실제 URL은 공개 API라서 비밀이 아니지만 이 저장소·Issue·Actions summary에는 쓰지 않고, 성공한 operator가 repository 밖의 `~/.config/vlrgg-mobile/release-api-url`(directory 0700, file 0600)에만 전달한다. #112는 이 보호 파일 경로만 인계받아 URL을 주입하며 원문을 다시 기록하지 않는다. Billing budget alert는 지출을 중단하지 않으며 Cloud Run spend cap은 Preview이고 집행 지연·잔여 비용이 있어 고정 청구 상한으로 보지 않는다.
 
 Cloud Run revision이 rollback 단위다. private 검증 service가 실패하면 production에는 배포하지 않는다. 첫 production은 이전 revision이 없어 기본 traffic으로 생성하고 private smoke를 수행한다. 후속 production의 no-traffic 배포 중에는 기존 serving revision을 유지하고, 승격 후 실패하면 기록한 revision으로 traffic을 복원한다. 따라서 후속 revision에서 rollback을 한 번 검증해야 완료 증거가 된다.
 
