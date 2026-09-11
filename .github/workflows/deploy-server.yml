@@ -230,17 +230,24 @@ jobs:
             > "$RUNNER_TEMP/cloud-run-production-deploy.log" 2>&1
           service="$(gcloud run services describe "$SERVICE" \
             --project "$PROJECT_ID" --region "$REGION" --format=json)"
+          revision="$SERVICE-r$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           jq --exit-status --arg name "$SERVICE" --arg image "$IMAGE_DIGEST" \
-            --arg revision "$SERVICE-r$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" '
+            --arg revision "$revision" '
             .metadata.name == $name and
             .spec.template.spec.containers[0].image == $image and
-            .status.latestReadyRevisionName == $revision and
+            .status.latestCreatedRevisionName == $revision and
             (.status.url | type == "string" and length > 0)
           ' <<< "$service" > /dev/null
+          deployed_revision="$(gcloud run revisions describe "$revision" \
+            --project "$PROJECT_ID" --region "$REGION" --format=json)"
+          jq --exit-status --arg revision "$revision" --arg image "$IMAGE_DIGEST" '
+            .metadata.name == $revision and
+            .spec.containers[0].image == $image and
+            .status.imageDigest == $image and
+            any(.status.conditions[]?; .type == "Ready" and .status == "True")
+          ' <<< "$deployed_revision" > /dev/null
           url="$(jq --exit-status --raw-output '.status.url' <<< "$service")"
-          revision="$(jq --exit-status --raw-output '.status.latestReadyRevisionName' <<< "$service")"
           test -n "$url"
-          test -n "$revision"
           if test "$first_deployment" = true; then
             require_private_service "$service"
             jq --exit-status --arg revision "$revision" '
