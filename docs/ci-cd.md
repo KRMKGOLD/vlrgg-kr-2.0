@@ -262,10 +262,15 @@ gcloud run services add-iam-policy-binding vlrgg-query \
   --role=roles/run.invoker
 ```
 
-비용 중단은 `CLOUD_RUN_DEPLOY_ENABLED=false` 설정 후 대기·실행 중인 배포를 취소하고 종료를 확인하는 것부터 시작한다. workflow가 시작할 때 읽은 변수는 실행 도중 갱신되지 않으므로 변수 변경만으로 진행 중인 배포가 멈추지는 않는다. 다음으로 production의 `allUsers` invoker를 제거하고 production과 validation service 모두 service/revision minimum을 0으로 맞춘 뒤 drain을 확인한다. 마지막으로 default URL과 존재하는 tag URL 각각의 무인증 요청이 거절되는지 확인한다. minimum 0만으로 요청 재기동·public 접근 차단 또는 비용 0을 뜻하지 않는다.
+비용 중단은 repository의 `CLOUD_RUN_DEPLOY_ENABLED=false`와 우선 적용되는 production environment의 동명 변수 부재 또는 `false`를 모두 확인한 뒤 대기·실행 중인 배포를 취소하고 종료를 확인하는 것부터 시작한다. Environment 값이 `true`이거나 조회가 실패하면 차단 완료로 판단하지 않고 먼저 해당 scope를 바로잡는다. workflow가 시작할 때 읽은 변수는 실행 도중 갱신되지 않으므로 변수 변경만으로 진행 중인 배포가 멈추지는 않는다. 다음으로 production의 `allUsers` invoker를 제거하고 production과 validation service 모두 service/revision minimum을 0으로 맞춘 뒤 drain을 확인한다. 마지막으로 default URL과 존재하는 tag URL 각각의 무인증 요청이 거절되는지 확인한다. minimum 0만으로 요청 재기동·public 접근 차단 또는 비용 0을 뜻하지 않는다.
 
 ```bash
+set -euo pipefail
 gh variable set CLOUD_RUN_DEPLOY_ENABLED --repo KRMKGOLD/vlrgg-kr-2.0 --body false
+deploy_enabled_value="$(gh variable get CLOUD_RUN_DEPLOY_ENABLED --repo KRMKGOLD/vlrgg-kr-2.0 --json value --jq .value)"
+test "$deploy_enabled_value" = false
+gh api --paginate repos/KRMKGOLD/vlrgg-kr-2.0/environments/production/variables \
+  | jq -se 'length > 0 and all(.[] | .variables[]; .name != "CLOUD_RUN_DEPLOY_ENABLED" or .value == "false")' >/dev/null
 # GitHub Actions에서 대기/실행 중인 Deploy query server run을 취소하고 종료를 확인한다.
 gcloud run services remove-iam-policy-binding vlrgg-query \
   --project="$GCP_PROJECT_ID" --region=asia-northeast3 \
@@ -276,7 +281,7 @@ gcloud run services update vlrgg-query-check \
   --project="$GCP_PROJECT_ID" --region=asia-northeast3 --min=0
 ```
 
-위 명령은 관련 revision의 minimum이 모두 0임을 전수 조회한 뒤 사용한다. `--min`은 service minimum이고 `--min-instances`는 이후 revision template 설정이다. 기존 revision은 immutable이므로 비용 중단 명령에 `--min-instances=0`을 덧붙여도 기존 minimum이 바뀌지 않는다. 기존 revision에 minimum이 남아 있으면 traffic/tag와 실제 인스턴스 상태를 함께 확인하고 중단 절차를 조정한다. IAM readback만으로 차단 완료를 판단하지 않고 상한을 둔 재확인으로 실제 403과 drain을 확인한다. 표본 누락은 unknown으로 남긴다.
+위 명령은 production service와 상속되는 project IAM에 `allAuthenticatedUsers` invoker가 없고 관련 revision의 minimum이 모두 0임을 전수 조회한 뒤 사용한다. 차단 후에는 `allUsers`와 `allAuthenticatedUsers`를 통한 호출 권한이 모두 없는지 확인하며 기존 운영 identity 권한은 보존한다. `--min`은 service minimum이고 `--min-instances`는 이후 revision template 설정이다. 기존 revision은 immutable이므로 비용 중단 명령에 `--min-instances=0`을 덧붙여도 기존 minimum이 바뀌지 않는다. 기존 revision에 minimum이 남아 있으면 traffic/tag와 실제 인스턴스 상태를 함께 확인하고 중단 절차를 조정한다. IAM readback만으로 차단 완료를 판단하지 않고 상한을 둔 재확인으로 실제 403과 drain을 확인한다. 표본 누락은 unknown으로 남긴다.
 
 비용 대응 기준은 **1만 원 점검·3만 원 추세 점검·5만 원 도달 또는 더 이른 초과 예상 시 수동 차단/중단**, 8·10만 원은 후속 경고다. 기존 월 10만 원 Budget 금액과 10/30/50/80/100% 알림 resource는 변경하지 않았다. 실제 알림 수신·관측 청구액·Spend cap 활성화는 미확인이며 확인된 자동 상한은 없다. 보고·수신 지연과 잔여 비용 때문에 5만 원 중단 기준도 최대 10만 원을 보장하지 않는다.
 
