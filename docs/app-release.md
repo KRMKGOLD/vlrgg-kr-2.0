@@ -11,7 +11,7 @@
 | Android | `.github/workflows/deploy-app-android.yml` | `bundle exec fastlane android internal` | Google Play `internal` |
 | iOS | `.github/workflows/deploy-app-ios.yml` | `bundle exec fastlane ios internal` | TestFlight 내부 테스트 |
 
-workflow는 시작 시 `github.sha`를 `SOURCE_SHA`로 고정하고 그 commit을 checkout한다. 같은 SHA의 성공한 `main` push `CI`가 있어야 배포 단계로 넘어간다. lane도 GitHub Actions 수동 실행 여부, `main` ref, `GITHUB_SHA`·`SOURCE_SHA`·실제 `HEAD`와 작업 디렉터리를 검사한다. 로컬에서 lane만 직접 실행하는 방식은 지원하지 않는다.
+workflow는 시작 시 `github.sha`를 `SOURCE_SHA`로 고정하고 그 commit을 checkout한다. 같은 SHA의 성공한 `main` push `CI`가 있어야 배포 단계로 넘어간다. lane도 GitHub Actions 수동 실행 여부, `main` ref, `GITHUB_SHA`·`SOURCE_SHA`·실제 `HEAD`와 작업 디렉터리를 검사하고, staged·수정·미추적 소스가 있으면 거절한다. 로컬에서 lane만 직접 실행하는 방식은 지원하지 않는다.
 
 플랫폼별 concurrency group으로 같은 배포 workflow의 동시 실행을 막는다. 진행 중 실행은 자동 취소하지 않으며, Console이나 다른 도구의 업로드까지 잠그지는 않는다. token 권한은 `actions: read`, `contents: read`이고 checkout 인증정보는 보존하지 않는다. 배포 인증정보는 플랫폼별 environment에서만 읽는다.
 
@@ -37,7 +37,7 @@ bundle _2.4.22_ exec fastlane lanes
 ruby scripts/app-release/release_contract_test.rb
 ```
 
-CI는 위 도구 확인과 `app/androidApp/scripts/test-release-config.sh`, `app/iosApp/Scripts/test_release_config.sh`를 실행한다. iOS 검사는 macOS/Xcode가 필요하다.
+CI는 위 도구 확인과 `app/androidApp/scripts/test-release-config.sh`, `app/iosApp/Scripts/test_release_config.sh`를 실행한다. iOS job은 공유 simulator 테스트 뒤 무서명 Release simulator 앱도 빌드해 실제 앱 링크와 처리된 Info.plist 검증 단계를 확인한다. iOS 검사는 macOS/Xcode가 필요하다.
 
 ## #117에서 준비할 environment
 

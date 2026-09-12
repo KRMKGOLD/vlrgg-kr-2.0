@@ -46,27 +46,48 @@ class ReleaseContractTest < Minitest::Test
   end
 
   def test_requires_manual_workflow_checkout_to_match_source_sha
-    source_sha = "c" * 40
-    environment = valid_environment.merge(
-      "SOURCE_SHA" => source_sha,
-      "GITHUB_ACTIONS" => "true",
-      "GITHUB_EVENT_NAME" => "workflow_dispatch",
-      "GITHUB_REF" => "refs/heads/main",
-      "GITHUB_SHA" => source_sha,
-      "GITHUB_WORKSPACE" => ROOT
-    )
-    assert ReleaseContract.validate_workflow_source!(environment, ROOT, head_sha: source_sha)
-
-    %w[GITHUB_ACTIONS GITHUB_EVENT_NAME GITHUB_REF GITHUB_SHA GITHUB_WORKSPACE].each do |name|
-      assert_raises(ReleaseContract::Error) do
-        ReleaseContract.validate_workflow_source!(environment.merge(name => "wrong"), ROOT, head_sha: source_sha)
+    Dir.mktmpdir do |repository|
+      git = lambda do |*arguments|
+        output, error, status = Open3.capture3("git", "-C", repository, *arguments)
+        assert status.success?, error
+        output.strip
       end
-    end
-    assert_raises(ReleaseContract::Error) do
-      ReleaseContract.validate_workflow_source!(environment, ROOT, head_sha: "d" * 40)
-    end
-    assert_raises(ReleaseContract::Error) do
-      ReleaseContract.validate_workflow_source!(environment.reject { |name, _value| name == "GITHUB_WORKSPACE" }, ROOT, head_sha: source_sha)
+      git.call("init", "--quiet")
+      File.write(File.join(repository, "source.txt"), "committed")
+      git.call("add", "source.txt")
+      git.call("-c", "user.name=Release Test", "-c", "user.email=release@example.invalid", "commit", "--quiet", "-m", "fixture")
+      source_sha = git.call("rev-parse", "HEAD")
+      environment = valid_environment.merge(
+        "SOURCE_SHA" => source_sha,
+        "GITHUB_ACTIONS" => "true",
+        "GITHUB_EVENT_NAME" => "workflow_dispatch",
+        "GITHUB_REF" => "refs/heads/main",
+        "GITHUB_SHA" => source_sha,
+        "GITHUB_WORKSPACE" => repository
+      )
+      assert ReleaseContract.validate_workflow_source!(environment, repository)
+
+      %w[GITHUB_ACTIONS GITHUB_EVENT_NAME GITHUB_REF GITHUB_SHA GITHUB_WORKSPACE].each do |name|
+        assert_raises(ReleaseContract::Error) do
+          ReleaseContract.validate_workflow_source!(environment.merge(name => "wrong"), repository)
+        end
+      end
+      assert_raises(ReleaseContract::Error) do
+        ReleaseContract.validate_workflow_source!(environment.merge("SOURCE_SHA" => "d" * 40, "GITHUB_SHA" => "d" * 40), repository)
+      end
+      assert_raises(ReleaseContract::Error) do
+        ReleaseContract.validate_workflow_source!(environment.reject { |name, _value| name == "GITHUB_WORKSPACE" }, repository)
+      end
+
+      File.write(File.join(repository, "source.txt"), "modified")
+      assert_raises(ReleaseContract::Error) { ReleaseContract.validate_workflow_source!(environment, repository) }
+      git.call("add", "source.txt")
+      assert_raises(ReleaseContract::Error) { ReleaseContract.validate_workflow_source!(environment, repository) }
+      git.call("reset", "--hard", "HEAD")
+      File.write(File.join(repository, "untracked.txt"), "untracked")
+      assert_raises(ReleaseContract::Error) { ReleaseContract.validate_workflow_source!(environment, repository) }
+      File.delete(File.join(repository, "untracked.txt"))
+      assert ReleaseContract.validate_workflow_source!(environment, repository)
     end
   end
 
@@ -285,23 +306,21 @@ class ReleaseContractTest < Minitest::Test
   end
 
   def test_deploy_workflows_are_manual_and_keep_secrets_behind_environments
-    workflows = %w[deploy-app-android.yml deploy-app-ios.yml].map do |name|
+    workflows = %w[deploy-app-android.yml deploy-app-ios.yml].each_with_index.map do |name, index|
       path = File.join(ROOT, ".github/workflows", name)
-      YAML.parse_file(path)
+      document = YAML.load_file(path)
+      assert_equal ["workflow_dispatch"], document.fetch(true).keys
+      assert_equal({ "actions" => "read", "contents" => "read" }, document.fetch("permissions"))
+      assert_equal %w[android-internal ios-testflight][index], document.fetch("jobs").fetch("deploy").fetch("environment")
       File.read(path)
     end
 
     workflows.each do |workflow|
-      assert_includes workflow, "workflow_dispatch:"
-      refute_match(/^\s+pull_request:/, workflow)
-      assert_includes workflow, "actions: read"
       assert_includes workflow, "persist-credentials: false"
       assert_includes workflow, "needs.preflight.outputs.source_sha"
       refute_includes workflow, "upload-artifact"
       assert_includes workflow, "if: always()"
     end
-    assert_includes workflows[0], "environment: android-internal"
-    assert_includes workflows[1], "environment: ios-testflight"
     assert_includes workflows[0], 'mktemp -d "$RUNNER_TEMP/vlrgg-signing.XXXXXX"'
     assert_includes workflows[0], "ANDROID_SIGNING_TEMP_DIR"
     assert_includes workflows[1], "runs-on: macos-26"

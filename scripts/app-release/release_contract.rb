@@ -30,7 +30,7 @@ module ReleaseContract
     true
   end
 
-  def validate_workflow_source!(environment = ENV, repository_root = default_repository_root, head_sha: nil)
+  def validate_workflow_source!(environment = ENV, repository_root = default_repository_root)
     source_sha = required(environment, "SOURCE_SHA")
     github_sha = required(environment, "GITHUB_SHA")
     workspace = required(environment, "GITHUB_WORKSPACE")
@@ -42,11 +42,10 @@ module ReleaseContract
       github_sha == source_sha &&
       File.expand_path(workspace) == File.expand_path(repository_root)
 
-    if head_sha.nil?
-      stdout, _stderr, status = Open3.capture3("git", "-C", repository_root, "rev-parse", "HEAD")
-      head_sha = stdout.strip if status.success?
-    end
-    raise Error, "The checked-out workflow source does not match SOURCE_SHA." unless head_sha == source_sha
+    stdout, _stderr, status = Open3.capture3("git", "-C", repository_root, "rev-parse", "HEAD")
+    raise Error, "The checked-out workflow source does not match SOURCE_SHA." unless status.success? && stdout.strip == source_sha
+    changes, _stderr, status = Open3.capture3("git", "-C", repository_root, "status", "--porcelain", "--untracked-files=all")
+    raise Error, "The release checkout must have no staged, modified, or untracked source files." unless status.success? && changes.empty?
 
     true
   end
