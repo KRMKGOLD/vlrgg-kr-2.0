@@ -35,7 +35,7 @@ jobs:
         run: |
           test "$(ruby -e 'print RUBY_VERSION')" = 3.3.7
           bundle exec ruby -e 'abort unless Gem.loaded_specs.fetch("fastlane").version.to_s == "2.239.0"'
-          bundle exec ruby scripts/app-release/release_contract_test.rb
+          ruby scripts/app-release/release_contract_test.rb
           bundle exec ruby -c fastlane/Fastfile
           bundle exec ruby -e 'require "yaml"; ARGV.each { |path| YAML.parse_file(path) }' .github/workflows/deploy-app-*.yml
           bundle exec fastlane lanes

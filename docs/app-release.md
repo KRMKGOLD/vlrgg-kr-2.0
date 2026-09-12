@@ -17,7 +17,7 @@ workflow는 시작 시 `github.sha`를 `SOURCE_SHA`로 고정하고 그 commit�
 
 ## 입력과 도구
 
-운영 `API_BASE_URL`은 따옴표를 미리 붙이지 않은 HTTPS origin이다. Android는 Java 문자열 리터럴로 변환해 `BuildConfig`에 넣고, iOS는 임시 xcconfig를 거쳐 처리된 `Info.plist`까지 확인한다. 두 플랫폼 모두 빈 값·비 HTTPS·사용자 정보·query·fragment·잘못된 port를 거절하며, iOS는 `/` 이외 경로와 xcconfig 확장 문자도 거절한다. Debug 로컬 HTTP 기본값은 유지한다.
+운영 `API_BASE_URL`은 따옴표를 미리 붙이지 않은 HTTPS origin이다. Android는 Java 문자열 리터럴로 변환해 `BuildConfig`에 넣고, iOS는 임시 xcconfig를 거쳐 처리된 `Info.plist`까지 확인한다. 두 플랫폼 모두 빈 값·비 HTTPS·사용자 정보·query·fragment·`/` 이외 경로·잘못된 port를 거절하며, iOS는 xcconfig 확장 문자도 거절한다. Debug 로컬 HTTP 기본값은 유지한다.
 
 | 입력 | 계약 |
 | --- | --- |

@@ -41,6 +41,7 @@ private fun releaseApiBaseUrl(rawValue: String?): String {
         !uri.scheme.equals("https", ignoreCase = true) ||
         uri.host.isNullOrBlank() ||
         (uri.port != -1 && uri.port !in 1..65535) ||
+        (!uri.rawPath.isNullOrEmpty() && uri.rawPath != "/") ||
         uri.rawUserInfo != null ||
         uri.rawQuery != null ||
         uri.rawFragment != null
@@ -54,9 +55,8 @@ private fun releaseApiBaseUrl(rawValue: String?): String {
 
 private fun releaseVersion(rawValue: String?): String {
     if (
-        rawValue.isNullOrBlank() ||
-        rawValue != rawValue.trim() ||
-        rawValue.any(Char::isISOControl)
+        rawValue == null ||
+        !Regex("[0-9]+(?:\\.[0-9]+){0,2}").matches(rawValue)
     ) {
         throw GradleException("Android Release requires a valid APP_VERSION.")
     }

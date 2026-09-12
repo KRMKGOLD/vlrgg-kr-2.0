@@ -37,9 +37,9 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 
 ### 구성 주입
 
-- Android Debug의 tracked 기본값은 `http://10.0.2.2:8080`이다. Release는 `API_BASE_URL`, `APP_VERSION`, `APP_BUILD_NUMBER`과 네 Android signing input이 없거나 유효하지 않으면 `validateReleaseConfiguration`에서 실패한다. 유효한 raw HTTPS URL은 Java 문자열 literal로 안전하게 변환해 generated `BuildConfig`에 기록한다.
+- Android Debug의 tracked 기본값은 `http://10.0.2.2:8080`이다. Release는 `API_BASE_URL`, `APP_VERSION`, `APP_BUILD_NUMBER`과 네 Android signing input이 없거나 유효하지 않으면 `validateReleaseConfiguration`에서 실패한다. 유효한 raw HTTPS origin은 Java 문자열 literal로 안전하게 변환해 generated `BuildConfig`에 기록한다.
 - iOS Debug는 `http://127.0.0.1:8080`을 기본으로 한다. 로컬 override는 ignored `Configuration/Config.local.xcconfig`에서 configuration별 `API_BASE_URL`을 설정하거나, 빌드 시 `API_BASE_URL=https://example.invalid`을 전달한다. Release generator는 raw URL·version·build number와 optional `IOS_TEAM_ID`를 private xcconfig로 만들고 processed `Info.plist`를 다시 검사한다.
-- 두 Release 경로는 빈 값, 비 HTTPS URL, userinfo/query/fragment, 잘못된 port, 잘못된 version/build number를 build-time에 거절한다. `API_BASE_URL`은 binary에서 읽을 수 있으므로 secret이 아니며, 실제 값의 비커밋·비공개 로그 정책은 구성 위생이다.
+- 두 Release 경로는 빈 값, 비 HTTPS URL, userinfo/query/fragment, root 이외 path, 잘못된 port, 잘못된 version/build number를 build-time에 거절한다. `API_BASE_URL`은 binary에서 읽을 수 있으므로 secret이 아니며, 실제 값의 비커밋·비공개 로그 정책은 구성 위생이다.
 
 ### MetroX ViewModel provider map
 

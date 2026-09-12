@@ -63,6 +63,8 @@ expect_failure "missing URL" 'Android Release requires API_BASE_URL.' \
     run_valid_signing '' 1.0 1 "$gradlew" --quiet :app:androidApp:bundleRelease
 expect_failure "malformed URL" "$url_error" \
     run_valid_signing 'not a URL' 1.0 1 "$gradlew" --quiet "$validation_task"
+expect_failure "URL path" "$url_error" \
+    run_valid_signing 'https://example.invalid/api' 1.0 1 "$gradlew" --quiet "$validation_task"
 expect_failure "HTTP URL" "$url_error" \
     run_valid_signing 'http://example.invalid' 1.0 1 "$gradlew" --quiet "$validation_task"
 expect_failure "URL credentials" "$url_error" \
@@ -77,6 +79,13 @@ for port in 0 65536; do
 done
 expect_failure "missing version" 'Android Release requires a valid APP_VERSION.' \
     run_valid_signing 'https://example.invalid' '' 1 "$gradlew" --quiet "$validation_task"
+for version in '1.beta' '1.2.3.4' '1.2
+'; do
+    expect_failure "invalid version components" 'Android Release requires a valid APP_VERSION.' \
+        run_valid_signing 'https://example.invalid' "$version" 1 "$gradlew" --quiet "$validation_task"
+done
+run_valid_signing 'https://example.invalid/' 1.2.3 1 \
+    "$gradlew" --quiet "$validation_task"
 expect_failure "invalid build number" 'Android Release requires APP_BUILD_NUMBER as a positive integer.' \
     run_valid_signing 'https://example.invalid' 1.0 0 "$gradlew" --quiet "$validation_task"
 expect_failure "Play build number ceiling" 'Android Release requires APP_BUILD_NUMBER as a positive integer.' \
