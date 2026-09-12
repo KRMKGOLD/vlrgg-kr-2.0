@@ -2,8 +2,6 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.events.detail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -40,11 +37,13 @@ import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventPlayerStats
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
-import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStats
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsColumn
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrStatsTable
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsListItem
@@ -59,6 +58,8 @@ internal const val EVENT_DETAIL_TAB_RETRY_TAG = "event-detail-tab-retry"
 internal const val EVENT_DETAIL_LOADING_TAG = "event-detail-loading"
 
 internal fun eventStatsPlayerTag(playerId: String): String = "event-stats-player-$playerId"
+internal fun eventStatsMetricHeaderTag(column: EventStatsSortColumn): String = "event-stats-header-${column.savedStateId}"
+internal fun eventStatsMetricValueTag(playerId: String, column: EventStatsSortColumn): String = "event-stats-$playerId-${column.savedStateId}"
 internal fun eventDetailTabTag(tab: EventDetailTab): String = "event-detail-tab-${tab.savedStateId}"
 
 @Composable
@@ -73,6 +74,7 @@ fun EventDetailContent(
     onMatchClick: (String) -> Unit,
     onNewsClick: (String, String) -> Unit,
     onPlayerClick: (String) -> Unit,
+    onSortStats: (EventStatsSortColumn) -> Unit,
     onRetryIdentity: () -> Unit,
     onRetrySelectedTab: () -> Unit,
     modifier: Modifier = Modifier,
@@ -139,6 +141,8 @@ fun EventDetailContent(
                             state = uiState.stats,
                             listState = statsListState,
                             horizontalScrollState = statsHorizontalScrollState,
+                            sort = uiState.statsSort,
+                            onSortColumn = onSortStats,
                             onPlayerClick = onPlayerClick,
                             onRetry = onRetrySelectedTab,
                             suppressError = uiState.busyRetry?.isDialogVisible == true,
@@ -328,6 +332,8 @@ private fun StatsTabContent(
     state: EventStatsContentState,
     listState: LazyListState,
     horizontalScrollState: ScrollState,
+    sort: StatsSort<EventStatsSortColumn>?,
+    onSortColumn: (EventStatsSortColumn) -> Unit,
     onPlayerClick: (String) -> Unit,
     onRetry: () -> Unit,
     suppressError: Boolean,
@@ -337,109 +343,30 @@ private fun StatsTabContent(
         EventStatsContentState.Loading -> EventStateMessage("통계를 불러오는 중", loading = true)
         EventStatsContentState.Empty -> EventStateMessage("아직 제공되는 통계가 없어요.")
         EventStatsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("통계를 불러오지 못했습니다.", onRetry, retryEnabled)
-        is EventStatsContentState.Content -> StatsTable(
-            stats = state.stats,
-            listState = listState,
+        is EventStatsContentState.Content -> VlrStatsTable(
+            rows = state.stats.players,
+            rowKey = EventPlayerStats::playerId,
+            identityHeader = "Player",
+            identityText = EventPlayerStats::playerName,
+            identitySupportingText = EventPlayerStats::teamAbbreviation,
+            rowSemanticsLabel = "player",
+            columns = eventStatsColumns,
             horizontalScrollState = horizontalScrollState,
-            onPlayerClick = onPlayerClick,
+            identityWidth = 132.dp,
+            headerMinHeight = 56.dp,
+            rowMinHeight = 56.dp,
+            identityTextStyle = VlrTheme.typography.bodyStrong,
+            headerTextStyle = VlrTheme.typography.label,
+            valueTextStyle = VlrTheme.typography.label,
+            modifier = Modifier.fillMaxSize(),
+            lazyListState = listState,
+            sort = sort,
+            onSortColumn = onSortColumn,
+            onIdentityClick = { onPlayerClick(it.playerId) },
+            identityTestTag = { eventStatsPlayerTag(it.playerId) },
+            metricHeaderTestTag = ::eventStatsMetricHeaderTag,
+            metricValueTestTag = { player, column -> eventStatsMetricValueTag(player.playerId, column) },
         )
-    }
-}
-
-@Composable
-private fun StatsTable(
-    stats: EventStats,
-    listState: LazyListState,
-    horizontalScrollState: ScrollState,
-    onPlayerClick: (String) -> Unit,
-) {
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        item(key = "stats-header") {
-            StatsRow(
-                playerContent = {
-                    Text("Player", style = VlrTheme.typography.label, color = VlrTheme.colors.textSecondary)
-                },
-                metrics = listOf("Rounds", "Rating", "ACS", "K-D", "ADR", "KAST"),
-                horizontalScrollState = horizontalScrollState,
-            )
-        }
-        items(stats.players, key = { it.playerId }) { player ->
-            HorizontalDivider(color = VlrTheme.colors.outline)
-            StatsRow(
-                playerContent = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag(eventStatsPlayerTag(player.playerId))
-                            .clickable(role = Role.Button) { onPlayerClick(player.playerId) }
-                            .padding(horizontal = VlrDimensions.Space4),
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text(
-                            text = player.playerName,
-                            style = VlrTheme.typography.bodyStrong,
-                            color = VlrTheme.colors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        player.teamAbbreviation?.let { abbreviation ->
-                            Text(
-                                text = abbreviation,
-                                style = VlrTheme.typography.labelSmall,
-                                color = VlrTheme.colors.textSecondary,
-                            )
-                        }
-                    }
-                },
-                metrics = player.metricLabels(),
-                horizontalScrollState = horizontalScrollState,
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatsRow(
-    playerContent: @Composable () -> Unit,
-    metrics: List<String>,
-    horizontalScrollState: ScrollState,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(132.dp)
-                .height(56.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            playerContent()
-        }
-        Row(
-            modifier = Modifier.horizontalScroll(horizontalScrollState),
-        ) {
-            metrics.forEach { metric ->
-                Box(
-                    modifier = Modifier
-                        .width(80.dp)
-                        .height(56.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = metric,
-                        style = VlrTheme.typography.label,
-                        color = VlrTheme.colors.textPrimary,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -515,13 +442,32 @@ private fun EventStatus.toChipStatus(): StatusChipStatus = when (this) {
     EventStatus.PAUSED -> StatusChipStatus.Unavailable
 }
 
-private fun EventPlayerStats.metricLabels(): List<String> = listOf(
-    roundsPlayed?.toString().orMissing(),
-    rating?.toString().orMissing(),
-    averageCombatScore?.toString().orMissing(),
-    killDeathRatio?.toString().orMissing(),
-    averageDamagePerRound?.toString().orMissing(),
-    killAssistSurvivedTradedPercentage?.let { "$it%" }.orMissing(),
+private val eventStatsColumns = listOf(
+    StatsColumn<EventPlayerStats, EventStatsSortColumn>(
+        EventStatsSortColumn.ROUNDS, "Rounds", 80.dp, TextAlign.Center,
+        { it.roundsPlayed?.toString().orMissing() }, { it.roundsPlayed?.toDouble() },
+    ),
+    StatsColumn<EventPlayerStats, EventStatsSortColumn>(
+        EventStatsSortColumn.RATING, "Rating", 80.dp, TextAlign.Center,
+        { it.rating?.toString().orMissing() }, EventPlayerStats::rating,
+    ),
+    StatsColumn<EventPlayerStats, EventStatsSortColumn>(
+        EventStatsSortColumn.ACS, "ACS", 80.dp, TextAlign.Center,
+        { it.averageCombatScore?.toString().orMissing() }, { it.averageCombatScore?.toDouble() },
+    ),
+    StatsColumn<EventPlayerStats, EventStatsSortColumn>(
+        EventStatsSortColumn.K_D, "K-D", 80.dp, TextAlign.Center,
+        { it.killDeathRatio?.toString().orMissing() }, EventPlayerStats::killDeathRatio,
+    ),
+    StatsColumn<EventPlayerStats, EventStatsSortColumn>(
+        EventStatsSortColumn.ADR, "ADR", 80.dp, TextAlign.Center,
+        { it.averageDamagePerRound?.toString().orMissing() }, EventPlayerStats::averageDamagePerRound,
+    ),
+    StatsColumn<EventPlayerStats, EventStatsSortColumn>(
+        EventStatsSortColumn.KAST, "KAST", 80.dp, TextAlign.Center,
+        { it.killAssistSurvivedTradedPercentage?.let { value -> "$value%" }.orMissing() },
+        EventPlayerStats::killAssistSurvivedTradedPercentage,
+    ),
 )
 
 private fun String?.orMissing(): String = this ?: "—"

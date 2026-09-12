@@ -2,8 +2,13 @@ package kr.co.cotton.vlrgg_mobile.ui.navigation
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -11,9 +16,11 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -28,6 +35,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleInline
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsLinkKind
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsPage
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail as PlayerIdentity
+import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerAgentStat
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerCurrentTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerProfile
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
@@ -53,8 +61,10 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.teamNewsRowTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.teamPlayerRowTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.TeamDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PLAYER_DETAIL_HEADER_TAG
+import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PLAYER_AGENT_STATS_TABLE_TAG
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.PlayerDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.playerMatchCardTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.playerAgentMetricHeaderTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.player.detail.playerTeamRowTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
@@ -66,7 +76,8 @@ import kotlin.test.Test
 class TeamDetailNavigationRuntimeUiTest {
 
     @Test
-    fun teamDetailUsesTheLiveScreenAndPreservesLoadedScrollAcrossNestedAndRootRoundTrips() = runComposeUiTest {
+    fun teamDetailUsesTheLiveScreenAndPreservesLoadedScrollAcrossNestedAndRootRoundTrips() =
+        runSkikoComposeUiTest(size = Size(360f, 800f)) {
         var navigationState: AppNavigationState? = null
         val teamRepository = FakeTeamRepository()
         val playerRepository = FakePlayerRepository()
@@ -132,16 +143,43 @@ class TeamDetailNavigationRuntimeUiTest {
         assertTopDestination(navigationState, TeamDetail(TEAM_ID))
         onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
+        scrollToTag(PLAYER_AGENT_STATS_TABLE_TAG)
+        onNodeWithTag(playerAgentMetricHeaderTag("Maps")).performClick()
+        onNodeWithText("Maps ↓").assertExists()
+        val initialMapsLeft = onNodeWithTag(playerAgentMetricHeaderTag("Maps"))
+            .fetchSemanticsNode().boundsInRoot.left
+        onAllNodes(
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.HorizontalScrollAxisRange) and
+                hasAnyAncestor(hasTestTag(PLAYER_AGENT_STATS_TABLE_TAG)),
+            useUnmergedTree = true,
+        )[0].performSemanticsAction(SemanticsActions.ScrollBy) { scrollBy ->
+            scrollBy(240f, 0f)
+        }
+        val sortedScrolledMapsLeft = onNodeWithTag(playerAgentMetricHeaderTag("Maps"))
+            .fetchSemanticsNode().boundsInRoot.left
+        kotlin.test.assertTrue(sortedScrolledMapsLeft < initialMapsLeft)
         scrollToTag(playerMatchCardTag(PLAYER_MATCH_ID))
         onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).performClick()
         assertTopDestination(navigationState, MatchDetail(PLAYER_MATCH_ID))
         assertRealMatchDetailDestination()
         onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).assertIsDisplayed()
+        scrollToTag(PLAYER_AGENT_STATS_TABLE_TAG)
+        onNodeWithText("Maps ↓").assertExists()
+        kotlin.test.assertEquals(
+            sortedScrolledMapsLeft,
+            onNodeWithTag(playerAgentMetricHeaderTag("Maps")).fetchSemanticsNode().boundsInRoot.left,
+        )
         runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
         onNodeWithText("fixture:news").assertExists()
         runOnIdle { requireNotNull(navigationState).selectRoot(MyPageRoot) }
         onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).assertIsDisplayed()
+        scrollToTag(PLAYER_AGENT_STATS_TABLE_TAG)
+        onNodeWithText("Maps ↓").assertExists()
+        kotlin.test.assertEquals(
+            sortedScrolledMapsLeft,
+            onNodeWithTag(playerAgentMetricHeaderTag("Maps")).fetchSemanticsNode().boundsInRoot.left,
+        )
         onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithTag(teamPlayerRowTag(LAST_PLAYER_ID)).assertIsDisplayed()
 
@@ -178,8 +216,8 @@ class TeamDetailNavigationRuntimeUiTest {
                     }
                 },
                 PlayerDetailViewModel.Factory::class to {
-                    PlayerDetailViewModel.Factory { playerId ->
-                        PlayerDetailViewModel(FakePlayerRepository(), favoriteRepository, playerId)
+                    PlayerDetailViewModel.Factory { playerId, savedStateHandle ->
+                        PlayerDetailViewModel(FakePlayerRepository(), favoriteRepository, playerId, savedStateHandle)
                     }
                 },
             ),
@@ -276,8 +314,8 @@ class TeamDetailNavigationRuntimeUiTest {
                 }
             },
             PlayerDetailViewModel.Factory::class to {
-                PlayerDetailViewModel.Factory { playerId ->
-                    PlayerDetailViewModel(playerRepository, favoriteRepository, playerId)
+                PlayerDetailViewModel.Factory { playerId, savedStateHandle ->
+                    PlayerDetailViewModel(playerRepository, favoriteRepository, playerId, savedStateHandle)
                 }
             },
             MatchDetailViewModel.Factory::class to {
@@ -334,7 +372,10 @@ class TeamDetailNavigationRuntimeUiTest {
                     id = playerId,
                     profile = PlayerProfile(handle = "Player $playerId", realName = null, aliases = emptyList(), countryCode = null, countryName = null),
                     currentTeam = PlayerCurrentTeam(TEAM_ID, TEAM_NAME),
-                    agentStats = emptyList(),
+                    agentStats = listOf(
+                        playerAgentStat("jett", 2),
+                        playerAgentStat("omen", 10),
+                    ),
                     recentMatches = listOf(
                         PlayerRecentMatch(
                             id = PLAYER_MATCH_ID,
@@ -425,6 +466,26 @@ class TeamDetailNavigationRuntimeUiTest {
     }
 
     private companion object {
+        fun playerAgentStat(agentName: String, mapsPlayed: Int) = PlayerAgentStat(
+            agentName = agentName,
+            mapsPlayed = mapsPlayed,
+            pickRatePercent = null,
+            roundsPlayed = null,
+            rating = null,
+            averageCombatScore = null,
+            killDeathRatio = null,
+            kastPercent = null,
+            averageDamagePerRound = null,
+            killsPerRound = null,
+            assistsPerRound = null,
+            firstKillDeathRatio = null,
+            kills = null,
+            deaths = null,
+            assists = null,
+            firstKills = null,
+            firstDeaths = null,
+        )
+
         const val TEAM_ID = "1001"
         const val TEAM_NAME = "T1"
         const val MATCH_ID = "match-1001"

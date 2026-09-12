@@ -40,6 +40,8 @@ The canonical wireframes are an approved reconstruction brief, not evidence that
 - All interactive controls have a reachable 48dp target, programmatic name, visible focus order, and safe-area-aware placement. Modal dialogs trap focus, restore focus on dismissal, and expose explicit actions.
 - Status and Live are written labels, not color-only signals; Live contrast and all normal text/UI boundaries target WCAG 2.2 AA intent (4.5:1 normal text, 3:1 large text/UI boundary where applicable).
 - Tables expose row identity with every metric label; horizontally scrollable metric columns do not remove the pinned identity. Search focus order is Back → field → clear → results.
+- Event Stats와 Player Agent Stats는 같은 Table의 header/row/cell을 사용한다. 외곽은 기본 8dp rounded에 배경까지 clip하고 단일 outline을 그린다. 기존 열 너비·숫자 정렬·typography를 유지하며 긴 이름이나 수치는 숨기지 않고 행 높이를 함께 늘린다.
+- 정렬 가능한 metric header는 48dp 이상이며 내림차순 → 오름차순 → source 순서로 순환한다. 활성 열은 화살표와 방향 설명을 제공한다. 단순 표시 모드에는 정렬 표시·버튼·동작이 없고 identity navigation은 유지된다. 두 Table의 정렬과 가로 scroll은 독립적이다.
 - Loading, empty, initial error, pagination error, and mutation states preserve the correct layout/recovery boundary. Snackbar recovery actions remain reachable and are announced; mutation spinners disable the covered screen actions.
 
 ## 1. Visual theme and atmosphere
@@ -80,6 +82,7 @@ Status always needs a written label; color is a supporting cue. These pairs are 
 | Status | Container | Label/icon | Usage |
 | --- | --- | --- | --- |
 | Live | `#FFEBEE` | `#D32F2F` | Live match and active score context. |
+| Loss | `#FFEBEE` | `#D32F2F` border; contrast-safe label | Player Recent Match의 독립적인 정보 상태. `패배` 문구를 유지하고 점수나 팀 위치로 추정하지 않는다. Live/Completed의 의미를 바꾸지 않는다. |
 | Upcoming | `#E3F2FD` | `#1976D2` | Scheduled, not begun. |
 | Completed | `#E8F5E9` | `#388E3C` | Final result. |
 | Postponed | `#FFF3E0` | `#F57C00` | Delayed; label must remain explicit. |
@@ -202,7 +205,7 @@ The 4dp grid and 16dp horizontal inset are **[Observed]** in the project design 
 
 **Purpose:** a compact, non-actionable textual state marker for a match or data quality. It complements status/time placement; it never replaces it. **[Observed]** Design System Reference and match screens.
 
-- **Variants:** `Live`, `Upcoming`, `Completed`, `Postponed`, `Cancelled`, `Partial`, `Stale`, `Unavailable`; use the table in section 2. **[Observed]**
+- **Variants:** `Live`, `Loss`, `Upcoming`, `Completed`, `Postponed`, `Cancelled`, `Partial`, `Stale`, `Unavailable`; use the table in section 2. `Loss`는 Player Recent Match에만 쓰는 독립적인 정보 상태이며 기존 red theme token을 재사용한다.
 - **Size:** 12sp/16sp medium label, 24dp visual height, 12dp horizontal padding, pill shape, 1dp color-tinted border. **[Observed]** reference source (`px-3 py-1`, 12px); dp normalization is **[Inferred]**.
 - **Content/icon rules:** label is mandatory and short (“LIVE”, “예정”, “종료”, etc. after product glossary confirmation). An optional 12–16dp status icon may reinforce but cannot duplicate the full label. No avatars, scores, or decorative icons in a chip. **[Inferred]**
 
@@ -215,7 +218,7 @@ The 4dp grid and 16dp horizontal inset are **[Observed]** in the project design 
 | Loading | Replace with a layout-matched neutral skeleton; do not show an invented status. **[Inferred]** |
 | Selected | Not applicable. A selected filter is a segmented control, not `StatusChip`. |
 
-**Semantics and accessibility [Inferred]:** expose the chip’s label in the parent match description in reading order (for example, “Live, Sentinels versus LOUD”). A standalone informational chip may use plain text semantics. If it becomes interactive, give it button semantics, visible focus, 48dp target, and selected state only as part of a separately designed filter. Keep a written data-quality explanation near `Partial`, `Stale`, or `Unavailable`.
+**Semantics and accessibility [Inferred]:** expose the chip’s label in the parent match description in reading order (for example, “Live, Sentinels versus LOUD”). Player Recent Match `Loss` retains the written `패배` label and remains non-interactive; it must not be inferred from score or team position. A standalone informational chip may use plain text semantics. If it becomes interactive, give it button semantics, visible focus, 48dp target, and selected state only as part of a separately designed filter. Keep a written data-quality explanation near `Partial`, `Stale`, or `Unavailable`. The shared status-chip contrast test verifies every variant, including `Loss`, at 4.5:1 or better through the existing contrast-safe foreground selection.
 
 **Compose mapping [Inferred]:** model `StatusChip` as a sealed status value plus localized display label owned by the UI layer; map its colors in theme tokens. It must not expose raw server error codes, exceptions, selectors, URLs, or parser details. Keep it feature-local until the same display/semantics contract is reused by two features.
 

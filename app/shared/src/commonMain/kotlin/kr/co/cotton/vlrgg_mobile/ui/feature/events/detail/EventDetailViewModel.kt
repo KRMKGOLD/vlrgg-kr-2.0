@@ -20,6 +20,9 @@ import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatsAvailability
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
 import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSortDirection
+import kr.co.cotton.vlrgg_mobile.ui.component.nextStatsSort
 
 @AssistedInject
 class EventDetailViewModel(
@@ -29,7 +32,8 @@ class EventDetailViewModel(
     private val busyRetryStateFactory: BusyRetryStateFactory = BusyRetryStateFactory(),
 ) : ViewModel() {
     private val initialTab = EventDetailTab.fromSavedStateId(savedStateHandle[SELECTED_TAB_KEY])
-    private val _uiState = MutableStateFlow(EventDetailUiState(selectedTab = initialTab))
+    private val initialStatsSort = restoreStatsSort(savedStateHandle)
+    private val _uiState = MutableStateFlow(EventDetailUiState(selectedTab = initialTab, statsSort = initialStatsSort))
     val uiState: StateFlow<EventDetailUiState> = _uiState.asStateFlow()
 
     private val loadedTabs = mutableSetOf<EventDetailTab>()
@@ -48,6 +52,18 @@ class EventDetailViewModel(
         savedStateHandle[SELECTED_TAB_KEY] = tab.savedStateId
         _uiState.value = _uiState.value.copy(selectedTab = tab, busyRetry = visibleBusyRetry(tab))
         if (_uiState.value.identity is EventIdentityContentState.Content) ensureTabLoaded(tab)
+    }
+
+    fun sortStats(column: EventStatsSortColumn) {
+        val next = nextStatsSort(_uiState.value.statsSort, column)
+        if (next == null) {
+            savedStateHandle.remove<String>(STATS_SORT_COLUMN_KEY)
+            savedStateHandle.remove<String>(STATS_SORT_DIRECTION_KEY)
+        } else {
+            savedStateHandle[STATS_SORT_COLUMN_KEY] = next.column.savedStateId
+            savedStateHandle[STATS_SORT_DIRECTION_KEY] = next.direction.savedStateId
+        }
+        _uiState.value = _uiState.value.copy(statsSort = next)
     }
 
     fun retryIdentity() {
@@ -238,8 +254,16 @@ class EventDetailViewModel(
 
     private companion object {
         const val SELECTED_TAB_KEY = "event-detail-selected-tab"
+        const val STATS_SORT_COLUMN_KEY = "event-detail-stats-sort-column"
+        const val STATS_SORT_DIRECTION_KEY = "event-detail-stats-sort-direction"
         const val IDENTITY_OPERATION = "event:identity"
         fun operationId(tab: EventDetailTab): String = "event:${tab.savedStateId}"
+
+        fun restoreStatsSort(savedStateHandle: SavedStateHandle): StatsSort<EventStatsSortColumn>? {
+            val column = EventStatsSortColumn.fromSavedStateId(savedStateHandle[STATS_SORT_COLUMN_KEY]) ?: return null
+            val direction = StatsSortDirection.fromSavedStateId(savedStateHandle[STATS_SORT_DIRECTION_KEY]) ?: return null
+            return StatsSort(column, direction)
+        }
     }
 }
 

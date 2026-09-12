@@ -104,6 +104,7 @@ class ComponentContractTest {
     @Test
     fun statusColorsKeepStatusIdentityInContainersAndBorders() {
         val live = statusChipColors(StatusChipStatus.Live, VlrLightColors)
+        val loss = statusChipColors(StatusChipStatus.Loss, VlrLightColors)
         val upcoming = statusChipColors(StatusChipStatus.Upcoming, VlrLightColors)
         val completed = statusChipColors(StatusChipStatus.Completed, VlrLightColors)
         val postponed = statusChipColors(StatusChipStatus.Postponed, VlrLightColors)
@@ -112,6 +113,9 @@ class ComponentContractTest {
 
         assertEquals(VlrLightColors.surfaceSelected, live.container)
         assertEquals(VlrLightColors.actionPrimary, live.border)
+        assertEquals(VlrLightColors.surfaceSelected, loss.container)
+        assertEquals(VlrLightColors.actionPrimaryPressed, loss.content)
+        assertEquals(VlrLightColors.actionPrimary, loss.border)
         assertEquals(VlrLightColors.statusUpcomingContainer, upcoming.container)
         assertEquals(VlrLightColors.statusUpcoming, upcoming.border)
         assertEquals(VlrLightColors.statusCompletedContainer, completed.container)

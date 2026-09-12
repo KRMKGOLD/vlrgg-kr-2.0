@@ -21,6 +21,8 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
 import kr.co.cotton.vlrgg_mobile.domain.repository.EventRepository
 import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSortDirection
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -384,6 +386,113 @@ class EventDetailViewModelTest {
         assertEquals(EventDetailTab.NEWS.savedStateId, savedStateHandle["event-detail-selected-tab"])
     }
 
+    @Test
+    fun statsSortCyclesAndSavesPrimitiveColumnAndDirection() = runViewModelTest {
+        val savedStateHandle = SavedStateHandle()
+        val repository = FakeEventRepository()
+        val viewModel = EventDetailViewModel(repository, EVENT_ID, savedStateHandle)
+        advanceUntilIdle()
+
+        viewModel.sortStats(EventStatsSortColumn.RATING)
+        assertEquals(StatsSort(EventStatsSortColumn.RATING, StatsSortDirection.DESCENDING), viewModel.uiState.value.statsSort)
+        assertEquals("rating", savedStateHandle["event-detail-stats-sort-column"])
+        assertEquals("desc", savedStateHandle["event-detail-stats-sort-direction"])
+
+        viewModel.sortStats(EventStatsSortColumn.RATING)
+        assertEquals(StatsSort(EventStatsSortColumn.RATING, StatsSortDirection.ASCENDING), viewModel.uiState.value.statsSort)
+        assertEquals("asc", savedStateHandle["event-detail-stats-sort-direction"])
+
+        viewModel.sortStats(EventStatsSortColumn.RATING)
+        assertEquals(null, viewModel.uiState.value.statsSort)
+        assertEquals(null, savedStateHandle.get<String>("event-detail-stats-sort-column"))
+        assertEquals(null, savedStateHandle.get<String>("event-detail-stats-sort-direction"))
+
+        viewModel.sortStats(EventStatsSortColumn.ACS)
+        viewModel.sortStats(EventStatsSortColumn.K_D)
+        assertEquals(StatsSort(EventStatsSortColumn.K_D, StatsSortDirection.DESCENDING), viewModel.uiState.value.statsSort)
+    }
+
+    @Test
+    fun statsSortRestoresOnlyWhenBothPrimitiveIdsAreValid() = runViewModelTest {
+        val valid = EventDetailViewModel(
+            FakeEventRepository(),
+            EVENT_ID,
+            SavedStateHandle(
+                mapOf(
+                    "event-detail-stats-sort-column" to "adr",
+                    "event-detail-stats-sort-direction" to "asc",
+                ),
+            ),
+        )
+        val invalidColumn = EventDetailViewModel(
+            FakeEventRepository(),
+            EVENT_ID,
+            SavedStateHandle(
+                mapOf(
+                    "event-detail-stats-sort-column" to "unknown",
+                    "event-detail-stats-sort-direction" to "desc",
+                ),
+            ),
+        )
+        val partial = EventDetailViewModel(
+            FakeEventRepository(),
+            EVENT_ID,
+            SavedStateHandle(mapOf("event-detail-stats-sort-column" to "rounds")),
+        )
+
+        assertEquals(StatsSort(EventStatsSortColumn.ADR, StatsSortDirection.ASCENDING), valid.uiState.value.statsSort)
+        assertEquals(null, invalidColumn.uiState.value.statsSort)
+        assertEquals(null, partial.uiState.value.statsSort)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun statsSortSurvivesTabChangesRetryAndReplacementWithoutExtraRequests() = runViewModelTest {
+        val replacementStats = stats.copy(players = stats.players.map { it.copy(rating = 9.9) })
+        val repository = FakeEventRepository(
+            statsResults = ArrayDeque(
+                listOf(
+                    AppResult.Failure,
+                    AppResult.Success(replacementStats),
+                ),
+            ),
+        )
+        val viewModel = EventDetailViewModel(repository, EVENT_ID, SavedStateHandle())
+        advanceUntilIdle()
+
+        viewModel.sortStats(EventStatsSortColumn.RATING)
+        viewModel.selectTab(EventDetailTab.STATS)
+        advanceUntilIdle()
+        assertEquals(EventStatsContentState.Error, viewModel.uiState.value.stats)
+
+        viewModel.retrySelectedTab()
+        advanceUntilIdle()
+        viewModel.selectTab(EventDetailTab.NEWS)
+        advanceUntilIdle()
+        viewModel.selectTab(EventDetailTab.STATS)
+        advanceUntilIdle()
+
+        assertEquals(StatsSort(EventStatsSortColumn.RATING, StatsSortDirection.DESCENDING), viewModel.uiState.value.statsSort)
+        assertEquals(EventStatsContentState.Content(replacementStats), viewModel.uiState.value.stats)
+        assertEquals(2, repository.requests.count { it == "stats" })
+    }
+
+    @Test
+    fun separateSavedStateHandlesKeepStatsSortIsolated() = runViewModelTest {
+        val firstHandle = SavedStateHandle()
+        val secondHandle = SavedStateHandle()
+        val first = EventDetailViewModel(FakeEventRepository(), EVENT_ID, firstHandle)
+        val second = EventDetailViewModel(FakeEventRepository(expectedEventId = SECOND_EVENT_ID), SECOND_EVENT_ID, secondHandle)
+
+        first.sortStats(EventStatsSortColumn.KAST)
+
+        assertEquals(StatsSort(EventStatsSortColumn.KAST, StatsSortDirection.DESCENDING), first.uiState.value.statsSort)
+        assertEquals(null, second.uiState.value.statsSort)
+        assertEquals("kast", firstHandle["event-detail-stats-sort-column"])
+        assertEquals(null, secondHandle.get<String>("event-detail-stats-sort-column"))
+        advanceUntilIdle()
+    }
+
     private fun runViewModelTest(
         testBody: suspend TestScope.() -> Unit,
     ) = runTest {
@@ -396,6 +505,7 @@ class EventDetailViewModelTest {
     }
 
     private class FakeEventRepository(
+        private val expectedEventId: String = EVENT_ID,
         private val identityResults: ArrayDeque<AppResult<EventDetail>> = ArrayDeque(
             listOf(AppResult.Success(eventDetail)),
         ),
@@ -414,25 +524,25 @@ class EventDetailViewModelTest {
         override suspend fun getEvents() = error("Event list is not used in detail tests")
 
         override suspend fun getEventDetail(eventId: String): AppResult<EventDetail> {
-            assertEquals(EVENT_ID, eventId)
+            assertEquals(expectedEventId, eventId)
             requests += "identity"
             return identityResults.removeFirst()
         }
 
         override suspend fun getEventMatches(eventId: String): AppResult<List<MatchSummary>> {
-            assertEquals(EVENT_ID, eventId)
+            assertEquals(expectedEventId, eventId)
             requests += "matches"
             return matchesResults.removeFirst()
         }
 
         override suspend fun getEventNews(eventId: String): AppResult<List<NewsSummary>> {
-            assertEquals(EVENT_ID, eventId)
+            assertEquals(expectedEventId, eventId)
             requests += "news"
             return newsResults.removeFirst()
         }
 
         override suspend fun getEventStats(eventId: String): AppResult<EventStats> {
-            assertEquals(EVENT_ID, eventId)
+            assertEquals(expectedEventId, eventId)
             requests += "stats"
             return statsResults.removeFirst()
         }
@@ -440,6 +550,7 @@ class EventDetailViewModelTest {
 
     private companion object {
         const val EVENT_ID = "100"
+        const val SECOND_EVENT_ID = "200"
 
         val eventDetail = EventDetail(
             id = EVENT_ID,

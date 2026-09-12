@@ -7,9 +7,13 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventPlayerStats
@@ -21,6 +25,8 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
 import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSortDirection
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.matchCardTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
@@ -64,21 +70,80 @@ class EventDetailContentUiTest {
     }
 
     @Test
-    fun statsKeepMetricOrderNullMarkerAndOnlyPlayerIdentityNavigates() = runComposeUiTest {
+    fun statsKeepMetricOrderNullMarkerAndOnlyPlayerIdentityNavigatesWhileEveryHeaderEmitsSort() = runComposeUiTest {
         var clickedPlayer: String? = null
+        val sortedColumns = mutableListOf<EventStatsSortColumn>()
         setContent {
             Fixture(
                 uiState = populatedState.copy(selectedTab = EventDetailTab.STATS),
                 onPlayerClick = { clickedPlayer = it },
+                onSortStats = sortedColumns::add,
             )
         }
 
-        listOf("Rounds", "Rating", "ACS", "K-D", "ADR", "KAST").forEach { label ->
-            onNodeWithText(label).assertExists()
+        val headers = listOf(
+            "Rounds" to EventStatsSortColumn.ROUNDS,
+            "Rating" to EventStatsSortColumn.RATING,
+            "ACS" to EventStatsSortColumn.ACS,
+            "K-D" to EventStatsSortColumn.K_D,
+            "ADR" to EventStatsSortColumn.ADR,
+            "KAST" to EventStatsSortColumn.KAST,
+        )
+        headers.forEach { (_, column) ->
+            onNodeWithTag(eventStatsMetricHeaderTag(column)).assertExists().performScrollTo().performClick()
         }
+        assertEquals(headers.map { it.second }, sortedColumns)
         onNodeWithText("—").assertExists()
         onNodeWithTag(eventStatsPlayerTag(player.playerId)).performClick()
         assertEquals(player.playerId, clickedPlayer)
+    }
+
+    @Test
+    fun statsSortKeepsIdentityAndMetricCellsInTheSameNumericOrder() = runComposeUiTest {
+        val low = player.copy(playerId = "low", playerName = "Rating 2", rating = 2.0)
+        val high = player.copy(playerId = "high", playerName = "Rating 10", rating = 10.0)
+        setContent {
+            Fixture(
+                uiState = populatedState.copy(
+                    selectedTab = EventDetailTab.STATS,
+                    stats = EventStatsContentState.Content(
+                        EventStats(EventStatsAvailability.AVAILABLE, listOf(low, high)),
+                    ),
+                    statsSort = StatsSort(EventStatsSortColumn.RATING, StatsSortDirection.DESCENDING),
+                ),
+            )
+        }
+
+        val highIdentity = onNodeWithTag(eventStatsPlayerTag("high")).fetchSemanticsNode().boundsInRoot
+        val lowIdentity = onNodeWithTag(eventStatsPlayerTag("low")).fetchSemanticsNode().boundsInRoot
+        val highRating = onNodeWithTag(eventStatsMetricValueTag("high", EventStatsSortColumn.RATING)).fetchSemanticsNode().boundsInRoot
+        val lowRating = onNodeWithTag(eventStatsMetricValueTag("low", EventStatsSortColumn.RATING)).fetchSemanticsNode().boundsInRoot
+        assertEquals(highIdentity.top, highRating.top)
+        assertEquals(lowIdentity.top, lowRating.top)
+        kotlin.test.assertTrue(highIdentity.top < lowIdentity.top)
+    }
+
+    @Test
+    fun statsLazyTableReachesTheLastLongRowWithoutClippingItsValue() = runComposeUiTest {
+        val players = (1..30).map { index ->
+            player.copy(
+                playerId = "player-$index",
+                playerName = "A very long player name number $index that wraps",
+                averageDamagePerRound = 1234567890.123 + index,
+            )
+        }
+        setContent {
+            Fixture(
+                uiState = populatedState.copy(
+                    selectedTab = EventDetailTab.STATS,
+                    stats = EventStatsContentState.Content(EventStats(EventStatsAvailability.AVAILABLE, players)),
+                ),
+            )
+        }
+
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(eventStatsPlayerTag("player-30")))
+        onNodeWithTag(eventStatsPlayerTag("player-30")).assertExists()
+        onNodeWithTag(eventStatsMetricValueTag("player-30", EventStatsSortColumn.ADR)).assertExists()
     }
 
     @Test
@@ -142,6 +207,7 @@ class EventDetailContentUiTest {
         onMatchClick: (String) -> Unit = {},
         onNewsClick: (String, String) -> Unit = { _, _ -> },
         onPlayerClick: (String) -> Unit = {},
+        onSortStats: (EventStatsSortColumn) -> Unit = {},
         onRetryIdentity: () -> Unit = {},
         onRetrySelectedTab: () -> Unit = {},
     ) {
@@ -157,6 +223,7 @@ class EventDetailContentUiTest {
                 onMatchClick = onMatchClick,
                 onNewsClick = onNewsClick,
                 onPlayerClick = onPlayerClick,
+                onSortStats = onSortStats,
                 onRetryIdentity = onRetryIdentity,
                 onRetrySelectedTab = onRetrySelectedTab,
             )

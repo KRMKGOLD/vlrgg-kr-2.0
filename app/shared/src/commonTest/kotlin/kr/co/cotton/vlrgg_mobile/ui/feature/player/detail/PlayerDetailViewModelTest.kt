@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
+import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -10,6 +11,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoritePlayer
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSortDirection
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerProfile
 import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
@@ -113,6 +116,113 @@ class PlayerDetailViewModelTest {
 
         assertEquals(listOf(PLAYER_ID), repository.requestedPlayerIds)
         assertEquals(PlayerDetailContentState.Content(playerDetail()), viewModel.uiState.value.contentState)
+    }
+
+    @Test
+    fun agentStatsSortCyclesDescendingAscendingSourceAndNewColumnsStartDescendingWithoutApiCalls() = runViewModelTest {
+        val repository = FakePlayerRepository(listOf(AppResult.Success(playerDetail())))
+        val savedStateHandle = SavedStateHandle()
+        val viewModel = PlayerDetailViewModel(
+            repository,
+            FakeFavoriteRepository(),
+            PLAYER_ID,
+            savedStateHandle,
+        )
+        advanceUntilIdle()
+
+        viewModel.sortAgentStats(PlayerAgentStatsSortColumn.MAPS)
+        assertEquals(
+            StatsSort(PlayerAgentStatsSortColumn.MAPS, StatsSortDirection.DESCENDING),
+            viewModel.uiState.value.agentStatsSort,
+        )
+        viewModel.sortAgentStats(PlayerAgentStatsSortColumn.MAPS)
+        assertEquals(
+            StatsSort(PlayerAgentStatsSortColumn.MAPS, StatsSortDirection.ASCENDING),
+            viewModel.uiState.value.agentStatsSort,
+        )
+        viewModel.sortAgentStats(PlayerAgentStatsSortColumn.MAPS)
+        assertEquals(null, viewModel.uiState.value.agentStatsSort)
+        viewModel.sortAgentStats(PlayerAgentStatsSortColumn.ADR)
+        assertEquals(
+            StatsSort(PlayerAgentStatsSortColumn.ADR, StatsSortDirection.DESCENDING),
+            viewModel.uiState.value.agentStatsSort,
+        )
+        assertEquals(listOf(PLAYER_ID), repository.requestedPlayerIds)
+    }
+
+    @Test
+    fun validAgentStatsSortRestoresWhileInvalidOrPartialSavedValuesUseSourceOrder() = runViewModelTest {
+        val validHandle = SavedStateHandle(
+            mapOf(
+                AGENT_STATS_SORT_COLUMN_KEY to "rating",
+                AGENT_STATS_SORT_DIRECTION_KEY to "asc",
+            ),
+        )
+        val restored = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(playerDetail()))),
+            FakeFavoriteRepository(),
+            PLAYER_ID,
+            validHandle,
+        )
+        assertEquals(
+            StatsSort(PlayerAgentStatsSortColumn.RATING, StatsSortDirection.ASCENDING),
+            restored.uiState.value.agentStatsSort,
+        )
+
+        listOf(
+            mapOf(AGENT_STATS_SORT_COLUMN_KEY to "not-a-column", AGENT_STATS_SORT_DIRECTION_KEY to "asc"),
+            mapOf(AGENT_STATS_SORT_COLUMN_KEY to "maps"),
+            mapOf(AGENT_STATS_SORT_DIRECTION_KEY to "desc"),
+        ).forEach { savedValues ->
+            val viewModel = PlayerDetailViewModel(
+                FakePlayerRepository(listOf(AppResult.Success(playerDetail()))),
+                FakeFavoriteRepository(),
+                PLAYER_ID,
+                SavedStateHandle(savedValues),
+            )
+            assertEquals(null, viewModel.uiState.value.agentStatsSort)
+        }
+    }
+
+    @Test
+    fun agentStatsSortSurvivesRetryAndContentReplacementAndIsIsolatedBySavedStateHandle() = runViewModelTest {
+        val repository = FakePlayerRepository(
+            listOf(
+                AppResult.Failure,
+                AppResult.Success(playerDetail()),
+            ),
+        )
+        val firstHandle = SavedStateHandle()
+        val first = PlayerDetailViewModel(
+            repository,
+            FakeFavoriteRepository(),
+            PLAYER_ID,
+            firstHandle,
+        )
+        advanceUntilIdle()
+        first.sortAgentStats(PlayerAgentStatsSortColumn.KAST)
+        first.retry()
+        advanceUntilIdle()
+
+        val expected = StatsSort(PlayerAgentStatsSortColumn.KAST, StatsSortDirection.DESCENDING)
+        assertEquals(expected, first.uiState.value.agentStatsSort)
+        assertTrue(first.uiState.value.contentState is PlayerDetailContentState.Content)
+        assertEquals(listOf(PLAYER_ID, PLAYER_ID), repository.requestedPlayerIds)
+
+        val recreated = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(playerDetail()))),
+            FakeFavoriteRepository(),
+            PLAYER_ID,
+            firstHandle,
+        )
+        val differentPlayer = PlayerDetailViewModel(
+            FakePlayerRepository(listOf(AppResult.Success(playerDetail()))),
+            FakeFavoriteRepository(),
+            "456",
+            SavedStateHandle(),
+        )
+        assertEquals(expected, recreated.uiState.value.agentStatsSort)
+        assertEquals(null, differentPlayer.uiState.value.agentStatsSort)
     }
 
     @Test

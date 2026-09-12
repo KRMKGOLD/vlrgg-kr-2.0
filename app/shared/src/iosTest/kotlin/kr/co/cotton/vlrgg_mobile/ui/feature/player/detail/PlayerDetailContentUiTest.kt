@@ -1,18 +1,25 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -37,6 +44,9 @@ import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerProfile
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatchOutcome
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatchTeam
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSortDirection
+import kr.co.cotton.vlrgg_mobile.ui.component.captureStatsEvidence
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kr.co.cotton.vlrgg_mobile.ui.theme.initializeVlrMaterial3
 import kotlin.test.Test
@@ -227,12 +237,128 @@ class PlayerDetailContentUiTest {
         onNodeWithText("Jett").assertExists()
         onNodeWithText("jett").assertDoesNotExist()
         assertEquals(3, onAllNodesWithText("—").fetchSemanticsNodes().size)
-        onNodeWithContentDescription("에이전트 통계: Jett, Maps: 0, Pick Rate: 0%, Rating: —, ACS: 0.0, K/D: 0.0, KAST: —, ADR: —").assertExists()
+        onNodeWithContentDescription("에이전트 통계: Jett").assertExists()
+        onNodeWithContentDescription("Jett, Maps, 0").assertExists()
+        onNodeWithContentDescription("Jett, Pick Rate, 0%").assertExists()
+        onNodeWithContentDescription("Jett, Rating, —").assertExists()
+        onNodeWithContentDescription("Jett, ACS, 0.0").assertExists()
+        onNodeWithContentDescription("Jett, K/D, 0.0").assertExists()
+        onNodeWithContentDescription("Jett, KAST, —").assertExists()
+        onNodeWithContentDescription("Jett, ADR, —").assertExists()
         onNodeWithContentDescription("에이전트 이미지").assertDoesNotExist()
 
         val mapsHeader = onNodeWithTag(playerAgentMetricHeaderTag("Maps")).fetchSemanticsNode().boundsInRoot
         val mapsValue = onNodeWithTag(playerAgentMetricValueTag("jett", "Maps")).fetchSemanticsNode().boundsInRoot
         assertEquals(mapsHeader.right, mapsValue.right)
+    }
+
+    @Test
+    fun duplicateAgentMetricTagsRemainUniqueAfterSorting() = runComposeUiTest {
+        setContent {
+            Fixture(
+                state = PlayerDetailContentState.Content(
+                    player.copy(agentStats = listOf(2, 10).map {
+                        player.agentStats.single().copy(agentName = "jett", mapsPlayed = it)
+                    } + player.agentStats.single().copy(agentName = "jett#1", mapsPlayed = 7)),
+                ),
+                agentStatsSort = StatsSort(PlayerAgentStatsSortColumn.MAPS, StatsSortDirection.DESCENDING),
+            )
+        }
+        val first = onNodeWithTag(playerAgentMetricValueTag("jett", "Maps", 1)).fetchSemanticsNode()
+        val second = onNodeWithTag(playerAgentMetricValueTag("jett", "Maps", 2)).fetchSemanticsNode()
+        val literal = onNodeWithTag(playerAgentMetricValueTag("jett#1", "Maps")).fetchSemanticsNode()
+        assertTrue(second.boundsInRoot.top < literal.boundsInRoot.top)
+        assertTrue(literal.boundsInRoot.top < first.boundsInRoot.top)
+        onNodeWithContentDescription("Jett, Maps, 2").assertExists()
+        onNodeWithContentDescription("Jett, Maps, 10").assertExists()
+    }
+
+    @Test
+    fun everyAgentMetricHeaderIsAnAccessibleSortTargetAndEmitsItsTypedColumn() = runComposeUiTest {
+        val clickedColumns = mutableListOf<PlayerAgentStatsSortColumn>()
+        setContent {
+            Fixture(
+                state = PlayerDetailContentState.Content(player),
+                agentStatsSort = StatsSort(PlayerAgentStatsSortColumn.ADR, StatsSortDirection.ASCENDING),
+                onAgentStatsSortColumn = { clickedColumns += it },
+            )
+        }
+
+        PlayerAgentStatsSortColumn.entries.forEach { column ->
+            onNodeWithTag(playerAgentMetricHeaderTag(column.label))
+                .assert(hasClickAction())
+                .assertHeightIsAtLeast(48.dp)
+                .performClick()
+        }
+        assertEquals(PlayerAgentStatsSortColumn.entries.toList(), clickedColumns)
+        onNodeWithTag(playerAgentMetricHeaderTag("ADR")).assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "오름차순"),
+        )
+    }
+
+    @Test
+    fun compactAgentTableWrapsLongIdentityAndLargeValuesInsideBounds() = runComposeUiTest {
+        val longAgentName = "extremely-long-agent-name-that-must-wrap-without-clipping"
+        val displayName = longAgentName.replaceFirstChar { it.uppercase() }
+        val large = player.agentStats.single().copy(
+            agentName = longAgentName,
+            mapsPlayed = Int.MAX_VALUE,
+            pickRatePercent = Int.MAX_VALUE,
+            rating = Double.MAX_VALUE,
+            averageCombatScore = Double.MAX_VALUE,
+            killDeathRatio = Double.MAX_VALUE,
+            kastPercent = Int.MAX_VALUE,
+            averageDamagePerRound = Double.MAX_VALUE,
+        )
+        var density = 1f
+        setContent {
+            density = LocalDensity.current.density
+            VlrTheme {
+                Box(Modifier.width(360.dp).height(780.dp)) {
+                    PlayerDetailContent(
+                        uiState = PlayerDetailUiState(PlayerDetailContentState.Content(player.copy(agentStats = listOf(large)))),
+                        listState = rememberLazyListState(),
+                        agentStatsHorizontalScrollState = rememberScrollState(),
+                        onBack = {},
+                        onTeamClick = {},
+                        onMatchClick = {},
+                        onRetry = {},
+                        onFavoriteClick = {},
+                        onFavoriteRetry = {},
+                        onFavoriteRestoreRetry = {},
+                        onFavoriteErrorDismiss = {},
+                        onAgentStatsSortColumn = {},
+                    )
+                }
+            }
+        }
+
+        val tableBounds = onNodeWithTag(PLAYER_AGENT_STATS_TABLE_TAG).fetchSemanticsNode().boundsInRoot
+        val identityBounds = onNodeWithTag(playerAgentIdentityTag(longAgentName))
+            .fetchSemanticsNode().boundsInRoot
+        val mapsBounds = onNodeWithTag(playerAgentMetricValueTag(longAgentName, "Maps"))
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue(identityBounds.left >= tableBounds.left)
+        assertTrue(identityBounds.right <= tableBounds.right)
+        assertTrue(identityBounds.height >= 52f * density)
+        assertEquals(identityBounds.top, mapsBounds.top)
+        assertEquals(identityBounds.bottom, mapsBounds.bottom)
+        onNodeWithText(Int.MAX_VALUE.toString()).assertExists()
+        onNodeWithContentDescription("$displayName, Rating, ${Double.MAX_VALUE}").assertExists()
+        onNodeWithTag(PLAYER_AGENT_STATS_TABLE_TAG).captureStatsEvidence("player-360-long")
+    }
+
+    @Test
+    fun outerPlayerListStillReachesRecentMatchesAfterManyBoundedAgentRows() = runComposeUiTest {
+        val manyStats = (1..30).map { index ->
+            player.agentStats.single().copy(agentName = "agent-$index", mapsPlayed = index)
+        }
+        setContent {
+            Fixture(PlayerDetailContentState.Content(player.copy(agentStats = manyStats)))
+        }
+
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(playerMatchCardTag(MATCH_ID)))
+        onNodeWithTag(playerMatchCardTag(MATCH_ID)).assertIsDisplayed()
     }
 
     @Test
@@ -498,15 +624,20 @@ class PlayerDetailContentUiTest {
         onFavoriteRetry: () -> Unit = {},
         onFavoriteRestoreRetry: () -> Unit = {},
         onFavoriteErrorDismiss: () -> Unit = {},
+        agentStatsSort: StatsSort<PlayerAgentStatsSortColumn>? = null,
+        onAgentStatsSortColumn: (PlayerAgentStatsSortColumn) -> Unit = {},
     ) = VlrTheme {
         Box(Modifier.fillMaxSize().testTag(TEST_ROOT_TAG)) {
             PlayerDetailContent(
-                uiState = PlayerDetailUiState(state, favorite), listState = rememberLazyListState(),
+                uiState = PlayerDetailUiState(state, favorite, agentStatsSort = agentStatsSort),
+                listState = rememberLazyListState(),
+                agentStatsHorizontalScrollState = rememberScrollState(),
                 onBack = onBack, onTeamClick = onTeamClick, onMatchClick = onMatchClick, onRetry = onRetry,
                 onFavoriteClick = onFavoriteClick,
                 onFavoriteRetry = onFavoriteRetry,
                 onFavoriteRestoreRetry = onFavoriteRestoreRetry,
                 onFavoriteErrorDismiss = onFavoriteErrorDismiss,
+                onAgentStatsSortColumn = onAgentStatsSortColumn,
             )
         }
     }

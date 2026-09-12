@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +50,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -78,6 +80,7 @@ internal fun playerMatchCardTag(matchId: String) = "player-match-$matchId"
 fun PlayerDetailContent(
     uiState: PlayerDetailUiState,
     listState: LazyListState,
+    agentStatsHorizontalScrollState: ScrollState,
     onBack: () -> Unit,
     onTeamClick: (String) -> Unit,
     onMatchClick: (String) -> Unit,
@@ -86,6 +89,7 @@ fun PlayerDetailContent(
     onFavoriteRetry: () -> Unit,
     onFavoriteRestoreRetry: () -> Unit,
     onFavoriteErrorDismiss: () -> Unit,
+    onAgentStatsSortColumn: (PlayerAgentStatsSortColumn) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     DisposableEffect(Unit) {
@@ -141,7 +145,13 @@ fun PlayerDetailContent(
                 Modifier.fillMaxSize().padding(padding),
             )
             is PlayerDetailContentState.Content -> PlayerDetailBody(
-                state.player, listState, onTeamClick, onMatchClick,
+                state.player,
+                uiState.agentStatsSort,
+                listState,
+                agentStatsHorizontalScrollState,
+                onTeamClick,
+                onMatchClick,
+                onAgentStatsSortColumn,
                 Modifier.fillMaxSize().padding(padding),
             )
             PlayerDetailContentState.Error -> Box(Modifier.fillMaxSize().padding(padding))
@@ -223,16 +233,26 @@ private fun PlayerFavoriteButton(
 @Composable
 private fun PlayerDetailBody(
     player: PlayerDetail,
+    agentStatsSort: StatsSort<PlayerAgentStatsSortColumn>?,
     listState: LazyListState,
+    agentStatsHorizontalScrollState: ScrollState,
     onTeamClick: (String) -> Unit,
     onMatchClick: (String) -> Unit,
+    onAgentStatsSortColumn: (PlayerAgentStatsSortColumn) -> Unit,
     modifier: Modifier,
 ) = LazyColumn(state = listState, modifier = modifier) {
     item("header") { PlayerHeader(player) }
     divider("header-divider")
     item("team") { CurrentTeamSection(player, onTeamClick) }
     divider("team-divider")
-    item("stats") { AgentStatsSection(player.agentStats) }
+    item("stats") {
+        AgentStatsSection(
+            stats = player.agentStats,
+            horizontalScrollState = agentStatsHorizontalScrollState,
+            sort = agentStatsSort,
+            onSortColumn = onAgentStatsSortColumn,
+        )
+    }
     divider("stats-divider")
     item("matches") { RecentMatchesSection(player.recentMatches, onMatchClick) }
     item("bottom-space") { Spacer(Modifier.height(VlrDimensions.Space8)) }
@@ -298,12 +318,22 @@ private fun CurrentTeamSection(player: PlayerDetail, onTeamClick: (String) -> Un
 }
 
 @Composable
-private fun AgentStatsSection(stats: List<PlayerAgentStat>) {
+private fun AgentStatsSection(
+    stats: List<PlayerAgentStat>,
+    horizontalScrollState: ScrollState,
+    sort: StatsSort<PlayerAgentStatsSortColumn>?,
+    onSortColumn: (PlayerAgentStatsSortColumn) -> Unit,
+) {
     Section(PLAYER_DETAIL_STATS_SECTION_TAG, "에이전트 통계") {
         if (stats.isEmpty()) {
             SectionEmpty("에이전트 통계 정보가 없습니다")
         } else {
-            PlayerAgentStatsTable(stats)
+            PlayerAgentStatsTable(
+                stats = stats,
+                horizontalScrollState = horizontalScrollState,
+                sort = sort,
+                onSortColumn = onSortColumn,
+            )
         }
     }
 }

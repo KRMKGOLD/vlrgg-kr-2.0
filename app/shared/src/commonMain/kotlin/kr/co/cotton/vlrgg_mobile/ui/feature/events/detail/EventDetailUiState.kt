@@ -5,6 +5,21 @@ import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStats
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
 import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
+
+enum class EventStatsSortColumn(val savedStateId: String) {
+    ROUNDS("rounds"),
+    RATING("rating"),
+    ACS("acs"),
+    K_D("kd"),
+    ADR("adr"),
+    KAST("kast"),
+    ;
+
+    companion object {
+        internal fun fromSavedStateId(id: String?): EventStatsSortColumn? = entries.firstOrNull { it.savedStateId == id }
+    }
+}
 
 enum class EventDetailTab(
     val savedStateId: String,
@@ -53,5 +68,6 @@ data class EventDetailUiState(
     val matches: EventMatchesContentState = EventMatchesContentState.Loading,
     val news: EventNewsContentState = EventNewsContentState.Loading,
     val stats: EventStatsContentState = EventStatsContentState.Loading,
+    val statsSort: StatsSort<EventStatsSortColumn>? = null,
     val busyRetry: BusyRetryState? = null,
 )

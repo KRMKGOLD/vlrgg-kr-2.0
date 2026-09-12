@@ -65,7 +65,11 @@ Player Detail에서는 Event Detail로 직접 이동하지 않는다.
 4. Agent Stats
 5. Recent Matches outlined card
 
-기본 정보와 현재 팀을 먼저 보여주고, Current Team은 `imageUrl` 기반 logo card로 표시한다. 표 형태의 Agent Stats는 Agent identity column을 고정하고 metric table만 수평 스크롤한다. Agent icon은 사용하지 않으며, API의 `agentName`은 유지하되 UI 표시명은 첫 글자를 대문자로 변환한다. metric 순서는 `Maps`, `Pick Rate`, `Rating`, `ACS`, `K/D`, `KAST`, `ADR`이며 Recent Matches는 outlined card로 최대 5개만 표시한다.
+기본 정보와 현재 팀을 먼저 보여주고, Current Team은 `imageUrl` 기반 logo card로 표시한다. 표 형태의 Agent Stats는 Agent identity column을 고정하고 metric table만 수평 스크롤한다. Agent icon은 사용하지 않으며, API의 `agentName`은 유지하되 UI 표시명은 첫 글자를 대문자로 변환한다. metric 순서는 `Maps`, `Pick Rate`, `Rating`, `ACS`, `K/D`, `KAST`, `ADR`이며 Recent Matches는 outlined card로 최대 5개만 표시한다. Recent Match의 `LOSS`는 기존 `surfaceSelected`/`actionPrimary` red token을 쓰는 독립적인 정보용 `Loss` chip과 `패배` 문구로 표시하고, `WIN`의 `Completed`/`승리`와 `UNKNOWN`의 `Partial`/`결과 미정`은 유지한다. 이 chip은 비상호작용이며 점수나 teamA/teamB 위치로 결과를 추정하지 않는다; 카드 전체만 기존 Match Detail target이다.
+
+Agent Stats는 Event와 공통 Table을 사용하되 바깥 화면의 세로 스크롤 안에서 일반 행 목록으로 렌더링한다. 별도 세로 스크롤을 중첩하지 않는다. 각 metric header는 내림차순 → 오름차순 → 정렬 해제로 순환하며 다른 열은 내림차순부터 시작한다. domain 숫자로 비교하고, 누락 값은 양 방향 마지막, 동률은 현재 source 순서를 유지한다. 원본 목록과 `0`/`—` 구분은 보존한다.
+
+정렬 상태는 화면 UiState와 명시적 callback이 소유하며 추가 API 요청을 만들지 않는다. 열·방향과 가로 스크롤은 Match 왕복 뒤 보존하고 Player ID별로 분리한다. 같은 대상의 새 데이터에는 선택을 다시 적용하며 해제하면 새 source 순서로 돌아간다. 잘못된 저장 값은 정렬 없음으로 복원한다. 기본 8dp rounded와 단일 outline, 48dp 이상의 header target, 화살표·방향 설명을 사용한다.
 
 ## 표시 데이터
 
