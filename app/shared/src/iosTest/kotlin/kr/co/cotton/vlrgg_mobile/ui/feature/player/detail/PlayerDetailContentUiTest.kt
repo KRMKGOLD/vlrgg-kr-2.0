@@ -253,6 +253,25 @@ class PlayerDetailContentUiTest {
     }
 
     @Test
+    fun duplicateAgentMetricTagsRemainUniqueAfterSorting() = runComposeUiTest {
+        setContent {
+            Fixture(
+                state = PlayerDetailContentState.Content(
+                    player.copy(agentStats = listOf(2, 10).map {
+                        player.agentStats.single().copy(agentName = "jett", mapsPlayed = it)
+                    }),
+                ),
+                agentStatsSort = StatsSort(PlayerAgentStatsSortColumn.MAPS, StatsSortDirection.DESCENDING),
+            )
+        }
+        val first = onNodeWithTag(playerAgentMetricValueTag("jett#1", "Maps")).fetchSemanticsNode()
+        val second = onNodeWithTag(playerAgentMetricValueTag("jett#2", "Maps")).fetchSemanticsNode()
+        assertTrue(second.boundsInRoot.top < first.boundsInRoot.top)
+        onNodeWithContentDescription("Jett, Maps, 2").assertExists()
+        onNodeWithContentDescription("Jett, Maps, 10").assertExists()
+    }
+
+    @Test
     fun everyAgentMetricHeaderIsAnAccessibleSortTargetAndEmitsItsTypedColumn() = runComposeUiTest {
         val clickedColumns = mutableListOf<PlayerAgentStatsSortColumn>()
         setContent {

@@ -16,7 +16,7 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 internal const val PLAYER_AGENT_STATS_TABLE_TAG = "player-agent-stats-table"
 internal fun playerAgentIdentityTag(rowKey: String) = "player-agent-identity-$rowKey"
 internal fun playerAgentMetricHeaderTag(metric: String) = "player-agent-metric-header-$metric"
-internal fun playerAgentMetricValueTag(agentName: String, metric: String) = "player-agent-metric-$agentName-$metric"
+internal fun playerAgentMetricValueTag(rowKey: String, metric: String) = "player-agent-metric-$rowKey-$metric"
 
 internal data class PlayerAgentStatsRow(
     val key: String,
@@ -53,7 +53,7 @@ internal fun PlayerAgentStatsTable(
         identityTestTag = { playerAgentIdentityTag(it.key) },
         metricHeaderTestTag = { playerAgentMetricHeaderTag(it.label) },
         metricValueTestTag = { row, column ->
-            playerAgentMetricValueTag(row.stat.agentName, column.label)
+            playerAgentMetricValueTag(row.key, column.label)
         },
     )
 }
