@@ -312,6 +312,8 @@ class ReleaseContractTest < Minitest::Test
       assert_equal ["workflow_dispatch"], document.fetch(true).keys
       assert_equal({ "actions" => "read", "contents" => "read" }, document.fetch("permissions"))
       assert_equal %w[android-internal ios-testflight][index], document.fetch("jobs").fetch("deploy").fetch("environment")
+      refute document.fetch("jobs").fetch("deploy").fetch("env").values.any? { |value| value.include?("secrets.") },
+             "Deployment secrets must be scoped to consuming steps."
       File.read(path)
     end
 

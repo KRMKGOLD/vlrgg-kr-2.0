@@ -71,12 +71,6 @@ jobs:
       APP_VERSION: ${{ inputs.APP_VERSION }}
       APP_BUILD_NUMBER: ${{ inputs.APP_BUILD_NUMBER }}
       SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
-      API_BASE_URL: ${{ secrets.API_BASE_URL }}
-      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      ANDROID_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.ANDROID_PLAY_SERVICE_ACCOUNT_JSON }}
       ANDROID_INTERNAL_DEPLOY_ENABLED: ${{ vars.ANDROID_INTERNAL_DEPLOY_ENABLED }}
     steps:
       - name: Keep deployment disabled until the environment is configured
@@ -107,9 +101,17 @@ jobs:
           bundler-cache: true
 
       - name: Materialize temporary Android signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: ruby scripts/app-release/release_contract.rb write-base64-secret ANDROID_KEYSTORE_BASE64 "$ANDROID_KEYSTORE_PATH"
 
       - name: Build and upload to internal testing
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.ANDROID_PLAY_SERVICE_ACCOUNT_JSON }}
         run: bundle exec fastlane android internal
 
       - name: Remove signing and binary files

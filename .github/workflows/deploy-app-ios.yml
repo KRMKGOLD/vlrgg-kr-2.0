@@ -72,14 +72,6 @@ jobs:
       APP_VERSION: ${{ inputs.APP_VERSION }}
       APP_BUILD_NUMBER: ${{ inputs.APP_BUILD_NUMBER }}
       SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
-      API_BASE_URL: ${{ secrets.API_BASE_URL }}
-      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
-      IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
-      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-      IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
-      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-      APP_STORE_CONNECT_KEY_CONTENT_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT_BASE64 }}
       IOS_TESTFLIGHT_DEPLOY_ENABLED: ${{ vars.IOS_TESTFLIGHT_DEPLOY_ENABLED }}
     steps:
       - name: Keep deployment disabled until the environment is configured
@@ -112,6 +104,15 @@ jobs:
           bundler-cache: true
 
       - name: Build and upload to TestFlight
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT_BASE64 }}
         run: bundle exec fastlane ios internal
 
       - name: Remove signing and binary files
