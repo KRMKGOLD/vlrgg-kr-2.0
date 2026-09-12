@@ -14,12 +14,14 @@ import kr.co.cotton.vlrgg_mobile.ui.component.VlrStatsTable
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 
 internal const val PLAYER_AGENT_STATS_TABLE_TAG = "player-agent-stats-table"
-internal fun playerAgentIdentityTag(rowKey: String) = "player-agent-identity-$rowKey"
+internal fun playerAgentIdentityTag(agentName: String, occurrence: Int = 1) =
+    "player-agent-identity-${agentName.length}:$agentName:$occurrence"
 internal fun playerAgentMetricHeaderTag(metric: String) = "player-agent-metric-header-$metric"
-internal fun playerAgentMetricValueTag(rowKey: String, metric: String) = "player-agent-metric-$rowKey-$metric"
+internal fun playerAgentMetricValueTag(agentName: String, metric: String, occurrence: Int = 1) =
+    "player-agent-metric-${agentName.length}:$agentName:$occurrence-$metric"
 
 internal data class PlayerAgentStatsRow(
-    val key: String,
+    val key: Pair<String, Int>,
     val stat: PlayerAgentStat,
 )
 
@@ -50,10 +52,10 @@ internal fun PlayerAgentStatsTable(
         headerContainer = VlrTheme.colors.surfaceSubtle,
         sort = sort,
         onSortColumn = onSortColumn,
-        identityTestTag = { playerAgentIdentityTag(it.key) },
+        identityTestTag = { playerAgentIdentityTag(it.key.first, it.key.second) },
         metricHeaderTestTag = { playerAgentMetricHeaderTag(it.label) },
         metricValueTestTag = { row, column ->
-            playerAgentMetricValueTag(row.key, column.label)
+            playerAgentMetricValueTag(row.key.first, column.label, row.key.second)
         },
     )
 }
@@ -97,13 +99,12 @@ private fun playerAgentColumn(
 )
 
 internal fun List<PlayerAgentStat>.toPlayerAgentStatsRows(): List<PlayerAgentStatsRow> {
-    val counts = groupingBy(PlayerAgentStat::agentName).eachCount()
     val occurrences = mutableMapOf<String, Int>()
     return map { stat ->
         val occurrence = occurrences.getOrElse(stat.agentName) { 0 } + 1
         occurrences[stat.agentName] = occurrence
         PlayerAgentStatsRow(
-            key = if (counts.getValue(stat.agentName) == 1) stat.agentName else "${stat.agentName}#$occurrence",
+            key = stat.agentName to occurrence,
             stat = stat,
         )
     }

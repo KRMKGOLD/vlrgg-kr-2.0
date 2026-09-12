@@ -11,7 +11,7 @@ class PlayerAgentStatsTableTest {
     @Test
     fun everyDisplayedColumnSelectsItsTypedDomainNumber() {
         val row = PlayerAgentStatsRow(
-            key = "jett",
+            key = "jett" to 1,
             stat = agentStat(
                 name = "jett",
                 maps = 7,
@@ -64,11 +64,12 @@ class PlayerAgentStatsTableTest {
 
     @Test
     fun duplicateAgentNamesReceiveOccurrenceKeysWithoutChangingDomainData() {
-        val source = listOf(agentStat("jett", maps = 1), agentStat("omen", maps = 2), agentStat("jett", maps = 3))
+        val source = listOf(agentStat("jett", maps = 1), agentStat("omen", maps = 2), agentStat("jett", maps = 3), agentStat("jett#1", maps = 4))
 
         val rows = source.toPlayerAgentStatsRows()
 
-        assertEquals(listOf("jett#1", "omen", "jett#2"), rows.map(PlayerAgentStatsRow::key))
+        assertEquals(source.size, rows.map(PlayerAgentStatsRow::key).toSet().size)
+        assertEquals(listOf("jett" to 1, "omen" to 1, "jett" to 2, "jett#1" to 1), rows.map(PlayerAgentStatsRow::key))
         assertEquals(source, rows.map(PlayerAgentStatsRow::stat))
     }
 

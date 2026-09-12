@@ -259,14 +259,16 @@ class PlayerDetailContentUiTest {
                 state = PlayerDetailContentState.Content(
                     player.copy(agentStats = listOf(2, 10).map {
                         player.agentStats.single().copy(agentName = "jett", mapsPlayed = it)
-                    }),
+                    } + player.agentStats.single().copy(agentName = "jett#1", mapsPlayed = 7)),
                 ),
                 agentStatsSort = StatsSort(PlayerAgentStatsSortColumn.MAPS, StatsSortDirection.DESCENDING),
             )
         }
-        val first = onNodeWithTag(playerAgentMetricValueTag("jett#1", "Maps")).fetchSemanticsNode()
-        val second = onNodeWithTag(playerAgentMetricValueTag("jett#2", "Maps")).fetchSemanticsNode()
-        assertTrue(second.boundsInRoot.top < first.boundsInRoot.top)
+        val first = onNodeWithTag(playerAgentMetricValueTag("jett", "Maps", 1)).fetchSemanticsNode()
+        val second = onNodeWithTag(playerAgentMetricValueTag("jett", "Maps", 2)).fetchSemanticsNode()
+        val literal = onNodeWithTag(playerAgentMetricValueTag("jett#1", "Maps")).fetchSemanticsNode()
+        assertTrue(second.boundsInRoot.top < literal.boundsInRoot.top)
+        assertTrue(literal.boundsInRoot.top < first.boundsInRoot.top)
         onNodeWithContentDescription("Jett, Maps, 2").assertExists()
         onNodeWithContentDescription("Jett, Maps, 10").assertExists()
     }
