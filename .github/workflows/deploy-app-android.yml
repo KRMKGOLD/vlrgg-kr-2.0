@@ -1,0 +1,117 @@
+name: Deploy Android internal
+
+on:
+  workflow_dispatch:
+    inputs:
+      APP_VERSION:
+        description: Marketing version/versionName (for example 1.2.3)
+        required: true
+        type: string
+      APP_BUILD_NUMBER:
+        description: New positive build/versionCode
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-app-android-internal
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.freeze.outputs.source_sha }}
+    steps:
+      - name: Freeze main source
+        id: freeze
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          test "$SOURCE_REF" = refs/heads/main
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Check out frozen source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.freeze.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Set up pinned Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: .ruby-version
+
+      - name: Validate release inputs
+        env:
+          APP_VERSION: ${{ inputs.APP_VERSION }}
+          APP_BUILD_NUMBER: ${{ inputs.APP_BUILD_NUMBER }}
+          SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
+        run: ruby scripts/app-release/release_contract.rb validate-inputs
+
+      - name: Require successful CI for frozen main source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
+        run: |
+          gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+            -f branch=main -f event=push -f head_sha="$SOURCE_SHA" -f status=success -f per_page=100 \
+            | ruby scripts/app-release/release_contract.rb verify-ci "$SOURCE_SHA"
+
+  deploy:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: android-internal
+    env:
+      APP_VERSION: ${{ inputs.APP_VERSION }}
+      APP_BUILD_NUMBER: ${{ inputs.APP_BUILD_NUMBER }}
+      SOURCE_SHA: ${{ needs.preflight.outputs.source_sha }}
+      API_BASE_URL: ${{ secrets.API_BASE_URL }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ANDROID_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.ANDROID_PLAY_SERVICE_ACCOUNT_JSON }}
+      ANDROID_INTERNAL_DEPLOY_ENABLED: ${{ vars.ANDROID_INTERNAL_DEPLOY_ENABLED }}
+    steps:
+      - name: Keep deployment disabled until the environment is configured
+        run: test "$ANDROID_INTERNAL_DEPLOY_ENABLED" = true
+
+      - name: Configure temporary paths
+        run: |
+          signing_directory=$(mktemp -d "$RUNNER_TEMP/vlrgg-signing.XXXXXX")
+          echo "ANDROID_SIGNING_TEMP_DIR=$signing_directory" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PATH=$signing_directory/upload.keystore" >> "$GITHUB_ENV"
+
+      - name: Check out frozen source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up pinned Ruby and fastlane
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Materialize temporary Android signing key
+        run: ruby scripts/app-release/release_contract.rb write-base64-secret ANDROID_KEYSTORE_BASE64 "$ANDROID_KEYSTORE_PATH"
+
+      - name: Build and upload to internal testing
+        run: bundle exec fastlane android internal
+
+      - name: Remove signing and binary files
+        if: always()
+        run: ruby scripts/app-release/release_contract.rb cleanup-android

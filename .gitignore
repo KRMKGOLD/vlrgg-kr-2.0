@@ -39,6 +39,14 @@ Pods/
 *.ap_
 *.aab
 
+# Bundler and Fastlane local output
+.bundle/
+vendor/bundle/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
 # macOs
 .DS_Store
 

@@ -67,7 +67,7 @@ F가 새 private 배포의 17:24Z CPU mean production 13.62%/validation 11.86%, 
 
 실제 중단에서는 IAM 제거 직후 health 200으로 첫 시도가 실패했고 같은 차단 구간에서 양 default 403·min0을 확인했다. 양수 baseline 세 revision의 개별 active+idle 1→0을 약 1,019초 뒤 확인한 후 새 revision 100%·production min1·public을 복구했다. 미관측 revision 둘과 baseline 0 이후 표본 없는 하나는 unknown이며 서비스 전체 동시각 0·비용 0을 증명하지 않는다. Active deploy와 tag URL이 없어 실제 취소·tag 거절은 실증하지 않았다. 최종 public smoke와 enable 마지막 복구는 17:50:41.853Z/17:50:49.416Z다.
 
-이 관측은 invoice가 아니다. B2가 조회한 project 안에는 Billing export dataset/table이 없었고 Catalog·Budget API는 실제 accrued cost를 제공하지 않았다. 다른 project의 export나 Console 보고 존재 가능성은 배제하지 않는다. 기존 첫 private 배포와 #110은 역사 기록으로 유지하며 현재 실행은 [서버 배포 문서](server-container-deployment.md)를 따른다. #112 설치 앱 검증은 별도다.
+이 관측은 invoice가 아니다. B2가 조회한 project 안에는 Billing export dataset/table이 없었고 Catalog·Budget API는 실제 accrued cost를 제공하지 않았다. 다른 project의 export나 Console 보고 존재 가능성은 배제하지 않는다. 기존 첫 private 배포와 #110은 역사 기록으로 유지하며 현재 실행은 [서버 배포 문서](server-container-deployment.md)를 따른다. #112는 앱 release process만, 실제 #117 설치 앱 검증은 별도다.
 
 ## 예산 중단
 

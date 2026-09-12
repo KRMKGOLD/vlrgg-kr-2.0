@@ -2,4 +2,5 @@
 // 실제 배포 엔드포인트를 포함하지 않기 위해서입니다.
 
 API_BASE_URL[config=Debug]=https:$(SLASH)$(SLASH)example.invalid
-API_BASE_URL[config=Release]=https:$(SLASH)$(SLASH)example.invalid
+
+// Release는 Scripts/release_config.swift가 생성한 임시 xcconfig를 사용합니다.

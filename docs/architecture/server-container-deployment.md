@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포 경로
 
-기록일: 2026-09-06, 갱신일: 2026-09-11. Issue #52의 보호 구현을 적용한 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)의 private validation 후속 배포, 실제 rollback, 비용 중단 실패 후 drain·정상 복구, 기본 `run.app` HTTPS 공개 조회와 G 독립 검증은 PASS다. 실제 청구액·알림 수신·Spend cap 활성화는 미확인이며 #112 앱 배포는 별도다. 현재 이슈 상태는 #111에서 추적한다.
+기록일: 2026-09-06, 갱신일: 2026-09-12. Issue #52의 보호 구현을 적용한 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)의 private validation 후속 배포, 실제 rollback, 비용 중단 실패 후 drain·정상 복구, 기본 `run.app` HTTPS 공개 조회와 G 독립 검증은 PASS다. 실제 청구액·알림 수신·Spend cap 활성화는 미확인이며 #112 앱 release process와 실제 #117 앱 release는 서버 운영과 별도다. 현재 서버 이슈 상태는 #111에서 추적한다.
 
 ## 이미지 계약
 
@@ -72,7 +72,7 @@ IAM 제거 직후 200은 전파 지연과 일치하는 관측이며 내부 원�
 5. 비용 중단은 repository enable=false와 production environment 동명 변수 부재 또는 false 확인 → 대기/진행 deploy가 있으면 취소·종료 → production public invoker 제거 → 양 service min0 → drain·default/존재 tag URL 거절 확인 순서다. 기존 immutable revision의 minimum 0을 먼저 전수 조회하며 `--min-instances=0`으로 기존 revision까지 바뀐다고 보지 않는다. 양수 minimum이 있으면 traffic/tag와 실제 인스턴스를 확인해 절차를 조정한다. IAM readback 외 실제 403을 상한 내 재확인하고 누락 지표는 unknown으로 둔다. Min0은 비용 0을 뜻하지 않으며 image/log·늦은 청구가 남는다.
 6. 정상 복구는 기록한 production revision/digest 100%, production service min/max `1/1`·revision min/max `0/1`, validation service private/minimum 0, production public invoker, 외부 smoke 순서다. IAM·traffic·digest·자원을 재확인한 뒤에만 enable을 마지막으로 복구한다. stable URL 원문은 repository 밖의 보호 파일 `~/.config/vlrgg-mobile/release-api-url`(0700/0600)로만 #112에 전달한다.
 
-workflow 준비와 실제 release 완료를 구분한다. #111은 후속 배포·rollback·비용 중단/복구와 원격 공개 endpoint 검증까지 소유한다. [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)는 URL 주입·앱 서명·Fastlane/Actions·Android 내부 테스트/TestFlight와 설치 앱 조회 검증을 소유한다. 정식 스토어 공개 출시와 Stage 2의 FCM·Firestore·App Check·Scheduler는 이번 완료 조건에 포함하지 않는다. 별도 SDK, 로그인, 앱 진위 검증 또는 앱에 내장하는 server key는 공개 조회의 접근 제어 전제로 추가하지 않는다.
+workflow 준비와 실제 release 완료를 구분한다. #111은 후속 배포·rollback·비용 중단/복구와 원격 공개 endpoint 검증까지 소유한다. [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)는 URL 주입·Fastlane/Actions process와 credential-free 검증을 소유하며, 계정·environment/secrets·서명/auth·Android internal/TestFlight upload·installation/device 조회는 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)의 future work다. 정식 스토어 공개 출시와 Stage 2의 FCM·Firestore·App Check·Scheduler는 이번 완료 조건에 포함하지 않는다. 별도 SDK, 로그인, 앱 진위 검증 또는 앱에 내장하는 server key는 공개 조회의 접근 제어 전제로 추가하지 않는다.
 
 ## 로컬 보호 경로 부하 결과 — 2026-09-07
 

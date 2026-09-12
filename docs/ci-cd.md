@@ -10,9 +10,9 @@
 
 Stage 1.1은 실제 Firebase App/production provider를 연결하지 않는다. Stage 1.1 구현 PR은 Firestore Emulator와 fake provider를 포함한 offline GREEN까지만 소유한다. 실제 App Check, FCM, production Firestore와 알림 서버의 원격 배포 health/rollback은 Stage 2에서 수행한다.
 
-#52는 [공개 API 보호 계약](architecture/server-public-api-protection.md)의 구현·검증을 소유하며, Stage 1(MVP)의 서버 배포는 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111), App 배포는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)로 이관한다. 로그인·앱 진위 검증·FCM·production Firestore 없이 일반 조회를 배포한다. 아래 알림 관련 App Check/Target/Firestore/FCM smoke는 별도 Stage 2 gate이며 Stage 1 조회 배포의 선행 조건이 아니다. 기존 Firestore Emulator CI는 유지한다.
+#52는 [공개 API 보호 계약](architecture/server-public-api-protection.md)의 구현·검증을 소유하며, Stage 1(MVP)의 서버 배포는 [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111), 앱 배포 절차는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112), 실제 앱 배포는 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)로 이관한다. 로그인·앱 진위 검증·FCM·production Firestore 없이 일반 조회를 배포한다. 아래 알림 관련 App Check/Target/Firestore/FCM smoke는 별도 Stage 2 gate이며 Stage 1 조회 배포의 선행 조건이 아니다. 기존 Firestore Emulator CI는 유지한다.
 
-#111의 실제 운영 증거는 아래와 [서버 배포 문서](architecture/server-container-deployment.md)에 기록한다. #112는 Android/iOS 서명 앱의 실제 설치와 외부망 조회·수동 재시도 증거를 수집한다. #52 종료만으로 앱 release gate를 통과한 것으로 기록하지 않는다. #110의 APPROVED·병합과 main CI `34579642498`, PR113·114는 선행 변경의 역사다.
+#111의 실제 운영 증거는 아래와 [서버 배포 문서](architecture/server-container-deployment.md)에 기록한다. #112는 Android/iOS 배포 절차와 인증정보 없는 검증을 기록하며, 서명 앱의 실제 설치와 외부망 조회·수동 재시도 증거는 #117에서 수집한다. #52 종료만으로 앱 release gate를 통과한 것으로 기록하지 않는다. #110의 APPROVED·병합과 main CI `34579642498`, PR113·114는 선행 변경의 역사다.
 
 2026-09-11 UTC 최종 실행은 [PR115](https://github.com/KRMKGOLD/vlrgg-kr-2.0/pull/115)의 main `74a565ab959b1d5499405979a582aa5789625f4d`, [push CI 34625097062](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34625097062) success, [deploy 34627000600](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34627000600) success(17:19:09–17:23:45Z)다. PR115 최종 head `bd507a95bd87a75c60445c4246a3caa2d412389d`의 GitHub APPROVED는 16:57:42Z 상태 갱신이며 병합은 16:59:02Z다. 최종 두 파일 전체 검토는 병합 후·배포 전 17:12:03Z CodeRabbit CLI 0.7.5의 `review_completed`, findings 0, exit 0으로 별도 확인했다([검토 출처](https://github.com/KRMKGOLD/vlrgg-kr-2.0/pull/115#issuecomment-5638012086)).
 
@@ -154,13 +154,13 @@ Deploy identity는 GitHub OIDC와 GCP Workload Identity Federation으로 deploy 
 
 동시 배포는 service 단위 `concurrency.group`과 `cancel-in-progress: false`로 직렬화한다. workflow는 기존 CI 전체나 부하 테스트를 다시 실행하지 않는다.
 
-### #112 app release — planned
+### #112 앱 배포 절차 — 구현 완료, 인증정보 없이 검사
 
-현재 앱 release workflow와 Fastlane은 미구현이다. #112에서 Android/iOS Release HTTPS URL 주입과 빌드 단계 입력 검증, 계정·서명·버전 설정, Fastlane의 signed AAB → Play 내부 테스트와 archive/IPA → TestFlight 경로를 구현한다. `main` 기반 앱 배포 PR을 리뷰·CI 후 병합하고 실제 업로드·설치 검증까지 완료해야 이 이슈를 종료한다. 서버와 독립적인 준비는 병렬로 진행할 수 있고 최종 외부망 조회는 #111 공개 이후 수행한다.
+`.github/workflows/deploy-app-android.yml`과 `deploy-app-ios.yml`, 고정된 Bundler/Fastlane lane, Release URL/version 입력 검증은 구현됐다. workflow는 `workflow_dispatch`와 `main` ref로 제한하고 GitHub Actions에서 `GITHUB_SHA`·immutable `SOURCE_SHA`·checkout `HEAD`와 작업 디렉터리의 일치를 확인하며, 같은 SHA의 성공한 `main` push `CI`가 없으면 실패로 중단한다. Android lane은 Play `internal`, iOS lane은 TestFlight 대상이고 플랫폼별 `cancel-in-progress: false` 동시 실행 제어, 읽기 전용 token, environment secret 경계 및 항상 실행하는 정리를 가진다.
 
-배포 Actions는 검증된 `main` SHA의 `workflow_dispatch`와 플랫폼별 environment/소유자 승인으로 제한한다. PR/fork 이벤트에 배포 자격 증명을 연결하지 않으며 서명 자료·인증 값은 environment secrets로 관리한다. public 저장소의 로그·Actions artifact는 비공개 경계가 아니므로 원본 운영 로그·서명 자료·AAB/IPA를 공개 artifact나 Release 첨부로 올리지 않고 스토어 테스트 채널로 직접 전달한다. API 주소 자체는 앱 binary에서 확인할 수 있으며 실제 host를 tracked 기본값으로 두지 않는다.
+`API_BASE_URL`은 raw HTTPS origin이며 Android `BuildConfig`와 iOS xcconfig/Info.plist에 그대로 전달한다. `APP_VERSION`은 숫자 1~3 component, `APP_BUILD_NUMBER`은 양의 Android-compatible integer만 허용하며 Ruby `3.3.7`과 Fastlane `2.239.0`은 lockfile과 `bundle exec`로 고정한다. iOS는 `macos-26`의 Xcode `26.6` build `17F113`을 검사한다. public 저장소의 Actions log·summary·artifact는 비공개 경계가 아니므로 URL 원문·서명 자료·credential·AAB/IPA·raw Fastlane output을 올리지 않는다.
 
-1차 완료는 Android 내부 테스트와 TestFlight의 실제 설치·조회·오류 복구까지다. 정식 스토어 공개 출시, #49의 전체 접근성 검증, #62 Maestro, #74 UI 개선과 Stage 2 알림 기능은 별도 범위다.
+개발자 계정이 없으므로 #112의 결과는 배포 절차와 인증정보 없이 실행한 검사뿐이다. `android-internal`/`ios-testflight` environment, secret/approval/main 정책, account/app record, signing/auth, 실제 upload/receipt/processing/tester/physical-device 조회는 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)의 후속 작업이다. 자동 조회 범위는 Android internal track의 같은 번호와 iOS 해당 마케팅 버전의 최신 build다. 응답 유실이나 처리 상태가 모호한 업로드는 스토어 접수를 확인한 뒤에만 다음 실행을 판단한다. 정확한 environment 값·실행 순서·검증 한계는 [앱 내부 배포 절차](app-release.md)를 따른다.
 
 ### Future notification release gate
 
