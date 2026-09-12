@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.zacsweers.metro.AppScope
@@ -25,15 +26,24 @@ import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
 import kr.co.cotton.vlrgg_mobile.domain.AppResult
 import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryState
 import kr.co.cotton.vlrgg_mobile.ui.component.BusyRetryStateFactory
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSortDirection
+import kr.co.cotton.vlrgg_mobile.ui.component.nextStatsSort
+
+internal const val AGENT_STATS_SORT_COLUMN_KEY = "player-detail-agent-stats-sort-column"
+internal const val AGENT_STATS_SORT_DIRECTION_KEY = "player-detail-agent-stats-sort-direction"
 
 @AssistedInject
 class PlayerDetailViewModel(
     private val playerRepository: PlayerRepository,
     private val favoriteRepository: FavoriteRepository,
     @Assisted private val playerId: String,
+    @Assisted private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
     private val busyRetryStateFactory: BusyRetryStateFactory = BusyRetryStateFactory(),
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(PlayerDetailUiState())
+    private val _uiState = MutableStateFlow(
+        PlayerDetailUiState(agentStatsSort = restoredAgentStatsSort(savedStateHandle)),
+    )
     val uiState: StateFlow<PlayerDetailUiState> = _uiState.asStateFlow()
 
     private var failedFavoriteMutation: FavoriteMutation? = null
@@ -65,6 +75,18 @@ class PlayerDetailViewModel(
     }
 
     fun dismissBusy() { _uiState.value = _uiState.value.copy(busyRetry = _uiState.value.busyRetry?.dismiss()) }
+
+    fun sortAgentStats(column: PlayerAgentStatsSortColumn) {
+        val next = nextStatsSort(_uiState.value.agentStatsSort, column)
+        if (next == null) {
+            savedStateHandle.remove<String>(AGENT_STATS_SORT_COLUMN_KEY)
+            savedStateHandle.remove<String>(AGENT_STATS_SORT_DIRECTION_KEY)
+        } else {
+            savedStateHandle[AGENT_STATS_SORT_COLUMN_KEY] = next.column.savedStateId
+            savedStateHandle[AGENT_STATS_SORT_DIRECTION_KEY] = next.direction.savedStateId
+        }
+        _uiState.value = _uiState.value.copy(agentStatsSort = next)
+    }
 
     private fun loadPlayerDetail() {
         if (playerDetailJob?.isActive == true) return
@@ -219,6 +241,21 @@ class PlayerDetailViewModel(
     @ManualViewModelAssistedFactoryKey
     @ContributesIntoMap(AppScope::class)
     fun interface Factory : ManualViewModelAssistedFactory {
-        fun create(@Assisted playerId: String): PlayerDetailViewModel
+        fun create(
+            @Assisted playerId: String,
+            @Assisted savedStateHandle: SavedStateHandle,
+        ): PlayerDetailViewModel
     }
+}
+
+private fun restoredAgentStatsSort(
+    savedStateHandle: SavedStateHandle,
+): StatsSort<PlayerAgentStatsSortColumn>? {
+    val column = PlayerAgentStatsSortColumn.fromSavedStateId(
+        savedStateHandle[AGENT_STATS_SORT_COLUMN_KEY],
+    ) ?: return null
+    val direction = StatsSortDirection.fromSavedStateId(
+        savedStateHandle[AGENT_STATS_SORT_DIRECTION_KEY],
+    ) ?: return null
+    return StatsSort(column, direction)
 }

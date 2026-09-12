@@ -134,14 +134,13 @@ private fun PlayerRecentMatch.metadataLabel(): String? = listOfNotNull(
     playedOn?.takeIf(String::isNotBlank),
 ).joinToString(" · ").takeIf(String::isNotEmpty)
 
-private fun PlayerRecentMatchOutcome.chipStatus(): StatusChipStatus = when (this) {
-    PlayerRecentMatchOutcome.WIN,
-    PlayerRecentMatchOutcome.LOSS,
-    -> StatusChipStatus.Completed
+internal fun PlayerRecentMatchOutcome.chipStatus(): StatusChipStatus = when (this) {
+    PlayerRecentMatchOutcome.WIN -> StatusChipStatus.Completed
+    PlayerRecentMatchOutcome.LOSS -> StatusChipStatus.Loss
     PlayerRecentMatchOutcome.UNKNOWN -> StatusChipStatus.Partial
 }
 
-private fun PlayerRecentMatchOutcome.displayLabel(): String = when (this) {
+internal fun PlayerRecentMatchOutcome.displayLabel(): String = when (this) {
     PlayerRecentMatchOutcome.WIN -> "승리"
     PlayerRecentMatchOutcome.LOSS -> "패배"
     PlayerRecentMatchOutcome.UNKNOWN -> "결과 미정"

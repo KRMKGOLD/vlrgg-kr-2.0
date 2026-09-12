@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -39,6 +40,9 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailTab
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.eventDetailTabTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.eventStatsPlayerTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventStatsSortColumn
+import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.eventStatsMetricHeaderTag
+import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.eventStatsMetricValueTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.matchCardTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailViewModel
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
@@ -67,8 +71,8 @@ class EventDetailNavigationRuntimeUiTest {
                     }
                 },
                 PlayerDetailViewModel.Factory::class to {
-                    PlayerDetailViewModel.Factory { playerId ->
-                        PlayerDetailViewModel(FakePlayerRepository(), FakeFavoriteRepository(), playerId)
+                    PlayerDetailViewModel.Factory { playerId, savedStateHandle ->
+                        PlayerDetailViewModel(FakePlayerRepository(), FakeFavoriteRepository(), playerId, savedStateHandle)
                     }
                 },
                 MatchDetailViewModel.Factory::class to {
@@ -144,6 +148,12 @@ class EventDetailNavigationRuntimeUiTest {
             assertEquals(1, repository.newsRequests)
 
             onNodeWithTag(eventDetailTabTag(EventDetailTab.STATS)).performClick()
+            onNodeWithText("Rating").performClick()
+            val highRatingTop = onNodeWithTag(eventStatsMetricValueTag(EVENT_PLAYER_ID, EventStatsSortColumn.RATING))
+                .fetchSemanticsNode().boundsInRoot.top
+            val lowRatingTop = onNodeWithTag(eventStatsMetricValueTag(LOW_EVENT_PLAYER_ID, EventStatsSortColumn.RATING))
+                .fetchSemanticsNode().boundsInRoot.top
+            kotlin.test.assertTrue(highRatingTop < lowRatingTop)
             onNodeWithTag(eventStatsPlayerTag(EVENT_PLAYER_ID)).performClick()
             val playerEntry = assertIs<OverlayNavEntry>(
                 runOnIdle { requireNotNull(navigationState).currentBackStack.last() },
@@ -152,6 +162,16 @@ class EventDetailNavigationRuntimeUiTest {
             onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
             onNodeWithContentDescription("뒤로 가기").performClick()
             onNodeWithTag(eventStatsPlayerTag(EVENT_PLAYER_ID)).assertExists()
+            assertEquals(
+                "내림차순",
+                onNodeWithTag(eventStatsMetricHeaderTag(EventStatsSortColumn.RATING))
+                    .fetchSemanticsNode().config[SemanticsProperties.StateDescription],
+            )
+
+            runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
+            runOnIdle { requireNotNull(navigationState).selectRoot(EventsRoot) }
+            onNodeWithText("Rating ↓").assertExists()
+            assertEquals(1, repository.statsRequests)
         }
     }
 
@@ -159,6 +179,7 @@ class EventDetailNavigationRuntimeUiTest {
         var identityRequests = 0
         var matchesRequests = 0
         var newsRequests = 0
+        var statsRequests = 0
 
         override suspend fun getEvents() = error("Event list is not used")
 
@@ -203,13 +224,18 @@ class EventDetailNavigationRuntimeUiTest {
             )
         }
 
-        override suspend fun getEventStats(eventId: String): AppResult<EventStats> =
-            AppResult.Success(
+        override suspend fun getEventStats(eventId: String): AppResult<EventStats> {
+            statsRequests += 1
+            return AppResult.Success(
                 EventStats(
                     EventStatsAvailability.AVAILABLE,
-                    listOf(EventPlayerStats(EVENT_PLAYER_ID, "Event Player", "T1", 12, 1.2, 220, 1.3, 145.0, 72.0)),
+                    listOf(
+                        EventPlayerStats(LOW_EVENT_PLAYER_ID, "Low Event Player", "T2", 12, 2.0, 220, 1.3, 145.0, 72.0),
+                        EventPlayerStats(EVENT_PLAYER_ID, "Event Player", "T1", 12, 10.0, 220, 1.3, 145.0, 72.0),
+                    ),
                 ),
             )
+        }
     }
 
     private class FakePlayerRepository : PlayerRepository {
@@ -244,5 +270,6 @@ class EventDetailNavigationRuntimeUiTest {
         const val EVENT_ID = "100"
         const val EVENT_DETAIL_ROUTE_TAG = "event-detail-route"
         const val EVENT_PLAYER_ID = "2002"
+        const val LOW_EVENT_PLAYER_ID = "2001"
     }
 }

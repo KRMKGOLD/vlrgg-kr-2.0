@@ -32,6 +32,7 @@ import kotlin.math.pow
 
 enum class StatusChipStatus {
     Live,
+    Loss,
     Upcoming,
     Completed,
     Postponed,
@@ -94,6 +95,13 @@ fun statusChipColors(
     StatusChipStatus.Live -> statusChipColors(
         container = colors.surfaceSelected,
         preferredContent = colors.actionPrimary,
+        border = colors.actionPrimary,
+        colors = colors,
+    )
+
+    StatusChipStatus.Loss -> statusChipColors(
+        container = colors.surfaceSelected,
+        preferredContent = colors.actionPrimaryPressed,
         border = colors.actionPrimary,
         colors = colors,
     )

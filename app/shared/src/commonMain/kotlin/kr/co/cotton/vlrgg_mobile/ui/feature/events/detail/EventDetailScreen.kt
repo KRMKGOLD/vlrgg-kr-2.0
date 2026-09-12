@@ -37,6 +37,7 @@ fun EventDetailScreen(
         onMatchClick = onMatchClick,
         onNewsClick = onNewsClick,
         onPlayerClick = onPlayerClick,
+        onSortStats = viewModel::sortStats,
         onRetryIdentity = viewModel::retryIdentity,
         onRetrySelectedTab = viewModel::retrySelectedTab,
         modifier = modifier,
