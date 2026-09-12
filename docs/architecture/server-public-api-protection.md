@@ -1,6 +1,6 @@
 # 공개 조회 API 보호 계약 (#52)
 
-상태(2026-09-11): #52 보호 구현·부하 검증과 #110 APPROVED·병합은 선행 이력이며 #52는 잔여 배포 항목 이관 후 종료했다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)은 PR115 main `74a565ab959b1d5499405979a582aa5789625f4d`의 [CI 34625097062](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34625097062)·[deploy 34627000600](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34627000600) success와 실제 rollback·비용 중단 실패 후 복구·public smoke 및 G 독립 검증 PASS를 확인했다. 실행 시각·검토 출처·최종 설정은 [운영 결과](server-container-deployment.md)에 기록한다. 앱 배포는 [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)이며 아래 한도는 보호 계약이지 월 비용 실측값이 아니다.
+상태(2026-09-12): #52 보호 구현·부하 검증과 #110 APPROVED·병합은 선행 이력이며 #52는 잔여 배포 항목 이관 후 종료했다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)은 PR115 main `74a565ab959b1d5499405979a582aa5789625f4d`의 [CI 34625097062](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34625097062)·[deploy 34627000600](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34627000600) success와 실제 rollback·비용 중단 실패 후 복구·public smoke 및 G 독립 검증 PASS를 확인했다. 실행 시각·검토 출처·최종 설정은 [운영 결과](server-container-deployment.md)에 기록한다. [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)는 credential-free 앱 release process 구현만, 실제 계정·서명·업로드·기기 검증은 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)이 소유한다. 아래 한도는 보호 계약이지 월 비용 실측값이 아니다.
 
 ## 범위
 
@@ -85,6 +85,7 @@ Android와 iOS에 실제 설치한 앱에서 기존 조회 API를 사용한다. 
 | 후속 이슈 | 이관한 실제 배포 완료 증거 |
 | --- | --- |
 | #111 Server | provider 비용·자원 실측, least-privilege 구성, 비공개 검증 service를 통한 후속 배포, 원격 health/query·notification 404, rollback, 비용 중단·복구, 기본 `run.app` HTTPS 공개 조회 |
-| #112 App | Release URL 주입·서명·Fastlane/Actions, Android 내부 테스트·TestFlight 업로드, 실제 기기 fresh install, 외부망 조회와 오류/과부하 후 수동 재시도 |
+| #112 App process | Release URL 주입·Fastlane/Actions·credential-free 검증과 future input runbook |
+| #117 App release | 계정·앱 record·environment/secrets/signing/auth 연결, Android internal/TestFlight upload·receipt·tester·physical-device 조회 검증 |
 
-#52 종료만으로 Stage 1 배포 완료를 선언하지 않는다. 계정·배포·서명·기기 증거가 없으면 해당 후속 이슈는 미완료로 남긴다. #49·#62·#74와 Stage 2는 보류하며 #112의 설치 smoke가 전체 접근성/E2E 완료를 뜻하지 않는다. 기존 상세 실행 기록은 `.omx/plans/issue52-native-goal-execution.md`에 보존하고, 이후 배포 상태는 #111·#112에서 추적한다.
+#52 종료만으로 Stage 1 배포 완료를 선언하지 않는다. 계정·배포·서명·기기 증거가 없으면 #117은 미완료로 남긴다. #49·#62·#74와 Stage 2는 보류하며 향후 #117 설치 smoke도 전체 접근성/E2E 완료를 뜻하지 않는다. 기존 상세 실행 기록은 `.omx/plans/issue52-native-goal-execution.md`에 보존하고, 이후 서버 상태는 #111, 앱 process는 #112, 실제 앱 release는 #117에서 추적한다.

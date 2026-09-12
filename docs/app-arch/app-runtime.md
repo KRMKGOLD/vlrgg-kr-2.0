@@ -4,11 +4,11 @@
 
 이 문서는 Android와 iOS가 공유하는 앱 runtime의 composition, lifecycle, configuration, navigation 정책을 기록한다. feature 화면의 제품 요구사항은 `docs/feature/`가 소유한다.
 
-현재 공통 앱에는 Metro DI와 Compose Multiplatform Navigation 3 기반 runtime이 구현되어 있다. Issue #37 N1부터 News, Matches, MyPage, Events, About은 독립 saved back stack과 독립 entry decorator state를 가진다. News, Matches, Events root와 News/Event Detail은 실제 feature UI와 data에 연결되어 있고, Match Detail은 상태 보존 검증을 위한 placeholder다. 나머지 marker 화면은 feature 구현 완료를 의미하지 않는다.
+현재 공통 앱에는 Metro DI와 Compose Multiplatform Navigation 3 기반 runtime이 구현되어 있다. Issue #37 N1부터 News, Matches, MyPage, Events, About은 독립 saved back stack과 독립 entry decorator state를 가진다. `NavigationContent`는 Search와 Match/Team/Player/Series Detail, About을 실제 화면으로 연결하며, Search·Match·Team·Player·Series의 repository binding도 graph에 있다. 각 기능의 제품 완성도는 runtime 문서가 아니라 해당 기능 문서와 코드가 정한다.
 
 이 문서에서 runtime은 앱 composition과 lifetime 정책을 의미하며 별도 `AppRuntime` wrapper 타입을 뜻하지 않는다.
 
-Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime-kernel.md)로 확정되었다. platform configuration, application-owned graph, MetroX ViewModel integration과 최소 `AppResult` failure/cancellation 경계가 반영되었다. News, Matches, Events의 feature repository와 remote data source는 구현되어 있으며, 나머지 feature의 data 연결은 후속 feature 구현 범위다.
+Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime-kernel.md)로 확정되었다. platform configuration, application-owned graph, MetroX ViewModel integration과 최소 `AppResult` failure/cancellation 경계가 반영되었다. News, Matches, Events, Search, Match, Team, Player, Series의 repository와 remote data source binding이 구현되어 있다.
 
 ## 현재 Runtime composition
 
@@ -30,16 +30,16 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 ### API base URL configuration
 
 - `commonMain`은 platform configuration API를 직접 읽지 않고 `apiBaseUrl`을 명시적 입력으로 받는다.
-- Android는 AGP 9 generated `BuildConfig`와 Gradle property를 사용한다. 현재 emulator local 값은 `http://10.0.2.2:8080`이다.
+- Android는 AGP 9 generated `BuildConfig`와 Gradle property/environment input을 사용한다. 현재 emulator local 값은 `http://10.0.2.2:8080`이다.
 - iOS는 xcconfig build setting을 `Info.plist`로 확장해 읽는다. 현재 simulator local 값은 `http://127.0.0.1:8080`이다.
-- local cleartext HTTP는 debug/local 구성에만 허용한다. 배포 build는 HTTPS endpoint를 저장소 밖에서 주입하고 tracked source에 실제 host를 기본값으로 두지 않는다.
+- local cleartext HTTP는 debug/local 구성에만 허용한다. Release는 저장소 밖의 raw `API_BASE_URL`을 받고, 실제 host를 tracked source의 기본값으로 두지 않는다.
 - endpoint는 배포 binary에서 추출할 수 있으므로 secret이 아니다. non-commit 정책은 구성 위생이며 DDoS·남용 방어는 [GitHub Issue #52](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/52)에서 다룬다.
 
 ### 구성 주입
 
-- Android Debug의 tracked 기본값은 `http://10.0.2.2:8080`이고 Release의 tracked 기본값은 빈 문자열이므로 공통 configuration 검증에서 실패한다. Gradle property와 환경 변수 provider seam은 존재하지만 외부 값을 generated Java 문자열 리터럴로 변환하는 지원은 후속 작업이며, 현재 검증된 주입 경로로 간주하지 않는다.
-- iOS Debug는 `http://127.0.0.1:8080`을 기본으로 한다. 로컬 override는 ignored `Configuration/Config.local.xcconfig`에서 configuration별 `API_BASE_URL`을 설정하거나, 빌드 시 `API_BASE_URL=https://example.invalid`을 전달한다. Release에는 외부 HTTPS 값을 제공해야 한다.
-- iOS 외부 주입 예: `xcodebuild -project app/iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release API_BASE_URL=https://example.invalid build`.
+- Android Debug의 tracked 기본값은 `http://10.0.2.2:8080`이다. Release는 `API_BASE_URL`, `APP_VERSION`, `APP_BUILD_NUMBER`과 네 Android signing input이 없거나 유효하지 않으면 `validateReleaseConfiguration`에서 실패한다. 유효한 raw HTTPS origin은 Java 문자열 literal로 안전하게 변환해 generated `BuildConfig`에 기록한다.
+- iOS Debug는 `http://127.0.0.1:8080`을 기본으로 한다. 로컬 override는 ignored `Configuration/Config.local.xcconfig`에서 configuration별 `API_BASE_URL`을 설정하거나, 빌드 시 `API_BASE_URL=https://example.invalid`을 전달한다. Release generator는 raw URL·version·build number와 optional `IOS_TEAM_ID`를 private xcconfig로 만들고 processed `Info.plist`를 다시 검사한다.
+- 두 Release 경로는 빈 값, 비 HTTPS URL, userinfo/query/fragment, root 이외 path, 잘못된 port, 잘못된 version/build number를 build-time에 거절한다. `API_BASE_URL`은 binary에서 읽을 수 있으므로 secret이 아니며, 실제 값의 비커밋·비공개 로그 정책은 구성 위생이다.
 
 ### MetroX ViewModel provider map
 
@@ -75,9 +75,8 @@ Issue #33 H1-K0의 runtime kernel 방향은 [ADR-0001](adr/0001-thin-app-runtime
 
 - deep link와 제품 route 문자열 binding
 - adaptive scene, 인증 흐름
-- 실제 Match Detail, Search/Team/Player/Series/About UI와 data loading
 - pagination framework와 공통 cache/storage
-- production API URL, hosting provider, server-side DDoS·남용 방어
+- 서버 운영과 공개 API 보호: [#111 완료 결과](../architecture/server-container-deployment.md)를 따르며 runtime의 책임에 포함하지 않는다.
 
 Pagination은 여러 feature에서 사용될 가능성이 있지만 아직 100% 공통 계약이 아니므로 후속 이슈에서 실제 사용처를 기준으로 결정한다. 나머지 항목도 기능 요구사항과 당시 library API를 확인해 결정한다.
 

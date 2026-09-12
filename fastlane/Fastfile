@@ -1,0 +1,199 @@
+# frozen_string_literal: true
+
+require "fileutils"
+require "securerandom"
+require "tmpdir"
+require_relative "../scripts/app-release/release_contract"
+
+opt_out_usage
+File.umask(0o077)
+
+ROOT = File.expand_path("..", __dir__)
+ANDROID_PACKAGE = "kr.co.cotton.vlrgg_mobile"
+IOS_BUNDLE_ID = "kr.co.cotton.vlrggmobile"
+
+def release_environment!
+  ReleaseContract.validate_inputs!
+  ReleaseContract.validate_workflow_source!(ENV, ROOT)
+rescue ReleaseContract::Error => error
+  UI.user_error!(error.message)
+end
+
+def required_release_value(name)
+  ReleaseContract.required(ENV, name)
+rescue ReleaseContract::Error => error
+  UI.user_error!(error.message)
+end
+
+def write_base64_secret(name, path)
+  ReleaseContract.write_base64_secret!(name, path)
+rescue ReleaseContract::Error => error
+  UI.user_error!(error.message)
+end
+
+platform :android do
+  desc "Build and upload the signed app bundle to Google Play internal testing"
+  lane :internal do
+    release_environment!
+    credentials = required_release_value("ANDROID_PLAY_SERVICE_ACCOUNT_JSON")
+    build_number = ENV.fetch("APP_BUILD_NUMBER").to_i
+    existing_builds = google_play_track_version_codes(
+      package_name: ANDROID_PACKAGE,
+      track: "internal",
+      json_key_data: credentials
+    )
+    if existing_builds.include?(build_number)
+      UI.user_error!("Google Play already reports this build number; verify its receipt and source before retrying.")
+    end
+
+    bundle_path = File.join(ROOT, "app/androidApp/build/outputs/bundle/release/androidApp-release.aab")
+    begin
+      sh(File.join(ROOT, "gradlew"), "--no-daemon", ":app:androidApp:bundleRelease")
+      UI.user_error!("The expected Android app bundle was not produced.") unless File.file?(bundle_path)
+      upload_to_play_store(
+        package_name: ANDROID_PACKAGE,
+        track: "internal",
+        release_status: "completed",
+        aab: bundle_path,
+        json_key_data: credentials,
+        skip_upload_apk: true,
+        skip_upload_metadata: true,
+        skip_upload_changelogs: true,
+        skip_upload_images: true,
+        skip_upload_screenshots: true
+      )
+    ensure
+      ReleaseContract.cleanup_android!(ENV, ROOT)
+    end
+  end
+end
+
+platform :ios do
+  desc "Build and upload the signed app to TestFlight"
+  lane :internal do
+    release_environment!
+    team_id = required_release_value("IOS_TEAM_ID")
+    if %w[FASTLANE_ITUNES_TRANSPORTER_PATH FASTLANE_ITUNES_TRANSPORTER_USE_SHELL_SCRIPT].any? { |name| !ENV[name].to_s.empty? }
+      UI.user_error!("Custom iOS transporter configuration is not allowed for this release lane.")
+    end
+    api_key = app_store_connect_api_key(
+      key_id: required_release_value("APP_STORE_CONNECT_KEY_ID"),
+      issuer_id: required_release_value("APP_STORE_CONNECT_ISSUER_ID"),
+      key_content: required_release_value("APP_STORE_CONNECT_KEY_CONTENT_BASE64"),
+      is_key_content_base64: true
+    )
+    latest_build = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: IOS_BUNDLE_ID,
+      version: ENV.fetch("APP_VERSION"),
+      initial_build_number: 0
+    ).to_i
+    if latest_build >= ENV.fetch("APP_BUILD_NUMBER").to_i
+      UI.user_error!("App Store Connect already reports this or a newer build; verify its receipt and source before retrying.")
+    end
+
+    runner_temp = required_release_value("RUNNER_TEMP")
+    temporary_directory = Dir.mktmpdir("vlrgg-release-", runner_temp)
+    certificate_path = File.join(temporary_directory, "distribution.p12")
+    profile_path = File.join(temporary_directory, "distribution.mobileprovision")
+    xcconfig_path = File.join(temporary_directory, "Release.xcconfig")
+    keychain_path = File.join(
+      required_release_value("HOME"),
+      "Library/Keychains/vlrgg-release-#{SecureRandom.hex(8)}.keychain-db"
+    )
+    cleanup_error = nil
+
+    begin
+      write_base64_secret("IOS_CERTIFICATE_BASE64", certificate_path)
+      write_base64_secret("IOS_PROVISION_PROFILE_BASE64", profile_path)
+      profile_uuid = FastlaneCore::ProvisioningProfile.uuid(profile_path)
+      unless /\A[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\z/.match?(profile_uuid) &&
+             FastlaneCore::ProvisioningProfile.bundle_id(profile_path) == IOS_BUNDLE_ID
+        UI.user_error!("The iOS provisioning profile is not compatible with the existing app identifier.")
+      end
+      installed_profile = File.join(
+        FastlaneCore::ProvisioningProfile.profiles_path,
+        FastlaneCore::ProvisioningProfile.profile_filename(profile_path)
+      )
+      ReleaseContract.ensure_absent!(installed_profile, "The target iOS provisioning profile")
+      ReleaseContract.write_profile_marker(
+        ENV.fetch("IOS_PROFILE_MARKER_PATH"),
+        profile_path,
+        installed_profile,
+        runner_temp
+      )
+      ReleaseContract.ensure_absent!(keychain_path, "The temporary iOS keychain")
+      ReleaseContract.write_marker(ENV.fetch("IOS_KEYCHAIN_MARKER_PATH"), keychain_path, runner_temp)
+
+      keychain_password = SecureRandom.hex(32)
+      create_keychain(
+        path: keychain_path,
+        password: keychain_password,
+        unlock: true,
+        timeout: 3600,
+        lock_when_sleeps: true,
+        require_create: true
+      )
+      import_certificate(
+        certificate_path: certificate_path,
+        certificate_password: required_release_value("IOS_CERTIFICATE_PASSWORD"),
+        keychain_path: keychain_path,
+        keychain_password: keychain_password,
+        log_output: false
+      )
+      installed_path = install_provisioning_profile(path: profile_path)
+      UI.user_error!("The provisioning profile was installed at an unexpected path.") unless installed_path == installed_profile
+
+      sh(
+        "/usr/bin/xcrun",
+        "swift",
+        File.join(ROOT, "app/iosApp/Scripts/release_config.swift"),
+        "generate",
+        xcconfig_path
+      )
+      File.open(xcconfig_path, "a") do |file|
+        file.puts("CODE_SIGN_STYLE=Manual")
+        file.puts("CODE_SIGN_IDENTITY=Apple Distribution")
+        file.puts("PROVISIONING_PROFILE_SPECIFIER=#{profile_uuid}")
+      end
+      output_directory = File.join(ROOT, "app/iosApp/build/export")
+      ipa_path = build_app(
+        project: File.join(ROOT, "app/iosApp/iosApp.xcodeproj"),
+        scheme: "iosApp",
+        configuration: "Release",
+        clean: false,
+        xcconfig: xcconfig_path,
+        output_directory: output_directory,
+        output_name: "iosApp.ipa",
+        archive_path: File.join(ROOT, "app/iosApp/build/archive/iosApp.xcarchive"),
+        derived_data_path: File.join(ROOT, "app/iosApp/build/derived-data"),
+        buildlog_path: temporary_directory,
+        suppress_xcode_output: true,
+        export_method: "app-store",
+        export_team_id: team_id,
+        export_options: {
+          method: "app-store",
+          signingStyle: "manual",
+          teamID: team_id,
+          provisioningProfiles: { IOS_BUNDLE_ID => profile_uuid }
+        }
+      )
+      upload_to_testflight(
+        api_key: api_key,
+        ipa: ipa_path,
+        distribute_external: false,
+        notify_external_testers: false,
+        skip_waiting_for_build_processing: true
+      )
+    ensure
+      begin
+        ReleaseContract.cleanup_ios!(ENV, ROOT)
+      rescue ReleaseContract::Error => error
+        cleanup_error = error
+      ensure
+        FileUtils.remove_entry_secure(temporary_directory) if File.exist?(temporary_directory)
+      end
+      raise cleanup_error if cleanup_error
+    end
+  end
+end
