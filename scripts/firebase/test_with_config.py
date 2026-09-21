@@ -179,7 +179,7 @@ class WithConfigTest(unittest.TestCase):
                 "import pathlib,signal,time; "
                 "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
                 f"pathlib.Path({str(ready)!r}).touch(); "
-                f"time.sleep(1); pathlib.Path({str(escaped)!r}).touch()"
+                f"time.sleep(2); pathlib.Path({str(escaped)!r}).touch()"
             )
             child = (
                 "import pathlib,subprocess,sys,time; "
@@ -190,6 +190,35 @@ class WithConfigTest(unittest.TestCase):
             result = self.invoke(self.env(runner_temp), [sys.executable, "-c", child])
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(escaped.exists(), "descendant outlived the build command")
+            self.assertFalse(list(Path(runner_temp).glob("vlrgg-firebase-*")))
+
+    @unittest.skipUnless(hasattr(os, "waitid"), "requires POSIX waitid")
+    def test_cleanup_gives_descendants_time_to_handle_sigterm(self) -> None:
+        with tempfile.TemporaryDirectory() as runner_temp:
+            ready = Path(runner_temp) / "ready"
+            cleaned = Path(runner_temp) / "cleaned"
+            descendant = (
+                "import os,pathlib,signal,time; "
+                "config=pathlib.Path(os.environ['FIREBASE_ANDROID_CONFIG_FILE']); "
+                f"cleaned=pathlib.Path({str(cleaned)!r})\n"
+                "def stop(*_):\n"
+                " time.sleep(0.2)\n"
+                " cleaned.write_text(config.read_text())\n"
+                " raise SystemExit\n"
+                "signal.signal(signal.SIGTERM,stop); "
+                f"pathlib.Path({str(ready)!r}).touch(); "
+                "time.sleep(60)"
+            )
+            child = (
+                "import pathlib,subprocess,sys,time; "
+                f"subprocess.Popen([sys.executable,'-c',{descendant!r}]); "
+                f"ready=pathlib.Path({str(ready)!r}); deadline=time.monotonic()+5\n"
+                "while not ready.exists() and time.monotonic()<deadline: time.sleep(0.01)\n"
+                "if not ready.exists(): raise RuntimeError('descendant did not start')\n"
+            )
+            result = self.invoke(self.env(runner_temp), [sys.executable, "-c", child])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(cleaned.read_text())["project_info"]["project_id"], "vlrgg-test")
             self.assertFalse(list(Path(runner_temp).glob("vlrgg-firebase-*")))
 
     def test_source_file_is_not_deleted(self) -> None:

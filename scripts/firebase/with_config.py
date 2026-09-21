@@ -18,6 +18,7 @@ import time
 
 PACKAGE_NAME = "kr.co.cotton.vlrgg_mobile"
 MAX_CONFIG_BYTES = 1_048_576
+PROCESS_GROUP_GRACE_SECONDS = 1
 
 
 class ConfigError(ValueError):
@@ -166,6 +167,7 @@ def _stop_process_group(process: subprocess.Popen[bytes], signum: int = signal.S
             raise
     _exited_without_reaping(process, timeout=3)
     # Keep the leader unreaped until descendants are stopped, preventing PGID reuse.
+    time.sleep(PROCESS_GROUP_GRACE_SECONDS)
     try:
         os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
