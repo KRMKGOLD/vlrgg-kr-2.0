@@ -210,21 +210,15 @@ class PublicApiProtectionTest {
     }
 
     @Test
-    fun `failure diagnostics safely redact details and cap samples per minute`() {
+    fun `failure diagnostics keep category budgets independent and reset each minute`() {
         var now = 0L
         val diagnostics = FailureDiagnostics({ now }, maxSamplesPerWindow = 2)
-        val failure = UpstreamNetworkFailure(
-            Url("https://user:secret@vlr.gg/private?token=credential-sentinel"),
-            IllegalStateException("credential-sentinel"),
-        )
-
-        val first = assertNotNull(diagnostics.sample(failure))
-        assertEquals("https://www.vlr.gg/", first.canonicalUpstreamUrl)
-        assertFalse(first.toString().contains("credential-sentinel"))
-        assertNotNull(diagnostics.sample(failure))
-        assertNull(diagnostics.sample(failure))
+        assertTrue(diagnostics.admit(kr.co.cotton.vlrgg_mobile.plugins.FailureCategory.EXPECTED))
+        assertTrue(diagnostics.admit(kr.co.cotton.vlrgg_mobile.plugins.FailureCategory.EXPECTED))
+        assertFalse(diagnostics.admit(kr.co.cotton.vlrgg_mobile.plugins.FailureCategory.EXPECTED))
+        assertTrue(diagnostics.admit(kr.co.cotton.vlrgg_mobile.plugins.FailureCategory.INTERNAL))
         now = 60_000
-        assertNotNull(diagnostics.sample(failure))
+        assertTrue(diagnostics.admit(kr.co.cotton.vlrgg_mobile.plugins.FailureCategory.EXPECTED))
     }
 
     private fun protection(

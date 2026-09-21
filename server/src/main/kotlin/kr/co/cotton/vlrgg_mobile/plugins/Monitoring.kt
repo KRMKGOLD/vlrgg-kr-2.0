@@ -4,6 +4,7 @@ import io.ktor.server.application.*
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicLongArray
+import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
 import kr.co.cotton.vlrgg_mobile.common.http.ServerFailure
 
@@ -24,6 +25,9 @@ internal class PublicApiObservability(
     private val activeUpstream = AtomicInteger()
     private val singleFlightJoins = AtomicLong()
     private val upstreamFailures = AtomicLong()
+    private val diagnosticEmitted = AtomicLongArray(FailureCategory.entries.size)
+    private val diagnosticSuppressed = AtomicLongArray(FailureCategory.entries.size)
+    private val telemetryFailures = AtomicLong()
 
     fun routeClass(path: String): PublicRouteClass =
         if (path.startsWith("/api/v1/")) PublicRouteClass.API else PublicRouteClass.OTHER
@@ -37,6 +41,9 @@ internal class PublicApiObservability(
     fun upstreamStarted() = activeUpstream.incrementAndGet()
     fun upstreamFinished() = activeUpstream.decrementAndGet()
     fun joinedSingleFlight() = singleFlightJoins.incrementAndGet()
+    fun diagnosticEmitted(category: FailureCategory) = diagnosticEmitted.incrementAndGet(category.ordinal)
+    fun diagnosticSuppressed(category: FailureCategory) = diagnosticSuppressed.incrementAndGet(category.ordinal)
+    fun telemetryFailed() = telemetryFailures.incrementAndGet()
 
     fun completed(status: Int, elapsedMillis: Long) {
         statusClasses.incrementAndGet(status.coerceIn(0, 599) / 100)
@@ -62,6 +69,9 @@ internal class PublicApiObservability(
         activeUpstream = activeUpstream.get(),
         singleFlightJoins = singleFlightJoins.get(),
         upstreamFailures = upstreamFailures.get(),
+        diagnosticEmitted = FailureCategory.entries.associateWith { diagnosticEmitted[it.ordinal] },
+        diagnosticSuppressed = FailureCategory.entries.associateWith { diagnosticSuppressed[it.ordinal] },
+        telemetryFailures = telemetryFailures.get(),
     )
 
     internal data class Snapshot(
@@ -74,6 +84,9 @@ internal class PublicApiObservability(
         val activeUpstream: Int,
         val singleFlightJoins: Long,
         val upstreamFailures: Long,
+        val diagnosticEmitted: Map<FailureCategory, Long>,
+        val diagnosticSuppressed: Map<FailureCategory, Long>,
+        val telemetryFailures: Long,
     )
 
     private fun emitIfDue() {
@@ -82,7 +95,13 @@ internal class PublicApiObservability(
             val previous = lastSummaryMillis.get()
             if (previous != Long.MIN_VALUE && now - previous < SUMMARY_MIN_INTERVAL_MILLIS) return
             if (lastSummaryMillis.compareAndSet(previous, now)) {
-                emit(snapshot())
+                try {
+                    emit(snapshot())
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                    telemetryFailed()
+                }
                 return
             }
         }
@@ -105,4 +124,7 @@ internal fun formatPublicApiSummary(summary: PublicApiObservability.Snapshot): S
         "rejections={${ApiErrorCode.entries.joinToString(",") { code -> "${code.name}=${summary.rejections.getValue(code)}" }}} " +
         "latency={lt_100ms=${summary.latencyBuckets[0]},100ms_to_lt_1s=${summary.latencyBuckets[1]},1s_to_lt_3s=${summary.latencyBuckets[2]},gte_3s=${summary.latencyBuckets[3]}} " +
         "active_api=${summary.activeApi} active_upstream=${summary.activeUpstream} " +
-        "joins=${summary.singleFlightJoins} upstream_failures=${summary.upstreamFailures}"
+        "joins=${summary.singleFlightJoins} upstream_failures=${summary.upstreamFailures} " +
+        "diagnostics_emitted={${FailureCategory.entries.joinToString(",") { "${it.name}=${summary.diagnosticEmitted.getValue(it)}" }}} " +
+        "diagnostics_suppressed={${FailureCategory.entries.joinToString(",") { "${it.name}=${summary.diagnosticSuppressed.getValue(it)}" }}} " +
+        "telemetry_failures=${summary.telemetryFailures}"

@@ -23,7 +23,9 @@ jobs:
           persist-credentials: false
 
       - name: Check production deployment retry and traffic guards
-        run: bash .github/scripts/test-query-production-deploy.sh
+        run: |
+          bash .github/scripts/test-query-production-deploy.sh
+          bash .github/scripts/test-observability-operations.sh
 
       - name: Set up pinned Ruby and fastlane
         uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
@@ -82,27 +84,12 @@ jobs:
           :server:test
           :server:firestoreEmulatorTest
           :server:build
-          :server:installDist"
+          :server:installDist
+          :server:observabilityValidationJar"
 
-      - name: Smoke packaged health and fail-closed notification routes
+      - name: Smoke packaged health, fault isolation, and structured failure stdout
         shell: bash
-        run: |
-          PORT=18080 server/build/install/server/bin/server > server-health.log 2>&1 &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
-          ready=false
-          for attempt in {1..30}; do
-            if curl --connect-timeout 1 --max-time 1 --fail --silent http://127.0.0.1:18080/health | jq -e '.status == "ok"' > /dev/null; then
-              ready=true
-              break
-            fi
-            sleep 1
-          done
-          if [ "$ready" != true ]; then
-            cat server-health.log
-            exit 1
-          fi
-          bash .github/scripts/smoke-query-server.sh --local
+        run: bash .github/scripts/smoke-observability.sh
 
       - name: Check event patch formatting
         env:

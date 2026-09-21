@@ -1,7 +1,7 @@
 # CI/CD delivery direction — Cloud Run query server
 
-- Status: Stage 1.1 credential-free CI와 #111 조회 서버 후속 배포·rollback·비용 중단 후 복구·공개 조회 및 독립 검증 PASS; deployment enable=true, 수동 trigger 유지; notification production deployment deferred
-- Last reviewed: 2026-09-11
+- Status: Stage 1.1 credential-free CI와 #111 조회 서버 후속 배포·rollback·비용 중단 후 복구·공개 조회 및 독립 검증 PASS; #122 관측 코드·workflow는 local validation 범위이며 live GCP 검증 NOT RUN; deployment enable=true, 수동 trigger 유지; notification production deployment deferred
+- Last reviewed: 2026-09-21
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
 ## Goal and stage boundary
@@ -129,13 +129,31 @@ Cloud Run은 새 service 생성에 `--no-traffic`을 지원하지 않는다. 첫
 
 최초 배포 실패로 service만 남고 양수 traffic과 `latestReadyRevisionName`이 모두 없으면, 배포 전 비공개 IAM을 확인한 뒤 첫 배포 경로로 재시도한다. 이때도 `--no-traffic`을 생략하고 배포 후 비공개 IAM·새 revision 100%와 무인증 거절을 확인한다. 50/50 분할·부분 traffic 또는 과거 ready revision이 있는 상태를 첫 배포로 취급하지 않는다. `bash .github/scripts/test-query-production-deploy.sh`는 실제 workflow step을 로컬 gcloud stub으로 실행해 이 분기를 검증하며 credential-free CI에서도 실행한다.
 
-공개 저장소의 Draft PR도 소스와 변경 내역이 공개되고 Actions 로그·요약도 외부에서 볼 수 있다. 배포 URL과 이미지 경로를 job summary에 기록하지 않는다. 생성된 검증/production service URL과 host를 후속 step 전에 마스킹한다. Cloud Run 변경 명령 출력은 runner 임시 파일로 받고, 실패 시 Cloud Run 주소와 이미지 경로를 치환한 진단 로그만 출력한다. 원본 로그는 artifact로 올리지 않는다. 실제 운영 URL은 repository 외부 보호 파일 `~/.config/vlrgg-mobile/release-api-url`로 전달한다. 이 조치는 불필요한 메타데이터 공개를 줄이며, 공개 API 주소 자체를 비밀이나 접근 제어 수단으로 만들지는 않는다.
+공개 저장소의 Draft PR도 소스와 변경 내역이 공개되고 Actions 로그·요약도 외부에서 볼 수 있다. 배포 URL과 이미지 경로를 job summary에 기록하지 않는다. 생성된 검증/production service URL과 host를 후속 step 전에 마스킹한다. Cloud Run 변경 명령과 image build/push 출력은 runner 임시 파일로 받고, 공개 로그에는 고정된 상태·실패 요약만 출력한다. 원본 로그는 artifact로 올리지 않는다. 실제 운영 URL은 repository 외부 보호 파일 `~/.config/vlrgg-mobile/release-api-url`로 전달한다. 이 조치는 불필요한 메타데이터 공개를 줄이며, 공개 API 주소 자체를 비밀이나 접근 제어 수단으로 만들지는 않는다.
 
 G가 실제 Actions 로그·배포 PR diff·검토 출처·summary writer 등을 검사한 결과 실제 URL/host·JWT·구체적 run.app host·Gitleaks 검출은 0건이다. 렌더링된 Actions summary 본문은 직접 취득하지 못했다. 대신 정확한 배포 SHA의 고정 문구 두 개와 검증된 SHA만 출력하는 writer 및 해당 step success를 확인·검사했다. 원본 digest/revision/IAM·로그와 검증 근거는 Git ignored 보호 경로 `.omx/evidence/issue111/20260911T164328Z/F/`, `G/`에 보존한다.
 
 배포 검증은 `.github/scripts/smoke-query-server.sh`의 `curl`·`jq`로 수행한다. Python 파일은 필요하지 않다. 같은 script의 `--local` 경로를 credential-free CI의 packaged smoke에서 실행해 health·안전한 400·문서/알림 404를 확인한다. 로컬 경로는 토큰 입력을 거절하고 실제 upstream 조회를 하지 않는다. 배포 경로는 HTTPS Cloud Run URL만 허용하고 redirect를 따라가지 않으며 토큰은 curl 인자 대신 stdin header로 전달한다.
 
 최종 production은 request-based billing, service-level min/max `1/1`, revision-level min/max `0/1`, CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling 사용이며 검증된 revision 단독 100%다. Validation은 같은 digest·자원에 service min/max `0/1`, private를 유지한다. 양 service의 Invoker IAM check는 켜져 있고 기존 identity 권한을 보존했다. Repository enable=true, environment 동명 override 없음, active deploy 0이다. 공개 health·경기·뉴스 200, 안전한 400, docs/notification 404와 validation health 403을 확인했다. [비용 기록](architecture/server-deployment-costs.md)의 현재 Catalog compute와 계획 가정은 실제 청구액과 구분한다.
+
+### #122 observability operations
+
+기존 `deploy-server.yml`의 수동 입력 `operation`은 `deploy`(기본값), `observability-validate`, `observability-restore`만 허용한다. 모든 mode는 같은 workflow concurrency와 `cancel-in-progress: false`, `main` exact SHA CI, `production` environment, WIF 경계를 사용한다. unknown operation은 cloud mutation 전에 실패한다.
+
+- `deploy`: 기존 build→private validation→production 경로를 유지한다. cloud 인증 직후 첫 mutation 전에 validation service의 `vlrgg-observability-validation` journal을 조회하며 active·unknown journal 또는 조회 실패가 있으면 중단한다.
+- `observability-validate`: production service/token/traffic/policy를 건드리지 않는다. production image 위에 test-only `server-observability-validation.jar`를 올린 ephemeral validation image만 고정 private service에 배포하고, 인증된 고정 error endpoint의 예상 HTTP status를 확인한 뒤 복원한다. validation main은 `observability.validation.ObservabilityValidationMainKt`이며 `VLRGG_OBSERVABILITY_VALIDATION=true`와 `K_SERVICE=vlrgg-query-check`가 모두 맞아야 한다. 이 mode는 provider의 Error Reporting group·trace·sampling·policy·incident·receiver를 판정하지 않고 O3~O9를 `NOT RUN`으로 기록한다.
+- `observability-restore`: source checkout 이후 build/test jar/Docker build/image push 없이 인증→journal 조회→baseline traffic/template/IAM·health 복원→소유 자원 정리만 수행한다. journal이 없거나 불명확한 자원을 임의 삭제하지 않는다.
+
+validation job은 최대 120분이며 신규 검증 변경은 90분 deadline으로 제한해 복원 시간을 남긴다. `observability-service.sh`는 validation guard, 8 KiB 이하 annotation journal, baseline traffic/template 복원을 담당하고, `observability-cleanup.sh`는 traffic/template/IAM과 run-owned resource 정리를 수행한다. `observability-policies.sh`는 향후 전체 live 검증에서 ownership이 확인된 #122 policy/check만 render/ensure/disable/delete하는 별도 helper이며 현재 workflow가 자동 호출하지 않는다. policy 변경은 고정 private validation service와 소유 journal이 확인된 경우에만 허용하며, uptime ensure는 실제 Monitoring service-agent identity와 private invoker 권한을 확인한다. render는 cloud 변경 없이 다른 service의 정책도 생성할 수 있다. `test-observability-operations.sh`는 gcloud/API stub으로 production mutation 부재, restore의 build/push 부재, journal/CAS, traffic-first 복원, owner-only cleanup과 policy helper 동작을 로컬 검사한다.
+
+production installDist/image에는 validation main, jar, `__observability/*` route가 없어야 한다. harness의 고정 route는 `/health`, health fail/restore, internal/other/parsing/upstream/expected failure, opt-in exit뿐이며 body/query/header로 예외 문자열·stack·exit code를 받지 않는다. exit route는 `VLRGG_OBSERVABILITY_ALLOW_EXIT=true`가 추가로 필요하다. 로컬 실행은 `VLRGG_OBSERVABILITY_LOCAL=true`이고 `K_SERVICE`가 없을 때만 허용한다.
+
+이번 local 실행은 server test 243개 중 241개 통과·기존 opt-in benchmark 2개 skip, server build/installDist/validation jar, 실제 packaged production+test jar process의 Logback stdout smoke와 installDist의 harness 제외를 통과했다. 기존 `test-query-production-deploy.sh`와 새 `test-observability-operations.sh`의 36개 시나리오가 모두 PASS다. 로컬 Docker가 없어 production Docker image 실행·artifact 검사는 하지 않았고 Dockerfile/context 정적 검사와 실제 installDist 격리로 대체했다. 외부 CodeRabbit review는 rate limit으로 NOT RUN이며 native server·ops review는 모두 승인됐다.
+
+재현 명령은 `./gradlew :server:test :server:build :server:installDist :server:observabilityValidationJar`, `bash .github/scripts/smoke-observability.sh`, `bash .github/scripts/test-observability-operations.sh`다. CI도 validation jar를 만든 뒤 같은 stdout smoke와 operations stub을 실행한다.
+
+GCP read-only inventory, policy ensure, health failure/abnormal exit 주입, Error Reporting grouping, trace 연결, sampling 비교, notification receipt, incident close와 private service 실제 복원은 별도 운영 실행이며 아직 **NOT RUN**이다. 따라서 endpoint smoke 또는 로컬 GREEN만으로 #122 완료를 주장하지 않는다. 자세한 순서·초기 policy 값·보호 기록은 [서버 컨테이너 배포 경로](architecture/server-container-deployment.md)의 #122 runbook을 따른다.
 
 ### #111 read-only query deployment path
 

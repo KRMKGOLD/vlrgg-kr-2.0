@@ -189,10 +189,13 @@ data class ApiErrorResponse(
 - `Monitoring.kt`: 고정 크기 운영 카운터와 빈도를 제한한 집계·실패 진단
 - CORS, authentication 등은 실제 client requirement가 생길 때만 추가
 
-공개 조회의 관측은 `logback.xml`의 console appender를 사용한다. #52는 요청 폭주에 따라 로그량이 늘어나지 않도록 요청마다 기록하는 `CallLogging`을 제거하고, 고정 카운터와 시간당 출력 한도가 있는 집계·진단으로 대체한다.
+공개 조회의 관측은 `logback.xml`의 console appender를 사용한다. #52는 요청 폭주에 따라 로그량이 늘어나지 않도록 요청마다 기록하는 `CallLogging`을 제거하고, 고정 카운터와 빈도를 제한한 집계·진단으로 대체한다. #122는 일반 root 로그 형식을 바꾸지 않고 `server.failure` 전용 JSON logger만 추가한다. 이 logger는 Throwable overload와 appender의 자동 예외 출력을 사용하지 않는다.
 
 - 고정 route class, status class, stable failure code, latency bucket, active API/upstream, in-flight join과 upstream failure를 집계한다. upstream failure는 `UPSTREAM_NETWORK_FAILURE`와 `SOURCE_PARSING_FAILURE`만 세며 local 성공 JSON 제한의 `RESPONSE_TOO_LARGE`는 제외한다. summary에는 `api`/`other`, `0xx`~`5xx`, 각 error code, 고정 latency bucket의 이름과 count를 함께 출력하며, 카운터의 정확성은 로그 샘플링과 분리한다.
-- 실패 진단에는 제한된 canonical origin과 안전한 cause 분류만 사용한다. raw request path/query/IP/header, 예외 메시지·stack trace를 넣지 않는다.
+- 실패 진단에는 제한된 canonical origin과 안전한 cause 분류만 사용한다. raw request path/query/IP/header와 예외 메시지는 넣지 않는다. `INTERNAL_ERROR`와 `SOURCE_PARSING_FAILURE`만 Error Reporting용 ERROR 이벤트이며, runtime에서 검사한 서버·라이브러리 class/member의 위치를 안전한 Java stack 문법으로 재구성한다. 임의 stack 문자열, suppressed 예외, Throwable serialization은 금지한다.
+- 안전한 위치는 전체 cause 합계 frame 32개, root 뒤 cause link 3개, 후보 검사 128개로 제한한다. class/member/file/line을 검증할 수 없으면 drop 또는 `Unknown Source`로 낮추고, cause나 위치 일부가 누락됐음을 고정 boolean으로 표시한다. 최종 stdout record는 줄바꿈까지 UTF-8 16 KiB 이하여야 하며 바이트 중간을 자르지 않는다.
+- 진단 출력 예산은 process별 60초 동안 `EXPECTED`, `UPSTREAM_NETWORK`, `INTERNAL`, `SOURCE_PARSING` 각 4건이다. 초과 이벤트도 실제 요청·오류 집계에는 포함하고, 기존 request-driven summary에 category별 emitted/suppressed와 telemetry failure를 기록한다. 따라서 출력 sample 수를 전체 실패 수로 해석하지 않는다. 요청이 없으면 summary를 만들지 않고 process 재시작 시 예산과 summary counter는 초기화된다.
+- trace는 각 request의 유효한 단일 `X-Cloud-Trace-Context`에서만 가져온다. 신뢰된 project 환경과 header 전체를 검증한 뒤 `logging.googleapis.com/trace`만 출력하며, 원본 header, `spanId`, `trace_sampled`는 기록하지 않는다. invalid·중복·과도한 header는 trace 파생 필드 전체를 생략한다.
 - `/health`는 API admission과 요청 로그에서 제외하며 상수 응답을 제공한다. probe 실패를 API 포화와 연결하지 않는다.
 - secret, FCM registration token, App Check evidence, client credential, raw HTML은 로그에 기록하지 않는다.
 

@@ -16,39 +16,39 @@ import kr.co.cotton.vlrgg_mobile.common.http.RetryableServerFailure
 import kr.co.cotton.vlrgg_mobile.common.http.toApiErrorResponse
 import kr.co.cotton.vlrgg_mobile.protection.recordPublicRequestCompletion
 import kr.co.cotton.vlrgg_mobile.protection.recordPublicRequestRejection
+import org.slf4j.LoggerFactory
 
-private val failureDiagnostics = FailureDiagnostics()
-
-internal fun Application.configureErrorHandling(observability: PublicApiObservability? = null) {
+internal fun Application.configureErrorHandling(
+    observability: PublicApiObservability? = null,
+    failureDiagnostics: FailureDiagnostics = FailureDiagnostics(),
+    failureEventFormatter: FailureEventFormatter = FailureEventFormatter(),
+    failureEventSink: (FailureEvent) -> Unit = ::emitFailureEvent,
+) {
     install(StatusPages) {
         exception<BadRequestException> { call, cause ->
             val failure = InvalidInputFailure(cause)
+            logFailureDiagnostic(call, failure, observability, failureDiagnostics, failureEventFormatter, failureEventSink)
             observability?.let { call.recordPublicRequestRejection(it, failure) }
-            this@configureErrorHandling.logFailureDiagnostic(failure)
             call.respond(failure.status, failure.toApiErrorResponse())
         }
         exception<ServerFailure> { call, failure ->
+            logFailureDiagnostic(call, failure, observability, failureDiagnostics, failureEventFormatter, failureEventSink)
             observability?.let { call.recordPublicRequestRejection(it, failure) }
-            this@configureErrorHandling.logFailureDiagnostic(failure)
             if (failure is RetryableServerFailure) {
                 call.response.headers.append(HttpHeaders.RetryAfter, failure.retryAfterSeconds.toString())
             }
             call.respond(failure.status, failure.toApiErrorResponse())
         }
         exception<Exception> { call, cause ->
-            if (cause is CancellationException) {
-                throw cause
-            }
+            if (cause is CancellationException) throw cause
 
             val failure = InternalServerFailure(cause)
+            logFailureDiagnostic(call, failure, observability, failureDiagnostics, failureEventFormatter, failureEventSink)
             observability?.let { call.recordPublicRequestRejection(it, failure) }
-            this@configureErrorHandling.logFailureDiagnostic(failure)
             call.respond(failure.status, failure.toApiErrorResponse())
         }
         status(HttpStatusCode.NotFound) { call, status ->
-            if (call.response.status() != null) {
-                return@status
-            }
+            if (call.response.status() != null) return@status
 
             call.respond(
                 status,
@@ -62,56 +62,68 @@ internal fun Application.configureErrorHandling(observability: PublicApiObservab
     }
 }
 
-private fun Application.logFailureDiagnostic(failure: ServerFailure) {
-    failureDiagnostics.sample(failure)?.let { diagnostic ->
-        log.warn(
-            "public_api_failure code={} status={} upstream={} cause_category={} cause_class={}",
-            diagnostic.errorCode,
-            diagnostic.status,
-            diagnostic.canonicalUpstreamUrl,
-            diagnostic.causeCategory,
-            diagnostic.causeClass,
-        )
+private fun logFailureDiagnostic(
+    call: ApplicationCall,
+    failure: ServerFailure,
+    observability: PublicApiObservability?,
+    diagnostics: FailureDiagnostics,
+    formatter: FailureEventFormatter,
+    sink: (FailureEvent) -> Unit,
+) {
+    val category = failure.diagnosticCategory()
+    if (!diagnostics.admit(category)) {
+        observability?.diagnosticSuppressed(category)
+        return
+    }
+
+    try {
+        val traceHeaders = call.request.headers.getAll(CLOUD_TRACE_HEADER).orEmpty()
+        sink(formatter.format(failure, traceHeaders))
+        observability?.diagnosticEmitted(category)
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        observability?.telemetryFailed()
     }
 }
 
-/** Safe, fixed-size samples preserve operational context without request-derived or exception text. */
+private val failureLogger = LoggerFactory.getLogger("server.failure")
+
+private fun emitFailureEvent(event: FailureEvent) {
+    if (event.severity == FailureSeverity.ERROR) failureLogger.error(event.json) else failureLogger.warn(event.json)
+}
+
+/** Fixed-category, application-scoped admission avoids attacker-controlled cardinality. */
 internal class FailureDiagnostics(
     private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val maxSamplesPerWindow: Int = MAX_SAMPLES_PER_WINDOW,
 ) {
     private val lock = Any()
-    private var windowStartedAtMillis = Long.MIN_VALUE
-    private var sampleCount = 0
+    private val windows = Array(FailureCategory.entries.size) { Window() }
 
-    fun sample(failure: ServerFailure): Diagnostic? = synchronized(lock) {
+    fun admit(category: FailureCategory): Boolean = synchronized(lock) {
         val now = nowMillis()
-        if (windowStartedAtMillis == Long.MIN_VALUE || now - windowStartedAtMillis >= SAMPLE_WINDOW_MILLIS) {
-            windowStartedAtMillis = now
-            sampleCount = 0
+        val window = windows[category.ordinal]
+        if (window.startedAtMillis == Long.MIN_VALUE || now - window.startedAtMillis >= SAMPLE_WINDOW_MILLIS) {
+            window.startedAtMillis = now
+            window.samples = 0
         }
-        if (sampleCount >= maxSamplesPerWindow) return null
-        sampleCount += 1
-        Diagnostic(
-            errorCode = failure.errorCode.name,
-            status = failure.status.value,
-            canonicalUpstreamUrl = failure.canonicalUpstreamUrl ?: "none",
-            causeCategory = if (failure.cause == null) "none" else "exception",
-            causeClass = failure.cause?.javaClass?.simpleName?.take(MAX_CAUSE_CLASS_LENGTH) ?: "none",
-        )
+        if (window.samples >= maxSamplesPerWindow) return false
+        window.samples += 1
+        true
     }
 
-    internal data class Diagnostic(
-        val errorCode: String,
-        val status: Int,
-        val canonicalUpstreamUrl: String,
-        val causeCategory: String,
-        val causeClass: String,
-    )
+    private class Window(var startedAtMillis: Long = Long.MIN_VALUE, var samples: Int = 0)
 
     private companion object {
         const val SAMPLE_WINDOW_MILLIS = 60_000L
         const val MAX_SAMPLES_PER_WINDOW = 4
-        const val MAX_CAUSE_CLASS_LENGTH = 80
     }
+}
+
+internal fun ServerFailure.diagnosticCategory(): FailureCategory = when (errorCode) {
+    ApiErrorCode.UPSTREAM_NETWORK_FAILURE -> FailureCategory.UPSTREAM_NETWORK
+    ApiErrorCode.INTERNAL_ERROR -> FailureCategory.INTERNAL
+    ApiErrorCode.SOURCE_PARSING_FAILURE -> FailureCategory.SOURCE_PARSING
+    else -> FailureCategory.EXPECTED
 }
