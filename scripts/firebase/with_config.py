@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 
 PACKAGE_NAME = "kr.co.cotton.vlrgg_mobile"
@@ -142,21 +143,37 @@ def _validate_ios_config(data: bytes) -> list[str]:
     ]
 
 
+def _exited_without_reaping(process: subprocess.Popen[bytes], timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while True:
+        if os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.02)
+
+
 def _stop_process_group(process: subprocess.Popen[bytes], signum: int = signal.SIGTERM) -> None:
-    if process.poll() is not None:
+    if process.returncode is not None:
         return
     try:
         os.killpg(process.pid, signum)
     except ProcessLookupError:
         pass
+    except PermissionError:
+        # Darwin returns EPERM when the group contains only the zombie leader.
+        if sys.platform != "darwin" or not _exited_without_reaping(process, timeout=0):
+            raise
+    _exited_without_reaping(process, timeout=3)
+    # Keep the leader unreaped until descendants are stopped, preventing PGID reuse.
     try:
-        process.wait(timeout=3)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        process.wait()
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        if sys.platform != "darwin" or not _exited_without_reaping(process, timeout=0):
+            raise
+    process.wait()
 
 
 def run(command: list[str], environ: dict[str, str] | None = None, platform: str = "android") -> int:
@@ -181,11 +198,6 @@ def run(command: list[str], environ: dict[str, str] | None = None, platform: str
     def handle_signal(signum: int, _frame: object) -> None:
         nonlocal received_signal
         received_signal = signum
-        if process is not None and process.returncode is None:
-            try:
-                os.killpg(process.pid, signum)
-            except ProcessLookupError:
-                pass
 
     handled_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
     try:
@@ -205,17 +217,10 @@ def run(command: list[str], environ: dict[str, str] | None = None, platform: str
                 previous_handlers[signum] = signal.signal(signum, handle_signal)
             try:
                 process = subprocess.Popen(command, env=child_env, start_new_session=True)
-                if received_signal is not None:
-                    _stop_process_group(process, received_signal)
-                    return 128 + received_signal
-                while True:
-                    try:
-                        return_code = process.wait(timeout=0.2)
-                        return 128 + received_signal if received_signal is not None else return_code
-                    except subprocess.TimeoutExpired:
-                        if received_signal is not None:
-                            _stop_process_group(process, received_signal)
-                            return 128 + received_signal
+                while received_signal is None and not _exited_without_reaping(process, timeout=0.2):
+                    pass
+                _stop_process_group(process, received_signal or signal.SIGTERM)
+                return 128 + received_signal if received_signal is not None else process.returncode
             except OSError as exc:
                 print(f"failed to start command: {exc.strerror or exc.__class__.__name__}", file=sys.stderr)
                 return 127 if isinstance(exc, FileNotFoundError) else 126

@@ -162,12 +162,35 @@ class WithConfigTest(unittest.TestCase):
             self.assertEqual(result.returncode, 127)
             self.assertEqual(list(Path(runner_temp).iterdir()), [])
 
+    @unittest.skipUnless(hasattr(os, "killpg"), "requires POSIX process groups")
     def test_cleanup_does_not_signal_a_reaped_process_group(self) -> None:
         process = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
         process.wait(timeout=5)
         with patch.object(with_config.os, "killpg") as killpg:
             with_config._stop_process_group(process)
         killpg.assert_not_called()
+
+    @unittest.skipUnless(hasattr(os, "waitid"), "requires POSIX waitid")
+    def test_cleanup_stops_descendants_after_command_exits(self) -> None:
+        with tempfile.TemporaryDirectory() as runner_temp:
+            ready = Path(runner_temp) / "ready"
+            escaped = Path(runner_temp) / "escaped"
+            descendant = (
+                "import pathlib,signal,time; "
+                "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                f"pathlib.Path({str(ready)!r}).touch(); "
+                f"time.sleep(1); pathlib.Path({str(escaped)!r}).touch()"
+            )
+            child = (
+                "import pathlib,subprocess,sys,time; "
+                f"subprocess.Popen([sys.executable,'-c',{descendant!r}]); "
+                f"ready=pathlib.Path({str(ready)!r})\n"
+                "while not ready.exists(): time.sleep(0.01)\n"
+            )
+            result = self.invoke(self.env(runner_temp), [sys.executable, "-c", child])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(escaped.exists(), "descendant outlived the build command")
+            self.assertFalse(list(Path(runner_temp).glob("vlrgg-firebase-*")))
 
     def test_source_file_is_not_deleted(self) -> None:
         with tempfile.TemporaryDirectory() as runner_temp, tempfile.TemporaryDirectory() as source_dir:
