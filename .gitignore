@@ -66,6 +66,35 @@ local.properties
 app/iosApp/Configuration/Config.local.xcconfig
 gha-creds-*.json
 
+# Firebase app configuration and local project selection
+google-services*.json
+GoogleService-Info*.plist
+.firebaserc
+.firebase/
+
+# Local secrets and Google credentials
+.secrets/
+.env
+.env.*
+!.env.example
+*service-account*.json
+service_account*.json
+serviceAccount*.json
+*firebase-adminsdk*.json
+application_default_credentials.json
+
+# Android and Apple signing credentials
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pfx
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
+*.xcarchive/
+
 # Firebase Emulator runtime logs
 firebase-debug.log
 firestore-debug.log

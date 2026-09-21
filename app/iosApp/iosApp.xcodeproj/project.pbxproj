@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		1A2B3C4D5E6F700000000001 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1A2B3C4D5E6F700000000011 /* FirebaseCore */; };
+		1A2B3C4D5E6F700000000002 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 1A2B3C4D5E6F700000000012 /* FirebaseCrashlytics */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		4F61039229E548B22F732F50 /* Vlrggmobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vlrggmobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -41,6 +46,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A2B3C4D5E6F700000000001 /* FirebaseCore in Frameworks */,
+				1A2B3C4D5E6F700000000002 /* FirebaseCrashlytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,7 +82,9 @@
 				7B889DFFC0DB93441C0B46FE /* Sources */,
 				01EA08FE66045626453FB6DA /* Frameworks */,
 				C9F0E5BB876FE1CE33DB04F1 /* Resources */,
+				1A2B3C4D5E6F700000000021 /* Prepare Firebase Crashlytics */,
 				B84E6BE41B32491DA85A9193 /* Validate App Configuration */,
+				1A2B3C4D5E6F700000000022 /* Upload Firebase Crashlytics Symbols */,
 			);
 			buildRules = (
 			);
@@ -86,6 +95,8 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
+				1A2B3C4D5E6F700000000011 /* FirebaseCore */,
+				1A2B3C4D5E6F700000000012 /* FirebaseCrashlytics */,
 			);
 			productName = iosApp;
 			productReference = 4F61039229E548B22F732F50 /* Vlrggmobile.app */;
@@ -117,6 +128,9 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = AC60647BFF40C26B7C54F6F6 /* Products */;
+			packageReferences = (
+				1A2B3C4D5E6F700000000010 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -136,6 +150,49 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		1A2B3C4D5E6F700000000021 /* Prepare Firebase Crashlytics */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Prepare Firebase Crashlytics";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/Scripts/firebase_crashlytics.sh\" prepare\n";
+		};
+		1A2B3C4D5E6F700000000022 /* Upload Firebase Crashlytics Symbols */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)",
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Resources/DWARF/$(EXECUTABLE_NAME)",
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Info.plist",
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+			);
+			name = "Upload Firebase Crashlytics Symbols";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/Scripts/firebase_crashlytics.sh\" upload\n";
+		};
 		73BAE0E167417E98C10780E3 /* Compile Kotlin Framework */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -224,7 +281,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -246,6 +303,10 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
@@ -305,6 +366,10 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
@@ -389,6 +454,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		1A2B3C4D5E6F700000000010 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = exactVersion;
+				version = 12.19.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1A2B3C4D5E6F700000000011 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1A2B3C4D5E6F700000000010 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		1A2B3C4D5E6F700000000012 /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1A2B3C4D5E6F700000000010 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B4EE4BBB3CBE6A3EA9545C7B /* Project object */;
 }

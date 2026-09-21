@@ -113,7 +113,8 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_CONTENT_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT_BASE64 }}
-        run: bundle exec fastlane ios internal
+          FIREBASE_IOS_CONFIG_BASE64: ${{ secrets.FIREBASE_IOS_CONFIG_BASE64 }}
+        run: python3 scripts/firebase/with_config.py ios -- bundle exec fastlane ios internal
 
       - name: Remove signing and binary files
         if: always()

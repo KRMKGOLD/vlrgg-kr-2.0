@@ -4,7 +4,11 @@ The two app workflows are manual-only and deploy the immutable `main` commit tha
 
 ## Repository setup deferred to #117
 
-Developer accounts do not exist yet, so this repository only implements and credential-free tests the process. Before the first run, create the `android-internal` and `ios-testflight` GitHub environments, restrict them to `main`, configure an approval rule, and set `ANDROID_INTERNAL_DEPLOY_ENABLED=true` or `IOS_TESTFLIGHT_DEPLOY_ENABLED=true` only after reviewing the frozen source/version.
+Developer accounts do not exist yet, so this repository only implements and credential-free tests the process. Issue #121 created the `android-internal` and `ios-testflight` environments restricted to `main`, with only the platform Firebase configuration secrets. Store credentials, signing, and the approval policy remain #117 work. Set `ANDROID_INTERNAL_DEPLOY_ENABLED=true` or `IOS_TESTFLIGHT_DEPLOY_ENABLED=true` only after those prerequisites and the frozen source/version have been verified.
+
+Android builds use `FIREBASE_ANDROID_CONFIG_BASE64` through `scripts/firebase/with_config.py android -- bundle exec fastlane android internal`. The wrapper removes its private temporary configuration on success, failure, and handled termination; actual configuration builds disable Gradle build/configuration caches. See [Crashlytics setup](../docs/app-crashlytics.md).
+
+iOS builds use `FIREBASE_IOS_CONFIG_BASE64` through `scripts/firebase/with_config.py ios -- bundle exec fastlane ios internal`. Xcode copies the configuration into the app bundle and uploads dSYMs synchronously for collection-enabled builds. The wrapper removes the injected input; lane cleanup removes the archive and derived data.
 
 Android needs an enrolled Play developer account, an existing app record for `kr.co.cotton.vlrgg_mobile`, a compatible upload key, internal testers, and these environment secrets: `API_BASE_URL`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, and `ANDROID_PLAY_SERVICE_ACCOUNT_JSON`. The service account must be limited to the existing app and internal release work; the workflow materializes the keystore only in runner temporary storage and removes it and the signed bundle on success or failure.
 

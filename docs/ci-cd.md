@@ -296,7 +296,8 @@ Cloud Run revision이 rollback 단위다. private 검증 service가 실패하면
 | Server unit/build/installDist | GREEN — 2026-09-10 | existing CI success for exact SHA required | final rerun required |
 | Firestore SDK + Emulator | GREEN — 2026-07-31 | credential-free Emulator CI retained | production smoke required |
 | Fake App Check/FCM | GREEN — 2026-07-31 | retained CI; real adapters not required | replaced by real adapters |
-| App Android/iOS Firebase integration | NOT RUN — Stage 2 | not required | required |
+| App Crashlytics | #121: Android fatal·ANR, iOS fatal·dSYM과 수집 정책 실수신 검증 완료 — [2026-09-21 기록](app-crashlytics.md) | not required | independent of FCM |
+| App Android/iOS FCM integration | NOT RUN — Stage 2 | not required | required |
 | Real App Check/FCM | NOT RUN — Stage 2 | not required | required |
 | Production Firestore/IAM/index | NOT RUN — Stage 2 | not required | required |
 | Cloud Run identity/CD | NOT RUN — Stage 1.1 범위 제외 | PASS — exact main CI·동일 digest private validation/production 배포·100% 승격, G 독립 확인 | notification deployment gate required |

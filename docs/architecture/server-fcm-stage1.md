@@ -46,7 +46,7 @@ Stage 1.1의 종료 문구는 다음과 같다.
 
 ### Stage 2로 이동
 
-- 모든 `app/**` 구현과 Android/iOS Firebase SDK 연동
+- 알림을 위한 `app/**` 구현과 Android/iOS FCM·App Check 연동. 충돌 수집은 별도 [#121 Crashlytics](../app-crashlytics.md) 범위다.
 - 실제 Firebase App Check token 검증과 Firebase App ID allowlist
 - 실제 FCM registration token 획득·갱신·발송·기기 표시
 - production Firestore client factory, ADC, IAM, index activation과 live smoke
