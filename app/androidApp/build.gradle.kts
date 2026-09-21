@@ -1,4 +1,5 @@
 import com.android.build.api.variant.BuildConfigField
+import com.google.gms.googleservices.GoogleServicesTask
 import org.gradle.api.GradleException
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.net.URI
@@ -72,6 +73,17 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.googleServices) apply false
+    alias(libs.plugins.firebaseCrashlytics) apply false
+}
+
+val firebaseConfigPath = providers.environmentVariable("FIREBASE_ANDROID_CONFIG_FILE")
+val crashlyticsDebugEnabled = providers.environmentVariable("FIREBASE_CRASHLYTICS_DEBUG_ENABLED")
+    .map { it == "YES" }.orElse(false)
+
+if (firebaseConfigPath.isPresent) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 kotlin {
@@ -81,6 +93,8 @@ kotlin {
 }
 dependencies {
     implementation(projects.app.shared)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.crashlytics)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.splashscreen)
@@ -147,6 +161,8 @@ android {
     }
     buildTypes {
         getByName("debug") {
+            buildConfigField("boolean", "CRASHLYTICS_COLLECTION_ENABLED", crashlyticsDebugEnabled.get().toString())
+            manifestPlaceholders["crashlyticsCollectionEnabled"] = crashlyticsDebugEnabled.get().toString()
             buildConfigField(
                 "String",
                 "API_BASE_URL",
@@ -154,6 +170,8 @@ android {
             )
         }
         getByName("release") {
+            buildConfigField("boolean", "CRASHLYTICS_COLLECTION_ENABLED", "true")
+            manifestPlaceholders["crashlyticsCollectionEnabled"] = "true"
             signingConfig = releaseSigningConfig
             isMinifyEnabled = false
         }
@@ -164,7 +182,33 @@ android {
     }
 }
 
+val validateFirebaseConfiguration = tasks.register("validateFirebaseConfiguration") {
+    group = "verification"
+    description = "Requires an injected Firebase configuration for Release and opted-in Debug builds."
+    val configFile = firebaseConfigPath.map { file(it) }
+    doLast {
+        if (!configFile.isPresent || !configFile.get().isFile) {
+            throw GradleException("Firebase configuration is required. Run this build through scripts/firebase/with_config.py.")
+        }
+    }
+}
+
+tasks.matching {
+    it.name == "preReleaseBuild" || (it.name == "preDebugBuild" && crashlyticsDebugEnabled.get())
+}.configureEach {
+    dependsOn(validateFirebaseConfiguration)
+}
+
 androidComponents {
+    onVariants { variant ->
+        if (firebaseConfigPath.isPresent) {
+            val variantName = variant.name.replaceFirstChar { it.uppercaseChar() }
+            tasks.named<GoogleServicesTask>("process${variantName}GoogleServices") {
+                googleServicesJsonFiles.set(firebaseConfigPath.map { listOf(file(it)) })
+                outputs.doNotCacheIf("Firebase configuration must not be stored in a shared build cache") { true }
+            }
+        }
+    }
     onVariants(selector().withBuildType("release")) { variant ->
         variant.buildConfigFields?.put(
             "API_BASE_URL",

@@ -110,8 +110,14 @@ expect_failure "missing keystore file" 'Android Release keystore file is missing
         ANDROID_KEY_PASSWORD=test-password \
         "$gradlew" --quiet "$validation_task"
 
-run_valid_signing 'https://example.invalid' 2.3 42 \
-    "$gradlew" --quiet --rerun-tasks :app:androidApp:generateReleaseBuildConfig
+# Release compilation requires Firebase config; use only synthetic identifiers here.
+cat >"$test_dir/google-services.json" <<'JSON'
+{"project_info":{"project_number":"123456789","project_id":"demo-vlrgg-release"},"client":[{"client_info":{"mobilesdk_app_id":"1:123456789:android:0123456789abcdef","android_client_info":{"package_name":"kr.co.cotton.vlrgg_mobile"}},"api_key":[{"current_key":"AIzaSySyntheticConfigurationForBuildChecks"}]}]}
+JSON
+FIREBASE_ANDROID_CONFIG_FILE="$test_dir/google-services.json" \
+    run_valid_signing 'https://example.invalid' 2.3 42 \
+    "$gradlew" --quiet --no-configuration-cache --no-build-cache --rerun-tasks :app:androidApp:generateReleaseBuildConfig
+unset FIREBASE_ANDROID_CONFIG_FILE
 
 build_config="$repo_root/app/androidApp/build/generated/source/buildConfig/release/kr/co/cotton/vlrgg_mobile/BuildConfig.java"
 grep -Fq 'public static final String API_BASE_URL = "https://example.invalid";' "$build_config"

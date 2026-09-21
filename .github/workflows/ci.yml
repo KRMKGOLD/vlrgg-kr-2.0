@@ -68,6 +68,11 @@ jobs:
       - name: Check Android release input boundaries
         run: sh app/androidApp/scripts/test-release-config.sh
 
+      - name: Check ephemeral Firebase configuration and Android collection policy
+        run: |
+          python3 -B scripts/firebase/test_with_config.py
+          sh app/androidApp/scripts/test-crashlytics-config.sh
+
       - name: Start, wait for, test, and always clean up Firestore Emulator
         env:
           FIRESTORE_EMULATOR_HOST: 127.0.0.1:8081
