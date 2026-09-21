@@ -46,7 +46,7 @@ CI는 위 도구 확인과 `app/androidApp/scripts/test-release-config.sh`, `app
 | `android-internal` | `ANDROID_INTERNAL_DEPLOY_ENABLED=true` | `API_BASE_URL`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_PLAY_SERVICE_ACCOUNT_JSON` |
 | `ios-testflight` | `IOS_TESTFLIGHT_DEPLOY_ENABLED=true` | `API_BASE_URL`, `IOS_TEAM_ID`, `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT_BASE64` |
 
-#121 준비 과정에서 두 environment를 생성하고 `main` branch 제한과 플랫폼별 Firebase 설정 secret만 등록했다. Android는 `FIREBASE_ANDROID_CONFIG_BASE64`를 임시 파일 wrapper로 주입하고 빌드 종료 시 삭제한다. 상세 수명과 검증은 [Crashlytics 연결](app-crashlytics.md)을 따른다. 스토어 인증·서명과 위 표의 배포 secrets, 운영 인원에 맞는 승인 정책은 #117에서 확정·검증한다. 배포 허용 variable은 모든 선행 조건을 확인한 뒤 마지막에 켠다. 값이 정확히 `true`가 아니면 배포 단계가 중단된다.
+#121 준비 과정에서 두 environment를 생성하고 `main` branch 제한과 플랫폼별 Firebase 설정 secret만 등록했다. Android는 `FIREBASE_ANDROID_CONFIG_BASE64`, iOS는 `FIREBASE_IOS_CONFIG_BASE64`를 임시 파일 wrapper로 주입하고 빌드 종료 시 삭제한다. 상세 수명과 검증은 [Crashlytics 연결](app-crashlytics.md)을 따른다. 스토어 인증·서명과 위 표의 배포 secrets, 운영 인원에 맞는 승인 정책은 #117에서 확정·검증한다. 배포 허용 variable은 모든 선행 조건을 확인한 뒤 마지막에 켠다. 값이 정확히 `true`가 아니면 배포 단계가 중단된다.
 
 ## 첫 배포 순서
 

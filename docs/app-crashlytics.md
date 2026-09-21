@@ -18,7 +18,7 @@ SDK 실행에 필요한 Firebase 식별자는 최종 앱 리소스/바이너리�
 
 Firebase 프로젝트·양 플랫폼 앱 등록과 설정 일치, Environment secrets 등록을 확인했다. `android-internal`·`ios-testflight`는 `main` branch만 허용하며 스토어 배포 허용 변수는 아직 켜지 않았다.
 
-Android 일반 Debug와 실제 설정을 주입한 Debug의 assemble/lint, shared host 테스트, Release 입력 검사, 수집 설정 전환 검사, 임시 파일 정리 테스트를 통과했다. iOS 구현·앱 빌드 검증은 진행 중이다. 실제 테스트 충돌/ANR 수신, crash-free 지표와 심볼화 확인은 별도 증거가 필요하다. 코드·빌드 통과를 콘솔 수신 성공으로 기록하지 않는다.
+Android 일반 Debug와 실제 설정을 주입한 Debug의 assemble/lint, shared host 테스트, Release 입력 검사, 수집 설정 전환 검사, 임시 파일 정리 테스트를 통과했다. iOS 일반 Debug·실제 설정을 주입한 Debug·설정 없는 미서명 Release simulator 빌드, shared iOS simulator 테스트와 설정·심볼 업로드 분기 검사를 통과했다. iOS 주입 빌드 뒤 같은 DerivedData에서 설정 없이 다시 빌드하면 이전 설정이 제거되는 것도 확인했다. 실제 테스트 충돌/ANR 수신, crash-free 지표와 심볼화 확인은 별도 증거가 필요하다. 코드·빌드 통과를 콘솔 수신 성공으로 기록하지 않는다.
 
 ## Android
 
@@ -48,3 +48,31 @@ sh app/androidApp/scripts/test-release-config.sh
 ```
 
 공식 근거: [Android 설정](https://firebase.google.com/docs/crashlytics/android/get-started), [수집 설정 우선순위](https://firebase.google.com/docs/reference/android/com/google/firebase/crashlytics/FirebaseCrashlytics).
+
+## iOS
+
+Swift Package Manager로 Firebase Apple SDK `12.19.2`의 FirebaseCore·FirebaseCrashlytics를 고정한다. `Package.resolved`도 추적한다. 앱 시작 시 빌드된 Info.plist의 수집 플래그가 켜져 있을 때만 `FirebaseApp.configure()`와 공개 수집 API를 호출한다. 일반 Debug는 초기화하지 않는다.
+
+`ios-testflight`의 `FIREBASE_IOS_CONFIG_BASE64`를 같은 wrapper의 `ios` 인자로 주입한다. Xcode의 prepare 단계는 `FIREBASE_IOS_CONFIG_FILE`에서 앱 번들로 필요한 설정을 복사하고, 매 빌드마다 이전 설정을 지운 뒤 수집 플래그를 다시 지정한다. 임시 입력은 wrapper 종료 시 삭제하며 앱 번들·archive는 배포 lane의 정리 대상이다.
+
+```sh
+FIREBASE_IOS_CONFIG_SOURCE=/private/path/GoogleService-Info.plist \
+  python3 scripts/firebase/with_config.py ios -- \
+  xcodebuild -project app/iosApp/iosApp.xcodeproj -scheme iosApp \
+    -configuration Debug -sdk iphonesimulator \
+    -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+```
+
+Debug 수집은 Android와 동일한 `FIREBASE_CRASHLYTICS_DEBUG_ENABLED=YES`로 명시적으로 켠다. Release와 수집을 켠 Debug는 설정이 없으면 실패한다. 일반 PR CI의 Release 컴파일 검사만 `FIREBASE_ALLOW_UNCONFIGURED=YES`를 사용하며, 미서명 simulator 조건을 함께 충족해야 한다. 기기·archive 배포에는 적용되지 않는다.
+
+Debug·Release 모두 dSYM을 생성한다. 마지막 빌드 단계에서 수집 대상 빌드의 dSYM을 공식 `upload-symbols`로 동기 업로드하며 실패를 빌드 실패로 전달한다. 심볼 업로드 분기·실패 전파는 가짜 업로더로 검사했다. 실제 업로드와 콘솔의 심볼화 스택 검증은 서명된 수집 검증 빌드에서 수행해야 한다.
+
+검증 명령:
+
+```sh
+sh app/iosApp/Scripts/test_firebase_crashlytics.sh
+sh app/iosApp/Scripts/test_release_config.sh
+./gradlew :app:shared:iosSimulatorArm64Test
+```
+
+공식 근거: [Apple SDK 설정](https://firebase.google.com/docs/crashlytics/ios/get-started), [dSYM 업로드](https://firebase.google.com/docs/crashlytics/ios/get-deobfuscated-reports).

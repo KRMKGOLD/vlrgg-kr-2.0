@@ -8,6 +8,7 @@ import binascii
 import json
 import os
 from pathlib import Path
+import plistlib
 import signal
 import subprocess
 import sys
@@ -16,9 +17,6 @@ import time
 
 
 PACKAGE_NAME = "kr.co.cotton.vlrgg_mobile"
-BASE64_ENV = "FIREBASE_ANDROID_CONFIG_BASE64"
-SOURCE_ENV = "FIREBASE_ANDROID_CONFIG_SOURCE"
-FILE_ENV = "FIREBASE_ANDROID_CONFIG_FILE"
 MAX_CONFIG_BYTES = 1_048_576
 
 
@@ -26,29 +24,29 @@ class ConfigError(ValueError):
     pass
 
 
-def _read_config(environ: dict[str, str]) -> bytes:
-    supplied = [name for name in (BASE64_ENV, SOURCE_ENV) if name in environ]
+def _read_config(environ: dict[str, str], base64_env: str, source_env: str) -> bytes:
+    supplied = [name for name in (base64_env, source_env) if name in environ]
     if len(supplied) != 1 or not environ[supplied[0]]:
-        raise ConfigError(f"set exactly one non-empty {BASE64_ENV} or {SOURCE_ENV}")
+        raise ConfigError(f"set exactly one non-empty {base64_env} or {source_env}")
 
-    if supplied[0] == BASE64_ENV:
+    if supplied[0] == base64_env:
         try:
-            data = base64.b64decode(environ[BASE64_ENV], validate=True)
+            data = base64.b64decode(environ[base64_env], validate=True)
         except (binascii.Error, ValueError) as exc:
-            raise ConfigError("Android Firebase config is not valid base64") from exc
+            raise ConfigError("Firebase config is not valid base64") from exc
     else:
-        source = Path(environ[SOURCE_ENV]).expanduser().resolve(strict=True)
+        source = Path(environ[source_env]).expanduser().resolve(strict=True)
         repo_root = Path(__file__).resolve().parents[2]
         if source == repo_root or repo_root in source.parents:
-            raise ConfigError("Android Firebase config source must be outside the repository")
+            raise ConfigError("Firebase config source must be outside the repository")
         if not source.is_file():
-            raise ConfigError("Android Firebase config source is not a file")
+            raise ConfigError("Firebase config source is not a file")
         if source.stat().st_size > MAX_CONFIG_BYTES:
-            raise ConfigError("Android Firebase config exceeds 1 MiB")
+            raise ConfigError("Firebase config exceeds 1 MiB")
         data = source.read_bytes()
 
     if not data or len(data) > MAX_CONFIG_BYTES:
-        raise ConfigError("Android Firebase config must be between 1 byte and 1 MiB")
+        raise ConfigError("Firebase config must be between 1 byte and 1 MiB")
     return data
 
 
@@ -123,6 +121,28 @@ def _add_github_masks(values: list[str]) -> None:
         print(f"::add-mask::{escaped}", flush=True)
 
 
+def _validate_ios_config(data: bytes) -> list[str]:
+    try:
+        config = plistlib.loads(data)
+    except Exception as exc:
+        raise ConfigError("iOS Firebase config is not a valid plist") from exc
+    fields = ("GOOGLE_APP_ID", "GCM_SENDER_ID", "PROJECT_ID", "API_KEY", "BUNDLE_ID")
+    if not isinstance(config, dict) or not all(
+        isinstance(config.get(key), str) and config[key].strip() for key in fields
+    ):
+        raise ConfigError("iOS Firebase config is missing required fields")
+    if config["BUNDLE_ID"] != "kr.co.cotton.vlrggmobile":
+        raise ConfigError("iOS Firebase config has the wrong bundle ID")
+    number = config["GCM_SENDER_ID"]
+    app_id = config["GOOGLE_APP_ID"]
+    if not number.isascii() or not number.isdigit() or not app_id.startswith(f"1:{number}:ios:") or not app_id.rsplit(":", 1)[-1]:
+        raise ConfigError("iOS Firebase config has inconsistent project and app IDs")
+    return [config[key] for key in fields if key != "BUNDLE_ID"] + [
+        config[key] for key in ("STORAGE_BUCKET", "CLIENT_ID", "REVERSED_CLIENT_ID")
+        if isinstance(config.get(key), str) and config[key]
+    ]
+
+
 def _stop_process_group(process: subprocess.Popen[bytes], signum: int = signal.SIGTERM) -> None:
     if process.poll() is None:
         try:
@@ -161,12 +181,13 @@ def _stop_process_group(process: subprocess.Popen[bytes], signum: int = signal.S
         time.sleep(0.02)
 
 
-def run(command: list[str], environ: dict[str, str] | None = None) -> int:
+def run(command: list[str], environ: dict[str, str] | None = None, platform: str = "android") -> int:
     if not command:
         raise ConfigError("missing command after --")
     source_env = dict(os.environ if environ is None else environ)
-    data = _read_config(source_env)
-    masks = _validate_config(data)
+    prefix = f"FIREBASE_{platform.upper()}_CONFIG"
+    data = _read_config(source_env, prefix + "_BASE64", prefix + "_SOURCE")
+    masks = _validate_config(data) if platform == "android" else _validate_ios_config(data)
     if source_env.get("GITHUB_ACTIONS") == "true":
         _add_github_masks(masks)
 
@@ -191,15 +212,17 @@ def run(command: list[str], environ: dict[str, str] | None = None) -> int:
     handled_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
     try:
         with tempfile.TemporaryDirectory(prefix="vlrgg-firebase-", dir=temp_parent) as temp_dir:
-            config_path = Path(temp_dir) / "google-services.json"
+            filename = "google-services.json" if platform == "android" else "GoogleService-Info.plist"
+            config_path = Path(temp_dir) / filename
             descriptor = os.open(config_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(descriptor, "wb") as config_file:
                 config_file.write(data)
 
             child_env = source_env.copy()
-            child_env.pop(BASE64_ENV, None)
-            child_env.pop(SOURCE_ENV, None)
-            child_env[FILE_ENV] = str(config_path)
+            for input_platform in ("ANDROID", "IOS"):
+                for suffix in ("BASE64", "SOURCE", "FILE"):
+                    child_env.pop(f"FIREBASE_{input_platform}_CONFIG_{suffix}", None)
+            child_env[prefix + "_FILE"] = str(config_path)
             for signum in handled_signals:
                 previous_handlers[signum] = signal.signal(signum, handle_signal)
             try:
@@ -227,11 +250,11 @@ def run(command: list[str], environ: dict[str, str] | None = None) -> int:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 3 or argv[1] != "android" or argv[2] != "--":
-        print("usage: with_config.py android -- <command> [args...]", file=sys.stderr)
+    if len(argv) < 3 or argv[1] not in ("android", "ios") or argv[2] != "--":
+        print("usage: with_config.py android|ios -- <command> [args...]", file=sys.stderr)
         return 2
     try:
-        return run(argv[3:])
+        return run(argv[3:], platform=argv[1])
     except (ConfigError, OSError) as exc:
         print(f"Firebase config error: {exc}", file=sys.stderr)
         return 2

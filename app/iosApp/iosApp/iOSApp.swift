@@ -1,4 +1,6 @@
 import Foundation
+import FirebaseCore
+import FirebaseCrashlytics
 import SwiftUI
 import Shared
 
@@ -39,7 +41,16 @@ private final class AppRuntimeOwner: ObservableObject {
 
 @main
 struct iOSApp: App {
-    @StateObject private var runtime = AppRuntimeOwner()
+    @StateObject private var runtime: AppRuntimeOwner
+
+    init() {
+        let bundle = Bundle.main
+        if bundle.object(forInfoDictionaryKey: "FIREBASE_CRASHLYTICS_ENABLED") as? Bool == true {
+            FirebaseApp.configure()
+            Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+        }
+        _runtime = StateObject(wrappedValue: AppRuntimeOwner(bundle: bundle))
+    }
 
     var body: some Scene {
         WindowGroup {

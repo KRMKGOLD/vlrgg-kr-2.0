@@ -6,6 +6,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import plistlib
 import signal
 import subprocess
 import sys
@@ -48,9 +49,9 @@ class WithConfigTest(unittest.TestCase):
         environ.pop("FIREBASE_ANDROID_CONFIG_SOURCE", None)
         return environ
 
-    def invoke(self, environ: dict[str, str], command: list[str]) -> subprocess.CompletedProcess[str]:
+    def invoke(self, environ: dict[str, str], command: list[str], platform: str = "android") -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, str(SCRIPT), "android", "--", *command],
+            [sys.executable, str(SCRIPT), platform, "--", *command],
             env=environ,
             text=True,
             capture_output=True,
@@ -78,6 +79,38 @@ class WithConfigTest(unittest.TestCase):
             result = self.invoke(self.env(runner_temp), [sys.executable, "-c", "raise SystemExit(23)"])
             self.assertEqual(result.returncode, 23)
             self.assertEqual(list(Path(runner_temp).iterdir()), [])
+
+    def test_ios_configuration_validation_injection_and_cleanup(self) -> None:
+        config = {
+            "GOOGLE_APP_ID": "1:123456789:ios:abcdef",
+            "GCM_SENDER_ID": "123456789",
+            "PROJECT_ID": "vlrgg-test",
+            "API_KEY": "AIza-test-key",
+            "BUNDLE_ID": "kr.co.cotton.vlrggmobile",
+        }
+        with tempfile.TemporaryDirectory() as runner_temp:
+            environ = self.env(runner_temp)
+            environ.pop("FIREBASE_IOS_CONFIG_SOURCE", None)
+            environ["FIREBASE_IOS_CONFIG_BASE64"] = base64.b64encode(plistlib.dumps(config)).decode()
+            child = (
+                "import os,pathlib,plistlib; "
+                "p=pathlib.Path(os.environ['FIREBASE_IOS_CONFIG_FILE']); "
+                "assert p.name=='GoogleService-Info.plist' and (p.stat().st_mode & 0o777)==0o600; "
+                "assert plistlib.loads(p.read_bytes())['BUNDLE_ID']=='kr.co.cotton.vlrggmobile'; "
+                "assert not any(k.endswith(('_CONFIG_BASE64','_CONFIG_SOURCE')) for k in os.environ); "
+                "print(p)"
+            )
+            result = self.invoke(environ, [sys.executable, "-c", child], "ios")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(Path(result.stdout.strip()).exists())
+            failed = self.invoke(environ, [sys.executable, "-c", "raise SystemExit(23)"], "ios")
+            self.assertEqual(failed.returncode, 23)
+            self.assertEqual(list(Path(runner_temp).iterdir()), [])
+            for invalid in (dict(config, BUNDLE_ID="wrong.bundle"), dict(config, GCM_SENDER_ID="987654321")):
+                environ["FIREBASE_IOS_CONFIG_BASE64"] = base64.b64encode(plistlib.dumps(invalid)).decode()
+                result = self.invoke(environ, [sys.executable, "-c", "pass"], "ios")
+                self.assertEqual(result.returncode, 2)
+                self.assertNotIn(config["API_KEY"], result.stderr)
 
     def test_github_actions_masks_known_config_values_before_child_output(self) -> None:
         with tempfile.TemporaryDirectory() as runner_temp:
