@@ -13,6 +13,9 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
+
+import with_config
 
 
 SCRIPT = Path(__file__).with_name("with_config.py")
@@ -158,6 +161,13 @@ class WithConfigTest(unittest.TestCase):
             result = self.invoke(self.env(runner_temp), [str(Path(runner_temp) / "missing-command")])
             self.assertEqual(result.returncode, 127)
             self.assertEqual(list(Path(runner_temp).iterdir()), [])
+
+    def test_cleanup_does_not_signal_a_reaped_process_group(self) -> None:
+        process = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+        process.wait(timeout=5)
+        with patch.object(with_config.os, "killpg") as killpg:
+            with_config._stop_process_group(process)
+        killpg.assert_not_called()
 
     def test_source_file_is_not_deleted(self) -> None:
         with tempfile.TemporaryDirectory() as runner_temp, tempfile.TemporaryDirectory() as source_dir:

@@ -13,7 +13,6 @@ import signal
 import subprocess
 import sys
 import tempfile
-import time
 
 
 PACKAGE_NAME = "kr.co.cotton.vlrgg_mobile"
@@ -144,11 +143,12 @@ def _validate_ios_config(data: bytes) -> list[str]:
 
 
 def _stop_process_group(process: subprocess.Popen[bytes], signum: int = signal.SIGTERM) -> None:
-    if process.poll() is None:
-        try:
-            os.killpg(process.pid, signum)
-        except ProcessLookupError:
-            pass
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signum)
+    except ProcessLookupError:
+        pass
     try:
         process.wait(timeout=3)
     except subprocess.TimeoutExpired:
@@ -157,28 +157,6 @@ def _stop_process_group(process: subprocess.Popen[bytes], signum: int = signal.S
         except ProcessLookupError:
             pass
         process.wait()
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        return
-    deadline = time.monotonic() + 2
-    while time.monotonic() < deadline:
-        try:
-            os.killpg(process.pid, 0)
-        except ProcessLookupError:
-            return
-        time.sleep(0.02)
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        return
-    deadline = time.monotonic() + 2
-    while time.monotonic() < deadline:
-        try:
-            os.killpg(process.pid, 0)
-        except ProcessLookupError:
-            return
-        time.sleep(0.02)
 
 
 def run(command: list[str], environ: dict[str, str] | None = None, platform: str = "android") -> int:
@@ -203,7 +181,7 @@ def run(command: list[str], environ: dict[str, str] | None = None, platform: str
     def handle_signal(signum: int, _frame: object) -> None:
         nonlocal received_signal
         received_signal = signum
-        if process is not None:
+        if process is not None and process.returncode is None:
             try:
                 os.killpg(process.pid, signum)
             except ProcessLookupError:
