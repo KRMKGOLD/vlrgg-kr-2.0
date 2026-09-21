@@ -2,6 +2,7 @@ import com.android.build.api.variant.BuildConfigField
 import com.google.gms.googleservices.GoogleServicesTask
 import org.gradle.api.GradleException
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.io.File
 import java.net.URI
 
 private fun javaStringLiteral(value: String): String = buildString {
@@ -185,7 +186,7 @@ android {
 val validateFirebaseConfiguration = tasks.register("validateFirebaseConfiguration") {
     group = "verification"
     description = "Requires an injected Firebase configuration for Release and opted-in Debug builds."
-    val configFile = firebaseConfigPath.map { file(it) }
+    val configFile = firebaseConfigPath.map { File(it) }
     doLast {
         if (!configFile.isPresent || !configFile.get().isFile) {
             throw GradleException("Firebase configuration is required. Run this build through scripts/firebase/with_config.py.")
@@ -204,7 +205,7 @@ androidComponents {
         if (firebaseConfigPath.isPresent) {
             val variantName = variant.name.replaceFirstChar { it.uppercaseChar() }
             tasks.named<GoogleServicesTask>("process${variantName}GoogleServices") {
-                googleServicesJsonFiles.set(firebaseConfigPath.map { listOf(file(it)) })
+                googleServicesJsonFiles.set(firebaseConfigPath.map { listOf(File(it)) })
                 outputs.doNotCacheIf("Firebase configuration must not be stored in a shared build cache") { true }
             }
         }
