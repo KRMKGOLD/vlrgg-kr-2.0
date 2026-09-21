@@ -38,7 +38,7 @@ FIREBASE_ANDROID_CONFIG_SOURCE=/private/path/google-services.json \
 
 연결 검증을 명시적으로 수행할 때만 `FIREBASE_CRASHLYTICS_DEBUG_ENABLED=YES`를 추가한다. Release 또는 수집을 켠 Debug는 설정이 없으면 빌드에 실패한다. 일반 Debug와 PR CI는 설정 없이 빌드되며 SDK를 초기화하지 않는다. 테스트 충돌 트리거는 일반 사용자 경로에 추가하지 않는다.
 
-현재 Release의 `isMinifyEnabled=false`를 유지하므로 난독화 mapping 파일은 생성되지 않는다. 원본 JVM 이름을 사용하는 이 빌드의 mapping 검증은 해당 없음이다. 이후 R8을 켜면 적용된 Crashlytics plugin의 mapping 업로드를 실제 콘솔 스택과 함께 검증해야 한다. Android ANR은 Android 11 이상에서 재현·재실행·콘솔 수신을 별도 확인한다.
+현재 Release의 `isMinifyEnabled=false`를 유지하므로 난독화 mapping 파일은 생성되지 않는다. 원본 JVM 이름을 사용하는 이 빌드의 mapping 검증은 해당 없음이다. 이후 R8을 켜면 적용된 Crashlytics plugin의 mapping 업로드를 실제 콘솔 스택과 함께 검증해야 한다. Android ANR은 Android 11 이상에서 지원되며 이번 검증에서 재현·재실행·콘솔 수신을 확인했다.
 
 검증 명령:
 
@@ -102,7 +102,7 @@ Orca 1.4.206, Android 에뮬레이터 API 37(Android 17), iPhone 17 Pro simulato
 
 ## 명시적 재현 절차
 
-테스트는 실제 Firebase 프로젝트에 이벤트를 생성한다. Android 검증 Activity는 `src/debug`에만 있고 launcher나 앱 navigation에 연결되지 않는다. 수집 ON 빌드에서만 충돌·ANR·설정 변경을 허용한다.
+테스트는 실제 Firebase 프로젝트에 이벤트를 생성한다. Android 검증 Activity는 `src/debug`에만 있고 launcher나 앱 navigation에 연결되지 않는다. `android.permission.DUMP`로 보호해 일반 앱의 호출을 막고 adb shell에서 실행한다. 수집 ON 빌드에서만 충돌·ANR·설정 변경을 허용한다.
 
 ```sh
 # FIREBASE_CRASHLYTICS_DEBUG_ENABLED=YES로 주입·빌드한 Debug APK를 설치한 뒤 실행

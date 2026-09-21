@@ -4,7 +4,8 @@
     <application android:usesCleartextTraffic="true">
         <activity
             android:name=".CrashlyticsValidationActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 
 </manifest>
