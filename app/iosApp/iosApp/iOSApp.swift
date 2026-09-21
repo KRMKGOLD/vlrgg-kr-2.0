@@ -47,7 +47,23 @@ struct iOSApp: App {
         let bundle = Bundle.main
         if bundle.object(forInfoDictionaryKey: "FIREBASE_CRASHLYTICS_ENABLED") as? Bool == true {
             FirebaseApp.configure()
-            Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+            let crashlytics = Crashlytics.crashlytics()
+#if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("--firebase-crashlytics-disable-collection") {
+                crashlytics.setCrashlyticsCollectionEnabled(false)
+            } else {
+                crashlytics.setCrashlyticsCollectionEnabled(true)
+                if arguments.contains("--firebase-crashlytics-test-crash") {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        fatalError("Firebase Crashlytics validation crash")
+                    }
+                }
+            }
+            NSLog("[CrashlyticsValidation] collectionEnabled=%@", crashlytics.isCrashlyticsCollectionEnabled() ? "true" : "false")
+#else
+            crashlytics.setCrashlyticsCollectionEnabled(true)
+#endif
         }
         _runtime = StateObject(wrappedValue: AppRuntimeOwner(bundle: bundle))
     }
