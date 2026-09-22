@@ -75,6 +75,8 @@ Logs Explorer에서는 placeholder로 project/location/service와 시간 범위�
 
 ### 초기 정책
 
+알림 채널이 없는 최초 설정에서는 운영자가 지정한 이메일 채널 하나를 기본 수신 경로로 만든다. Monitoring 정책과 Error Reporting이 같은 이메일 채널을 사용하되, Error Reporting의 연결은 콘솔의 **Configure notifications**에서 별도로 저장한다. Google Cloud 앱 푸시는 모바일에서 프로젝트를 연결한 뒤 선택적으로 추가하며 이메일을 유지한다. Monitoring 정책에서는 모바일·Slack·webhook의 공통 전달 서비스 장애에 대비해 이메일 또는 Pub/Sub의 병행 사용을 권장한다. Error Reporting의 지원 채널은 이메일·모바일·Slack·webhook이며 Pub/Sub는 포함되지 않는다. 이 규모에서는 이메일로 시작하고 별도 알림 서버를 만들지 않는다. 채널 생성·활성화 확인은 실제 메일 도착의 증거가 아니므로 신규 오류·재발·장애·복구의 수신은 각각 검증한다. [Monitoring 채널](https://docs.cloud.google.com/monitoring/support/notification-options), [Error Reporting 연결](https://docs.cloud.google.com/error-reporting/docs/notifications).
+
 | 신호 | 초기 값 | 완료 판단 |
 | --- | --- | --- |
 | 5xx | `cloud_run_revision`, exact project/location/service, `run.googleapis.com/request_count`, 실제 시계열에서 확인한 `response_code_class="5xx"`, 300초 `ALIGN_SUM`/`REDUCE_SUM`, threshold `>2`, duration 0 | 같은 300초 window의 합계 2건은 미충족, 3건은 incident OPENED. 정상 데이터가 들어온 뒤 CLOSED와 수신 확인 |
@@ -89,6 +91,8 @@ metric policy는 OPENED/CLOSED를 통지하고 재알림 3,600초, auto-close 1,
 `.github/workflows/deploy-server.yml`의 `operation`은 기본 `deploy`, `observability-validate`, `observability-restore`만 허용한다. 기존 workflow concurrency와 `cancel-in-progress: false`, exact SHA CI, protected environment, WIF를 재사용한다. deploy와 validation은 enable=true가 필요하지만 journal 기반 private restore는 비용 중단 중에도 실행할 수 있도록 enable 검사에서 제외한다. validation은 production token·traffic·policy를 건드리지 않고, restore는 source/test/image build와 push를 건너뛴다. workflow 밖의 수동 cloud 변경은 validation 시간 동안 금지한다.
 
 현재 `observability-validate`가 자동으로 수행하는 live 범위는 test-only overlay revision 배포, 인증된 고정 endpoint의 예상 HTTP status 확인, 정상 baseline 복원과 소유 자원 정리까지다. 고정 endpoint는 오류 JSON event를 발생시키지만 Error Reporting group·trace 연결·sample 수·policy threshold·incident·receiver를 조회하거나 판정하지 않는다. workflow summary도 provider gate O3~O9를 `NOT RUN`으로 기록한다. health fail/restore와 abnormal exit route는 harness에 준비돼 있지만 현재 workflow는 호출하지 않는다.
+
+기본 smoke는 같은 INTERNAL 위치를 두 번 호출하고 PARSING 위치를 한 번 호출해 검증 오류 종류를 두 개로 제한한다. `/internal/other`는 추가 그룹을 만들 수 있어 이 smoke에서 호출하지 않는다. baseline 비교는 Service template에서 생략됐지만 immutable revision에 자동 생성된 단일 container 이름만 보완하며, 명시된 이름 불일치와 다중 container 설정 차이는 계속 거부한다.
 
 validation harness는 test source의 `observability.validation.ObservabilityValidationMainKt`와 `server-observability-validation.jar`에만 있고 production installDist/image에는 없다. cloud 실행은 `VLRGG_OBSERVABILITY_VALIDATION=true`와 `K_SERVICE=vlrgg-query-check`가 모두 맞아야 한다. 종료 fixture는 추가로 `VLRGG_OBSERVABILITY_ALLOW_EXIT=true`가 필요하다. 제어 route와 입력은 고정되어 요청으로 예외 메시지·stack·exit code를 주입할 수 없다.
 

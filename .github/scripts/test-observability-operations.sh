@@ -96,6 +96,14 @@ if [[ "$url" == */notificationChannels/* ]]; then
   exit
 fi
 if [[ "$url" == */metricDescriptors/* ]]; then
+  if [[ "$url" == *'run.googleapis.com%2Frequest_count' ]]; then
+    printf '%s\n' '{"error":{"code":400,"status":"INVALID_ARGUMENT","message":"Invalid metric name"}}' >&2
+    exit 1
+  fi
+  [[ "$url" == */metricDescriptors/run.googleapis.com/request_count ]] || {
+    echo 'unexpected metric descriptor path' >&2
+    exit 1
+  }
   if test -f "$CASE_DIR/missing-descriptor-label"; then
     printf '%s\n' '{"type":"run.googleapis.com/request_count","labels":[]}'
   else
@@ -356,6 +364,48 @@ grep -q 'changed before journal prepare' "$CASE_DIR/drift.stderr"
 jq -e '.annotations=={}' "$CASE_DIR/service.json" >/dev/null
 pass 'prepare rejects template drift before journal CAS'
 
+new_case prepare-generated-container-name
+jq 'del(.template.containers[0].name) | .template.containers[0].ports=[{containerPort:8080}]' "$CASE_DIR/service.json" > "$CASE_DIR/next.json"
+mv "$CASE_DIR/next.json" "$CASE_DIR/service.json"
+jq '.containers[0].ports=[{containerPort:8080}]' "$CASE_DIR/revision.json" > "$CASE_DIR/next.json"
+mv "$CASE_DIR/next.json" "$CASE_DIR/revision.json"
+journal="$(service prepare)"
+jq -e '.phase=="prepared" and (.baselineTemplateHash|test("^[0-9a-f]{64}$"))' <<< "$journal" >/dev/null
+service restore >/dev/null
+jq -e '.template.containers[0].name=="server"' "$CASE_DIR/service.json" >/dev/null
+jq -e '.phase=="restoring"' <<< "$(service read)" >/dev/null
+pass 'prepare accepts a missing single-container name and restore keeps the immutable baseline'
+
+new_case prepare-both-container-names-absent
+jq 'del(.template.containers[0].name)' "$CASE_DIR/service.json" > "$CASE_DIR/next.json"
+mv "$CASE_DIR/next.json" "$CASE_DIR/service.json"
+jq 'del(.containers[0].name)' "$CASE_DIR/revision.json" > "$CASE_DIR/next.json"
+mv "$CASE_DIR/next.json" "$CASE_DIR/revision.json"
+service prepare >/dev/null
+service restore >/dev/null
+pass 'prepare and restore preserve an unnamed baseline'
+
+new_case prepare-explicit-container-name-mismatch
+jq '.template.containers[0].name="other"' "$CASE_DIR/service.json" > "$CASE_DIR/next.json"
+mv "$CASE_DIR/next.json" "$CASE_DIR/service.json"
+expect_fail "$CASE_DIR/name-mismatch.stderr" service prepare
+grep -q 'template differs' "$CASE_DIR/name-mismatch.stderr"
+! grep -q $'^PATCH\t' "$CASE_DIR/http-calls" || fail 'explicit container name mismatch wrote a journal'
+pass 'prepare retains explicit container name mismatch protection'
+
+new_case prepare-multi-container-missing-name
+jq '.template.containers[0] |= del(.name) |
+  .template.containers += [{name:"sidecar",image:"image@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}]' \
+  "$CASE_DIR/service.json" > "$CASE_DIR/next.json"
+mv "$CASE_DIR/next.json" "$CASE_DIR/service.json"
+jq '.containers += [{name:"sidecar",image:"image@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}]' \
+  "$CASE_DIR/revision.json" > "$CASE_DIR/next.json"
+mv "$CASE_DIR/next.json" "$CASE_DIR/revision.json"
+expect_fail "$CASE_DIR/multi-container.stderr" service prepare
+grep -q 'template differs' "$CASE_DIR/multi-container.stderr"
+! grep -q $'^PATCH\t' "$CASE_DIR/http-calls" || fail 'multi-container missing name wrote a journal'
+pass 'prepare retains multi-container name safeguards'
+
 new_case restore-order
 service prepare >/dev/null
 : > "$CASE_DIR/http-calls"
@@ -489,6 +539,10 @@ first="$(policy ensure 5xx)"
 second="$(policy ensure 5xx)"
 test "$first" = "$second"
 test "$(grep -c $'^POST\t' "$CASE_DIR/http-calls")" = 1
+grep -Fq $'\thttps://monitoring.googleapis.com/v3/projects/test-project/metricDescriptors/run.googleapis.com/request_count' \
+  "$CASE_DIR/http-calls"
+! grep -Eq '/metricDescriptors/[^?]*%2Frequest_count' "$CASE_DIR/http-calls" \
+  || fail 'metric descriptor request used an encoded metric name'
 pass 'policy ensure is idempotent'
 
 jq '.alertPolicies[0].conditions[0].conditionThreshold.aggregations[0].groupByFields=["resource.label.revision_name"]' \

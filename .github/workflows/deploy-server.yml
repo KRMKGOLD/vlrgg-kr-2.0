@@ -345,7 +345,8 @@ jobs:
           request GET /health 200
           jq --exit-status '.status == "ok"' "$response" >/dev/null
           request GET /__observability/internal 500
-          request GET /__observability/internal/other 500
+          # Repeat one location; INTERNAL and PARSING keep validation within two error groups.
+          request GET /__observability/internal 500
           request GET /__observability/parsing 502
           request GET /__observability/upstream 502
           request GET /__observability/expected 400
