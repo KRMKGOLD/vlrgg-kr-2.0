@@ -13,7 +13,7 @@
 
 workflow는 시작 시 `github.sha`를 `SOURCE_SHA`로 고정하고 그 commit을 checkout한다. 같은 SHA의 성공한 `main` push `CI`가 있어야 배포 단계로 넘어간다. lane도 GitHub Actions 수동 실행 여부, `main` ref, `GITHUB_SHA`·`SOURCE_SHA`·실제 `HEAD`와 작업 디렉터리를 검사하고, staged·수정·미추적 소스가 있으면 거절한다. 로컬에서 lane만 직접 실행하는 방식은 지원하지 않는다.
 
-플랫폼별 concurrency group으로 같은 배포 workflow의 동시 실행을 막는다. 진행 중 실행은 자동 취소하지 않으며, Console이나 다른 도구의 업로드까지 잠그지는 않는다. token 권한은 `actions: read`, `contents: read`이고 checkout 인증정보는 보존하지 않는다. 배포 인증정보는 플랫폼별 environment에서만 읽는다.
+플랫폼별 concurrency group으로 같은 배포 workflow의 동시 실행을 막는다. 진행 중 실행은 자동 취소하지 않으며, Console이나 다른 도구의 업로드까지 잠그지는 않는다. 기본 token 권한은 `actions: read`, `contents: read`이고, Android 배포 job에만 `contents: read`, `id-token: write`를 부여한다. checkout 인증정보는 보존하지 않는다. 배포 인증정보는 플랫폼별 environment에서만 읽는다.
 
 ## 입력과 도구
 
@@ -43,17 +43,21 @@ CI는 위 도구 확인과 `app/androidApp/scripts/test-release-config.sh`, `app
 
 | Environment | 배포 허용 variable | 필요한 secrets |
 | --- | --- | --- |
-| `android-internal` | `ANDROID_INTERNAL_DEPLOY_ENABLED=true` | `API_BASE_URL`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_PLAY_SERVICE_ACCOUNT_JSON` |
+| `android-internal` | `ANDROID_INTERNAL_DEPLOY_ENABLED=true` | `API_BASE_URL`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` |
 | `ios-testflight` | `IOS_TESTFLIGHT_DEPLOY_ENABLED=true` | `API_BASE_URL`, `IOS_TEAM_ID`, `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT_BASE64` |
 
 #121 준비 과정에서 두 environment를 생성하고 `main` branch 제한과 플랫폼별 Firebase 설정 secret만 등록했다. Android는 `FIREBASE_ANDROID_CONFIG_BASE64`, iOS는 `FIREBASE_IOS_CONFIG_BASE64`를 임시 파일 wrapper로 주입하고 빌드 종료 시 삭제한다. 상세 수명과 검증은 [Crashlytics 연결](app-crashlytics.md)을 따른다. 스토어 인증·서명과 위 표의 배포 secrets, 운영 인원에 맞는 승인 정책은 #117에서 확정·검증한다. 배포 허용 variable은 모든 선행 조건을 확인한 뒤 마지막에 켠다. 값이 정확히 `true`가 아니면 배포 단계가 중단된다.
+
+Android는 `android-internal` environment variables `ANDROID_PLAY_WIF_PROVIDER`(전체 WIF provider 경로)와 `ANDROID_PLAY_SERVICE_ACCOUNT`(Play 배포 계정 이메일)도 필요하다. `google-github-actions/auth`가 생성한 임시 ADC 설정을 Fastlane이 읽으며, 장기 서비스 계정 JSON 키는 발급하거나 저장하지 않는다. 임시 `gha-creds-*.json`은 Git에서 제외하고 auth action의 종료 단계에서 삭제한다.
+
+Play 배포 계정에는 대상 앱의 조회·테스트 출시 권한을 부여한다. 서버 인증과 별도 WIF pool을 사용하고, provider는 저장소·소유자 ID, `main`, Android 배포 workflow, `workflow_dispatch`, `android-internal` environment를 제한한다. 해당 environment의 정확한 subject에만 Play 배포 계정의 `roles/iam.workloadIdentityUser`를 부여한다. iOS는 기존 App Store Connect 인증과 서명을 사용한다. [Google 배포 파이프라인 인증](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
 
 ## 첫 배포 순서
 
 1. Google Play·Apple 개발자 계정을 등록하고 약관·결제·MFA를 완료한다. 기존 Android `kr.co.cotton.vlrgg_mobile`과 iOS `kr.co.cotton.vlrggmobile`의 소유권 및 앱 등록을 확인한다. Play Console의 초기 앱·패키지 등록 등 API 사용 전 절차도 확인한다. 식별자를 임의로 통합하거나 교체하지 않는다.
 2. Android 업로드 키·Play App Signing, iOS 배포 인증서·프로비저닝·team·API key가 해당 앱과 호환되는지 확인한다. 위 environment에 인증정보를 연결하고 최소 권한, `main` 제한, 승인 및 내부 테스터·그룹을 점검한다.
 3. Play Console과 App Store Connect에서 다음 사용 가능한 version/build를 정한다. 최종 PR 리뷰·CI·일반 병합과 병합된 정확한 `main` SHA의 CI 성공을 확인한다.
-4. Actions에서 해당 workflow의 `main`과 확인한 `APP_VERSION`·`APP_BUILD_NUMBER`을 선택해 수동 실행한다. workflow가 고정한 SHA는 승인 대기 중에도 그대로 사용한다.
+4. Android의 첫 AAB는 확인한 서명·version·SHA로 빌드해 Play Console에 직접 업로드한다. 이후 Android 배포와 iOS 배포는 Actions에서 해당 workflow의 `main`과 확인한 `APP_VERSION`·`APP_BUILD_NUMBER`을 선택해 수동 실행한다. workflow가 고정한 SHA는 승인 대기 중에도 그대로 사용한다.
 5. 각 스토어에서 접수·처리 상태와 정확한 version/build를 확인한다. Fastlane exit 0만으로 테스터 설치 가능까지 확인한 것으로 보지 않는다.
 6. 지정 테스터가 내부 채널에서 설치한 Android 물리 기기와 iPhone으로 기존 대표 조회 화면의 HTTPS 응답·표시·기본 이동 및 기존 오류·재시도 경로를 검증한다. 결과와 SHA·CI·배포 실행·version/build 관계를 #117에 남긴다.
 
