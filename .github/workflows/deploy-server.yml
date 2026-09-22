@@ -333,9 +333,17 @@ jobs:
           OBSERVABILITY_ERROR_REPORTING_ENROLLED: ${{ secrets.GCP_ERROR_REPORTING_ENROLLED }}
         shell: bash
         run: |
-          export OBSERVABILITY_WORKFLOW_STARTED_AT="$(gh api \
+          if ! started_at="$(gh api \
             "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
-            --jq '.run_started_at')"
+            --jq '.run_started_at' 2>/dev/null)"; then
+            echo "::error::Could not read the workflow attempt start time."
+            exit 1
+          fi
+          if test -z "$started_at" || test "$started_at" = null; then
+            echo "::error::Could not read the workflow attempt start time."
+            exit 1
+          fi
+          export OBSERVABILITY_WORKFLOW_STARTED_AT="$started_at"
           bash .github/scripts/observability-live.sh
 
       - name: Restore the shared validation service

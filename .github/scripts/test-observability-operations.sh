@@ -593,19 +593,20 @@ jq -e '
 pass 'policy render shares native DELTA PromQL and keeps exact health body regex'
 
 new_case policy-promql-query
-for value in 2 3 0 2.75; do
+for value in 2 3 0 2.75 1e3 4.25e-2; do
   jq -n --arg value "$value" '{status:"success",data:{resultType:"vector",result:[{metric:{},value:[1,$value]}]}}' \
     > "$CASE_DIR/prometheus.json"
   test "$(policy query-5xx-count 1700000000)" = "$value"
 done
-jq -e '.[0]==1 and .[1]=="2.75"' <<< "$(policy query-5xx-sample 1700000000)" >/dev/null
-for bad in empty multiple nan infinity overflow negative; do
+jq -e '.[0]==1 and .[1]=="4.25e-2"' <<< "$(policy query-5xx-sample 1700000000)" >/dev/null
+for bad in empty multiple nan infinity overflow overflow-mantissa negative; do
   case "$bad" in
     empty) result='[]' ;;
     multiple) result='[{"metric":{},"value":[1,"0"]},{"metric":{},"value":[1,"0"]}]' ;;
     nan) result='[{"metric":{},"value":[1,"NaN"]}]' ;;
     infinity) result='[{"metric":{},"value":[1,"+Inf"]}]' ;;
     overflow) result='[{"metric":{},"value":[1,"1e999"]}]' ;;
+    overflow-mantissa) result='[{"metric":{},"value":[1,"1.7976931348623159e308"]}]' ;;
     negative) result='[{"metric":{},"value":[1,"-1"]}]' ;;
   esac
   printf '{"status":"success","data":{"resultType":"vector","result":%s}}\n' "$result" \
@@ -1037,7 +1038,9 @@ env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGI
   ' _ "$live_helper"
 test "$(wc -l < "$CASE_DIR/exits" | tr -d ' ')" = 2
 grep -qx 'OOM NOT RUN' "$CASE_DIR/results"
-! grep -q 'OOM PASS' "$CASE_DIR/results"
+if grep -q 'OOM PASS' "$CASE_DIR/results"; then
+  fail 'O9 claimed OOM PASS'
+fi
 pass 'O9 uses exactly two exits only for safe discovery and never claims OOM'
 
 new_case live-o9-ambiguous
@@ -1059,8 +1062,12 @@ fi
 test "$(wc -l < "$CASE_DIR/exits" | tr -d ' ')" = 1
 pass 'ambiguous O9 discovery fails before policy creation and the second exit'
 
-! grep -Fq '/__observability/internal/other' "$live_helper"
-! grep -Eq 'result OOM (PASS|RECEIPT)' "$live_helper"
+if grep -Fq '/__observability/internal/other' "$live_helper"; then
+  fail 'live driver includes a non-validation endpoint'
+fi
+if grep -Eq 'result OOM (PASS|RECEIPT)' "$live_helper"; then
+  fail 'live driver includes an OOM success claim'
+fi
 pass 'live driver stays on the validation harness, two Error Reporting groups, and no OOM claim'
 
 new_case expired-deadline
@@ -1282,7 +1289,8 @@ live_step="$(awk '
   step {print}
 ' "$workflow")"
 grep -q 'bash .github/scripts/observability-live.sh' <<< "$live_step"
-grep -q 'OBSERVABILITY_WORKFLOW_STARTED_AT=.*gh api' <<< "$live_step"
+grep -q 'started_at="$(gh api' <<< "$live_step"
+grep -q 'export OBSERVABILITY_WORKFLOW_STARTED_AT="$started_at"' <<< "$live_step"
 grep -q 'attempts/\$GITHUB_RUN_ATTEMPT' <<< "$live_step"
 grep -q 'GCP_OBSERVABILITY_NOTIFICATION_CHANNELS_JSON' <<< "$live_step"
 ! grep -Eq 'GCP_PROJECT_NUMBER|GCP_MONITORING_SERVICE_AGENT' <<< "$live_step" \

@@ -108,6 +108,14 @@ query_prometheus_sample() {
       (($sample[1] | tonumber) as $number | ($number | isfinite) and $number >= 0)) |
     $sample
   ' <<< "$response")" || fail 'PromQL query did not return one finite numeric sample.'
+  python3 - "$value" <<'PY' || fail 'PromQL query did not return one finite numeric sample.'
+import json
+import math
+import sys
+
+number = float(json.loads(sys.argv[1])[1])
+sys.exit(not (math.isfinite(number) and number >= 0))
+PY
   printf '%s\n' "$value"
 }
 
