@@ -822,13 +822,14 @@ pass 'live driver exposes only fixed errors when provider inventory fails'
 
 new_case live-api-provider-errors
 if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
-  source "$1"; evidence="$CASE_DIR/evidence-http403"; mkdir -p "$evidence"
+  source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-http403"; mkdir -p "$evidence"
   gcloud() { printf "%s\n" "token-SECRET"; }
   curl() {
+    printf "%s\n" "$*" > "$CASE_DIR/curl-args"
     local output=; while test "$#" -gt 0; do
       if test "$1" = --output; then output="$2"; shift 2; else shift; fi
     done
-    printf "%s\n" "secret@example.invalid https://secret.example.invalid body=SECRET_BODY token-SECRET project-secret" > "$output"
+    printf "%s\n" "{\"error\":{\"code\":403,\"message\":\"SECRET_BODY secret@example.invalid\",\"status\":\"PERMISSION_DENIED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.ErrorInfo\",\"reason\":\"SERVICE_DISABLED\",\"domain\":\"secret.example.invalid\",\"metadata\":{\"consumer\":\"projects/project-secret\",\"account\":\"token-SECRET\",\"url\":\"https://secret.example.invalid\"}},{\"@type\":\"type.googleapis.com/google.rpc.ErrorInfo\",\"reason\":\"HOSTILE_UNKNOWN_REASON\",\"domain\":\"secret.example.invalid\",\"metadata\":{\"project\":\"project-secret\"}}]}}" > "$output"
     printf "%s" 403
     printf "%s\n" "provider secret@example.invalid https://secret.example.invalid body=SECRET_BODY token-SECRET project-secret" >&2
     return 22
@@ -837,16 +838,70 @@ if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
 ' _ "$live_helper" > "$CASE_DIR/api-http403.stdout" 2> "$CASE_DIR/api-http403.stderr"; then
   fail 'provider HTTP 403 unexpectedly succeeded'
 fi
-grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22).' \
+if grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22).' \
+  "$CASE_DIR/api-http403.stderr"; then
+  fail 'recognized provider reason was not classified'
+fi
+grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22, reason SERVICE_DISABLED).' \
   "$CASE_DIR/api-http403.stderr"
 ! grep -Eq 'secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
   "$CASE_DIR/api-http403.stdout" "$CASE_DIR/api-http403.stderr" \
   || fail 'provider HTTP 403 leaked protected request data'
 grep -Eq 'secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
-  "$CASE_DIR/evidence-http403/provider-error"
+  "$CASE_DIR/evidence-http403/alerts.json"
+grep -Fq -- '--fail-with-body' "$CASE_DIR/curl-args"
+grep -Fq -- '--header X-Goog-User-Project: test-project' "$CASE_DIR/curl-args"
 
 if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
-  source "$1"; evidence="$CASE_DIR/evidence-http000"; mkdir -p "$evidence"
+  source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-unknown"; mkdir -p "$evidence"
+  gcloud() { printf "%s\n" "token-SECRET"; }
+  curl() {
+    local output=; while test "$#" -gt 0; do
+      if test "$1" = --output; then output="$2"; shift 2; else shift; fi
+    done
+    printf "%s\n" "{\"error\":{\"message\":\"SECRET_BODY secret@example.invalid\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.ErrorInfo\",\"reason\":\"HOSTILE_UNKNOWN_REASON\",\"domain\":\"secret.example.invalid\",\"metadata\":{\"project\":\"project-secret\",\"account\":\"token-SECRET\"}}]}}" > "$output"
+    printf "%s" 403
+    return 22
+  }
+  api GET "https://monitoring.googleapis.com/v3/projects/test-project/alerts?pageSize=1" "$evidence/alerts.json"
+' _ "$live_helper" > "$CASE_DIR/api-unknown.stdout" 2> "$CASE_DIR/api-unknown.stderr"; then
+  fail 'unknown provider reason unexpectedly succeeded'
+fi
+grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22).' \
+  "$CASE_DIR/api-unknown.stderr"
+! grep -Eq 'HOSTILE_UNKNOWN_REASON|secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
+  "$CASE_DIR/api-unknown.stdout" "$CASE_DIR/api-unknown.stderr" \
+  || fail 'unknown provider reason leaked protected request data'
+
+for fixture in malformed plain; do
+  if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" FIXTURE="$fixture" bash -c '
+    source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-$FIXTURE"; mkdir -p "$evidence"
+    gcloud() { printf "%s\n" "token-SECRET"; }
+    curl() {
+      local output=; while test "$#" -gt 0; do
+        if test "$1" = --output; then output="$2"; shift 2; else shift; fi
+      done
+      if test "$FIXTURE" = malformed; then
+        printf "%s\n" "not-json SECRET_BODY secret@example.invalid token-SECRET" > "$output"
+      else
+        printf "%s\n" "plain SECRET_BODY secret@example.invalid token-SECRET project-secret" > "$output"
+      fi
+      printf "%s" 403
+      return 22
+    }
+    api GET "https://monitoring.googleapis.com/v3/projects/test-project/alerts?pageSize=1" "$evidence/alerts.json"
+  ' _ "$live_helper" > "$CASE_DIR/api-$fixture.stdout" 2> "$CASE_DIR/api-$fixture.stderr"; then
+    fail "provider $fixture unexpectedly succeeded"
+  fi
+  grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22).' \
+    "$CASE_DIR/api-$fixture.stderr"
+  ! grep -Eq 'secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
+    "$CASE_DIR/api-$fixture.stdout" "$CASE_DIR/api-$fixture.stderr" \
+    || fail "provider $fixture leaked protected request data"
+done
+
+if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-http000"; mkdir -p "$evidence"
   gcloud() { printf "%s\n" "token-SECRET"; }
   curl() {
     local output=; while test "$#" -gt 0; do
@@ -862,7 +917,7 @@ grep -Fxq 'Observability live validation failed: Provider request failed: monito
   "$CASE_DIR/api-http000.stderr"
 
 env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
-  source "$1"; evidence="$CASE_DIR/evidence-http200"; mkdir -p "$evidence"
+  source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-http200"; mkdir -p "$evidence"
   gcloud() { printf "%s\n" "token-SECRET"; }
   curl() {
     local output=; while test "$#" -gt 0; do
@@ -938,11 +993,23 @@ jq -n --arg internal "$internal_message" --arg parsing "$parsing_message" '
      event("EXPECTED";"INVALID_REQUEST";400;"safe expected category")] +
     [range(0;5) as $index | {
       logName:"projects/test-project/logs/run.googleapis.com%2Frequests",
-      trace:(if $index == 0 then "projects/test-project/traces/0123456789abcdef0123456789abcdef" else null end),
+      trace:(if $index == 0 then "projects/test-project/traces/0123456789abcdef0123456789abcdef"
+        elif $index == 2 then "projects/test-project/traces/abcdef0123456789abcdef0123456789"
+        else null end),
       httpRequest:{status:500,requestUrl:"https://vlrgg-query-check-test.run.app/__observability/internal"}
     } | if .trace == null then del(.trace) else . end] +
     [{textPayload:"public_api_summary requests=9 diagnostics_emitted={EXPECTED=2,UPSTREAM_NETWORK=1,INTERNAL=4,SOURCE_PARSING=1} diagnostics_suppressed={EXPECTED=0,UPSTREAM_NETWORK=0,INTERNAL=1,SOURCE_PARSING=0}"}])}
 ' > "$CASE_DIR/application-fixture.json"
+jq '.entries[1].trace="projects/test-project/traces/11112222333344445555666677778888" |
+  .entries[8].trace=.entries[1].trace |
+  .entries[0] as $first | .entries[0]=.entries[3] | .entries[3]=$first' \
+  "$CASE_DIR/application-fixture.json" > "$CASE_DIR/managed-fixture.json"
+jq '.entries[2].trace="projects/test-project/traces/not-a-trace"' \
+  "$CASE_DIR/application-fixture.json" > "$CASE_DIR/malformed-fixture.json"
+jq '.entries[2].trace="projects/other-project/traces/abcdef0123456789abcdef0123456789"' \
+  "$CASE_DIR/application-fixture.json" > "$CASE_DIR/wrong-project-fixture.json"
+jq '.entries[2].trace="projects/test-project/traces/ffffffffffffffffffffffffffffffff"' \
+  "$CASE_DIR/application-fixture.json" > "$CASE_DIR/noncorrelated-fixture.json"
 jq -n '{errorGroupStats:[
   {group:{name:"projects/test-project/groups/internal"},numAffectedServices:1,affectedServices:[{service:"vlrgg-query-check",version:"vlrgg-query-check-o123-1"}],representative:{}},
   {group:{name:"projects/test-project/locations/global/groups/parsing"},numAffectedServices:1,affectedServices:[{service:"vlrgg-query-check",version:"vlrgg-query-check-o123-1"}],representative:{}}
@@ -964,7 +1031,7 @@ env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
     openssl() { printf "0123456789abcdef0123456789abcdef\n"; }
     private_request() { :; }; sleep_for() { :; }; guard_target() { :; }; require_fault_time() { :; }
     result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
-    log_entries() { cp "$CASE_DIR/application-fixture.json" "$2"; }
+    log_entries() { cp "$CASE_DIR/${TRACE_CASE:-application}-fixture.json" "$2"; }
     poll_native_failures() { test "$2" = 7; }
     api() {
       local method="$1" url="$2" output="$3"
@@ -980,12 +1047,16 @@ env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
       esac
     }
     run_o3_o6
+    TRACE_CASE=managed run_o3_o6
+    for TRACE_CASE in malformed wrong-project noncorrelated; do
+      if (run_o3_o6); then exit 1; fi
+    done
   ' _ "$live_helper"
 jq -e '.resolutionStatus=="RESOLVED" and .trackingIssues==[{"url":"safe"}]' \
   "$CASE_DIR/evidence/error-group-resolve.json" >/dev/null
 for gate in O3 O4 O5 O6; do grep -qx "$gate PASS" "$CASE_DIR/results"; done
 grep -qx 'O6-receipt RECEIPT PENDING' "$CASE_DIR/results"
-pass 'O3-O6 fixtures follow formatter/provider contracts and permit generated traces on ordinary requests'
+pass 'O3-O6 fixtures validate trace-less, managed, malformed, cross-project, and noncorrelated traces'
 
 new_case live-native-ledger
 env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
