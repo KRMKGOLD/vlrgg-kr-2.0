@@ -203,6 +203,7 @@ if test -f "$CASE_DIR/gcloud-denied"; then
   exit 1
 fi
 case "$1 $2 ${3:-}" in
+  'auth print-access-token ') printf '%s\n' 'token-SECRET' ;;
   'projects describe test-project') cat "$CASE_DIR/project.json" ;;
   'projects get-iam-policy test-project') cat "$CASE_DIR/project-iam-policy.json" ;;
   'run services get-iam-policy')
@@ -239,6 +240,102 @@ case "$1 $2 ${3:-}" in
 esac
 STUB
 chmod +x "$work_dir/bin/gcloud"
+
+cat > "$work_dir/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+method=
+url=
+output=
+write_out=false
+while test "$#" -gt 0; do
+  case "$1" in
+    --request) method="$2"; shift 2 ;;
+    --output) output="$2"; shift 2 ;;
+    --write-out) write_out=true; shift 2 ;;
+    --data-binary) shift 2 ;;
+    --header) shift 2 ;;
+    http://*|https://*) url="$1"; shift ;;
+    *) shift ;;
+  esac
+done
+printf '%s\t%s\n' "$method" "$url" >> "$CASE_DIR/curl-calls"
+if [[ "$url" == https://run.googleapis.com/* ]]; then
+  if [[ "$url" == */operations/* ]]; then
+    printf '%s\n' '{"done":true}'
+  else
+    cat "$CASE_DIR/service.json"
+  fi
+  test "$write_out" = true && printf '%s' 200
+  exit 0
+fi
+capture=true
+if test -z "$output"; then
+  output="$(mktemp "$CASE_DIR/curl-response.XXXXXX")"
+  capture=false
+fi
+emit_response() {
+  if test "$capture" = true; then
+    printf '%s' "$1"
+  else
+    cat "$output"
+    rm -f "$output"
+  fi
+}
+case "${OBSERVABILITY_POLICY_HTTP_CASE:-}" in
+  known)
+    printf '%s\n' '{"error":{"code":403,"message":"SECRET_BODY secret@example.invalid","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"SERVICE_DISABLED","domain":"secret.example.invalid","metadata":{"consumer":"projects/project-secret","account":"token-SECRET","url":"https://secret.example.invalid"}},{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"HOSTILE_UNKNOWN_REASON"}]}}' > "$output"
+    printf '%s\n' 'provider secret@example.invalid https://secret.example.invalid body=SECRET_BODY token-SECRET project-secret' >&2
+    emit_response 403
+    exit 22 ;;
+  unknown)
+    printf '%s\n' '{"error":{"message":"SECRET_BODY secret@example.invalid","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"HOSTILE_UNKNOWN_REASON","metadata":{"project":"project-secret","account":"token-SECRET"}}]}}' > "$output"
+    printf '%s\n' 'provider secret@example.invalid https://secret.example.invalid body=SECRET_BODY token-SECRET project-secret' >&2
+    emit_response 403
+    exit 22 ;;
+  malformed)
+    printf '%s\n' 'not-json SECRET_BODY secret@example.invalid token-SECRET project-secret' > "$output"
+    printf '%s\n' 'provider secret@example.invalid https://secret.example.invalid body=SECRET_BODY token-SECRET project-secret' >&2
+    emit_response 403
+    exit 22 ;;
+  transport)
+    : > "$output"
+    test "$capture" = true || rm -f "$output"
+    exit 7 ;;
+  success)
+    if [[ "$url" == *'/prometheus/api/v1/query?'* ]]; then
+      printf '%s\n' '{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1,"4.25e-2"]}]}}' > "$output"
+    elif [[ "$method" == GET && "$url" == *'?pageSize=1000' ]]; then
+      cat "$CASE_DIR/alertPolicies.json" > "$output"
+    elif [[ "$method" == GET ]]; then
+      name="${url#*monitoring.googleapis.com/v3/}"
+      jq -e --arg name "$name" '.alertPolicies[] | select(.name == $name)' "$CASE_DIR/alertPolicies.json" > "$output"
+    else
+      : > "$output"
+    fi
+    emit_response 200
+    exit 0 ;;
+  empty204)
+    if [[ "$method" == GET && "$url" == *'?pageSize=1000' ]]; then
+      cat "$CASE_DIR/alertPolicies.json" > "$output"
+      emit_response 200
+    else
+      if test "$method" = DELETE; then
+        name="${url#*monitoring.googleapis.com/v3/}"
+        jq --arg name "$name" '.alertPolicies |= map(select(.name != $name))' \
+          "$CASE_DIR/alertPolicies.json" > "$CASE_DIR/next.json"
+        mv "$CASE_DIR/next.json" "$CASE_DIR/alertPolicies.json"
+      fi
+      : > "$output"
+      emit_response 204
+    fi
+    exit 0 ;;
+  *)
+    echo 'unexpected production curl fixture' >&2
+    exit 1 ;;
+esac
+STUB
+chmod +x "$work_dir/bin/curl"
 
 cat > "$work_dir/private-http" <<'STUB'
 #!/usr/bin/env bash
@@ -288,6 +385,7 @@ new_case() {
   export CASE_DIR
   mkdir -p "$CASE_DIR"
   : > "$CASE_DIR/http-calls"
+  : > "$CASE_DIR/curl-calls"
   : > "$CASE_DIR/gcloud-calls"
   : > "$CASE_DIR/private-calls"
   local revision='projects/test-project/locations/test-region/services/vlrgg-query-check/revisions/baseline'
@@ -329,6 +427,15 @@ policy() {
     OBSERVABILITY_HOST=vlrgg-query-check-test.run.app OBSERVABILITY_REVISION=validation-r123-1 \
     OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
     OBSERVABILITY_CONFIRMED_RECEIVERS=true "$policy_helper" "$@"
+}
+
+policy_production_http() {
+  env -u OBSERVABILITY_HTTP PATH="$work_dir/bin:$PATH" PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+    VALIDATION_SERVICE=vlrgg-query-check OBSERVABILITY_RUN=123-1 RUNNER_TEMP="$CASE_DIR" \
+    OBSERVABILITY_HOST=vlrgg-query-check-test.run.app OBSERVABILITY_REVISION=validation-r123-1 \
+    OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+    OBSERVABILITY_CONFIRMED_RECEIVERS=true OBSERVABILITY_POLICY_HTTP_CASE="${OBSERVABILITY_POLICY_HTTP_CASE:-}" \
+    "$policy_helper" "$@"
 }
 
 live() {
@@ -977,6 +1084,50 @@ env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
 ' _ "$live_helper"
 jq -e '.alerts == []' "$CASE_DIR/evidence-http200/alerts.json" >/dev/null
 pass 'provider api reports sanitized HTTP 403/curl 22, HTTP 000 transport failures, and accepts a 200 response'
+
+new_case policy-production-http-diagnostics
+service prepare >/dev/null
+for fixture in known unknown malformed transport; do
+  if OBSERVABILITY_POLICY_HTTP_CASE="$fixture" policy_production_http ensure 5xx \
+    > "$CASE_DIR/policy-$fixture.stdout" 2> "$CASE_DIR/policy-$fixture.stderr"; then
+    fail "production policy HTTP $fixture unexpectedly succeeded"
+  fi
+  case "$fixture" in
+    known)
+      grep -Fxq 'Observability policy operation failed: Cloud Monitoring request failed: GET monitoring.notificationChannels.get (HTTP 403, curl 22, reason SERVICE_DISABLED).' \
+        "$CASE_DIR/policy-$fixture.stderr" ;;
+    unknown|malformed)
+      grep -Fxq 'Observability policy operation failed: Cloud Monitoring request failed: GET monitoring.notificationChannels.get (HTTP 403, curl 22).' \
+        "$CASE_DIR/policy-$fixture.stderr" ;;
+    transport)
+      grep -Fxq 'Observability policy operation failed: Cloud Monitoring request failed: GET monitoring.notificationChannels.get (HTTP 000, curl 7).' \
+        "$CASE_DIR/policy-$fixture.stderr" ;;
+  esac
+  if grep -Eq 'https?://|monitoring\.googleapis|test-project|notificationChannels/channel-1|secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret|HOSTILE_UNKNOWN_REASON' \
+    "$CASE_DIR/policy-$fixture.stdout" "$CASE_DIR/policy-$fixture.stderr"; then
+    fail "production policy HTTP $fixture leaked protected request data"
+  fi
+  test ! -s "$CASE_DIR/policy-$fixture.stdout"
+  if jq -e 'has("pending")' <<< "$(service read)" >/dev/null; then
+    fail "production policy HTTP $fixture left a pending mutation"
+  fi
+  if grep -Eq $'^(POST|PATCH|DELETE)\t' "$CASE_DIR/curl-calls"; then
+    fail "production policy HTTP $fixture mutated Monitoring before the failed read"
+  fi
+  test "$(find "$CASE_DIR" -maxdepth 1 -name 'issue122-observability.*' -print | wc -l | tr -d ' ')" = 0
+done
+
+success_output="$(OBSERVABILITY_POLICY_HTTP_CASE=success policy_production_http query-5xx-sample 1700000000)"
+jq -e '.[0] == 1 and .[1] == "4.25e-2"' <<< "$success_output" >/dev/null
+test "$(find "$CASE_DIR" -maxdepth 1 -name 'issue122-observability.*' -print | wc -l | tr -d ' ')" = 0
+
+owned_policy="$(policy ensure 5xx)"
+OBSERVABILITY_POLICY_HTTP_CASE=empty204 policy_production_http delete "$owned_policy" 5xx >/dev/null
+if jq -e --arg name "$owned_policy" 'any(.alertPolicies[]?; .name == $name)' "$CASE_DIR/alertPolicies.json" >/dev/null; then
+  fail 'empty 204 cleanup fixture did not delete the owned policy'
+fi
+test "$(find "$CASE_DIR" -maxdepth 1 -name 'issue122-observability.*' -print | wc -l | tr -d ' ')" = 0
+pass 'policy HTTP diagnostics sanitize provider failures, preserve successful bodies, and clean empty 204 responses'
 
 new_case live-provider-before-resources
 for mode in success failure; do

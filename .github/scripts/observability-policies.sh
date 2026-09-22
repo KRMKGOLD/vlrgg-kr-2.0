@@ -50,17 +50,64 @@ http() {
     "$OBSERVABILITY_HTTP" "$method" "$url" "$body_file"
     return
   fi
-  local token error
+  local token output error status curl_exit=0 method_label=provider endpoint=provider reason='' candidate=''
+  local -a body_args=(--header @-)
+  case "$method" in
+    GET|POST|PATCH|DELETE) method_label="$method" ;;
+  esac
+  case "$method $url" in
+    "GET $prometheus_root"/projects/*/location/global/prometheus/api/v1/query\?*) endpoint=monitoring.prometheus.query ;;
+    "GET $monitoring_root"/projects/*/notificationChannels/*) endpoint=monitoring.notificationChannels.get ;;
+    "GET $monitoring_root"/projects/*/metricDescriptors/run.googleapis.com/request_count) endpoint=monitoring.metricDescriptors.get ;;
+    "GET $monitoring_root"/projects/*/timeSeries\?*) endpoint=monitoring.timeSeries.list ;;
+    "GET $monitoring_root"/projects/*/alertPolicies\?*) endpoint=monitoring.alertPolicies.list ;;
+    "GET $monitoring_root"/projects/*/alertPolicies/*) endpoint=monitoring.alertPolicies.get ;;
+    "POST $monitoring_root"/projects/*/alertPolicies) endpoint=monitoring.alertPolicies.create ;;
+    "PATCH $monitoring_root"/projects/*/alertPolicies/*\?updateMask=enabled) endpoint=monitoring.alertPolicies.patch ;;
+    "DELETE $monitoring_root"/projects/*/alertPolicies/*) endpoint=monitoring.alertPolicies.delete ;;
+    "GET $monitoring_root"/projects/*/uptimeCheckConfigs\?*) endpoint=monitoring.uptimeCheckConfigs.list ;;
+    "GET $monitoring_root"/projects/*/uptimeCheckConfigs/*) endpoint=monitoring.uptimeCheckConfigs.get ;;
+    "POST $monitoring_root"/projects/*/uptimeCheckConfigs) endpoint=monitoring.uptimeCheckConfigs.create ;;
+    "DELETE $monitoring_root"/projects/*/uptimeCheckConfigs/*) endpoint=monitoring.uptimeCheckConfigs.delete ;;
+  esac
   token="$(gcloud auth print-access-token 2>/dev/null)" || fail 'Could not obtain a cloud access token.'
+  output="$(temporary_file)"
   error="$(temporary_file)"
   if test -n "$body_file"; then
-    if curl -q --silent --show-error --fail --connect-timeout 5 --max-time 30 --request "$method" \
-      --header @- --header 'Content-Type: application/json' --data-binary "@$body_file" "$url" \
-      <<< "Authorization: Bearer $token" 2> "$error"; then rm -f "$error"; else rm -f "$error"; fail 'Cloud Monitoring request failed.'; fi
-  else
-    if curl -q --silent --show-error --fail --connect-timeout 5 --max-time 30 --request "$method" --header @- "$url" \
-      <<< "Authorization: Bearer $token" 2> "$error"; then rm -f "$error"; else rm -f "$error"; fail 'Cloud Monitoring request failed.'; fi
+    body_args+=(--header 'Content-Type: application/json' --data-binary "@$body_file")
   fi
+  status="$(curl -q --silent --show-error --fail-with-body --connect-timeout 5 --max-time 30 --request "$method" \
+    "${body_args[@]}" --output "$output" --write-out '%{http_code}' "$url" \
+    <<< "Authorization: Bearer $token" 2> "$error")" || curl_exit=$?
+  [[ "$status" =~ ^[0-9]{3}$ ]] || status=000
+  chmod 600 "$output" "$error" 2>/dev/null || true
+  if test "$curl_exit" -ne 0 || [[ "$status" != 2[0-9][0-9] ]]; then
+    candidate="$(jq -r '
+      [.error.details[]? |
+        select(."@type" == "type.googleapis.com/google.rpc.ErrorInfo") |
+        .reason |
+        select(. == "SERVICE_DISABLED" or
+          . == "IAM_PERMISSION_DENIED" or
+          . == "ACCESS_TOKEN_SCOPE_INSUFFICIENT" or
+          . == "BILLING_DISABLED" or
+          . == "CONSUMER_INVALID" or
+          . == "SECURITY_POLICY_VIOLATED" or
+          . == "USER_PROJECT_DENIED" or
+          . == "RATE_LIMIT_EXCEEDED")] | .[0] // empty
+    ' "$output" 2>/dev/null || true)"
+    case "$candidate" in
+      SERVICE_DISABLED|IAM_PERMISSION_DENIED|ACCESS_TOKEN_SCOPE_INSUFFICIENT|BILLING_DISABLED|CONSUMER_INVALID|SECURITY_POLICY_VIOLATED|USER_PROJECT_DENIED|RATE_LIMIT_EXCEEDED)
+        reason="$candidate" ;;
+    esac
+    rm -f "$output" "$error"
+    test -z "$reason" || fail "Cloud Monitoring request failed: $method_label $endpoint (HTTP $status, curl $curl_exit, reason $reason)."
+    fail "Cloud Monitoring request failed: $method_label $endpoint (HTTP $status, curl $curl_exit)."
+  fi
+  if ! cat "$output"; then
+    rm -f "$output" "$error"
+    fail 'Cloud Monitoring response could not be read.'
+  fi
+  rm -f "$output" "$error"
 }
 
 channels() {
