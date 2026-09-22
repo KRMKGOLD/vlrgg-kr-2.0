@@ -320,40 +320,31 @@ jobs:
           token_format: id_token
           id_token_audience: ${{ steps.observability-validation.outputs.url }}
 
-      - name: Verify fixed validation endpoints without claiming provider gates
+      - name: Run bounded private observability provider validation
         if: inputs.operation == 'observability-validate'
         env:
+          GH_TOKEN: ${{ github.token }}
+          SERVICE_NAME: vlrgg-query-check
           SMOKE_URL: ${{ steps.observability-validation.outputs.url }}
           SMOKE_ID_TOKEN: ${{ steps.observability-auth.outputs.id_token }}
+          OBSERVABILITY_REVISION: ${{ steps.observability-validation.outputs.revision }}
+          OBSERVABILITY_NOTIFICATION_CHANNELS_JSON: ${{ secrets.GCP_OBSERVABILITY_NOTIFICATION_CHANNELS_JSON }}
+          OBSERVABILITY_CONFIRMED_RECEIVERS: ${{ secrets.GCP_OBSERVABILITY_CONFIRMED_RECEIVERS }}
+          OBSERVABILITY_ERROR_REPORTING_ENROLLED: ${{ secrets.GCP_ERROR_REPORTING_ENROLLED }}
         shell: bash
         run: |
-          test "$(date +%s)" -le "$OBSERVABILITY_DEADLINE_EPOCH"
-          response="$RUNNER_TEMP/observability-response"
-          request() {
-            local method="$1" path="$2" expected="$3" authorized="${4:-true}" status header=
-            if test "$authorized" = true; then
-              header="X-Serverless-Authorization: Bearer $SMOKE_ID_TOKEN"
-            fi
-            status="$(curl -q --silent --proto '=https' --connect-timeout 5 --max-time 25 \
-              --max-filesize 2097152 --output "$response" --write-out '%{http_code}' --request "$method" \
-              --header @- "$SMOKE_URL$path" <<< "$header")"
-            test "$status" = "$expected" || { echo "::error::Fixed validation endpoint returned an unexpected status."; exit 1; }
-          }
-          unauthenticated="$(curl -q --silent --proto '=https' --connect-timeout 5 --max-time 25 \
-            --max-filesize 2097152 --output "$response" --write-out '%{http_code}' "$SMOKE_URL/health")"
-          [[ "$unauthenticated" == 401 || "$unauthenticated" == 403 ]]
-          request GET /health 200
-          jq --exit-status '.status == "ok"' "$response" >/dev/null
-          request GET /__observability/internal 500
-          # Repeat one location; INTERNAL and PARSING keep validation within two error groups.
-          request GET /__observability/internal 500
-          request GET /__observability/parsing 502
-          request GET /__observability/upstream 502
-          request GET /__observability/expected 400
-          {
-            echo "Observability provider gates O3-O9: NOT RUN"
-            echo "The fixed private harness responded; Error Reporting groups, native labels, incidents, receivers, and recovery still require protected live evidence."
-          } >> "$GITHUB_STEP_SUMMARY"
+          if ! started_at="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            --jq '.run_started_at' 2>/dev/null)"; then
+            echo "::error::Could not read the workflow attempt start time."
+            exit 1
+          fi
+          if test -z "$started_at" || test "$started_at" = null; then
+            echo "::error::Could not read the workflow attempt start time."
+            exit 1
+          fi
+          export OBSERVABILITY_WORKFLOW_STARTED_AT="$started_at"
+          bash .github/scripts/observability-live.sh
 
       - name: Restore the shared validation service
         id: observability-restore

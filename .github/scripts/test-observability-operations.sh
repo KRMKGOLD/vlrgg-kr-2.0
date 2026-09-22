@@ -9,6 +9,7 @@ mkdir -p "$work_dir/bin"
 
 service_helper="$repo_root/.github/scripts/observability-service.sh"
 policy_helper="$repo_root/.github/scripts/observability-policies.sh"
+live_helper="$repo_root/.github/scripts/observability-live.sh"
 cleanup_helper="$repo_root/.github/scripts/observability-cleanup.sh"
 workflow="$repo_root/.github/workflows/deploy-server.yml"
 preflight_script="$work_dir/preflight.sh"
@@ -113,7 +114,17 @@ if [[ "$url" == */metricDescriptors/* ]]; then
 fi
 if [[ "$url" == *'/timeSeries?'* ]]; then
   if test -f "$CASE_DIR/missing-5xx-sample"; then printf '%s\n' '{"timeSeries":[]}'
-  else printf '%s\n' '{"timeSeries":[{"metric":{"labels":{"response_code_class":"5xx"}}}]}'; fi
+  else printf '%s\n' '{"timeSeries":[{"metric":{"labels":{"response_code_class":"5xx"}},"points":[{"value":{"int64Value":"1"}}]}]}'; fi
+  exit
+fi
+if [[ "$url" == *'/prometheus/api/v1/query?'* ]]; then
+  response="$CASE_DIR/prometheus.json"
+  [[ "$url" != *'response_code_class%3D%222xx%22'* || "$url" == *'response_code_class%3D%225xx%22'* ]] \
+    || response="$CASE_DIR/prometheus-2xx.json"
+  test -f "$response" || printf '%s\n' \
+    '{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1,"0"]}]}}' \
+    > "$response"
+  cat "$response"
   exit
 fi
 collection=alertPolicies
@@ -136,6 +147,10 @@ case "$method" in
     test -n "$body_file"
     name="projects/test-project/$collection/created-$collection"
     jq --arg name "$name" '. + {name:$name}' "$body_file" > "$CASE_DIR/created.json"
+    if test -f "$CASE_DIR/invalid-created-resource"; then
+      jq '.validity={code:3,message:"invalid"}' "$CASE_DIR/created.json" > "$CASE_DIR/next-created.json"
+      mv "$CASE_DIR/next-created.json" "$CASE_DIR/created.json"
+    fi
     jq --slurpfile created "$CASE_DIR/created.json" --arg collection "$collection" \
       '.[$collection] += $created' "$inventory" > "$CASE_DIR/next.json"
     mv "$CASE_DIR/next.json" "$inventory"
@@ -174,11 +189,8 @@ if test -f "$CASE_DIR/gcloud-denied"; then
   exit 1
 fi
 case "$1 $2 ${3:-}" in
-  'iam service-accounts describe')
-    project_id=test-project
-    test ! -f "$CASE_DIR/foreign-service-agent" || project_id=foreign-project
-    jq -n --arg email "${4:-}" --arg project_id "$project_id" \
-      '{email:$email,projectId:$project_id,disabled:false}' ;;
+  'projects describe test-project') cat "$CASE_DIR/project.json" ;;
+  'projects get-iam-policy test-project') cat "$CASE_DIR/project-iam-policy.json" ;;
   'run services get-iam-policy')
     if test -f "$CASE_DIR/public-iam"; then
       printf '%s\n' '{"bindings":[{"role":"roles/run.invoker","members":["allUsers"]}]}'
@@ -214,6 +226,21 @@ esac
 STUB
 chmod +x "$work_dir/bin/gcloud"
 
+cat > "$work_dir/private-http" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+method="$1"; base="$2"; path="$3"; output="$4"
+printf '%s\t%s\t%s\n' "$method" "$base" "$path" >> "$CASE_DIR/private-calls"
+case "$method $path" in
+  'GET /health') printf '%s\n' '{"status":"ok"}' > "$output"; printf 200 ;;
+  'POST /__observability/health/fail'|'POST /__observability/health/restore')
+    printf '%s\n' '{"status":"configured"}' > "$output"; printf 200 ;;
+  'POST /__observability/exit') printf '%s\n' '{"status":"accepted"}' > "$output"; printf 202 ;;
+  *) printf '%s\n' '{}' > "$output"; printf 500 ;;
+esac
+STUB
+chmod +x "$work_dir/private-http"
+
 cat > "$work_dir/bin/gh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -248,6 +275,7 @@ new_case() {
   mkdir -p "$CASE_DIR"
   : > "$CASE_DIR/http-calls"
   : > "$CASE_DIR/gcloud-calls"
+  : > "$CASE_DIR/private-calls"
   local revision='projects/test-project/locations/test-region/services/vlrgg-query-check/revisions/baseline'
   jq -n --arg revision "$revision" '{
     name:"projects/test-project/locations/test-region/services/vlrgg-query-check",
@@ -267,13 +295,15 @@ new_case() {
   printf '%s\n' '[]' > "$CASE_DIR/gcloud-revisions.json"
   printf '%s\n' '[]' > "$CASE_DIR/gcloud-images.json"
   printf '%s\n' '{"bindings":[]}' > "$CASE_DIR/iam-policy.json"
+  printf '%s\n' '{"projectId":"test-project","projectNumber":"123"}' > "$CASE_DIR/project.json"
+  printf '%s\n' '{"bindings":[{"role":"roles/monitoring.notificationServiceAgent","members":["serviceAccount:service-123@gcp-sa-monitoring-notification.iam.gserviceaccount.com"]}]}' \
+    > "$CASE_DIR/project-iam-policy.json"
 }
 
 service() {
   env PATH="$work_dir/bin:$PATH" PROJECT_ID=test-project REGION=test-region VALIDATION_SERVICE=vlrgg-query-check \
     OBSERVABILITY_RUN=123-1 OBSERVABILITY_HTTP="$work_dir/http" \
     OBSERVABILITY_HOST=vlrgg-query-check-test.run.app OBSERVABILITY_REVISION=validation-r123-1 \
-    MONITORING_SERVICE_AGENT=service-123@gcp-sa-monitoring-notification.iam.gserviceaccount.com \
     "$service_helper" "$@"
 }
 
@@ -282,9 +312,35 @@ policy() {
     VALIDATION_SERVICE=vlrgg-query-check \
     OBSERVABILITY_RUN=123-1 OBSERVABILITY_HTTP="$work_dir/http" \
     OBSERVABILITY_HOST=vlrgg-query-check-test.run.app OBSERVABILITY_REVISION=validation-r123-1 \
-    MONITORING_SERVICE_AGENT=service-123@gcp-sa-monitoring-notification.iam.gserviceaccount.com \
     OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
     OBSERVABILITY_CONFIRMED_RECEIVERS=true "$policy_helper" "$@"
+}
+
+live() {
+  local function="$1"
+  shift
+  env PATH="$work_dir/bin:$PATH" PROJECT_ID=test-project REGION=test-region \
+    SERVICE_NAME=vlrgg-query-check VALIDATION_SERVICE=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
+    OBSERVABILITY_HTTP="$work_dir/http" \
+    OBSERVABILITY_PRIVATE_HTTP="$work_dir/private-http" OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+    OBSERVABILITY_DEADLINE_EPOCH="$OBSERVABILITY_DEADLINE_EPOCH" \
+    SMOKE_URL=https://vlrgg-query-check-test.run.app SMOKE_ID_TOKEN=stub-token \
+    RUNNER_TEMP="$CASE_DIR" GITHUB_STEP_SUMMARY="$CASE_DIR/summary" CASE_DIR="$CASE_DIR" \
+    bash -c 'source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"; "$2" "${@:3}"' \
+      _ "$live_helper" "$function" "$@"
+}
+
+prepare_live_case() {
+  local revision_name=vlrgg-query-check-o123-1
+  local revision="projects/test-project/locations/test-region/services/vlrgg-query-check/revisions/$revision_name"
+  service prepare >/dev/null
+  service pending revision "$revision_name" >/dev/null
+  service resource revision "$revision" >/dev/null
+  service phase fault >/dev/null
+  jq -n --arg url https://vlrgg-query-check-test.run.app --arg revision "$revision_name" '{
+    metadata:{annotations:{"run.googleapis.com/invoker-iam-disabled":"false"}},
+    status:{url:$url,traffic:[{percent:100,revisionName:$revision}]}
+  }' > "$CASE_DIR/gcloud-service.json"
 }
 
 run_preflight_case() {
@@ -511,15 +567,18 @@ pass 'prepare rejects unknown system template annotations'
 new_case policy-render
 five_x="$(policy render 5xx)"
 jq -e '
-  .conditions[0].conditionThreshold.thresholdValue==2 and
-  .conditions[0].conditionThreshold.duration=="0s" and
-  .conditions[0].conditionThreshold.aggregations[0].alignmentPeriod=="300s" and
-  .conditions[0].conditionThreshold.aggregations[0].perSeriesAligner=="ALIGN_SUM" and
-  .conditions[0].conditionThreshold.aggregations[0].crossSeriesReducer=="REDUCE_SUM" and
-  (.conditions[0].conditionThreshold.filter|contains("response_code_class = \"5xx\"")) and
-  .alertStrategy.autoClose=="1800s" and
+  (.conditions[0] | has("conditionThreshold") | not) and
+  (.alertStrategy | has("autoClose") | not) and
+  (.conditions[0].conditionPrometheusQueryLanguage.query | contains("{\"run.googleapis.com/request_count\"")) and
+  (.conditions[0].conditionPrometheusQueryLanguage.query | contains("response_code_class=\"5xx\"}[5m]")) and
+  (.conditions[0].conditionPrometheusQueryLanguage.query | contains("response_code_class=\"2xx\"}[5m]")) and
+  (.conditions[0].conditionPrometheusQueryLanguage.query | contains(" or 0 * ")) and
+  (.conditions[0].conditionPrometheusQueryLanguage.query | endswith(") >= 3")) and
+  .conditions[0].conditionPrometheusQueryLanguage.duration=="0s" and
+  .conditions[0].conditionPrometheusQueryLanguage.evaluationInterval=="30s" and
   .alertStrategy.notificationPrompts==["OPENED","CLOSED"]
 ' <<< "$five_x" >/dev/null
+! grep -q 'vector(0)' <<< "$five_x" || fail '5xx policy used unconditional zero'
 uptime="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
   OBSERVABILITY_RUN=123-1 OBSERVABILITY_HTTP="$work_dir/http" \
   OBSERVABILITY_HOST=vlrgg-query-check-test.run.app OBSERVABILITY_REVISION=validation-r123-1 \
@@ -531,7 +590,31 @@ jq -e '
   .httpCheck.acceptedResponseStatusCodes==[{"statusValue":200}] and
   .contentMatchers==[{"content":"^\\s*\\{\\s*\"status\"\\s*:\\s*\"ok\"\\s*\\}\\s*$","matcher":"MATCHES_REGEX"}]
 ' <<< "$uptime" >/dev/null
-pass 'policy render keeps approved thresholds and exact health body regex'
+pass 'policy render shares native DELTA PromQL and keeps exact health body regex'
+
+new_case policy-promql-query
+for value in 2 3 0 2.75 1e3 4.25e-2; do
+  jq -n --arg value "$value" '{status:"success",data:{resultType:"vector",result:[{metric:{},value:[1,$value]}]}}' \
+    > "$CASE_DIR/prometheus.json"
+  test "$(policy query-5xx-count 1700000000)" = "$value"
+done
+jq -e '.[0]==1 and .[1]=="4.25e-2"' <<< "$(policy query-5xx-sample 1700000000)" >/dev/null
+for bad in empty multiple nan infinity overflow overflow-mantissa negative; do
+  case "$bad" in
+    empty) result='[]' ;;
+    multiple) result='[{"metric":{},"value":[1,"0"]},{"metric":{},"value":[1,"0"]}]' ;;
+    nan) result='[{"metric":{},"value":[1,"NaN"]}]' ;;
+    infinity) result='[{"metric":{},"value":[1,"+Inf"]}]' ;;
+    overflow) result='[{"metric":{},"value":[1,"1e999"]}]' ;;
+    overflow-mantissa) result='[{"metric":{},"value":[1,"1.7976931348623159e308"]}]' ;;
+    negative) result='[{"metric":{},"value":[1,"-1"]}]' ;;
+  esac
+  printf '{"status":"success","data":{"resultType":"vector","result":%s}}\n' "$result" \
+    > "$CASE_DIR/prometheus.json"
+  expect_fail "$CASE_DIR/promql-$bad.stderr" policy query-5xx-count 1700000000
+done
+grep -Fq '0%20%2A%20sum%28increase' "$CASE_DIR/http-calls"
+pass 'PromQL numeric query accepts finite samples and rejects missing or ambiguous telemetry'
 
 new_case policy-idempotent
 service prepare >/dev/null
@@ -545,7 +628,7 @@ grep -Fq $'\thttps://monitoring.googleapis.com/v3/projects/test-project/metricDe
   || fail 'metric descriptor request used an encoded metric name'
 pass 'policy ensure is idempotent'
 
-jq '.alertPolicies[0].conditions[0].conditionThreshold.aggregations[0].groupByFields=["resource.label.revision_name"]' \
+jq '.alertPolicies[0].conditions[0].conditionPrometheusQueryLanguage.query += " drift"' \
   "$CASE_DIR/alertPolicies.json" > "$CASE_DIR/next.json"
 mv "$CASE_DIR/next.json" "$CASE_DIR/alertPolicies.json"
 before_writes="$(grep -Ec $'^(POST|PATCH|DELETE)\thttps://monitoring.googleapis.com/' "$CASE_DIR/http-calls")"
@@ -565,6 +648,13 @@ jq -e --arg name "$recovered_policy" '
 ' <<< "$(service read)" >/dev/null
 test "$(grep -c $'^POST\t' "$CASE_DIR/http-calls")" = 1
 pass 'policy create response loss recovers and journals the owned resource'
+
+new_case policy-create-readback
+service prepare >/dev/null
+touch "$CASE_DIR/invalid-created-resource"
+expect_fail "$CASE_DIR/invalid-created.stderr" policy ensure 5xx
+jq -e '.pending.kind=="5xx" and (.resources|length)==0' <<< "$(service read)" >/dev/null
+pass 'new Monitoring resources are read back and rejected before journaling when provider validity fails'
 
 new_case policy-kind
 service prepare >/dev/null
@@ -600,8 +690,10 @@ new_case policy-log-input
 valid_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
   OBSERVABILITY_RUN=123-1 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
   SYSTEM_LOG_NAME=projects/test-project/logs/run.googleapis.com%2Fvarlog%2Fsystem \
-  SYSTEM_LOG_SIGNATURE='Container exited with status 42' "$policy_helper" render log)"
-jq -e '.conditions[0].conditionMatchedLog.filter|contains("Container exited with status 42")' \
+  SYSTEM_LOG_SIGNATURE='Container called exit(42).' "$policy_helper" render log)"
+jq -e '.conditions[0].conditionMatchedLog.filter|contains("Container called exit(42).")' \
+  <<< "$valid_log" >/dev/null
+jq -e '.conditions[0].conditionMatchedLog.filter|contains("textPayload=\"Container called exit(42).\"")' \
   <<< "$valid_log" >/dev/null
 expect_fail "$CASE_DIR/cross-project.stderr" env PROJECT_ID=test-project REGION=test-region \
   SERVICE_NAME=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
@@ -671,13 +763,376 @@ pass 'conditional Monitoring invoker binding fails closed'
 
 new_case uptime-iam-foreign-project
 service prepare >/dev/null
-touch "$CASE_DIR/foreign-service-agent"
+jq '.bindings[0].members=["serviceAccount:service-999@gcp-sa-monitoring-notification.iam.gserviceaccount.com"]' \
+  "$CASE_DIR/project-iam-policy.json" > "$CASE_DIR/next.json"
+mv "$CASE_DIR/next.json" "$CASE_DIR/project-iam-policy.json"
 expect_fail "$CASE_DIR/foreign-agent.stderr" policy ensure uptime
 ! grep -q '^run services add-iam-policy-binding' "$CASE_DIR/gcloud-calls" \
   || fail 'foreign-project Monitoring service agent received an IAM binding'
 ! grep -q $'^POST\thttps://monitoring.googleapis.com/' "$CASE_DIR/http-calls" \
   || fail 'foreign-project Monitoring service agent allowed uptime creation'
-pass 'Monitoring service agent must belong to the current project'
+pass 'derived Monitoring service agent must hold the exact unconditional project role'
+
+new_case uptime-iam-mismatched-live-project
+service prepare >/dev/null
+printf '%s\n' '{"projectId":"test-project","projectNumber":"999"}' > "$CASE_DIR/project.json"
+expect_fail "$CASE_DIR/live-project-number.stderr" policy ensure uptime
+! grep -q '^run services add-iam-policy-binding' "$CASE_DIR/gcloud-calls" \
+  || fail 'mismatched live project number received an IAM binding'
+! grep -q $'^POST\thttps://monitoring.googleapis.com/' "$CASE_DIR/http-calls" \
+  || fail 'mismatched live project number allowed uptime creation'
+pass 'Monitoring service agent is derived from live project inventory before IAM mutation'
+
+new_case live-target-guard
+prepare_live_case
+live guard_target
+grep -qx 'projects describe test-project --format=json' "$CASE_DIR/gcloud-calls"
+grep -qx 'projects get-iam-policy test-project --format=json' "$CASE_DIR/gcloud-calls"
+grep -qx 'run services describe vlrgg-query-check --project test-project --region test-region --format=json' \
+  "$CASE_DIR/gcloud-calls"
+pass 'live target guard proves the journal revision, private IAM, project number, and service-agent role'
+
+printf '%s\n' '{"projectId":"other-project","projectNumber":"999"}' > "$CASE_DIR/project.json"
+expect_fail "$CASE_DIR/live-project.stderr" live guard_target
+test ! -s "$CASE_DIR/private-calls" || fail 'mismatched project number reached a private endpoint'
+pass 'live target guard rejects project inventory that does not identify the configured project'
+
+new_case live-sanitized-provider-failure
+prepare_live_case
+touch "$CASE_DIR/gcloud-denied"
+expect_fail "$CASE_DIR/live-provider.stderr" live guard_target
+! grep -Eq 'secret@example|secret\.example|token-SECRET|project-secret' "$CASE_DIR/live-provider.stderr" \
+  || fail 'live driver leaked protected provider stderr'
+pass 'live driver exposes only fixed errors when provider inventory fails'
+
+new_case live-private-contract
+prepare_live_case
+live private_request POST /__observability/health/fail 200
+jq -e '.status == "configured"' "$CASE_DIR/evidence/private-response" >/dev/null
+live private_exit
+grep -q $'^POST\thttps://vlrgg-query-check-test.run.app\t/__observability/exit$' "$CASE_DIR/private-calls"
+pass 'live driver uses the actual 200 health mutation and 202 abnormal-exit contracts'
+
+new_case live-o3-o6-schema
+# Minimal synthetic fixtures follow the formatter and provider contracts; no local runtime logs are required.
+internal_message='kr.co.cotton.vlrgg_mobile.observability.validation.ValidationInternalFailure: INTERNAL_ERROR
+	at kr.co.cotton.vlrgg_mobile.observability.validation.ObservabilityValidationMainKt.validationInternal(ObservabilityValidationMain.kt:1)'
+parsing_message='kr.co.cotton.vlrgg_mobile.observability.validation.ValidationParsingFailure: SOURCE_PARSING_FAILURE
+	at kr.co.cotton.vlrgg_mobile.observability.validation.ObservabilityValidationMainKt.validationParsing(ObservabilityValidationMain.kt:1)'
+jq -n --arg internal "$internal_message" --arg parsing "$parsing_message" '
+  def event($category; $code; $status; $message):
+    {severity:(if $status == 500 or $category == "SOURCE_PARSING" then "ERROR" else "WARNING" end),
+     jsonPayload:{category:$category,error_code:$code,http_status:$status,
+       serviceContext:{service:"vlrgg-query-check",version:"vlrgg-query-check-o123-1"},
+       canonical_upstream:(if $category == "INTERNAL" then "none" else "https://www.vlr.gg/" end),
+       "@type":"type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent",
+       message:$message,truncation:{accessor_failure:false,bytes:false,candidates:false,causes:false,cycle:false,frames:false}}};
+  {entries:([range(0;4) as $index | event("INTERNAL";"INTERNAL_ERROR";500;$internal) +
+     (if $index == 0 then {trace:"projects/test-project/traces/0123456789abcdef0123456789abcdef"}
+      elif $index == 2 then {trace:"projects/test-project/traces/abcdef0123456789abcdef0123456789"} else {} end)] +
+    [event("SOURCE_PARSING";"SOURCE_PARSING_FAILURE";502;$parsing),
+     event("UPSTREAM_NETWORK";"UPSTREAM_NETWORK_FAILURE";502;"safe upstream category"),
+     event("EXPECTED";"INVALID_REQUEST";400;"safe expected category")] +
+    [range(0;5) as $index | {
+      logName:"projects/test-project/logs/run.googleapis.com%2Frequests",
+      trace:(if $index == 0 then "projects/test-project/traces/0123456789abcdef0123456789abcdef" else null end),
+      httpRequest:{status:500,requestUrl:"https://vlrgg-query-check-test.run.app/__observability/internal"}
+    } | if .trace == null then del(.trace) else . end] +
+    [{textPayload:"public_api_summary requests=9 diagnostics_emitted={EXPECTED=2,UPSTREAM_NETWORK=1,INTERNAL=4,SOURCE_PARSING=1} diagnostics_suppressed={EXPECTED=0,UPSTREAM_NETWORK=0,INTERNAL=1,SOURCE_PARSING=0}"}])}
+' > "$CASE_DIR/application-fixture.json"
+jq -n '{errorGroupStats:[
+  {group:{name:"projects/test-project/groups/internal"},numAffectedServices:1,affectedServices:[{service:"vlrgg-query-check",version:"vlrgg-query-check-o123-1"}],representative:{}},
+  {group:{name:"projects/test-project/locations/global/groups/parsing"},numAffectedServices:1,affectedServices:[{service:"vlrgg-query-check",version:"vlrgg-query-check-o123-1"}],representative:{}}
+]}' > "$CASE_DIR/groups-fixture.json"
+jq -n --arg message "$internal_message" '{errorEvents:[{eventTime:"2100-01-01T00:00:00Z",serviceContext:{service:"vlrgg-query-check",version:"vlrgg-query-check-o123-1"},message:$message}]}' \
+  > "$CASE_DIR/events-internal.json"
+jq -n --arg message "$parsing_message" '{errorEvents:[{eventTime:"2100-01-01T00:00:00Z",serviceContext:{service:"vlrgg-query-check",version:"vlrgg-query-check-o123-1"},message:$message}]}' \
+  > "$CASE_DIR/events-parsing.json"
+printf '%s\n' '{"name":"projects/test-project/groups/internal","resolutionStatus":"OPEN","trackingIssues":[{"url":"safe"}]}' \
+  > "$CASE_DIR/group-fixture.json"
+printf '%s\n' '{"name":"projects/test-project/groups/internal","resolutionStatus":"RESOLVED"}' \
+  > "$CASE_DIR/resolved-fixture.json"
+printf '%s\n' '{"name":"projects/test-project/groups/internal","resolutionStatus":"OPEN"}' \
+  > "$CASE_DIR/reopened-fixture.json"
+env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 CASE_DIR="$CASE_DIR" \
+  GITHUB_STEP_SUMMARY="$CASE_DIR/summary" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    openssl() { printf "0123456789abcdef0123456789abcdef\n"; }
+    private_request() { :; }; sleep_for() { :; }; guard_target() { :; }; require_fault_time() { :; }
+    result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+    log_entries() { cp "$CASE_DIR/application-fixture.json" "$2"; }
+    poll_native_failures() { test "$2" = 7; }
+    api() {
+      local method="$1" url="$2" output="$3"
+      case "$url" in
+        *groupStats*) cp "$CASE_DIR/groups-fixture.json" "$output" ;;
+        *events?groupId=internal*) cp "$CASE_DIR/events-internal.json" "$output" ;;
+        *events?groupId=parsing*) cp "$CASE_DIR/events-parsing.json" "$output" ;;
+        *)
+          if test "$method" = PUT; then cp "$CASE_DIR/resolved-fixture.json" "$output"
+          elif [[ "$output" == *status.json ]]; then cp "$CASE_DIR/resolved-fixture.json" "$output"
+          elif [[ "$output" == *reopened.json ]]; then cp "$CASE_DIR/reopened-fixture.json" "$output"
+          else cp "$CASE_DIR/group-fixture.json" "$output"; fi ;;
+      esac
+    }
+    run_o3_o6
+  ' _ "$live_helper"
+jq -e '.resolutionStatus=="RESOLVED" and .trackingIssues==[{"url":"safe"}]' \
+  "$CASE_DIR/evidence/error-group-resolve.json" >/dev/null
+for gate in O3 O4 O5 O6; do grep -qx "$gate PASS" "$CASE_DIR/results"; done
+grep -qx 'O6-receipt RECEIPT PENDING' "$CASE_DIR/results"
+pass 'O3-O6 fixtures follow formatter/provider contracts and permit generated traces on ordinary requests'
+
+new_case live-native-ledger
+env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 CASE_DIR="$CASE_DIR" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    sleep_for() { :; }
+    api() {
+      if test ! -e "$CASE_DIR/queried"; then
+        touch "$CASE_DIR/queried"; printf "{}\n" > "$3"
+      else
+        printf "%s\n" "{\"timeSeries\":[{\"points\":[{\"value\":{\"int64Value\":\"7\"}}]}]}" > "$3"
+      fi
+    }
+    poll_native_failures 2026-01-01T00:00:00Z 7
+    if (poll_native_failures 2026-01-01T00:00:00Z 6) 2>/dev/null; then exit 1; fi
+    api() { printf "{}\n" > "$3"; }
+    if (poll_native_failures 2026-01-01T00:00:00Z 0) 2>/dev/null; then exit 1; fi
+  ' _ "$live_helper"
+pass 'raw native counts retry ingestion delay, reject excess traffic, and never accept missing data as zero'
+
+new_case live-promql-recovery
+jq -n '{status:"success",data:{resultType:"vector",result:[{metric:{},value:[1,"4"]}]}}' \
+  > "$CASE_DIR/prometheus-2xx.json"
+jq -n '{status:"success",data:{resultType:"vector",result:[{metric:{},value:[1,"0"]}]}}' \
+  > "$CASE_DIR/prometheus.json"
+live poll_recovery 1 >/dev/null
+printf '%s\n' '{"status":"success","data":{"resultType":"vector","result":[]}}' \
+  > "$CASE_DIR/prometheus.json"
+expect_fail "$CASE_DIR/live-missing-recovery.stderr" live poll_recovery 1
+pass 'live recovery requires fresh 2xx and one finite numeric 5xx zero, never missing data'
+cat > "$CASE_DIR/ingest-after-wait" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' '{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1,"0"]}]}}' > "$CASE_DIR/prometheus.json"
+SH
+chmod +x "$CASE_DIR/ingest-after-wait"
+( export OBSERVABILITY_SLEEP_COMMAND="$CASE_DIR/ingest-after-wait"; live poll_count 5xx '==' 0 2 ) >/dev/null
+pass 'PromQL polling retries an initially absent series instead of aborting or treating absence as zero'
+
+new_case live-alert-transitions
+jq -n '{alerts:[{name:"projects/test-project/alerts/exact",policy:{name:"projects/test-project/alertPolicies/owned",userLabels:{managed_by:"issue122-validation",validation_run:"123_1",resource_kind:"5xx"}},state:"OPEN",openTime:"2026-01-01T00:00:00Z"}]}' \
+  > "$CASE_DIR/alerts-open.json"
+jq -n '{alerts:[{name:"projects/test-project/alerts/exact",policy:{name:"projects/test-project/alertPolicies/owned",userLabels:{managed_by:"issue122-validation",validation_run:"123_1",resource_kind:"5xx"}},state:"CLOSED",openTime:"2026-01-01T00:00:00Z",closeTime:"2026-01-01T00:05:00Z"}]}' \
+  > "$CASE_DIR/alerts-closed.json"
+cp "$CASE_DIR/alerts-open.json" "$CASE_DIR/alerts-current.json"
+env PROJECT_ID=test-project SERVICE_NAME=vlrgg-query-check OBSERVABILITY_RUN=123-1 OBSERVABILITY_DEADLINE_EPOCH="$OBSERVABILITY_DEADLINE_EPOCH" \
+  CASE_DIR="$CASE_DIR" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    api() { cp "$CASE_DIR/alerts-current.json" "$3"; }
+    sleep_for() { :; }
+    alert="$(poll_alert_open projects/test-project/alertPolicies/owned 0 5xx 1)"
+    test "$alert" = projects/test-project/alerts/exact
+    cp "$CASE_DIR/alerts-closed.json" "$CASE_DIR/alerts-current.json"
+    poll_alert_closed projects/test-project/alertPolicies/owned "$alert" 0 1
+  ' _ "$live_helper"
+cp "$CASE_DIR/alerts-open.json" "$CASE_DIR/alerts-current.json"
+expect_fail "$CASE_DIR/alert-name.stderr" env PROJECT_ID=test-project \
+  OBSERVABILITY_DEADLINE_EPOCH="$OBSERVABILITY_DEADLINE_EPOCH" CASE_DIR="$CASE_DIR" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    api() { cp "$CASE_DIR/alerts-current.json" "$3"; }; sleep_for() { :; }
+    poll_alert_closed projects/test-project/alertPolicies/owned projects/test-project/alerts/other 0 1
+  ' _ "$live_helper"
+pass 'live alert polling binds OPEN and CLOSED to one alert name without a nonexistent condition field'
+
+new_case live-uptime-freshness
+jq -n '["USA_IOWA","EUROPE","ASIA_PACIFIC"] as $locations | {timeSeries:[$locations[] as $location | {
+  metric:{labels:{check_id:"check-1",checker_location:$location}},
+  resource:{labels:{project_id:"test-project",location:"test-region",service_name:"vlrgg-query-check",revision_name:"vlrgg-query-check-o123-1"}},
+  points:[{interval:{endTime:"2100-01-01T00:00:00Z"},value:{boolValue:true}}]
+}]}' > "$CASE_DIR/uptime-passed.json"
+jq -n '["USA_IOWA","EUROPE","ASIA_PACIFIC"] as $locations | {timeSeries:[$locations[] as $location | {
+  metric:{labels:{check_id:"check-1",checker_location:$location}},
+  resource:{labels:{project_id:"test-project",location:"test-region",service_name:"vlrgg-query-check",revision_name:"vlrgg-query-check-o123-1"}},
+  points:[{interval:{endTime:"2100-01-01T00:00:00Z"},value:{stringValue:"200"}}]
+}]}' > "$CASE_DIR/uptime-http.json"
+env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+  api() { if [[ "$2" == *http_status* ]]; then cp "$CASE_DIR/uptime-http.json" "$3"; else cp "$CASE_DIR/uptime-passed.json" "$3"; fi; }
+  passed="$(uptime_locations check-1 true 0)"; http="$(uptime_http_locations check-1 0)"
+  test "$(jq -r .count <<< "$passed")" = 3
+  test "$(jq -r .count <<< "$http")" = 3
+  poll_uptime_locations check-1 true 3 0 1 >/dev/null
+  poll_uptime_http check-1 0 1 >/dev/null
+  stale="$(uptime_locations check-1 true 4102444801)"
+  test "$(jq -r .count <<< "$stale")" = 0
+' _ "$live_helper"
+pass 'uptime evidence requires three fresh labeled checker points and fresh HTTP 200 values'
+
+new_case live-uptime-always-restores
+if env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 CASE_DIR="$CASE_DIR" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    now() { printf 1700000000; }
+    ensure_policy() { if test "$1" = uptime; then printf "projects/test-project/uptimeCheckConfigs/check-1\n"; else printf "projects/test-project/alertPolicies/uptime\n"; fi; }
+    verify_uptime_check() { :; }; verify_single_condition() { :; }
+    poll_uptime_locations() {
+      if test "$2" = false; then fail "missing false transition"; fi
+      printf "%s\n" "{\"count\":3,\"evidenceEpoch\":1700000000}"
+    }
+    poll_uptime_http() { printf "%s\n" "{\"count\":3,\"evidenceEpoch\":1700000000}"; }
+    private_request() {
+      printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/requests"
+      printf "%s\n" "{\"status\":\"configured\"}" > "$evidence/private-response"
+    }
+    poll_health() { :; }; poll_alert_open() { printf "alert\n"; }; result() { :; }
+    run_o8
+  ' _ "$live_helper" > /dev/null 2> "$CASE_DIR/stderr"; then
+  fail 'uptime phase unexpectedly passed without false-transition evidence'
+fi
+grep -qx 'POST /__observability/health/restore' "$CASE_DIR/requests"
+pass 'uptime evidence failure still executes the explicit private health restore path'
+
+new_case live-poll-deadline
+CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"
+  evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+  OBSERVABILITY_DEADLINE_EPOCH=2000000000
+  printf "1999998200\n" > "$CASE_DIR/clock"
+  now() { cat "$CASE_DIR/clock"; }
+  uptime_locations() {
+    printf "query\n" >> "$CASE_DIR/queries"
+    printf "%s\n" "{\"count\":0,\"evidenceEpoch\":0}"
+  }
+  sleep_for() {
+    printf "%s\n" "$1" >> "$CASE_DIR/waits"
+    printf "%s\n" "$(( $(now) + $1 ))" > "$CASE_DIR/clock"
+  }
+  if (poll_uptime_locations check false 2 0 3) 2>/dev/null; then exit 1; fi
+  test ! -s "$CASE_DIR/queries"
+  printf "1999998195\n" > "$CASE_DIR/clock"
+  if (poll_uptime_locations check false 2 0 3) 2>/dev/null; then exit 1; fi
+  test "$(wc -l < "$CASE_DIR/queries" | tr -d " ")" = 1
+  test "$(cat "$CASE_DIR/waits")" = 5
+  uptime_locations() {
+    printf "query\n" >> "$CASE_DIR/queries"
+    printf "%s\n" "{\"count\":3,\"evidenceEpoch\":1999998200}"
+  }
+  poll_uptime_locations check true 3 0 1 recovery >/dev/null
+  printf "2000000000\n" > "$CASE_DIR/clock"
+  if (poll_uptime_locations check true 3 0 1 recovery) 2>/dev/null; then exit 1; fi
+  test "$(wc -l < "$CASE_DIR/queries" | tr -d " ")" = 2
+' _ "$live_helper"
+pass 'polling stops at the cutoff, caps waits, and gives recovery its separate deadline'
+
+new_case live-uptime-deadline-restores
+if CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"
+  evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+  OBSERVABILITY_DEADLINE_EPOCH=2000000000
+  printf "1999998199\n" > "$CASE_DIR/clock"
+  now() { cat "$CASE_DIR/clock"; }
+  ensure_policy() { printf "projects/test-project/uptimeCheckConfigs/check-1\n"; }
+  verify_uptime_check() { :; }; verify_single_condition() { :; }
+  uptime_locations() {
+    printf "query\n" >> "$CASE_DIR/queries"
+    printf "%s\n" "{\"count\":3,\"evidenceEpoch\":1999998200}"
+  }
+  uptime_http_locations() { uptime_locations; }
+  private_request() {
+    printf "%s\n" "$2" >> "$CASE_DIR/requests"
+    printf "%s\n" "{\"status\":\"configured\"}" > "$evidence/private-response"
+    if test "$2" = /__observability/health/fail; then printf "1999998200\n" > "$CASE_DIR/clock"; fi
+  }
+  poll_health() { printf "health\n" >> "$CASE_DIR/requests"; }
+  result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+  run_o8
+' _ "$live_helper" > /dev/null 2> "$CASE_DIR/stderr"; then
+  fail 'uptime passed despite the expired fault-evidence budget'
+fi
+grep -q 'polling budget expired' "$CASE_DIR/stderr"
+grep -qx '/__observability/health/restore' "$CASE_DIR/requests"
+grep -qx 'health' "$CASE_DIR/requests"
+test "$(wc -l < "$CASE_DIR/queries" | tr -d ' ')" = 4 || fail 'expired fault poll queried the provider'
+test ! -s "$CASE_DIR/results" || fail 'uptime deadline reported a false pass'
+pass 'uptime deadline expiry still restores health and never reports a pass'
+
+new_case live-attempt-deadline
+bash -c '
+  source "$1"
+  now() { printf 1767226800; }
+  set_validation_deadline 2026-01-01T00:00:00Z
+  test "$OBSERVABILITY_DEADLINE_EPOCH" = 1767232200
+  require_fault_window 3300
+  now() { printf 1767228000; }
+  set_validation_deadline 2026-01-01T00:00:00Z
+  test "$OBSERVABILITY_DEADLINE_EPOCH" = 1767232800
+  if (require_fault_window 3300) 2>/dev/null; then exit 1; fi
+' _ "$live_helper"
+pass 'live deadline starts after preparation while preserving the attempt ceiling and restoration reserve'
+
+new_case live-expired-fault
+prepare_live_case
+expect_fail "$CASE_DIR/live-deadline.stderr" env OBSERVABILITY_DEADLINE_EPOCH=1000000000 \
+  bash -c 'source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"; private_request GET /__observability/internal 500' \
+    _ "$live_helper"
+test ! -s "$CASE_DIR/private-calls" || fail 'expired fault cutoff reached the private validation endpoint'
+( export OBSERVABILITY_DEADLINE_EPOCH=1000000000; live private_request POST /__observability/health/restore 200 )
+( export OBSERVABILITY_DEADLINE_EPOCH=1000000000; live poll_health 1 )
+grep -q $'^POST\thttps://vlrgg-query-check-test.run.app\t/__observability/health/restore$' "$CASE_DIR/private-calls"
+grep -q $'^GET\thttps://vlrgg-query-check-test.run.app\t/health$' "$CASE_DIR/private-calls"
+pass 'fault cutoff blocks new faults but never blocks explicit restore and recovery polling'
+
+new_case live-o9-exits
+env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
+  SERVICE_NAME=vlrgg-query-check CASE_DIR="$CASE_DIR" \
+  GITHUB_STEP_SUMMARY="$CASE_DIR/summary" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    system_logs() {
+      if [[ "$2" == *history.json ]]; then printf "%s\n" "{\"entries\":[]}" > "$2"
+      else printf "%s\n" "{\"entries\":[{\"resource\":{\"labels\":{\"revision_name\":\"$OBSERVABILITY_REVISION\"}},\"textPayload\":\"Container called exit(42).\"}]}" > "$2"; fi
+    }
+    private_exit() { printf "exit\n" >> "$CASE_DIR/exits"; }
+    poll_health() { :; }; ensure_policy() { printf "projects/test-project/alertPolicies/log\n"; }
+    verify_single_condition() { :; }; poll_alert_open() { printf "projects/test-project/alerts/log\n"; }
+    result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+    run_o9
+  ' _ "$live_helper"
+test "$(wc -l < "$CASE_DIR/exits" | tr -d ' ')" = 2
+grep -qx 'OOM NOT RUN' "$CASE_DIR/results"
+if grep -q 'OOM PASS' "$CASE_DIR/results"; then
+  fail 'O9 claimed OOM PASS'
+fi
+pass 'O9 uses exactly two exits only for safe discovery and never claims OOM'
+
+new_case live-o9-ambiguous
+if env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
+  SERVICE_NAME=vlrgg-query-check CASE_DIR="$CASE_DIR" \
+  GITHUB_STEP_SUMMARY="$CASE_DIR/summary" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    system_logs() {
+      if [[ "$2" == *history.json ]]; then printf "%s\n" "{\"entries\":[]}" > "$2"
+      else printf "%s\n" "{\"entries\":[{\"resource\":{\"labels\":{\"revision_name\":\"$OBSERVABILITY_REVISION\"}},\"textPayload\":\"Container called exit(42).\"},{\"resource\":{\"labels\":{\"revision_name\":\"$OBSERVABILITY_REVISION\"}},\"textPayload\":\"Container terminated exit 42\"}]}" > "$2"; fi
+    }
+    private_exit() { printf "exit\n" >> "$CASE_DIR/exits"; }
+    poll_health() { :; }; ensure_policy() { printf "policy\n"; }; verify_single_condition() { :; }
+    poll_alert_open() { printf "alert\n"; }; result() { :; }
+    run_o9
+  ' _ "$live_helper" > /dev/null 2> "$CASE_DIR/stderr"; then
+  fail 'ambiguous abnormal-exit discovery unexpectedly succeeded'
+fi
+test "$(wc -l < "$CASE_DIR/exits" | tr -d ' ')" = 1
+pass 'ambiguous O9 discovery fails before policy creation and the second exit'
+
+if grep -Fq '/__observability/internal/other' "$live_helper"; then
+  fail 'live driver includes a non-validation endpoint'
+fi
+if grep -Eq 'result OOM (PASS|RECEIPT)' "$live_helper"; then
+  fail 'live driver includes an OOM success claim'
+fi
+pass 'live driver stays on the validation harness, two Error Reporting groups, and no OOM claim'
 
 new_case expired-deadline
 service prepare >/dev/null
@@ -892,6 +1347,20 @@ grep -A3 'name: Push the image and resolve its immutable digest' "$workflow" \
   | grep -q "if: inputs.operation == 'deploy'"
 grep -A3 'name: Push the validation-only image and record its ownership' "$workflow" \
   | grep -q "if: inputs.operation == 'observability-validate'"
+live_step="$(awk '
+  /name: Run bounded private observability provider validation/ {step=1; next}
+  step && /^      - name:/ {exit}
+  step {print}
+' "$workflow")"
+grep -q 'bash .github/scripts/observability-live.sh' <<< "$live_step"
+grep -q 'started_at="$(gh api' <<< "$live_step"
+grep -q 'export OBSERVABILITY_WORKFLOW_STARTED_AT="$started_at"' <<< "$live_step"
+grep -q 'attempts/\$GITHUB_RUN_ATTEMPT' <<< "$live_step"
+grep -q 'GCP_OBSERVABILITY_NOTIFICATION_CHANNELS_JSON' <<< "$live_step"
+! grep -Eq 'GCP_PROJECT_NUMBER|GCP_MONITORING_SERVICE_AGENT' <<< "$live_step" \
+  || fail 'workflow still trusts redundant project-number or Google-managed identity secrets'
+! grep -q '/__observability/internal' <<< "$live_step" \
+  || fail 'workflow retained an endpoint-only inline validation path'
 grep -A10 'name: Guard or prepare the validation recovery journal' "$workflow" \
   | grep -q 'OBSERVABILITY_DEADLINE_EPOCH=.*5400'
 grep -A6 'name: Restore the shared validation service' "$workflow" \
