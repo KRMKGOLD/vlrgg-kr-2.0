@@ -289,12 +289,23 @@ run_o3_o6() {
   while test "$attempts" -gt 0; do
     poll_budget fault
     log_entries "$start" "$evidence/application-logs.json"
-    if jq -e --arg service "$SERVICE_NAME" --arg revision "$OBSERVABILITY_REVISION" \
+    # A managed frontend can provide trace context; verify correlation, not log order or absence.
+    if jq -e --arg project "$PROJECT_ID" --arg service "$SERVICE_NAME" --arg revision "$OBSERVABILITY_REVISION" \
     --arg trace "projects/$PROJECT_ID/traces/$trace" '
     [.entries[]? | select(.jsonPayload.serviceContext.service == $service and
       .jsonPayload.serviceContext.version == $revision and .severity == "ERROR" and
       (.jsonPayload.category | IN("INTERNAL","SOURCE_PARSING")))] as $errors |
     [$errors[] | select(.jsonPayload.category == "INTERNAL")] as $internal |
+    [.entries[]?] as $request_logs |
+    def valid_managed_trace:
+      (.trace | type) == "string" and
+      (.trace | test("^projects/" + $project + "/traces/[0-9a-f]{32}$")) and
+      (.trace as $managed_trace |
+        any($request_logs[]?;
+          .trace == $managed_trace and
+          ((.logName // "") | endswith("/logs/run.googleapis.com%2Frequests")) and
+          .httpRequest.status == 500 and
+          ((.httpRequest.requestUrl // "") | endswith("/__observability/internal"))));
     ([$errors[] | .jsonPayload.category] | unique | length) == 2 and
     ($internal | length) == 4 and
     all($internal[];
@@ -307,7 +318,7 @@ run_o3_o6() {
       ([.jsonPayload.truncation | keys[]] == ["accessor_failure","bytes","candidates","causes","cycle","frames"]) and
       ([.jsonPayload.truncation[] | type] | all(. == "boolean")) and
       (.jsonPayload | has("logging.googleapis.com/trace") | not)) and
-    $internal[0].trace == $trace and ($internal[1] | has("trace") | not) and
+    all($internal[]; (has("trace") | not) or valid_managed_trace) and
     ([$internal[] | select(.trace == $trace)] | length) == 1 and
     any(.entries[]?; .trace == $trace and
       ((.logName // "") | endswith("/logs/run.googleapis.com%2Frequests")) and .httpRequest.status == 500) and
