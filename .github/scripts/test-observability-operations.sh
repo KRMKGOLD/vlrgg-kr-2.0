@@ -822,13 +822,14 @@ pass 'live driver exposes only fixed errors when provider inventory fails'
 
 new_case live-api-provider-errors
 if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
-  source "$1"; evidence="$CASE_DIR/evidence-http403"; mkdir -p "$evidence"
+  source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-http403"; mkdir -p "$evidence"
   gcloud() { printf "%s\n" "token-SECRET"; }
   curl() {
+    printf "%s\n" "$*" > "$CASE_DIR/curl-args"
     local output=; while test "$#" -gt 0; do
       if test "$1" = --output; then output="$2"; shift 2; else shift; fi
     done
-    printf "%s\n" "secret@example.invalid https://secret.example.invalid body=SECRET_BODY token-SECRET project-secret" > "$output"
+    printf "%s\n" "{\"error\":{\"code\":403,\"message\":\"SECRET_BODY secret@example.invalid\",\"status\":\"PERMISSION_DENIED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.ErrorInfo\",\"reason\":\"SERVICE_DISABLED\",\"domain\":\"secret.example.invalid\",\"metadata\":{\"consumer\":\"projects/project-secret\",\"account\":\"token-SECRET\",\"url\":\"https://secret.example.invalid\"}},{\"@type\":\"type.googleapis.com/google.rpc.ErrorInfo\",\"reason\":\"HOSTILE_UNKNOWN_REASON\",\"domain\":\"secret.example.invalid\",\"metadata\":{\"project\":\"project-secret\"}}]}}" > "$output"
     printf "%s" 403
     printf "%s\n" "provider secret@example.invalid https://secret.example.invalid body=SECRET_BODY token-SECRET project-secret" >&2
     return 22
@@ -837,16 +838,70 @@ if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
 ' _ "$live_helper" > "$CASE_DIR/api-http403.stdout" 2> "$CASE_DIR/api-http403.stderr"; then
   fail 'provider HTTP 403 unexpectedly succeeded'
 fi
-grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22).' \
+if grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22).' \
+  "$CASE_DIR/api-http403.stderr"; then
+  fail 'recognized provider reason was not classified'
+fi
+grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22, reason SERVICE_DISABLED).' \
   "$CASE_DIR/api-http403.stderr"
 ! grep -Eq 'secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
   "$CASE_DIR/api-http403.stdout" "$CASE_DIR/api-http403.stderr" \
   || fail 'provider HTTP 403 leaked protected request data'
 grep -Eq 'secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
-  "$CASE_DIR/evidence-http403/provider-error"
+  "$CASE_DIR/evidence-http403/alerts.json"
+grep -Fq -- '--fail-with-body' "$CASE_DIR/curl-args"
+grep -Fq -- '--header X-Goog-User-Project: test-project' "$CASE_DIR/curl-args"
 
 if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
-  source "$1"; evidence="$CASE_DIR/evidence-http000"; mkdir -p "$evidence"
+  source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-unknown"; mkdir -p "$evidence"
+  gcloud() { printf "%s\n" "token-SECRET"; }
+  curl() {
+    local output=; while test "$#" -gt 0; do
+      if test "$1" = --output; then output="$2"; shift 2; else shift; fi
+    done
+    printf "%s\n" "{\"error\":{\"message\":\"SECRET_BODY secret@example.invalid\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.ErrorInfo\",\"reason\":\"HOSTILE_UNKNOWN_REASON\",\"domain\":\"secret.example.invalid\",\"metadata\":{\"project\":\"project-secret\",\"account\":\"token-SECRET\"}}]}}" > "$output"
+    printf "%s" 403
+    return 22
+  }
+  api GET "https://monitoring.googleapis.com/v3/projects/test-project/alerts?pageSize=1" "$evidence/alerts.json"
+' _ "$live_helper" > "$CASE_DIR/api-unknown.stdout" 2> "$CASE_DIR/api-unknown.stderr"; then
+  fail 'unknown provider reason unexpectedly succeeded'
+fi
+grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22).' \
+  "$CASE_DIR/api-unknown.stderr"
+! grep -Eq 'HOSTILE_UNKNOWN_REASON|secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
+  "$CASE_DIR/api-unknown.stdout" "$CASE_DIR/api-unknown.stderr" \
+  || fail 'unknown provider reason leaked protected request data'
+
+for fixture in malformed plain; do
+  if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" FIXTURE="$fixture" bash -c '
+    source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-$FIXTURE"; mkdir -p "$evidence"
+    gcloud() { printf "%s\n" "token-SECRET"; }
+    curl() {
+      local output=; while test "$#" -gt 0; do
+        if test "$1" = --output; then output="$2"; shift 2; else shift; fi
+      done
+      if test "$FIXTURE" = malformed; then
+        printf "%s\n" "not-json SECRET_BODY secret@example.invalid token-SECRET" > "$output"
+      else
+        printf "%s\n" "plain SECRET_BODY secret@example.invalid token-SECRET project-secret" > "$output"
+      fi
+      printf "%s" 403
+      return 22
+    }
+    api GET "https://monitoring.googleapis.com/v3/projects/test-project/alerts?pageSize=1" "$evidence/alerts.json"
+  ' _ "$live_helper" > "$CASE_DIR/api-$fixture.stdout" 2> "$CASE_DIR/api-$fixture.stderr"; then
+    fail "provider $fixture unexpectedly succeeded"
+  fi
+  grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22).' \
+    "$CASE_DIR/api-$fixture.stderr"
+  ! grep -Eq 'secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
+    "$CASE_DIR/api-$fixture.stdout" "$CASE_DIR/api-$fixture.stderr" \
+    || fail "provider $fixture leaked protected request data"
+done
+
+if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-http000"; mkdir -p "$evidence"
   gcloud() { printf "%s\n" "token-SECRET"; }
   curl() {
     local output=; while test "$#" -gt 0; do
@@ -862,7 +917,7 @@ grep -Fxq 'Observability live validation failed: Provider request failed: monito
   "$CASE_DIR/api-http000.stderr"
 
 env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
-  source "$1"; evidence="$CASE_DIR/evidence-http200"; mkdir -p "$evidence"
+  source "$1"; PROJECT_ID=test-project; export PROJECT_ID; evidence="$CASE_DIR/evidence-http200"; mkdir -p "$evidence"
   gcloud() { printf "%s\n" "token-SECRET"; }
   curl() {
     local output=; while test "$#" -gt 0; do
