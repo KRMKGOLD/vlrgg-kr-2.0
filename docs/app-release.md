@@ -1,19 +1,19 @@
 # 앱 내부 배포 절차 (#112 / #117)
 
-개발자 계정이 없는 상태에서 Android 내부 테스트와 iOS TestFlight 배포 절차를 준비했다. 계정 등록, 앱 소유권·서명 확인, GitHub environment 연결, 실제 업로드·설치·실기기 검증은 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)에서 진행한다. 정식 스토어 공개 출시는 포함하지 않는다.
+Google Play 개발자 계정은 등록됐지만 앱은 아직 생성하지 않았고, Apple 개발자 계정은 없는 상태에서 Android 내부 테스트와 iOS TestFlight 배포 절차를 준비했다. 계정 등록, 앱 소유권·서명 확인, GitHub environment 연결, 실제 업로드·설치·실기기 검증은 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)에서 진행한다. 정식 스토어 공개 출시는 포함하지 않는다.
 
-2026-09-22부터 **Android Google Play 내부 테스트를 먼저 진행한다.** iOS는 개발자 계정이 없어 서명·TestFlight 배포를 보류한다. 기존 iOS SDK·빌드 CI는 유지하며, Apple 계정은 Android 배포의 선행 조건이 아니다.
+2026-09-22부터 **Android Google Play 내부 테스트를 먼저 진행한다.** iOS는 Apple 개발자 계정이 없어 서명·TestFlight 배포를 보류한다. 기존 iOS SDK·빌드 CI는 유지하며, Apple 계정은 Android 배포의 선행 조건이 아니다.
 
 ## 준비 현황 (2026-09-22)
 
 | 항목 | 확인된 상태 | 다음 완료 조건 |
 | --- | --- | --- |
 | 배포 코드·Crashlytics | #112·#119·#121 완료, 수동 Android workflow 있음 | 배포할 정확한 main SHA의 CI 성공 |
-| Play Console 계정·앱 | 사용자 확인: 개발자 계정 등록 완료, 앱 미등록 | 운영 소유자·Console 잔여 검증 확인 후 앱 생성 |
+| Play Console 계정·앱 | 사용자 확인: Google Play 개발자 계정 등록 완료, 앱 미생성 | 운영 소유자·Console 잔여 검증 확인 후 앱 생성 |
 | Android 서명·Play API 인증 | `android-internal`에는 Firebase 설정 secret만 있음. 저장소 공통 secret 없음 | 아래 Android signing/API secrets 연결 |
 | 환경 보호·배포 허용 | main 제한 있음, required reviewer 없음, 배포 허용 variable 미설정 | 실제 운영자 기준 승인 정책 확정 후 마지막에 허용 |
 | 첫 AAB·테스터 설치 | 미실행 | 최초 수동 등록 → 내부 테스트 설치 → 후속 Actions 배포 검증 |
-| iOS | 사용자 확인: 계정 없음 | 계정 준비 후 별도 진행, 배포 허용은 계속 OFF |
+| iOS | 사용자 확인: Apple 개발자 계정 없음 | 계정 준비 후 별도 진행, 배포 허용은 계속 OFF |
 
 절차 준비와 실제 배포 완료를 구분한다. 계정 확인·키 생성·권한 부여·secret 등록·업로드는 각 단계의 대상과 입력이 확인된 뒤 수행한다.
 
@@ -95,7 +95,7 @@ Fastlane `supply`는 **앱의 수동 초기 설정과 최소 한 번의 빌드 �
 
 최초 등록용 AAB만 신뢰하는 로컬 환경의 깨끗한 전용 checkout에서 만든다. GitHub Actions의 공개 artifact나 Release에는 올리지 않는다. 이 단계는 Gradle 빌드와 Console 수동 업로드이며, Actions 전용 Fastlane lane을 로컬에서 실행하는 예외가 아니다.
 
-빌드 전 `SOURCE_SHA`를 성공한 main CI의 전체 SHA로 고정하고 그 checkout으로 이동한다. Console에서 미사용 `APP_VERSION`·`APP_BUILD_NUMBER`를 정한다. Java 21과 Android SDK를 준비하고 `API_BASE_URL`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `FIREBASE_ANDROID_CONFIG_BASE64`를 포함한 빌드 입력은 비공개 환경 변수로 export한다. 아래 예시는 원본 파일을 직접 사용하지 않고 메모리의 base64 입력에서 일회용 키·설정을 만든다. 보관소에서 입력을 준비할 때 다운로드한 작업 복사본이 있으면 입력 확인 후 삭제하고, 전용 비공개 셸은 작업 후 종료한다.
+빌드 전 `SOURCE_SHA`를 성공한 main CI의 전체 SHA로 고정하고 그 checkout으로 이동한다. Console에서 미사용 `APP_VERSION`·`APP_BUILD_NUMBER`를 정한다. Java 21과 Android SDK, 해당 저장소 Actions 실행 조회 권한(`actions: read`)으로 인증한 GitHub CLI `gh`, Python 3, Ruby `3.3.7`을 준비하고 `API_BASE_URL`, `APP_VERSION`, `APP_BUILD_NUMBER`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `FIREBASE_ANDROID_CONFIG_BASE64`를 포함한 빌드 입력은 비공개 환경 변수로 export한다. 아래 예시는 원본 파일을 직접 사용하지 않고 메모리의 base64 입력에서 일회용 키·설정을 만든다. 보관소에서 입력을 준비할 때 다운로드한 작업 복사본이 있으면 입력 확인 후 삭제하고, 전용 비공개 셸은 작업 후 종료한다.
 
 ```bash
 (
