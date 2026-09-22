@@ -62,15 +62,23 @@ api() {
     chmod 600 "$output"
     return
   fi
+  local endpoint=provider status curl_exit=0
+  local -a body_args=(--header @-)
+  case "$url" in
+    "$monitoring_root"/projects/*/alerts\?*) endpoint=monitoring.alerts.list ;;
+    "$error_root"/projects/*/groupStats\?*) endpoint=errorreporting.groupStats.list ;;
+    "$monitoring_root"/projects/*/notificationChannels/*) endpoint=monitoring.notificationChannels.get ;;
+  esac
   token="$(gcloud auth print-access-token 2>/dev/null)" || fail 'Could not obtain a provider access token.'
   if test -n "$body"; then
-    curl -q --silent --show-error --fail --connect-timeout 5 --max-time 30 --request "$method" \
-      --header @- --header 'Content-Type: application/json' --data-binary "@$body" --output "$output" "$url" \
-      <<< "Authorization: Bearer $token" 2> "$error" || fail 'A bounded provider request failed.'
-  else
-    curl -q --silent --show-error --fail --connect-timeout 5 --max-time 30 --request "$method" \
-      --header @- --output "$output" "$url" <<< "Authorization: Bearer $token" 2> "$error" \
-      || fail 'A bounded provider request failed.'
+    body_args+=(--header 'Content-Type: application/json' --data-binary "@$body")
+  fi
+  status="$(curl -q --silent --show-error --fail --connect-timeout 5 --max-time 30 --request "$method" \
+    "${body_args[@]}" --output "$output" --write-out '%{http_code}' "$url" \
+    <<< "Authorization: Bearer $token" 2> "$error")" || curl_exit=$?
+  [[ "$status" =~ ^[0-9]{3}$ ]] || status=000
+  if test "$curl_exit" -ne 0 || [[ "$status" != 2[0-9][0-9] ]]; then
+    fail "Provider request failed: $endpoint (HTTP $status, curl $curl_exit)."
   fi
   chmod 600 "$output" "$error"
 }
@@ -169,8 +177,37 @@ private_request() {
   test "$status" = "$expected" || fail 'A private validation endpoint returned an unexpected status.'
 }
 
+# Read-only provider checks also run before creating a recovery journal or revision.
+provider_preflight() {
+  local channel channels service_filter version_filter
+  require_env PROJECT_ID; require_env SERVICE_NAME; require_env OBSERVABILITY_REVISION
+  require_env OBSERVABILITY_NOTIFICATION_CHANNELS_JSON
+  [[ "$PROJECT_ID" =~ ^[a-z][a-z0-9-]{4,61}[a-z0-9]$ ]] || fail 'Invalid project identifier.'
+  test "$SERVICE_NAME" = vlrgg-query-check || fail 'Provider checks require the private validation service.'
+  [[ "$OBSERVABILITY_REVISION" =~ ^vlrgg-query-check-o[0-9]+-[0-9]+$ ]] || fail 'Invalid run-owned revision.'
+  api GET "$monitoring_root/projects/$PROJECT_ID/alerts?pageSize=1" "$evidence/alerts-preflight.json"
+  jq -e '(.alerts // []) | type == "array"' "$evidence/alerts-preflight.json" >/dev/null \
+    || fail 'Monitoring alerts API preflight failed.'
+  service_filter="$(jq -rn --arg value "$SERVICE_NAME" '$value|@uri')"
+  version_filter="$(jq -rn --arg value "$OBSERVABILITY_REVISION" '$value|@uri')"
+  api GET "$error_root/projects/$PROJECT_ID/groupStats?serviceFilter.service=$service_filter&serviceFilter.version=$version_filter&timeRange.period=PERIOD_1_HOUR&pageSize=1" \
+    "$evidence/error-reporting-preflight.json"
+  jq -e '((.errorGroupStats // []) | type) == "array" and
+    ((.nextPageToken // "") | type) == "string" and
+    (.timeRangeBegin | type) == "string"' "$evidence/error-reporting-preflight.json" >/dev/null \
+    || fail 'Error Reporting API preflight failed.'
+  channels="$(jq -cer --arg prefix "projects/$PROJECT_ID/notificationChannels/" '
+    select(type == "array" and length > 0 and length <= 5 and
+      all(.[]; type == "string" and startswith($prefix) and length <= 256)) | unique
+  ' <<< "$OBSERVABILITY_NOTIFICATION_CHANNELS_JSON")" || fail 'Invalid protected notification channel list.'
+  while IFS= read -r channel; do
+    api GET "$monitoring_root/$channel" "$evidence/channel.json"
+    jq -e --arg name "$channel" '.name == $name and .enabled == true' "$evidence/channel.json" >/dev/null \
+      || fail 'The protected notification channel is not enabled.'
+  done < <(jq -r '.[]' <<< "$channels")
+}
+
 preflight() {
-  local channel channels
   require_env PROJECT_ID; require_env REGION; require_env SERVICE_NAME; require_env VALIDATION_SERVICE
   require_env OBSERVABILITY_RUN; require_env OBSERVABILITY_REVISION; require_env OBSERVABILITY_DEADLINE_EPOCH
   require_env SMOKE_URL; require_env SMOKE_ID_TOKEN; require_env RUNNER_TEMP; require_env GITHUB_STEP_SUMMARY
@@ -192,27 +229,7 @@ preflight() {
   require_fault_time
   guard_target
 
-  api GET "$monitoring_root/projects/$PROJECT_ID/alerts?pageSize=1" "$evidence/alerts-preflight.json"
-  jq -e '(.alerts // []) | type == "array"' "$evidence/alerts-preflight.json" >/dev/null \
-    || fail 'Monitoring alerts API preflight failed.'
-  local service_filter version_filter
-  service_filter="$(jq -rn --arg value "$SERVICE_NAME" '$value|@uri')"
-  version_filter="$(jq -rn --arg value "$OBSERVABILITY_REVISION" '$value|@uri')"
-  api GET "$error_root/projects/$PROJECT_ID/groupStats?serviceFilter.service=$service_filter&serviceFilter.version=$version_filter&timeRange.period=PERIOD_1_HOUR&pageSize=1" \
-    "$evidence/error-reporting-preflight.json"
-  jq -e '((.errorGroupStats // []) | type) == "array" and
-    ((.nextPageToken // "") | type) == "string" and
-    (.timeRangeBegin | type) == "string"' "$evidence/error-reporting-preflight.json" >/dev/null \
-    || fail 'Error Reporting API preflight failed.'
-  channels="$(jq -cer --arg prefix "projects/$PROJECT_ID/notificationChannels/" '
-    select(type == "array" and length > 0 and length <= 5 and
-      all(.[]; type == "string" and startswith($prefix) and length <= 256)) | unique
-  ' <<< "$OBSERVABILITY_NOTIFICATION_CHANNELS_JSON")" || fail 'Invalid protected notification channel list.'
-  while IFS= read -r channel; do
-    api GET "$monitoring_root/$channel" "$evidence/channel.json"
-    jq -e --arg name "$channel" '.name == $name and .enabled == true' "$evidence/channel.json" >/dev/null \
-      || fail 'The protected notification channel is not enabled.'
-  done < <(jq -r '.[]' <<< "$channels")
+  provider_preflight
   private_request GET /health 200
   jq -e '.status == "ok"' "$evidence/private-response" >/dev/null || fail 'Private health body mismatch.'
   result preflight PASS

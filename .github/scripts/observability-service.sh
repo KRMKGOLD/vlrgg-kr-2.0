@@ -320,10 +320,10 @@ restore() {
     || fail 'Baseline revision template hash changed.'
 
   service="$(get_service)"
-  patch_service "$service" traffic "$(jq -cn --arg revision "$baseline" \
+  patch_service "$service" traffic "$(jq -cn --arg revision "${baseline##*/}" \
     '{traffic:[{type:"TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",revision:$revision,percent:100}]}')"
   service="$(get_service)"
-  jq -e --arg revision "$baseline" '[.traffic[]? | select((.percent // 0) > 0)] |
+  jq -e --arg revision "${baseline##*/}" '[.traffic[]? | select((.percent // 0) > 0)] |
     length == 1 and .[0].percent == 100 and .[0].revision == $revision and (. [0].tag // "") == ""' \
     <<< "$service" >/dev/null || fail 'Baseline traffic restoration did not persist.'
 
