@@ -672,7 +672,7 @@ run_o7() {
   for _ in $(seq 1 12); do
     poll_budget recovery
     private_request GET /health 200
-    recovery_sample="$(poll_recovery 1 2>/dev/null || true)"
+    recovery_sample="$(poll_recovery 1 2>/dev/null)" || recovery_sample=""
     test -z "$recovery_sample" || break
     poll_budget recovery "$poll_seconds"
   done
