@@ -74,7 +74,7 @@ internal class FailureEventFormatter(
             })
             put("message", JsonPrimitive(stack.message(failure.errorCode)))
             put("truncation", buildJsonObject {
-                put("frames", JsonPrimitive(stack.frameLimitReached))
+                put("frames", JsonPrimitive(stack.frameLimitReached || stack.frameOmitted))
                 put("causes", JsonPrimitive(stack.causeLimitReached))
                 put("candidates", JsonPrimitive(stack.candidateLimitReached))
                 put("cycle", JsonPrimitive(stack.cycleDetected))
@@ -119,7 +119,11 @@ internal class FailureEventFormatter(
                     break
                 }
                 candidates += 1
-                val frame = safeFrame(raw, result) ?: continue
+                val frame = safeFrame(raw, result)
+                if (frame == null) {
+                    result.frameOmitted = true
+                    continue
+                }
                 if (frames >= MAX_FRAMES) {
                     result.frameLimitReached = true
                     continue
@@ -232,6 +236,7 @@ internal class FailureEventFormatter(
 private class SafeStack(
     val sections: MutableList<StackSection> = mutableListOf(),
     var frameLimitReached: Boolean = false,
+    var frameOmitted: Boolean = false,
     var causeLimitReached: Boolean = false,
     var candidateLimitReached: Boolean = false,
     var cycleDetected: Boolean = false,

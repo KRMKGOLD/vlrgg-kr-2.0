@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly service_helper="$script_dir/observability-service.sh"
 readonly monitoring_root="${MONITORING_API_ROOT:-https://monitoring.googleapis.com/v3}"
 readonly owner='issue122-validation'
 
@@ -205,7 +207,7 @@ mutation_journal() {
   test "$SERVICE_NAME" = vlrgg-query-check || fail 'Policy mutations are limited to the validation service.'
   export VALIDATION_SERVICE=vlrgg-query-check
   local journal
-  journal="$(.github/scripts/observability-service.sh read)" || fail 'An active validation journal is required.'
+  journal="$("$service_helper" read)" || fail 'An active validation journal is required.'
   test "$(jq -er '.run' <<< "$journal")" = "$OBSERVABILITY_RUN" || fail 'Validation journal owner mismatch.'
   printf '%s\n' "$journal"
 }
@@ -244,8 +246,8 @@ ensure_monitoring_invoker() {
 
   if ! jq -e 'has("iam")' <<< "$journal" >/dev/null; then
     jq -e 'has("pending") | not' <<< "$journal" >/dev/null || fail 'Another journal mutation is pending.'
-    .github/scripts/observability-service.sh pending iam "$principal"
-    .github/scripts/observability-service.sh iam "$principal" "$existed"
+    "$service_helper" pending iam "$principal"
+    "$service_helper" iam "$principal" "$existed"
     journal="$(mutation_journal)"
   fi
   jq -e --arg principal "$principal" '.iam.principal == $principal' <<< "$journal" >/dev/null \
@@ -259,7 +261,7 @@ ensure_monitoring_invoker() {
     return
   fi
   if ! jq -e '.pending.kind == "iam-add" and .pending.target == .iam.principal' <<< "$journal" >/dev/null; then
-    .github/scripts/observability-service.sh pending iam-add "$principal"
+    "$service_helper" pending iam-add "$principal"
   fi
   if test "$existed" = false; then
     gcloud_mutate run services add-iam-policy-binding "$SERVICE_NAME" --quiet \
@@ -272,7 +274,7 @@ ensure_monitoring_invoker() {
     any(.bindings[]?; .role == "roles/run.invoker" and (has("condition") | not) and
       any(.members[]?; . == $member))
   ' <<< "$policy" >/dev/null || fail 'Monitoring invoker binding read-back failed.'
-  .github/scripts/observability-service.sh iam-added
+  "$service_helper" iam-added
 }
 
 ensure() {
@@ -315,13 +317,13 @@ ensure() {
         <<< "$journal" >/dev/null || fail 'Existing owned resource is not journaled or pending.'
       resource_kind=policy
       test "$kind" = uptime && resource_kind=uptime
-      .github/scripts/observability-service.sh resource "$resource_kind" "$name"
+      "$service_helper" resource "$resource_kind" "$name"
     fi
     printf '%s\n' "$name"
     return
   fi
   jq -e 'has("pending") | not' <<< "$journal" >/dev/null || fail 'Another journal mutation is pending.'
-  .github/scripts/observability-service.sh pending "$kind" "$kind"
+  "$service_helper" pending "$kind" "$kind"
   body="$(mktemp)"
   printf '%s\n' "$desired" > "$body"
   response="$(http POST "$monitoring_root/projects/$PROJECT_ID/$collection" "$body")"
@@ -330,7 +332,7 @@ ensure() {
   [[ "$name" == projects/"$PROJECT_ID"/"$collection"/* ]] || fail 'Unexpected created resource name.'
   resource_kind=policy
   test "$kind" = uptime && resource_kind=uptime
-  .github/scripts/observability-service.sh resource "$resource_kind" "$name"
+  "$service_helper" resource "$resource_kind" "$name"
   printf '%s\n' "$name"
 }
 
@@ -359,7 +361,7 @@ disable() {
   jq -e --arg name "$name" 'any(.resources[]?; .kind == "policy" and .name == $name and .owned == true)' \
     <<< "$journal" >/dev/null || fail 'Policy is not owned by the active journal.'
   if ! jq -e 'has("pending")' <<< "$journal" >/dev/null; then
-    .github/scripts/observability-service.sh pending disable-policy "$name"
+    "$service_helper" pending disable-policy "$name"
   else
     jq -e --arg name "$name" '.pending.kind == "disable-policy" and .pending.target == $name' \
       <<< "$journal" >/dev/null || fail 'Another journal mutation is pending.'
@@ -372,7 +374,7 @@ disable() {
   printf '%s\n' '{"enabled":false}' > "$body"
   http PATCH "$monitoring_root/$name?updateMask=enabled" "$body" >/dev/null
   rm -f "$body"
-  .github/scripts/observability-service.sh clear-pending disable-policy "$name"
+  "$service_helper" clear-pending disable-policy "$name"
 }
 
 delete_owned() {

@@ -11,6 +11,7 @@ service_helper="$repo_root/.github/scripts/observability-service.sh"
 policy_helper="$repo_root/.github/scripts/observability-policies.sh"
 cleanup_helper="$repo_root/.github/scripts/observability-cleanup.sh"
 workflow="$repo_root/.github/workflows/deploy-server.yml"
+preflight_script="$work_dir/preflight.sh"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
@@ -204,6 +205,31 @@ case "$1 $2 ${3:-}" in
 esac
 STUB
 chmod +x "$work_dir/bin/gcloud"
+
+cat > "$work_dir/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$CASE_DIR/gh-calls"
+case "$*" in
+  "api repos/test-repository/git/ref/heads/main --jq .object.sha")
+    printf '%s\n' test-sha ;;
+  "api repos/test-repository/actions/workflows/ci.yml/runs?event=push&branch=main&head_sha=test-sha&per_page=1")
+    printf '%s\n' '{"workflow_runs":[{"head_sha":"test-sha","head_branch":"main","event":"push","conclusion":"success"}]}' ;;
+  *)
+    echo 'unexpected gh call' >&2
+    exit 1 ;;
+esac
+STUB
+chmod +x "$work_dir/bin/gh"
+
+awk '
+  /^      - name: Require enabled deployment and successful CI for this main commit$/ { step = 1; next }
+  step && /^      - name:/ { exit }
+  step && /^        run: \|$/ { code = 1; next }
+  code { sub(/^          /, ""); print }
+' "$workflow" > "$preflight_script"
+test -s "$preflight_script"
+bash -n "$preflight_script"
 export PATH="$work_dir/bin:$PATH"
 export OBSERVABILITY_DEADLINE_EPOCH="$(($(date +%s) + 3600))"
 unset GOOGLE_APPLICATION_CREDENTIALS CLOUDSDK_AUTH_ACCESS_TOKEN CLOUDSDK_CORE_PROJECT || true
@@ -252,6 +278,49 @@ policy() {
     OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
     OBSERVABILITY_CONFIRMED_RECEIVERS=true "$policy_helper" "$@"
 }
+
+run_preflight_case() {
+  local operation="$1" enabled="$2" expected="$3" result=0
+  CASE_DIR="$work_dir/preflight-$operation-${enabled:-unset}"
+  export CASE_DIR
+  mkdir -p "$CASE_DIR"
+  : > "$CASE_DIR/gh-calls"
+  if test "$enabled" = unset; then
+    env -u DEPLOY_ENABLED PATH="$work_dir/bin:$PATH" OPERATION="$operation" PROJECT_ID=test-project \
+      WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
+      RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=test-sha \
+      GITHUB_REPOSITORY=test-repository GH_TOKEN=test-token \
+      bash --noprofile --norc -e -o pipefail "$preflight_script" \
+      > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || result=$?
+  else
+    env PATH="$work_dir/bin:$PATH" OPERATION="$operation" DEPLOY_ENABLED="$enabled" PROJECT_ID=test-project \
+      WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
+      RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=test-sha \
+      GITHUB_REPOSITORY=test-repository GH_TOKEN=test-token \
+      bash --noprofile --norc -e -o pipefail "$preflight_script" \
+      > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || result=$?
+  fi
+  if test "$expected" = pass; then
+    test "$result" = 0 || fail "preflight rejected $operation with enable=$enabled"
+    test "$(wc -l < "$CASE_DIR/gh-calls" | tr -d ' ')" = 2 \
+      || fail "preflight skipped required GitHub checks for $operation with enable=$enabled"
+  else
+    test "$result" != 0 || fail "preflight accepted $operation with enable=$enabled"
+    test ! -s "$CASE_DIR/gh-calls" \
+      || fail "rejected preflight reached GitHub checks for $operation with enable=$enabled"
+  fi
+}
+
+for operation in deploy observability-validate; do
+  run_preflight_case "$operation" true pass
+  run_preflight_case "$operation" false reject
+  run_preflight_case "$operation" unset reject
+done
+for enabled in true false unset; do
+  run_preflight_case observability-restore "$enabled" pass
+  run_preflight_case unknown "$enabled" reject
+done
+pass 'workflow preflight allows disabled restore only and retains operation, main SHA, and CI checks'
 
 new_case journal
 journal="$(service prepare)"
@@ -683,7 +752,57 @@ expect_fail "$CASE_DIR/shared-image.stderr" env PATH="$work_dir/bin:$PATH" \
   || fail 'cleanup deleted a shared image digest'
 jq -e --arg image "$image_digest" 'any(.resources[]; .kind=="image" and .name==$image)' \
   <<< "$(service read)" >/dev/null
-pass 'cleanup retains shared image digests without exact run tag proof'
+jq -n --arg package "${image_digest%@sha256:*}" --arg version 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
+  '[{package:$package,version:$version,tags:["sha-999-1"]}]' > "$CASE_DIR/gcloud-images.json"
+: > "$CASE_DIR/gcloud-calls"
+expect_fail "$CASE_DIR/other-run-image.stderr" env PATH="$work_dir/bin:$PATH" \
+  PROJECT_ID=test-project REGION=test-region VALIDATION_SERVICE=vlrgg-query-check \
+  OBSERVABILITY_RUN=123-1 OBSERVABILITY_HTTP="$work_dir/http" "$cleanup_helper" cleanup
+! grep -q '^artifacts docker images delete' "$CASE_DIR/gcloud-calls" \
+  || fail 'cleanup deleted another run image digest'
+jq -n --arg package "${image_digest%@sha256:*}" --arg version 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
+  '[{package:$package,version:$version,tags:["sha-123-1"]}]' > "$CASE_DIR/gcloud-images.json"
+jq -n --arg image "$image_digest" '[{spec:{containers:[{image:$image}]},status:{imageDigest:$image}}]' \
+  > "$CASE_DIR/gcloud-revisions.json"
+: > "$CASE_DIR/gcloud-calls"
+expect_fail "$CASE_DIR/referenced-image.stderr" env PATH="$work_dir/bin:$PATH" \
+  PROJECT_ID=test-project REGION=test-region VALIDATION_SERVICE=vlrgg-query-check \
+  OBSERVABILITY_RUN=123-1 OBSERVABILITY_HTTP="$work_dir/http" "$cleanup_helper" cleanup
+! grep -q '^artifacts docker images delete' "$CASE_DIR/gcloud-calls" \
+  || fail 'cleanup deleted a revision-referenced image digest'
+pass 'cleanup retains shared, other-run, and revision-referenced images'
+
+new_case cleanup-owned-image
+service prepare >/dev/null
+image_tag='test-region-docker.pkg.dev/test-project/repo/query-observability:sha-123-1'
+image_digest='test-region-docker.pkg.dev/test-project/repo/query-observability@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
+service pending image "$image_tag" >/dev/null
+service resource image "$image_digest" >/dev/null
+jq -n --arg package "${image_digest%@sha256:*}" --arg version 'sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' \
+  '[{package:$package,version:$version,tags:["sha-123-1"]}]' > "$CASE_DIR/gcloud-images.json"
+env PATH="$work_dir/bin:$PATH" PROJECT_ID=test-project REGION=test-region \
+  VALIDATION_SERVICE=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
+  OBSERVABILITY_HTTP="$work_dir/http" "$cleanup_helper" restore
+env PATH="$work_dir/bin:$PATH" PROJECT_ID=test-project REGION=test-region \
+  VALIDATION_SERVICE=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
+  OBSERVABILITY_HTTP="$work_dir/http" "$cleanup_helper" cleanup
+grep -qx "artifacts docker images delete $image_digest --quiet --delete-tags" "$CASE_DIR/gcloud-calls"
+jq -e '.phase=="verified" and .resources==[] and (has("pending")|not)' <<< "$(service read)" >/dev/null
+service clear >/dev/null
+jq -e '.annotations["vlrgg-observability-validation"]==null' "$CASE_DIR/service.json" >/dev/null
+pass 'cleanup deletes one provider-format run-owned image and clears its journal last'
+
+new_case non-root-cwd
+service prepare >/dev/null
+(cd "$work_dir" && policy ensure 5xx >/dev/null)
+(cd "$work_dir" && env PATH="$work_dir/bin:$PATH" PROJECT_ID=test-project REGION=test-region \
+  VALIDATION_SERVICE=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
+  OBSERVABILITY_HTTP="$work_dir/http" "$cleanup_helper" restore)
+(cd "$work_dir" && env PATH="$work_dir/bin:$PATH" PROJECT_ID=test-project REGION=test-region \
+  VALIDATION_SERVICE=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
+  OBSERVABILITY_HTTP="$work_dir/http" "$cleanup_helper" cleanup)
+jq -e '.phase=="verified" and .resources==[]' <<< "$(service read)" >/dev/null
+pass 'policy and cleanup helpers resolve siblings outside the repository cwd'
 
 new_case sanitized-gcloud-failure
 touch "$CASE_DIR/gcloud-denied"

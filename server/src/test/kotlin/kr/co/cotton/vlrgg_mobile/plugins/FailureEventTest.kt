@@ -152,6 +152,43 @@ class FailureEventTest {
     }
 
     @Test
+    fun `invalid syntax and missing members are omitted while valid frames remain`() {
+        val cause = IllegalStateException().apply {
+            stackTrace = arrayOf(
+                StackTraceElement("invalid class", "run", "IllegalStateException.java", 25),
+                StackTraceElement(Thread::class.java.name, "missingMember", "Thread.java", 25),
+                safeFrame(),
+            )
+        }
+
+        val json = FailureEventFormatter(environment).format(InternalServerFailure(cause)).parsed()
+        val message = json.message()
+        assertContainsOnce(message, "java.lang.Thread.run(Thread.java:")
+        assertFalse(message.contains("invalid class"))
+        assertFalse(message.contains("missingMember"))
+        assertTrue(json.truncation("frames"))
+        assertFalse(json.truncation("accessor_failure"))
+    }
+
+    @Test
+    fun `all invalid frames fall back without exposing their source text`() {
+        val cause = IllegalStateException().apply {
+            stackTrace = arrayOf(
+                StackTraceElement("invalid class", "run", "credential-sentinel.java", 25),
+                StackTraceElement(Thread::class.java.name, "missingMember", "credential-sentinel.java", 25),
+            )
+        }
+
+        val event = FailureEventFormatter(environment).format(InternalServerFailure(cause))
+        val json = event.parsed()
+        assertEquals("INTERNAL_ERROR server failure", json.message())
+        assertTrue(json.truncation("frames"))
+        assertFalse(json.truncation("accessor_failure"))
+        assertNotNull(json["context"])
+        assertFalse(event.json.contains("credential-sentinel"))
+    }
+
+    @Test
     fun `trace is accepted only from one fully valid header and trusted project`() {
         val formatter = FailureEventFormatter(environment)
         val traceId = "ABCDEF0123456789ABCDEF0123456789"

@@ -53,7 +53,9 @@ jobs:
             deploy|observability-validate|observability-restore) ;;
             *) echo "::error::Unsupported operation."; exit 1 ;;
           esac
-          test "$DEPLOY_ENABLED" = true || { echo "::error::Deployment is disabled."; exit 1; }
+          if test "$OPERATION" != observability-restore; then
+            test "$DEPLOY_ENABLED" = true || { echo "::error::Deployment is disabled."; exit 1; }
+          fi
           for variable in PROJECT_ID WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT RUNTIME_SERVICE_ACCOUNT; do
             test -n "${!variable}" || { echo "::error::Missing $variable."; exit 1; }
           done

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly service_helper="$script_dir/observability-service.sh"
+readonly policy_helper="$script_dir/observability-policies.sh"
+
 fail() { echo "Observability cleanup failed: $*" >&2; exit 1; }
 gcloud_json() {
   local output error
@@ -29,7 +33,7 @@ command="${1:-}"
 [[ "$command" == restore || "$command" == cleanup ]] \
   || fail 'Usage: observability-cleanup.sh restore|cleanup'
 
-journal="$(.github/scripts/observability-service.sh read)" || fail 'Recovery journal is unavailable.'
+journal="$("$service_helper" read)" || fail 'Recovery journal is unavailable.'
 if test "${OPERATION:-}" = observability-restore; then
   export OBSERVABILITY_RUN="$(jq -er '.run' <<< "$journal")"
 else
@@ -37,7 +41,7 @@ else
 fi
 
 if test "$command" = restore; then
-  .github/scripts/observability-service.sh restore
+  "$service_helper" restore
   exit
 fi
 
@@ -51,29 +55,29 @@ if jq -e 'has("pending")' <<< "$journal" >/dev/null; then
   resource_kind=
   case "$pending_kind" in
     5xx|uptime-policy|log)
-      recovered="$(.github/scripts/observability-policies.sh find-owned "$pending_kind")"
+      recovered="$("$policy_helper" find-owned "$pending_kind")"
       resource_kind=policy
       ;;
     uptime)
-      recovered="$(.github/scripts/observability-policies.sh find-owned uptime)"
+      recovered="$("$policy_helper" find-owned uptime)"
       resource_kind=uptime
       ;;
     traffic)
-      .github/scripts/observability-service.sh clear-pending traffic "$pending_target"
-      journal="$(.github/scripts/observability-service.sh read)"
+      "$service_helper" clear-pending traffic "$pending_target"
+      journal="$("$service_helper" read)"
       pending_kind=
       ;;
     disable-policy)
       jq -e --arg name "$pending_target" 'any(.resources[]?;
         .kind == "policy" and .name == $name and .owned == true)' <<< "$journal" >/dev/null \
         || fail 'Pending policy disable is not journal-owned.'
-      .github/scripts/observability-service.sh clear-pending disable-policy "$pending_target"
-      journal="$(.github/scripts/observability-service.sh read)"
+      "$service_helper" clear-pending disable-policy "$pending_target"
+      journal="$("$service_helper" read)"
       pending_kind=
       ;;
     iam)
-      .github/scripts/observability-service.sh clear-pending iam "$pending_target"
-      journal="$(.github/scripts/observability-service.sh read)"
+      "$service_helper" clear-pending iam "$pending_target"
+      journal="$("$service_helper" read)"
       pending_kind=
       ;;
     iam-add)
@@ -86,11 +90,11 @@ if jq -e 'has("pending")' <<< "$journal" >/dev/null; then
       if test "$(jq 'length' <<< "$bindings")" = 1; then
         jq -e '.[0] | has("condition") | not' <<< "$bindings" >/dev/null \
           || fail 'Pending IAM member appears in a conditional binding.'
-        .github/scripts/observability-service.sh iam-added
+        "$service_helper" iam-added
       else
-        .github/scripts/observability-service.sh clear-pending iam-add "$pending_target"
+        "$service_helper" clear-pending iam-add "$pending_target"
       fi
-      journal="$(.github/scripts/observability-service.sh read)"
+      journal="$("$service_helper" read)"
       pending_kind=
       ;;
     revision)
@@ -129,11 +133,11 @@ if jq -e 'has("pending")' <<< "$journal" >/dev/null; then
   if test -z "$pending_kind"; then
     :
   elif test -n "$recovered"; then
-    .github/scripts/observability-service.sh resource "$resource_kind" "$recovered"
+    "$service_helper" resource "$resource_kind" "$recovered"
   else
-    .github/scripts/observability-service.sh clear-pending "$pending_kind" "$pending_target"
+    "$service_helper" clear-pending "$pending_kind" "$pending_target"
   fi
-  journal="$(.github/scripts/observability-service.sh read)"
+  journal="$("$service_helper" read)"
 fi
 
 if jq -e '.iam.added == true' <<< "$journal" >/dev/null; then
@@ -154,16 +158,16 @@ if jq -e '.iam.added == true' <<< "$journal" >/dev/null; then
       all(.bindings[]? | select(.role == "roles/run.invoker") | .members[]?; . != $member)
     ' <<< "$policy" >/dev/null || fail 'Owned IAM binding removal did not persist.'
   fi
-  .github/scripts/observability-service.sh iam-cleared
+  "$service_helper" iam-cleared
 fi
 
 while IFS=$'\t' read -r kind name; do
   case "$kind" in
     policy)
-      .github/scripts/observability-policies.sh delete "$name" policy
+      "$policy_helper" delete "$name" policy
       ;;
     uptime)
-      .github/scripts/observability-policies.sh delete "$name" uptime
+      "$policy_helper" delete "$name" uptime
       ;;
     revision)
       [[ "$name" == projects/"$PROJECT_ID"/locations/"$REGION"/services/"$VALIDATION_SERVICE"/revisions/* ]] \
@@ -178,7 +182,7 @@ while IFS=$'\t' read -r kind name; do
       jq -e --arg name "$short_name" 'length <= 1 and all(.[]; .metadata.name == $name)' \
         <<< "$revision_list" >/dev/null || fail 'Revision inventory is ambiguous.'
       if test "$(jq 'length' <<< "$revision_list")" = 0; then
-        .github/scripts/observability-service.sh drop-resource "$kind" "$name"
+        "$service_helper" drop-resource "$kind" "$name"
         continue
       fi
       revision="$(jq -c '.[0]' <<< "$revision_list")"
@@ -198,11 +202,11 @@ while IFS=$'\t' read -r kind name; do
       matches="$(jq -c --arg image "$name" '[.[] | select((.package + "@" + .version) == $image)]' <<< "$images")"
       test "$(jq 'length' <<< "$matches")" -le 1 || fail 'Image inventory is ambiguous.'
       if test "$(jq 'length' <<< "$matches")" = 0; then
-        .github/scripts/observability-service.sh drop-resource "$kind" "$name"
+        "$service_helper" drop-resource "$kind" "$name"
         continue
       fi
       jq -e --arg suffix "-$OBSERVABILITY_RUN" '
-        length == 1 and (.[0].tags | type == "array" and length == 1 and .[0] | endswith($suffix))
+        length == 1 and (.[0].tags | type == "array" and length == 1 and (.[0] | endswith($suffix)))
       ' <<< "$matches" >/dev/null || fail 'Owned image tag proof is missing or shared.'
       revisions="$(gcloud_json run revisions list --project "$PROJECT_ID" --region "$REGION" --format=json)"
       jq -e --arg image "$name" 'all(.[]; all(.spec.containers[]?; .image != $image) and .status.imageDigest != $image)' \
@@ -211,9 +215,9 @@ while IFS=$'\t' read -r kind name; do
       ;;
     *) fail 'Unknown journal resource kind.' ;;
   esac
-  .github/scripts/observability-service.sh drop-resource "$kind" "$name"
+  "$service_helper" drop-resource "$kind" "$name"
 done < <(jq -r '.resources | sort_by(
   if .kind == "policy" then 0 elif .kind == "uptime" then 1
   elif .kind == "revision" then 2 else 3 end)[] | [.kind,.name] | @tsv' <<< "$journal")
 
-.github/scripts/observability-service.sh phase verified
+"$service_helper" phase verified
