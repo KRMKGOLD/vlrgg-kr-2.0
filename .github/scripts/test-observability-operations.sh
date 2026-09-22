@@ -719,12 +719,35 @@ pass '5xx policy requires descriptor label and an actual matching sample'
 new_case policy-log-input
 valid_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
   OBSERVABILITY_RUN=123-1 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  OBSERVABILITY_REVISION=vlrgg-query-check-o999-9 \
   SYSTEM_LOG_NAME=projects/test-project/logs/run.googleapis.com%2Fvarlog%2Fsystem \
   SYSTEM_LOG_SIGNATURE='Container called exit(42).' "$policy_helper" render log)"
+jq -e --arg revision 'vlrgg-query-check-o123-1' '
+  .conditions[0].conditionMatchedLog.filter |
+  contains(" AND resource.labels.revision_name=\"" + $revision + "\"") and
+  (contains("vlrgg-query-check-o999-9") | not)
+' <<< "$valid_log" >/dev/null
 jq -e '.conditions[0].conditionMatchedLog.filter|contains("Container called exit(42).")' \
   <<< "$valid_log" >/dev/null
 jq -e '.conditions[0].conditionMatchedLog.filter|contains("textPayload=\"Container called exit(42).\"")' \
   <<< "$valid_log" >/dev/null
+different_run_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_RUN=123-2 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+  SYSTEM_LOG_NAME=projects/test-project/logs/run.googleapis.com%2Fvarlog%2Fsystem \
+  SYSTEM_LOG_SIGNATURE='Container called exit(42).' "$policy_helper" render log)"
+jq -e --arg current 'vlrgg-query-check-o123-2' --arg previous 'vlrgg-query-check-o123-1' '
+  .conditions[0].conditionMatchedLog.filter |
+  contains("resource.labels.revision_name=\"" + $current + "\"") and
+  (contains("resource.labels.revision_name=\"" + $previous + "\"") | not)
+' <<< "$different_run_log" >/dev/null
+production_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query \
+  OBSERVABILITY_RUN=123-1 OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+  OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  SYSTEM_LOG_NAME=projects/test-project/logs/run.googleapis.com%2Fvarlog%2Fsystem \
+  SYSTEM_LOG_SIGNATURE='Container called exit(42).' "$policy_helper" render log)"
+jq -e '.conditions[0].conditionMatchedLog.filter | contains("resource.labels.revision_name") | not' \
+  <<< "$production_log" >/dev/null
 expect_fail "$CASE_DIR/cross-project.stderr" env PROJECT_ID=test-project REGION=test-region \
   SERVICE_NAME=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
   OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
@@ -735,7 +758,7 @@ expect_fail "$CASE_DIR/filter-injection.stderr" env PROJECT_ID=test-project REGI
   OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
   SYSTEM_LOG_NAME=projects/test-project/logs/system SYSTEM_LOG_SIGNATURE='exit" OR true' \
   "$policy_helper" render log
-pass 'log policy rejects cross-project names and filter metacharacters'
+pass 'log policy pins private run revisions, preserves production scope, and rejects unsafe inputs'
 
 principal='service-123@gcp-sa-monitoring-notification.iam.gserviceaccount.com'
 member="serviceAccount:$principal"
