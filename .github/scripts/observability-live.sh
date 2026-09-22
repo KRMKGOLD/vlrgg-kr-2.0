@@ -24,7 +24,7 @@ set_validation_deadline() {
 }
 
 require_fault_time() {
-  test "$(now)" -le "$((OBSERVABILITY_DEADLINE_EPOCH - fault_reserve))" \
+  test "$(now)" -lt "$((OBSERVABILITY_DEADLINE_EPOCH - fault_reserve))" \
     || fail 'The validation fault cutoff expired; restoration reserve is active.'
 }
 
@@ -32,6 +32,22 @@ require_fault_window() {
   local seconds="$1"
   test "$(( $(now) + seconds ))" -le "$((OBSERVABILITY_DEADLINE_EPOCH - fault_reserve))" \
     || fail 'Insufficient bounded fault time remains for the next phase.'
+}
+
+# Check before a provider poll; optionally wait without crossing its time budget.
+poll_budget() {
+  local phase="$1" delay="${2:-0}" cutoff="$OBSERVABILITY_DEADLINE_EPOCH" remaining
+  case "$phase" in
+    fault) cutoff=$((cutoff - fault_reserve)) ;;
+    recovery) ;;
+    *) fail 'Invalid polling phase.' ;;
+  esac
+  remaining=$((cutoff - $(now)))
+  test "$remaining" -gt 0 || fail "The $phase polling budget expired."
+  if test "$delay" -gt 0; then
+    test "$delay" -le "$remaining" || delay="$remaining"
+    sleep_for "$delay"
+  fi
 }
 
 result() {
@@ -226,10 +242,11 @@ run_o3_o6() {
   private_request GET /__observability/parsing 502
   private_request GET /__observability/upstream 502
   private_request GET /__observability/expected 400
-  sleep_for 61
+  poll_budget fault 61
   private_request GET /__observability/expected 400
   attempts=12
   while test "$attempts" -gt 0; do
+    poll_budget fault
     log_entries "$start" "$evidence/application-logs.json"
     if jq -e --arg service "$SERVICE_NAME" --arg revision "$OBSERVABILITY_REVISION" \
     --arg trace "projects/$PROJECT_ID/traces/$trace" '
@@ -274,7 +291,7 @@ run_o3_o6() {
   ' "$evidence/application-logs.json" >/dev/null; then break; fi
     attempts=$((attempts - 1))
     test "$attempts" -gt 0 || fail 'Structured logs, trace, or sampling summary did not arrive.'
-    sleep_for "$poll_seconds"
+    poll_budget fault "$poll_seconds"
   done
   ! grep -Eq 'OBSERVABILITY_RAW_SECRET_SENTINEL|invalid-trace' "$evidence/application-logs.json" \
     || fail 'Protected or unpromoted request data appeared in structured logs.'
@@ -283,6 +300,7 @@ run_o3_o6() {
   version_filter="$(jq -rn --arg value "$OBSERVABILITY_REVISION" '$value|@uri')"
   attempts=12
   while test "$attempts" -gt 0; do
+    poll_budget fault
   api GET "$error_root/projects/$PROJECT_ID/groupStats?serviceFilter.service=$service_filter&serviceFilter.version=$version_filter&timeRange.period=PERIOD_1_HOUR&pageSize=100" \
     "$evidence/error-groups.json"
   jq -e '(.nextPageToken // "") == "" and ((.errorGroupStats // []) | length <= 100)' \
@@ -295,7 +313,7 @@ run_o3_o6() {
   test "$(jq 'length' <<< "$groups")" = 2 && break
   attempts=$((attempts - 1))
   test "$attempts" -gt 0 || fail 'The validation run did not produce exactly two Error Reporting groups.'
-  sleep_for "$poll_seconds"
+  poll_budget fault "$poll_seconds"
   done
   while IFS= read -r group; do
     [[ "$group" =~ ^projects/$PROJECT_ID/(locations/[a-z0-9-]+/)?groups/[A-Za-z0-9_-]+$ ]] \
@@ -303,6 +321,7 @@ run_o3_o6() {
     group_id="${group##*/}"
     attempts=12
     while test "$attempts" -gt 0; do
+      poll_budget fault
       api GET "$error_root/projects/$PROJECT_ID/events?groupId=$group_id&serviceFilter.service=$service_filter&serviceFilter.version=$version_filter&timeRange.period=PERIOD_1_HOUR&pageSize=100" \
       "$evidence/error-events-$group_id.json"
     events="$evidence/error-events-$group_id.json"
@@ -314,7 +333,7 @@ run_o3_o6() {
       test "$(jq '.errorEvents // [] | length' "$events")" -gt 0 && break
       attempts=$((attempts - 1))
       test "$attempts" -gt 0 || fail 'Error Reporting samples did not arrive.'
-      sleep_for "$poll_seconds"
+      poll_budget fault "$poll_seconds"
     done
     if jq -e 'any(.errorEvents[]?; (.message // "") | contains("ValidationInternalFailure: INTERNAL_ERROR"))' \
       "$events" >/dev/null; then internal_group="$group"; internal_groups=$((internal_groups + 1)); fi
@@ -337,18 +356,21 @@ run_o3_o6() {
   api PUT "$error_root/$internal_group" "$evidence/error-group-resolved.json" "$group_body"
   attempts=10
   while test "$attempts" -gt 0; do
+    poll_budget fault
     api GET "$error_root/$internal_group" "$evidence/error-group-status.json"
     jq -e --arg name "$internal_group" '.name == $name and .resolutionStatus == "RESOLVED"' \
       "$evidence/error-group-status.json" >/dev/null && break
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || fail 'Error Reporting group did not resolve.'
-    sleep_for "$poll_seconds"
+    poll_budget fault "$poll_seconds"
   done
-  sleep_for 301
+  poll_budget fault 301
   recurrence_epoch="$(now)"
   private_request GET /__observability/internal 500
   attempts=20
   while test "$attempts" -gt 0; do
+    poll_budget fault
     api GET "$error_root/$internal_group" "$evidence/error-group-reopened.json"
+    poll_budget fault
     api GET "$error_root/projects/$PROJECT_ID/events?groupId=${internal_group##*/}&serviceFilter.service=$service_filter&serviceFilter.version=$version_filter&timeRange.period=PERIOD_1_HOUR&pageSize=100" \
       "$evidence/error-events-recurrence.json"
     if jq -e --arg name "$internal_group" '.name == $name and .resolutionStatus == "OPEN"' \
@@ -359,7 +381,7 @@ run_o3_o6() {
       ' \
         "$evidence/error-events-recurrence.json" >/dev/null; then break; fi
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || fail 'Error Reporting group did not reopen with a fresh event.'
-    sleep_for "$poll_seconds"
+    poll_budget fault "$poll_seconds"
   done
   result O6 PASS
   result O6-receipt 'RECEIPT PENDING'
@@ -387,6 +409,7 @@ poll_native_failures() {
   filter="metric.type=\"run.googleapis.com/request_count\" AND resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"$PROJECT_ID\" AND resource.labels.location=\"$REGION\" AND resource.labels.service_name=\"$SERVICE_NAME\" AND resource.labels.revision_name=\"$OBSERVABILITY_REVISION\" AND metric.labels.response_code_class=\"5xx\""
   encoded="$(jq -rn --arg value "$filter" '$value|@uri')"
   while test "$attempts" -gt 0; do
+    poll_budget fault
     api GET "$monitoring_root/projects/$PROJECT_ID/timeSeries?filter=$encoded&interval.startTime=$start&interval.endTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)&view=FULL&pageSize=1000" "$output"
     jq -e '(.nextPageToken // "") == ""' "$output" >/dev/null || fail 'Native count inventory was incomplete.'
     count="$(jq -er '[.timeSeries[]?.points[]?.value.int64Value | tonumber] |
@@ -396,7 +419,7 @@ poll_native_failures() {
       test "$count" = "$expected" && return
     fi
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
-    sleep_for "$poll_seconds"
+    poll_budget fault "$poll_seconds"
   done
   fail 'Native failures did not reconcile with the exact request ledger.'
 }
@@ -404,13 +427,14 @@ poll_native_failures() {
 poll_count() {
   local kind="$1" comparison="$2" threshold="$3" attempts="${4:-12}" value
   while test "$attempts" -gt 0; do
+    poll_budget fault
     value="$("$policy_helper" "query-$kind-count" "$(now)" 2>/dev/null || true)"
     if test -n "$value" && awk -v value="$value" -v threshold="$threshold" "BEGIN { exit ! (value $comparison threshold) }"; then
       printf '%s\n' "$value"
       return
     fi
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
-    sleep_for "$poll_seconds"
+    poll_budget fault "$poll_seconds"
   done
   fail 'Native request-count transition did not arrive in the bounded poll.'
 }
@@ -418,6 +442,7 @@ poll_count() {
 poll_alert_open() {
   local policy="$1" after="$2" kind="$3" attempts="${4:-20}" matches name
   while test "$attempts" -gt 0; do
+    poll_budget fault
     matches="$(alerts_for_policy "$policy" "$evidence/alerts.json")"
     name="$(jq -er --argjson after "$after" --arg kind "$kind" \
       --arg run "${OBSERVABILITY_RUN//-/_}" '[.[] | select(.state == "OPEN" and
@@ -430,7 +455,7 @@ poll_alert_open() {
       select(test("^projects/[^/]+/alerts/[^/]+$"))' <<< "$matches" 2>/dev/null || true)"
     if test -n "$name"; then printf '%s\n' "$name"; return; fi
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
-    sleep_for "$poll_seconds"
+    poll_budget fault "$poll_seconds"
   done
   fail 'The exact run-owned policy did not open one fresh alert in the bounded poll.'
 }
@@ -438,13 +463,14 @@ poll_alert_open() {
 poll_alert_closed() {
   local policy="$1" alert="$2" after="$3" attempts="${4:-30}" matches
   while test "$attempts" -gt 0; do
+    poll_budget recovery
     matches="$(alerts_for_policy "$policy" "$evidence/alerts.json")"
     if jq -e --arg alert "$alert" --argjson after "$after" '[.[] | select(
       .name == $alert and .state == "CLOSED" and (.closeTime | type) == "string" and
       ((.closeTime | sub("[.][0-9]+Z$";"Z") | fromdateiso8601) >= $after))] | length == 1' \
       <<< "$matches" >/dev/null; then return; fi
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
-    sleep_for "$poll_seconds"
+    poll_budget recovery "$poll_seconds"
   done
   fail 'The same provider alert did not close after recovery evidence in the bounded poll.'
 }
@@ -463,8 +489,10 @@ disable_policy() {
 poll_recovery() {
   local attempts="${1:-12}" at healthy five_x
   while test "$attempts" -gt 0; do
+    poll_budget recovery
     at="$(now)"
     healthy="$("$policy_helper" query-2xx-sample "$at" 2>/dev/null || true)"
+    poll_budget recovery
     five_x="$("$policy_helper" query-5xx-sample "$at" 2>/dev/null || true)"
     if jq -en --argjson healthy "${healthy:-null}" --argjson five_x "${five_x:-null}" '
       ($healthy | type) == "array" and ($five_x | type) == "array" and
@@ -474,7 +502,7 @@ poll_recovery() {
       return
     fi
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
-    sleep_for "$poll_seconds"
+    poll_budget recovery "$poll_seconds"
   done
   fail 'Fresh healthy traffic plus numeric zero did not arrive in the bounded poll.'
 }
@@ -508,12 +536,13 @@ uptime_locations() {
 }
 
 poll_uptime_locations() {
-  local check_id="$1" wanted="$2" minimum="$3" after="$4" attempts="${5:-30}" observation
+  local check_id="$1" wanted="$2" minimum="$3" after="$4" attempts="${5:-30}" phase="${6:-fault}" observation
   while test "$attempts" -gt 0; do
+    poll_budget "$phase"
     observation="$(uptime_locations "$check_id" "$wanted" "$after")"
     if test "$(jq -r '.count' <<< "$observation")" -ge "$minimum"; then printf '%s\n' "$observation"; return; fi
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
-    sleep_for "$poll_seconds"
+    poll_budget "$phase" "$poll_seconds"
   done
   fail 'Uptime checker transition did not arrive in the bounded poll.'
 }
@@ -541,12 +570,13 @@ uptime_http_locations() {
 }
 
 poll_uptime_http() {
-  local check_id="$1" after="$2" attempts="${3:-30}" observation
+  local check_id="$1" after="$2" attempts="${3:-30}" phase="${4:-fault}" observation
   while test "$attempts" -gt 0; do
+    poll_budget "$phase"
     observation="$(uptime_http_locations "$check_id" "$after")"
     if test "$(jq -r '.count' <<< "$observation")" -ge 3; then printf '%s\n' "$observation"; return; fi
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
-    sleep_for "$poll_seconds"
+    poll_budget "$phase" "$poll_seconds"
   done
   fail 'Fresh uptime HTTP-200 evidence did not arrive in the bounded poll.'
 }
@@ -588,10 +618,11 @@ run_o7() {
   alert="$(poll_alert_open "$policy" "$fault_started" 5xx)"
   recovery_epoch="$(now)"
   for _ in $(seq 1 12); do
+    poll_budget recovery
     private_request GET /health 200
     recovery_sample="$(poll_recovery 1 2>/dev/null || true)"
     test -z "$recovery_sample" || break
-    sleep_for "$poll_seconds"
+    poll_budget recovery "$poll_seconds"
   done
   test -n "${recovery_sample:-}" || fail 'Native recovery remained absent after bounded healthy traffic.'
   poll_alert_closed "$policy" "$alert" "$recovery_epoch"
@@ -623,8 +654,8 @@ run_o8() {
   jq -e '.status == "configured"' "$evidence/private-response" >/dev/null \
     || fail 'Health restore acknowledgement was malformed.'
   poll_health
-  passed="$(poll_uptime_locations "$check_id" true 3 "$recovered_at" 30)"
-  http="$(poll_uptime_http "$check_id" "$recovered_at" 30)"
+  passed="$(poll_uptime_locations "$check_id" true 3 "$recovered_at" 30 recovery)"
+  http="$(poll_uptime_http "$check_id" "$recovered_at" 30 recovery)"
   recovery_epoch="$(jq -en --argjson passed "$passed" --argjson http "$http" \
     '[$passed.evidenceEpoch,$http.evidenceEpoch] | min')"
   test "$fault_ok" = true || fail 'Uptime fault evidence was incomplete after explicit recovery.'
@@ -690,6 +721,7 @@ run_o9() {
   poll_health
   local attempts=12 candidates
   while test "$attempts" -gt 0; do
+    poll_budget fault
     system_logs "$start" "$evidence/system-discovery.json"
     candidates="$(jq -c --arg revision "$OBSERVABILITY_REVISION" '
       [.entries[]? | select(.resource.labels.revision_name == $revision) | .textPayload |
@@ -698,7 +730,7 @@ run_o9() {
     test "$(jq length <<< "$candidates")" -le 1 || fail 'The actual abnormal-exit signature was ambiguous.'
     if test "$(jq length <<< "$candidates")" = 1; then signature="$(jq -r '.[0]' <<< "$candidates")"; break; fi
     attempts=$((attempts - 1)); test "$attempts" -gt 0 || fail 'The actual abnormal-exit signature did not arrive.'
-    sleep_for "$poll_seconds"
+    poll_budget fault "$poll_seconds"
   done
   test "${#signature}" -le 240 && [[ "$signature" =~ ^[A-Za-z0-9._:/\ \(\)-]+$ ]] \
     || fail 'The actual abnormal-exit signature is unsafe for a narrow log policy.'

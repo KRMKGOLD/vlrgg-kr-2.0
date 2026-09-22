@@ -995,6 +995,70 @@ fi
 grep -qx 'POST /__observability/health/restore' "$CASE_DIR/requests"
 pass 'uptime evidence failure still executes the explicit private health restore path'
 
+new_case live-poll-deadline
+CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"
+  evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+  OBSERVABILITY_DEADLINE_EPOCH=2000000000
+  printf "1999998200\n" > "$CASE_DIR/clock"
+  now() { cat "$CASE_DIR/clock"; }
+  uptime_locations() {
+    printf "query\n" >> "$CASE_DIR/queries"
+    printf "%s\n" "{\"count\":0,\"evidenceEpoch\":0}"
+  }
+  sleep_for() {
+    printf "%s\n" "$1" >> "$CASE_DIR/waits"
+    printf "%s\n" "$(( $(now) + $1 ))" > "$CASE_DIR/clock"
+  }
+  if (poll_uptime_locations check false 2 0 3) 2>/dev/null; then exit 1; fi
+  test ! -s "$CASE_DIR/queries"
+  printf "1999998195\n" > "$CASE_DIR/clock"
+  if (poll_uptime_locations check false 2 0 3) 2>/dev/null; then exit 1; fi
+  test "$(wc -l < "$CASE_DIR/queries" | tr -d " ")" = 1
+  test "$(cat "$CASE_DIR/waits")" = 5
+  uptime_locations() {
+    printf "query\n" >> "$CASE_DIR/queries"
+    printf "%s\n" "{\"count\":3,\"evidenceEpoch\":1999998200}"
+  }
+  poll_uptime_locations check true 3 0 1 recovery >/dev/null
+  printf "2000000000\n" > "$CASE_DIR/clock"
+  if (poll_uptime_locations check true 3 0 1 recovery) 2>/dev/null; then exit 1; fi
+  test "$(wc -l < "$CASE_DIR/queries" | tr -d " ")" = 2
+' _ "$live_helper"
+pass 'polling stops at the cutoff, caps waits, and gives recovery its separate deadline'
+
+new_case live-uptime-deadline-restores
+if CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"
+  evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+  OBSERVABILITY_DEADLINE_EPOCH=2000000000
+  printf "1999998199\n" > "$CASE_DIR/clock"
+  now() { cat "$CASE_DIR/clock"; }
+  ensure_policy() { printf "projects/test-project/uptimeCheckConfigs/check-1\n"; }
+  verify_uptime_check() { :; }; verify_single_condition() { :; }
+  uptime_locations() {
+    printf "query\n" >> "$CASE_DIR/queries"
+    printf "%s\n" "{\"count\":3,\"evidenceEpoch\":1999998200}"
+  }
+  uptime_http_locations() { uptime_locations; }
+  private_request() {
+    printf "%s\n" "$2" >> "$CASE_DIR/requests"
+    printf "%s\n" "{\"status\":\"configured\"}" > "$evidence/private-response"
+    if test "$2" = /__observability/health/fail; then printf "1999998200\n" > "$CASE_DIR/clock"; fi
+  }
+  poll_health() { printf "health\n" >> "$CASE_DIR/requests"; }
+  result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+  run_o8
+' _ "$live_helper" > /dev/null 2> "$CASE_DIR/stderr"; then
+  fail 'uptime passed despite the expired fault-evidence budget'
+fi
+grep -q 'polling budget expired' "$CASE_DIR/stderr"
+grep -qx '/__observability/health/restore' "$CASE_DIR/requests"
+grep -qx 'health' "$CASE_DIR/requests"
+test "$(wc -l < "$CASE_DIR/queries" | tr -d ' ')" = 4 || fail 'expired fault poll queried the provider'
+test ! -s "$CASE_DIR/results" || fail 'uptime deadline reported a false pass'
+pass 'uptime deadline expiry still restores health and never reports a pass'
+
 new_case live-attempt-deadline
 bash -c '
   source "$1"
