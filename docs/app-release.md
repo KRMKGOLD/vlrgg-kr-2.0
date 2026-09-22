@@ -9,7 +9,7 @@
 | 항목 | 확인된 상태 | 다음 완료 조건 |
 | --- | --- | --- |
 | 배포 코드·Crashlytics | #112·#119·#121 완료, 수동 Android workflow 있음 | 배포할 정확한 main SHA의 CI 성공 |
-| Play Console 계정·앱 | 등록·본인확인·기존 업로드 여부 미확인 | 운영 소유자와 앱 등록 상태 확인 |
+| Play Console 계정·앱 | 사용자 확인: 개발자 계정 등록 완료, 앱 미등록 | 운영 소유자·Console 잔여 검증 확인 후 앱 생성 |
 | Android 서명·Play API 인증 | `android-internal`에는 Firebase 설정 secret만 있음. 저장소 공통 secret 없음 | 아래 Android signing/API secrets 연결 |
 | 환경 보호·배포 허용 | main 제한 있음, required reviewer 없음, 배포 허용 variable 미설정 | 실제 운영자 기준 승인 정책 확정 후 마지막에 허용 |
 | 첫 AAB·테스터 설치 | 미실행 | 최초 수동 등록 → 내부 테스트 설치 → 후속 Actions 배포 검증 |
@@ -95,7 +95,7 @@ Fastlane `supply`는 **앱의 수동 초기 설정과 최소 한 번의 빌드 �
 
 최초 등록용 AAB만 신뢰하는 로컬 환경의 깨끗한 전용 checkout에서 만든다. GitHub Actions의 공개 artifact나 Release에는 올리지 않는다. 이 단계는 Gradle 빌드와 Console 수동 업로드이며, Actions 전용 Fastlane lane을 로컬에서 실행하는 예외가 아니다.
 
-빌드 전 `SOURCE_SHA`를 성공한 main CI의 전체 SHA로 고정하고 그 checkout으로 이동한다. Console에서 미사용 `APP_VERSION`·`APP_BUILD_NUMBER`를 정한다. Java 21과 Android SDK를 준비하고 `API_BASE_URL`, `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`를 포함한 빌드 입력은 비공개 환경 변수로 export한다. keystore 경로는 저장소 밖 절대 경로다. Firebase 설정도 저장소 밖 일회용 파일을 `FIREBASE_ANDROID_CONFIG_SOURCE`로 전달하거나, 메모리의 `FIREBASE_ANDROID_CONFIG_BASE64`로 전달한다. 두 입력을 동시에 지정하지 않는다.
+빌드 전 `SOURCE_SHA`를 성공한 main CI의 전체 SHA로 고정하고 그 checkout으로 이동한다. Console에서 미사용 `APP_VERSION`·`APP_BUILD_NUMBER`를 정한다. Java 21과 Android SDK를 준비하고 `API_BASE_URL`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `FIREBASE_ANDROID_CONFIG_BASE64`를 포함한 빌드 입력은 비공개 환경 변수로 export한다. 아래 예시는 원본 파일을 직접 사용하지 않고 메모리의 base64 입력에서 일회용 키·설정을 만든다. 보관소에서 입력을 준비할 때 다운로드한 작업 복사본이 있으면 입력 확인 후 삭제하고, 전용 비공개 셸은 작업 후 종료한다.
 
 ```bash
 (
@@ -105,16 +105,36 @@ test -z "$(git status --porcelain --untracked-files=all)"
 gh api --method GET repos/KRMKGOLD/vlrgg-kr-2.0/actions/workflows/ci.yml/runs \
   -f branch=main -f event=push -f head_sha="$SOURCE_SHA" -f status=success \
   | ruby scripts/app-release/release_contract.rb verify-ci "$SOURCE_SHA"
+test ! -e app/androidApp/build
+test -z "${FIREBASE_ANDROID_CONFIG_SOURCE:-}"
+umask 077
+bootstrap_dir=$(mktemp -d "${TMPDIR:-/tmp}/vlrgg-android-bootstrap.XXXXXX")
+bundle_ready=false
+cleanup_bootstrap() {
+  rm -rf app/androidApp/build "$bootstrap_dir/signing"
+  if [ "$bundle_ready" != true ]; then rm -rf "$bootstrap_dir"; fi
+}
+trap cleanup_bootstrap EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+mkdir "$bootstrap_dir/signing"
+export ANDROID_KEYSTORE_PATH="$bootstrap_dir/signing/upload.keystore"
+ruby scripts/app-release/release_contract.rb write-base64-secret \
+  ANDROID_KEYSTORE_BASE64 "$ANDROID_KEYSTORE_PATH"
 python3 scripts/firebase/with_config.py android -- \
   ./gradlew --no-daemon --no-configuration-cache --no-build-cache :app:androidApp:bundleRelease
+install -m 600 app/androidApp/build/outputs/bundle/release/androidApp-release.aab \
+  "$bootstrap_dir/first.aab"
+bundle_ready=true
+printf 'Console에 등록할 비공개 AAB: %s\n' "$bootstrap_dir/first.aab"
 )
 ```
 
-결과는 `app/androidApp/build/outputs/bundle/release/androidApp-release.aab`다. 필요한 AAB 하나만 권한을 제한한 저장소 밖 임시 위치로 옮긴 뒤, 최초 등록에 쓴 전용 checkout의 `app/androidApp/build`와 다운로드한 Firebase 입력·서명 작업 복사본을 정리한다. 빌드 실패 시에도 이 작업 파일을 정리한다. wrapper는 자신이 만든 주입 파일을 삭제하며 호출자가 전달한 원본을 대신 삭제하지 않는다.
+성공하면 출력된 저장소 밖 경로의 `first.aab`만 Console 등록까지 보관한다. wrapper는 주입한 Firebase 파일을 삭제하고, EXIT trap은 성공·실패·처리 가능한 종료 신호에서 일회용 keystore와 이 실행의 Android build 출력을 정리한다. 실패 시 AAB 임시 디렉터리도 삭제한다. 기존 build 디렉터리가 있으면 자동 삭제하지 않고 중단하므로, 이 절차에는 새 전용 checkout을 사용한다. SIGKILL·전원 차단 시에는 자동 정리가 실행되지 않으므로 남은 전용 임시 디렉터리와 build 출력을 확인해 정리한다.
 
 Console의 **Testing → Internal testing**에서 이 AAB를 업로드하고 Play App Signing 설정과 해당 트랙이 요구하는 항목을 완료한다. 앱 콘텐츠·개인정보 관련 질문에는 실제 구현과 Crashlytics 사용에 맞게 답한다. 내부 테스트에 필요하지 않은 production 공개 준비를 이 단계의 선행 조건으로 추가하지 않는다.
 
-완료 기준: 패키지·versionCode·업로드 인증서가 일치하고 internal 릴리스가 처리됐다. Console 접수 및 테스터 설치를 확인한 뒤 보관했던 AAB도 삭제한다. 공개 기록에는 SHA·버전·성공 여부만 남긴다.
+완료 기준: 패키지·versionCode·업로드 인증서가 일치하고 internal 릴리스가 처리됐다. Console 접수 및 테스터 설치를 확인한 뒤 출력됐던 AAB와 그 전용 임시 디렉터리도 삭제한다. 공개 기록에는 SHA·버전·성공 여부만 남긴다.
 
 ### 5. Play API와 GitHub Environment 연결
 
