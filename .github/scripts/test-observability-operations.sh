@@ -76,7 +76,13 @@ if [[ "$url" == https://run.googleapis.com/* ]]; then
       cp "$body_file" "$CASE_DIR/patch-$mask.json"
       case "$mask" in
         annotations) jq --slurpfile patch "$body_file" '.annotations=$patch[0].annotations | .etag="next-etag"' "$CASE_DIR/service.json" ;;
-        traffic) jq --slurpfile patch "$body_file" '.traffic=$patch[0].traffic | .etag="next-etag"' "$CASE_DIR/service.json" ;;
+        traffic)
+          traffic_revision="$(jq -er '.traffic[0].revision' "$body_file")"
+          [[ "$traffic_revision" != projects/* ]] || {
+            echo 'INVALID_ARGUMENT: traffic revision must be a short revision ID' >&2
+            exit 1
+          }
+          jq --slurpfile patch "$body_file" '.traffic=$patch[0].traffic | .etag="next-etag"' "$CASE_DIR/service.json" ;;
         template) jq --slurpfile patch "$body_file" '.template=$patch[0].template | .etag="next-etag"' "$CASE_DIR/service.json" ;;
         *) echo 'unexpected update mask' >&2; exit 1 ;;
       esac > "$CASE_DIR/next.json"
@@ -277,7 +283,8 @@ new_case() {
   : > "$CASE_DIR/gcloud-calls"
   : > "$CASE_DIR/private-calls"
   local revision='projects/test-project/locations/test-region/services/vlrgg-query-check/revisions/baseline'
-  jq -n --arg revision "$revision" '{
+  local revision_id="${revision##*/}"
+  jq -n --arg revision "$revision_id" '{
     name:"projects/test-project/locations/test-region/services/vlrgg-query-check",
     etag:"initial-etag",annotations:{},reconciling:false,
     terminalCondition:{type:"Ready",state:"CONDITION_SUCCEEDED"},
@@ -471,6 +478,14 @@ template_line="$(grep -n 'updateMask=template' "$CASE_DIR/http-calls" | head -n1
 test -n "$traffic_line" && test -n "$template_line" && test "$template_line" -gt "$traffic_line" \
   || fail 'restore did not pin baseline traffic before restoring template'
 jq -e '.phase=="restoring"' <<< "$(service read)" >/dev/null
+jq -e '.traffic[0].revision == "baseline"' "$CASE_DIR/patch-traffic.json" >/dev/null \
+  || fail 'restore sent a full revision resource to the traffic patch'
+jq -e '.traffic[0].revision == "baseline"' "$CASE_DIR/service.json" >/dev/null \
+  || fail 'traffic read-back did not retain the short revision ID'
+jq -e --arg revision 'projects/test-project/locations/test-region/services/vlrgg-query-check/revisions/baseline' \
+  '.annotations["vlrgg-observability-validation"] | fromjson | .baselineRevision == $revision' \
+  "$CASE_DIR/service.json" >/dev/null \
+  || fail 'journal read-back lost the full baseline revision resource'
 pass 'restore pins traffic before template and verifies journal'
 
 new_case restore-hash
@@ -804,6 +819,94 @@ expect_fail "$CASE_DIR/live-provider.stderr" live guard_target
 ! grep -Eq 'secret@example|secret\.example|token-SECRET|project-secret' "$CASE_DIR/live-provider.stderr" \
   || fail 'live driver leaked protected provider stderr'
 pass 'live driver exposes only fixed errors when provider inventory fails'
+
+new_case live-api-provider-errors
+if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"; evidence="$CASE_DIR/evidence-http403"; mkdir -p "$evidence"
+  gcloud() { printf "%s\n" "token-SECRET"; }
+  curl() {
+    local output=; while test "$#" -gt 0; do
+      if test "$1" = --output; then output="$2"; shift 2; else shift; fi
+    done
+    printf "%s\n" "secret@example.invalid https://secret.example.invalid body=SECRET_BODY token-SECRET project-secret" > "$output"
+    printf "%s" 403
+    printf "%s\n" "provider secret@example.invalid https://secret.example.invalid body=SECRET_BODY token-SECRET project-secret" >&2
+    return 22
+  }
+  api GET "https://monitoring.googleapis.com/v3/projects/test-project/alerts?pageSize=1" "$evidence/alerts.json"
+' _ "$live_helper" > "$CASE_DIR/api-http403.stdout" 2> "$CASE_DIR/api-http403.stderr"; then
+  fail 'provider HTTP 403 unexpectedly succeeded'
+fi
+grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 403, curl 22).' \
+  "$CASE_DIR/api-http403.stderr"
+! grep -Eq 'secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
+  "$CASE_DIR/api-http403.stdout" "$CASE_DIR/api-http403.stderr" \
+  || fail 'provider HTTP 403 leaked protected request data'
+grep -Eq 'secret@example|secret\.example|SECRET_BODY|token-SECRET|project-secret' \
+  "$CASE_DIR/evidence-http403/provider-error"
+
+if env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"; evidence="$CASE_DIR/evidence-http000"; mkdir -p "$evidence"
+  gcloud() { printf "%s\n" "token-SECRET"; }
+  curl() {
+    local output=; while test "$#" -gt 0; do
+      if test "$1" = --output; then output="$2"; shift 2; else shift; fi
+    done
+    : > "$output"; return 7
+  }
+  api GET "https://monitoring.googleapis.com/v3/projects/test-project/alerts?pageSize=1" "$evidence/alerts.json"
+' _ "$live_helper" > "$CASE_DIR/api-http000.stdout" 2> "$CASE_DIR/api-http000.stderr"; then
+  fail 'provider transport failure unexpectedly succeeded'
+fi
+grep -Fxq 'Observability live validation failed: Provider request failed: monitoring.alerts.list (HTTP 000, curl 7).' \
+  "$CASE_DIR/api-http000.stderr"
+
+env -u OBSERVABILITY_PROVIDER_HTTP CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"; evidence="$CASE_DIR/evidence-http200"; mkdir -p "$evidence"
+  gcloud() { printf "%s\n" "token-SECRET"; }
+  curl() {
+    local output=; while test "$#" -gt 0; do
+      if test "$1" = --output; then output="$2"; shift 2; else shift; fi
+    done
+    printf "%s\n" "{\"alerts\":[]}" > "$output"; printf "%s" 200
+  }
+  api GET "https://monitoring.googleapis.com/v3/projects/test-project/alerts?pageSize=1" "$evidence/alerts.json"
+' _ "$live_helper"
+jq -e '.alerts == []' "$CASE_DIR/evidence-http200/alerts.json" >/dev/null
+pass 'provider api reports sanitized HTTP 403/curl 22, HTTP 000 transport failures, and accepts a 200 response'
+
+new_case live-provider-before-resources
+for mode in success failure; do
+  : > "$CASE_DIR/provider-calls"
+  test_status=0
+  env CASE_DIR="$CASE_DIR" MODE="$mode" PROJECT_ID=test-project SERVICE_NAME=vlrgg-query-check \
+    OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+    OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+    bash -c '
+      source "$1"; evidence="$CASE_DIR/preflight"; mkdir -p "$evidence"
+      api() {
+        test "$1" = GET || exit 1
+        printf "%s\n" "$3" >> "$CASE_DIR/provider-calls"
+        test "$MODE" != failure || exit 1
+        case "$3" in
+          */alerts-preflight.json) printf "%s\n" "{\"alerts\":[]}" > "$3" ;;
+          */error-reporting-preflight.json) printf "%s\n" "{\"timeRangeBegin\":\"2026-01-01T00:00:00Z\"}" > "$3" ;;
+          */channel.json) printf "%s\n" "{\"name\":\"projects/test-project/notificationChannels/channel-1\",\"enabled\":true}" > "$3" ;;
+          *) exit 1 ;;
+        esac
+      }
+      provider_preflight
+    ' _ "$live_helper" || test_status=$?
+  if test "$mode" = success; then
+    test "$test_status" = 0 && test "$(wc -l < "$CASE_DIR/provider-calls" | tr -d " ")" = 3
+  else
+    test "$test_status" != 0 && test "$(wc -l < "$CASE_DIR/provider-calls" | tr -d " ")" = 1
+  fi
+done
+provider_line="$(grep -n 'name: Check observability provider access before creating resources' "$workflow" | cut -d: -f1)"
+journal_line="$(grep -n 'name: Guard or prepare the validation recovery journal' "$workflow" | cut -d: -f1)"
+test "$provider_line" -lt "$journal_line" || fail 'provider checks must precede journal/resource creation'
+pass 'provider preflight performs only three reads without a journal and fails before later requests'
 
 new_case live-private-contract
 prepare_live_case
