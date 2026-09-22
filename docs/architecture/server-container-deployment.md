@@ -75,7 +75,7 @@ Logs Explorer에서는 placeholder로 project/location/service와 시간 범위�
 
 ### 초기 정책
 
-알림 채널이 없는 최초 설정에서는 운영자가 지정한 이메일 채널 하나를 기본 수신 경로로 만든다. Monitoring 정책과 Error Reporting이 같은 채널을 사용하되, Error Reporting의 연결은 콘솔의 **Configure notifications**에서 별도로 저장한다. Google Cloud 앱 푸시는 모바일에서 프로젝트를 연결한 뒤 선택적으로 추가하며 이메일을 유지한다. Google은 모바일·Slack·webhook의 공통 전달 서비스 장애에 대비해 이메일 또는 Pub/Sub의 병행 사용을 권장한다. 이 규모에서는 이메일로 시작하고 별도 알림 서버를 만들지 않는다. 채널 생성·활성화 확인은 실제 메일 도착의 증거가 아니므로 신규 오류·재발·장애·복구의 수신은 각각 검증한다. [Monitoring 채널](https://docs.cloud.google.com/monitoring/support/notification-options), [Error Reporting 연결](https://docs.cloud.google.com/error-reporting/docs/notifications).
+알림 채널이 없는 최초 설정에서는 운영자가 지정한 이메일 채널 하나를 기본 수신 경로로 만든다. Monitoring 정책과 Error Reporting이 같은 이메일 채널을 사용하되, Error Reporting의 연결은 콘솔의 **Configure notifications**에서 별도로 저장한다. Google Cloud 앱 푸시는 모바일에서 프로젝트를 연결한 뒤 선택적으로 추가하며 이메일을 유지한다. Monitoring 정책에서는 모바일·Slack·webhook의 공통 전달 서비스 장애에 대비해 이메일 또는 Pub/Sub의 병행 사용을 권장한다. Error Reporting의 지원 채널은 이메일·모바일·Slack·webhook이며 Pub/Sub는 포함되지 않는다. 이 규모에서는 이메일로 시작하고 별도 알림 서버를 만들지 않는다. 채널 생성·활성화 확인은 실제 메일 도착의 증거가 아니므로 신규 오류·재발·장애·복구의 수신은 각각 검증한다. [Monitoring 채널](https://docs.cloud.google.com/monitoring/support/notification-options), [Error Reporting 연결](https://docs.cloud.google.com/error-reporting/docs/notifications).
 
 | 신호 | 초기 값 | 완료 판단 |
 | --- | --- | --- |
