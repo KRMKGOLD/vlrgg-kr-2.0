@@ -190,7 +190,7 @@ guard() {
 prepare() {
   require_env OBSERVABILITY_RUN
   [[ "$OBSERVABILITY_RUN" =~ ^[0-9]+-[0-9]+$ ]] || fail 'Invalid OBSERVABILITY_RUN.'
-  local service traffic revision projection desired_projection baseline_hash journal policy
+  local service traffic revision projection desired_projection baseline_hash journal policy baseline_name
   service="$(get_service)"
   jq -e --arg name "$service_name" --arg key "$journal_key" '
     .name == $name and (.reconciling // false) == false and
@@ -225,6 +225,14 @@ prepare() {
     || fail 'Baseline revision does not expose immutable container digests.'
   projection="$(template_projection <<< "$revision_json")"
   desired_projection="$(template_projection <<< "$(jq -c '.template' <<< "$service")")"
+  if test "$(jq -r '.containers | length' <<< "$projection")" = 1 &&
+    test "$(jq -r '.containers | length' <<< "$desired_projection")" = 1 &&
+    jq -e '.containers[0].name | type == "string" and length > 0' <<< "$projection" >/dev/null &&
+    jq -e '(.containers[0] | has("name") | not)' <<< "$desired_projection" >/dev/null; then
+    # Cloud Run can name the immutable container while omitting its name in the Service template.
+    baseline_name="$(jq -er '.containers[0].name' <<< "$projection")"
+    desired_projection="$(jq -Sc --arg name "$baseline_name" '.containers[0].name=$name' <<< "$desired_projection")"
+  fi
   test "$projection" = "$desired_projection" || fail 'Service template differs from the serving baseline revision.'
   baseline_hash="$(printf %s "$projection" | sha256)"
   journal="$(jq -cn --arg run "$OBSERVABILITY_RUN" --arg revision "$revision" --arg hash "$baseline_hash" \

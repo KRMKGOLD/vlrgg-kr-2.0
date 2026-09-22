@@ -174,7 +174,7 @@ verify_channels() {
 
 verify_5xx_label() {
   local filter encoded response descriptor
-  descriptor="$(http GET "$monitoring_root/projects/$PROJECT_ID/metricDescriptors/run.googleapis.com%2Frequest_count")"
+  descriptor="$(http GET "$monitoring_root/projects/$PROJECT_ID/metricDescriptors/run.googleapis.com/request_count")"
   jq -e '.type == "run.googleapis.com/request_count" and
     any(.labels[]?; .key == "response_code_class")' <<< "$descriptor" >/dev/null \
     || fail 'Native request metric descriptor lacks response_code_class.'
