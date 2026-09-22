@@ -268,7 +268,8 @@ mutate_journal() {
       fi
       updated="$(jq -c --arg kind "$kind" --arg target "$target" '
         .resources += [{kind:$kind,name:$target,owned:true}] |
-        .resources |= unique_by(.kind,.name) | del(.pending) | .phase="resources"
+        .resources |= unique_by(.kind,.name) | del(.pending) |
+        if .phase == "prepared" then .phase="resources" else . end
       ' <<< "$journal")" ;;
     phase)
       [[ "$kind" =~ ^(prepared|resources|fault|restoring|verified)$ ]] || fail 'Invalid phase.'
@@ -281,7 +282,8 @@ mutate_journal() {
       jq -e --arg principal "$kind" '.pending.kind == "iam" and .pending.target == $principal' \
         <<< "$journal" >/dev/null || fail 'IAM state does not complete the pending intent.'
       updated="$(jq -c --arg principal "$kind" --argjson existed "$target" \
-        '.iam={principal:$principal,existed:$existed,added:false} | del(.pending) | .phase="resources"' \
+        '.iam={principal:$principal,existed:$existed,added:false} | del(.pending) |
+         if .phase == "prepared" then .phase="resources" else . end' \
         <<< "$journal")" ;;
     iam-added)
       jq -e '.iam.existed == false and .iam.added == false and .pending.kind == "iam-add" and

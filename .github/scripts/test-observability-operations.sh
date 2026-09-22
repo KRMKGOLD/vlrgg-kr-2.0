@@ -170,6 +170,14 @@ case "$method" in
     mv "$CASE_DIR/next.json" "$inventory"
     printf '%s\n' '{}' ;;
   DELETE)
+    if test -f "$CASE_DIR/check-restoring-on-delete"; then
+      jq -e '.annotations["vlrgg-observability-validation"] | fromjson | .phase == "restoring"' \
+        "$CASE_DIR/service.json" >/dev/null || {
+        echo 'resource adoption reset the restoring phase' >&2
+        exit 1
+      }
+      rm "$CASE_DIR/check-restoring-on-delete"
+    fi
     name="${url#*monitoring.googleapis.com/v3/}"
     jq --arg name "$name" --arg collection "$collection" \
       '.[$collection] |= map(select(.name!=$name))' "$inventory" > "$CASE_DIR/next.json"
@@ -402,7 +410,8 @@ expect_fail "$CASE_DIR/conflict.stderr" service resource image \
   'test-region-docker.pkg.dev/test-project/repo/query-observability@sha256:owned'
 jq -e '.pending.kind=="image" and (.resources|length)==0' <<< "$(service read)" >/dev/null
 service resource image 'test-region-docker.pkg.dev/test-project/repo/query-observability@sha256:owned' >/dev/null
-jq -e '(has("pending")|not) and .resources[0].kind=="image"' <<< "$(service read)" >/dev/null
+jq -e '(has("pending")|not) and .phase=="resources" and .resources[0].kind=="image"' \
+  <<< "$(service read)" >/dev/null
 pass 'journal CAS conflict retains write-ahead intent'
 
 valid_service="$CASE_DIR/service-valid.json"
@@ -633,7 +642,13 @@ pass 'PromQL numeric query accepts finite samples and rejects missing or ambiguo
 
 new_case policy-idempotent
 service prepare >/dev/null
+service phase fault >/dev/null
 first="$(policy ensure 5xx)"
+jq -e --arg name "$first" '
+  .phase=="fault" and (has("pending")|not) and
+  any(.resources[]; .kind=="policy" and .name==$name)
+' <<< "$(service read)" >/dev/null \
+  || fail 'policy ensure reset the active fault phase during resource registration'
 second="$(policy ensure 5xx)"
 test "$first" = "$second"
 test "$(grep -c $'^POST\t' "$CASE_DIR/http-calls")" = 1
@@ -641,7 +656,7 @@ grep -Fq $'\thttps://monitoring.googleapis.com/v3/projects/test-project/metricDe
   "$CASE_DIR/http-calls"
 ! grep -Eq '/metricDescriptors/[^?]*%2Frequest_count' "$CASE_DIR/http-calls" \
   || fail 'metric descriptor request used an encoded metric name'
-pass 'policy ensure is idempotent'
+pass 'policy ensure is idempotent and preserves the active fault phase'
 
 jq '.alertPolicies[0].conditions[0].conditionPrometheusQueryLanguage.query += " drift"' \
   "$CASE_DIR/alertPolicies.json" > "$CASE_DIR/next.json"
@@ -704,12 +719,35 @@ pass '5xx policy requires descriptor label and an actual matching sample'
 new_case policy-log-input
 valid_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
   OBSERVABILITY_RUN=123-1 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  OBSERVABILITY_REVISION=vlrgg-query-check-o999-9 \
   SYSTEM_LOG_NAME=projects/test-project/logs/run.googleapis.com%2Fvarlog%2Fsystem \
   SYSTEM_LOG_SIGNATURE='Container called exit(42).' "$policy_helper" render log)"
+jq -e --arg revision 'vlrgg-query-check-o123-1' '
+  .conditions[0].conditionMatchedLog.filter |
+  contains(" AND resource.labels.revision_name=\"" + $revision + "\"") and
+  (contains("vlrgg-query-check-o999-9") | not)
+' <<< "$valid_log" >/dev/null
 jq -e '.conditions[0].conditionMatchedLog.filter|contains("Container called exit(42).")' \
   <<< "$valid_log" >/dev/null
 jq -e '.conditions[0].conditionMatchedLog.filter|contains("textPayload=\"Container called exit(42).\"")' \
   <<< "$valid_log" >/dev/null
+different_run_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_RUN=123-2 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+  SYSTEM_LOG_NAME=projects/test-project/logs/run.googleapis.com%2Fvarlog%2Fsystem \
+  SYSTEM_LOG_SIGNATURE='Container called exit(42).' "$policy_helper" render log)"
+jq -e --arg current 'vlrgg-query-check-o123-2' --arg previous 'vlrgg-query-check-o123-1' '
+  .conditions[0].conditionMatchedLog.filter |
+  contains("resource.labels.revision_name=\"" + $current + "\"") and
+  (contains("resource.labels.revision_name=\"" + $previous + "\"") | not)
+' <<< "$different_run_log" >/dev/null
+production_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query \
+  OBSERVABILITY_RUN=123-1 OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+  OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  SYSTEM_LOG_NAME=projects/test-project/logs/run.googleapis.com%2Fvarlog%2Fsystem \
+  SYSTEM_LOG_SIGNATURE='Container called exit(42).' "$policy_helper" render log)"
+jq -e '.conditions[0].conditionMatchedLog.filter | contains("resource.labels.revision_name") | not' \
+  <<< "$production_log" >/dev/null
 expect_fail "$CASE_DIR/cross-project.stderr" env PROJECT_ID=test-project REGION=test-region \
   SERVICE_NAME=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
   OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
@@ -720,7 +758,7 @@ expect_fail "$CASE_DIR/filter-injection.stderr" env PROJECT_ID=test-project REGI
   OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
   SYSTEM_LOG_NAME=projects/test-project/logs/system SYSTEM_LOG_SIGNATURE='exit" OR true' \
   "$policy_helper" render log
-pass 'log policy rejects cross-project names and filter metacharacters'
+pass 'log policy pins private run revisions, preserves production scope, and rejects unsafe inputs'
 
 principal='service-123@gcp-sa-monitoring-notification.iam.gserviceaccount.com'
 member="serviceAccount:$principal"
@@ -730,7 +768,7 @@ service prepare >/dev/null
 jq -n --arg member "$member" '{bindings:[{role:"roles/run.invoker",members:[$member]}]}' \
   > "$CASE_DIR/iam-policy.json"
 policy ensure uptime >/dev/null
-jq -e '.iam.principal==$principal and .iam.existed==true and .iam.added==false' \
+jq -e '.phase=="resources" and .iam.principal==$principal and .iam.existed==true and .iam.added==false' \
   --arg principal "$principal" <<< "$(service read)" >/dev/null
 ! grep -q '^run services add-iam-policy-binding' "$CASE_DIR/gcloud-calls" \
   || fail 'preexisting Monitoring invoker binding was added again'
@@ -739,7 +777,7 @@ pass 'preexisting Monitoring invoker binding is preserved and journaled'
 new_case uptime-iam-added
 service prepare >/dev/null
 policy ensure uptime >/dev/null
-jq -e '.iam.existed==false and .iam.added==true' <<< "$(service read)" >/dev/null
+jq -e '.phase=="resources" and .iam.existed==false and .iam.added==true' <<< "$(service read)" >/dev/null
 grep -q '^run services add-iam-policy-binding' "$CASE_DIR/gcloud-calls"
 env PROJECT_ID=test-project REGION=test-region VALIDATION_SERVICE=vlrgg-query-check \
   OBSERVABILITY_RUN=123-1 OBSERVABILITY_HTTP="$work_dir/http" "$cleanup_helper" restore
@@ -749,7 +787,17 @@ jq -e --arg member "$member" '
   all(.bindings[]?|select(.role=="roles/run.invoker")|.members[]?; .!=$member)
 ' "$CASE_DIR/iam-policy.json" >/dev/null
 jq -e '.iam.added==false' <<< "$(service read)" >/dev/null
-pass 'run-added Monitoring invoker binding is removed after cleanup'
+
+new_case uptime-iam-fault
+service prepare >/dev/null
+service phase fault >/dev/null
+policy ensure uptime >/dev/null
+jq -e --arg principal "$principal" '
+  .phase=="fault" and (has("pending")|not) and
+  .iam.principal==$principal and .iam.existed==false and .iam.added==true and
+  any(.resources[]; .kind=="uptime")
+' <<< "$(service read)" >/dev/null
+pass 'run-added Monitoring invoker binding is removed after cleanup and preserves an active fault phase'
 
 new_case uptime-iam-runner-loss
 service prepare >/dev/null
@@ -1393,7 +1441,22 @@ env PATH="$work_dir/bin:$PATH" PROJECT_ID=test-project REGION=test-region \
   VALIDATION_SERVICE=vlrgg-query-check OBSERVABILITY_RUN=999-1 OPERATION=observability-restore \
   OBSERVABILITY_HTTP="$work_dir/http" "$cleanup_helper" cleanup
 jq -e '.phase=="verified" and (has("pending")|not)' <<< "$(service read)" >/dev/null
-pass 'restore mode adopts the durable journal owner after authoritative absence'
+
+new_case cleanup-pending-resource-adoption
+service prepare >/dev/null
+service pending 5xx 5xx >/dev/null
+jq -n '{alertPolicies:[{
+  name:"projects/test-project/alertPolicies/adopted",
+  userLabels:{managed_by:"issue122-validation",validation_run:"123_1",resource_kind:"5xx"}
+}]}' > "$CASE_DIR/alertPolicies.json"
+service restore >/dev/null
+touch "$CASE_DIR/check-restoring-on-delete"
+env PATH="$work_dir/bin:$PATH" PROJECT_ID=test-project REGION=test-region \
+  VALIDATION_SERVICE=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
+  OBSERVABILITY_HTTP="$work_dir/http" "$cleanup_helper" cleanup
+test ! -e "$CASE_DIR/check-restoring-on-delete"
+jq -e '.phase=="verified" and .resources==[] and (has("pending")|not)' <<< "$(service read)" >/dev/null
+pass 'restore mode adopts the durable journal owner and pending resource adoption retains restoring'
 
 new_case restore-public-iam
 service prepare >/dev/null

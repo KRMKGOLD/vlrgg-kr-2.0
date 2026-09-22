@@ -196,6 +196,9 @@ render_log() {
   local notification_channels filter
   notification_channels="$(channels)"
   filter="resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"$PROJECT_ID\" AND resource.labels.location=\"$REGION\" AND resource.labels.service_name=\"$SERVICE_NAME\" AND logName=\"$SYSTEM_LOG_NAME\" AND textPayload=\"$SYSTEM_LOG_SIGNATURE\""
+  if test "$SERVICE_NAME" = vlrgg-query-check; then
+    filter+=" AND resource.labels.revision_name=\"${SERVICE_NAME}-o${OBSERVABILITY_RUN}\""
+  fi
   jq -cn --arg display "issue122 validation abnormal exit $OBSERVABILITY_RUN" --arg filter "$filter" \
     --argjson labels "$(labels log)" --argjson channels "$notification_channels" '
     {
