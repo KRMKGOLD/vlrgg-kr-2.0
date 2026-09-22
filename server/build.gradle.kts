@@ -38,6 +38,15 @@ tasks.test {
     }
 }
 
+tasks.register<Jar>("observabilityValidationJar") {
+    description = "Builds the opt-in private observability harness; excluded from production distributions."
+    dependsOn(tasks.testClasses)
+    archiveFileName.set("server-observability-validation.jar")
+    from(sourceSets["test"].output) {
+        include("kr/co/cotton/vlrgg_mobile/observability/validation/**")
+    }
+}
+
 val firestoreEmulatorTest by tasks.registering(Test::class) {
     group = LifecycleBasePlugin.VERIFICATION_GROUP
     description = "Runs Firestore Emulator integration tests."

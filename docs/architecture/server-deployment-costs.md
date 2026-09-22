@@ -1,6 +1,6 @@
 # 조회 서버 배포 비용 검토 (#111)
 
-검토일: 2026-09-07, 결정 갱신일: 2026-09-11. 조회 서버는 서울 `asia-northeast3` Cloud Run CPU 1/768 MiB로 운영한다. [PR115](https://github.com/KRMKGOLD/vlrgg-kr-2.0/pull/115) main `74a565ab959b1d5499405979a582aa5789625f4d`의 [CI 34625097062](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34625097062)·[deploy 34627000600](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34627000600)는 success다. 실제 rollback·비용 중단 실패 후 drain/정상 공개 복구와 G 독립 검증은 PASS이며 [운영 결과](server-container-deployment.md)에 시각·최종 설정·한계를 기록했다. 아래 Catalog compute, 과거 전체 계획 가정, 실제 청구액을 구분한다. 관측 청구액·알림 수신·Spend cap 활성화는 미확인이다.
+검토일: 2026-09-07, 결정 갱신일: 2026-09-21. 조회 서버는 서울 `asia-northeast3` Cloud Run CPU 1/768 MiB로 운영한다. [PR115](https://github.com/KRMKGOLD/vlrgg-kr-2.0/pull/115) main `74a565ab959b1d5499405979a582aa5789625f4d`의 [CI 34625097062](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34625097062)·[deploy 34627000600](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/34627000600)는 success다. 실제 rollback·비용 중단 실패 후 drain/정상 공개 복구와 G 독립 검증은 PASS이며 [운영 결과](server-container-deployment.md)에 시각·최종 설정·한계를 기록했다. 아래 Catalog compute, 과거 전체 계획 가정, 실제 청구액을 구분한다. #122 관측 정책의 live 적용·청구액·알림 수신·Spend cap 활성화는 미확인이다.
 
 ## 현재 768 MiB Catalog compute — 2026-09-11
 
@@ -23,6 +23,14 @@ Production 1 vCPU/0.75 GiB, 30일 2,592,000초, min 1 가정의 compute만 계�
 할인·무료 compute credit·세금·요청·전송·저장·log와 별도 validation 사용 비용을 반영하지 않은 계산이다. Validation min0도 배포·호출 중 비용은 발생한다. 과거 768 MiB 전체 계획 약 57,900원(세금 포함)은 당시 환율·전송·Artifact Registry 등 다른 SKU 가정을 섞은 시나리오이며 현재 Catalog compute와 합쳐 최신 총액이나 invoice로 제시하지 않는다. 실제 빌드는 GitHub Actions runner에서 수행하므로 Cloud Build 요금을 현재 배포에 적용하지 않는다.
 
 B2/report.md와 budget-headroom-decision.md는 Git ignored 보호 경로 `.omx/evidence/issue111/20260911T121017Z/`에 보존한다. 실제 운영·독립 검증 원본은 `.omx/evidence/issue111/20260911T164328Z/F/`, `G/`에 있다. 공개 문서에 원본 digest/revision/IAM·URL/host·로그를 옮기지 않으며 실제 stable URL의 인계 경로는 repository 외부 `~/.config/vlrgg-mobile/release-api-url`(디렉터리 0700/파일 0600)다.
+
+## #122 관측 비용 경계 — 2026-09-21
+
+진단 logger의 보수적 정상 상한은 process별 category 4개 × 4 category × 60초당 1회 × 이벤트 16 KiB, 즉 256 KiB/분이다. 이를 30일 내내 채우면 약 10.55 GiB지만 고정 청구 상한은 아니다. revision 중첩·재시작·Cloud Run request/system 로그·다른 서비스·공유 무료량·보존 설정을 포함하지 않고, 일반 WARN 이벤트는 보통 16 KiB보다 작다. 기존 Logging retention, routing, exclusion을 #122 때문에 바꾸지 않는다.
+
+uptime check는 3개 region이 각각 5분마다 실행된다는 설계 산술로 월 25,920회다. 실제 checker 수·재시도·Cloud Run 요청 및 로그 비용은 live inventory에서 다시 계산한다. 조사 시 공식 안내의 Logging 50 GiB/월, uptime 100만 회/월 무료량과 metric alert 과금 예정일은 계정·적용 시점에 따라 달라질 수 있으므로 영구 무료 또는 이번 서비스 전용 무료량으로 보지 않는다. custom metric, 중복 log export, 새 장기 보관은 추가하지 않는다.
+
+private validation service는 min 0이어도 overlay image 저장, fault/health 요청, log ingest, uptime probe와 임시 revision 실행 비용이 생길 수 있다. 현재 workflow timeout은 120분이다. 향후 전체 live 시험은 90분 fault deadline 안에서 끝내 나머지를 복원에 남기고, provider 지연이 길면 재시도 폭주 대신 NOT RUN으로 남긴다. 현재 workflow는 고정 endpoint status만 확인하며 policy·uptime·오류 그룹·채널 수신·청구 확인은 실행하지 않았다.
 
 ## 과거 후보 비교 — 2026-09-07
 

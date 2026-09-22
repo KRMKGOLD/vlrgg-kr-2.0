@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포 경로
 
-기록일: 2026-09-06, 갱신일: 2026-09-12. Issue #52의 보호 구현을 적용한 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)의 private validation 후속 배포, 실제 rollback, 비용 중단 실패 후 drain·정상 복구, 기본 `run.app` HTTPS 공개 조회와 G 독립 검증은 PASS다. 실제 청구액·알림 수신·Spend cap 활성화는 미확인이며 #112 앱 release process와 실제 #117 앱 release는 서버 운영과 별도다. 현재 서버 이슈 상태는 #111에서 추적한다.
+기록일: 2026-09-06, 갱신일: 2026-09-21. Issue #52의 보호 구현을 적용한 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)의 private validation 후속 배포, 실제 rollback, 비용 중단 실패 후 drain·정상 복구, 기본 `run.app` HTTPS 공개 조회와 G 독립 검증은 PASS다. #122의 Logging·Error Reporting·Monitoring live 검증은 아직 실행하지 않았다. 실제 청구액·알림 수신·Spend cap 활성화는 미확인이며 #112 앱 release process와 실제 #117 앱 release는 서버 운영과 별도다. 현재 서버 배포 이력은 #111, 관측 검증은 #122에서 추적한다.
 
 ## 이미지 계약
 
@@ -61,15 +61,58 @@ IAM 제거 직후 200은 전파 지연과 일치하는 관측이며 내부 원�
 
 월 10만 원 Budget과 1·3·5·8·10만 원 알림 resource는 변경하지 않았다. **1만 원 점검·3만 원 추세 점검·5만 원 도달 또는 더 이른 초과 예상 시 수동 중단**, 8·10만 원 후속 경고로 대응한다. 실제 청구액·알림 수신·Spend cap 활성화는 미확인이고 확인된 자동 상한은 없다. 현재 768 MiB Catalog compute와 과거 전체 계획 가정, 잔여 비용은 [비용 검토](server-deployment-costs.md)에 구분한다.
 
+## #122 관측 운영·검증 runbook
+
+이 절의 명령과 정책 값은 향후 전체 live evidence를 수집할 운영 절차다. 이번 변경에서는 로컬 코드·script 검증까지만 수행했다. GCP inventory, policy 생성·변경, 장애 주입, Error Reporting group 생성, 실제 채널 수신·incident 종료와 private service 실제 복구는 모두 **NOT RUN**이며 #122를 닫을 근거가 아니다. 실제 URL, notification receiver, project/revision/digest, credential과 raw log는 repository·Issue·Actions summary에 남기지 않는다.
+
+### 범위와 읽기 전용 사전 조사
+
+operator는 exact `main` SHA와 같은 SHA의 성공한 CI, workflow run ID/attempt, project/location, production·validation service, 양 service의 serving revision·immutable digest·traffic·template·IAM을 보호 기록에 먼저 고정한다. 이어서 Logging bucket·retention·sink·exclusion, Error Reporting 사용 가능 여부, alert policy·uptime check·notification channel, Monitoring service agent와 현재 권한을 읽기 전용으로 조사한다. 이름이나 display name만으로 자원 소유권을 추정하지 않는다.
+
+필요 권한은 위 inventory 조회, validation service의 annotation/template/traffic 변경, 해당 service IAM 조회와 필요한 최소 invoker binding, 이번 run 소유 Monitoring policy/check의 생성·조회·비활성화·삭제, 이번 run 소유 revision/image 정리에 한정한다. 기존 shared channel·policy·image·baseline revision과 production IAM/policy는 변경하지 않는다. 권한·API·routing·receiver가 없거나 불명확하면 fault 전에 해당 항목을 NOT RUN으로 종료한다. 장기 Service Account key, 새 bucket·DB·secret store를 만들지 않는다.
+
+Logs Explorer에서는 placeholder로 project/location/service와 시간 범위를 정확히 제한하고 `jsonPayload.error_code`, `jsonPayload.category`, `jsonPayload.serviceContext.version`, `resource.labels.revision_name`을 확인한다. Error Reporting group의 representative event에서 revision을 얻고, 보호 기록의 revision→immutable digest→exact SHA/workflow run 대응표로 배포를 추적한다. group을 service 이름만으로 분리됐다고 가정하지 않으며 validation 전용 exception type과 상위 user-owned frame이 production group과 합쳐지면 시험을 중단한다. 기존 production group을 resolve하거나 수정하지 않는다.
+
+### 초기 정책
+
+| 신호 | 초기 값 | 완료 판단 |
+| --- | --- | --- |
+| 5xx | `cloud_run_revision`, exact project/location/service, `run.googleapis.com/request_count`, 실제 시계열에서 확인한 `response_code_class="5xx"`, 300초 `ALIGN_SUM`/`REDUCE_SUM`, threshold `>2`, duration 0 | 같은 300초 window의 합계 2건은 미충족, 3건은 incident OPENED. 정상 데이터가 들어온 뒤 CLOSED와 수신 확인 |
+| uptime | production HTTPS `/health`, 200과 `^\s*\{\s*"status"\s*:\s*"ok"\s*\}\s*$` body regex, 300초 주기·10초 timeout, `USA_IOWA`/`EUROPE`/`ASIA_PACIFIC`; 실패 checker 집계 `>1`가 600초 유지 | fresh 정상값의 서로 다른 checker location 3개를 먼저 확인하고 OPENED·수신 뒤 fresh passing 값·HTTP body·CLOSED·수신 확인 |
+| OOM/비정상 종료 | exact service와 실제 확인한 Cloud Run system log name/signature의 직접 LogMatch, rate limit 300초, auto-close 1800초 | 정상 start/exit 0/SIGTERM은 제외. 실제 OOM이 없으면 matcher를 넓히지 않고 OOM은 NOT RUN; 통제된 abnormal exit도 실제 platform log로 확인 |
+| Error Reporting | 안전한 `INTERNAL_ERROR`·`SOURCE_PARSING_FAILURE`의 신규 또는 resolve 후 재발, 기존 운영 channel | validation 오류는 최대 2 group. 대표 event의 revision·frame과 실제 수신을 확인하고 provider의 project 단위 제한·지연을 기록 |
+
+metric policy는 OPENED/CLOSED를 통지하고 재알림 3,600초, auto-close 1,800초로 시작한다. log policy는 provider의 OPENED-only 동작을 따르며 silent auto-close를 서비스 복구로 보지 않는다. production policy는 production service만, 임시 검증 policy는 validation service와 check ID만 scope로 삼는다. 5xx label은 먼저 validation 시계열에서 확인하고, 값이 다르거나 데이터가 없으면 추측해 policy를 활성화하지 않는다. uptime missing data도 성공으로 처리하지 않는다.
+
+### private validation 배타 사용과 복원
+
+`.github/workflows/deploy-server.yml`의 `operation`은 기본 `deploy`, `observability-validate`, `observability-restore`만 허용한다. 기존 workflow concurrency와 `cancel-in-progress: false`, exact SHA CI, protected environment, WIF를 재사용한다. deploy와 validation은 enable=true가 필요하지만 journal 기반 private restore는 비용 중단 중에도 실행할 수 있도록 enable 검사에서 제외한다. validation은 production token·traffic·policy를 건드리지 않고, restore는 source/test/image build와 push를 건너뛴다. workflow 밖의 수동 cloud 변경은 validation 시간 동안 금지한다.
+
+현재 `observability-validate`가 자동으로 수행하는 live 범위는 test-only overlay revision 배포, 인증된 고정 endpoint의 예상 HTTP status 확인, 정상 baseline 복원과 소유 자원 정리까지다. 고정 endpoint는 오류 JSON event를 발생시키지만 Error Reporting group·trace 연결·sample 수·policy threshold·incident·receiver를 조회하거나 판정하지 않는다. workflow summary도 provider gate O3~O9를 `NOT RUN`으로 기록한다. health fail/restore와 abnormal exit route는 harness에 준비돼 있지만 현재 workflow는 호출하지 않는다.
+
+validation harness는 test source의 `observability.validation.ObservabilityValidationMainKt`와 `server-observability-validation.jar`에만 있고 production installDist/image에는 없다. cloud 실행은 `VLRGG_OBSERVABILITY_VALIDATION=true`와 `K_SERVICE=vlrgg-query-check`가 모두 맞아야 한다. 종료 fixture는 추가로 `VLRGG_OBSERVABILITY_ALLOW_EXIT=true`가 필요하다. 제어 route와 입력은 고정되어 요청으로 예외 메시지·stack·exit code를 주입할 수 없다.
+
+검증 전 validation Service의 service-level annotation `vlrgg-observability-validation`에 version, run ID/attempt, phase, baseline revision, baseline template hash, 기존/추가 IAM 여부, 이번 run 소유 resource와 pending mutation을 UTF-8 8 KiB 이하 JSON journal로 기록한다. URL·receiver·credential·raw log·env 값은 넣지 않는다. etag를 포함한 CAS와 read-back이 성공하기 전에는 IAM, policy, image, fault를 변경하지 않는다. 일반 deploy는 active·unknown journal 또는 journal 조회 실패가 있으면 첫 cloud mutation 전에 중단한다.
+
+복원과 정리는 실패 여부와 무관하게 다음 순서다.
+
+1. journal의 immutable baseline revision이 존재하고 Ready인지 확인한 뒤 traffic을 그 revision 100%로 먼저 복원한다.
+2. baseline revision에서 allowlist로 투영한 template과 hash를 복원하고 임시 command/args/env/image를 제거한다. 전체 service export를 덮어쓰지 않는다. 복원할 수 없는 template 필드나 digest가 있으면 장애 배포 전에 중단한다.
+3. private IAM, authenticated health·대표 조회, template·traffic·service scaling이 baseline과 같은지 확인한다.
+4. journal로 이번 run의 추가가 확인되는 invoker binding과 ownership label이 일치하는 policy/check만 정리한다. fault revision은 정확한 run revision 이름·overlay digest로, overlay image는 run 전용 tag·다른 참조 부재로 소유권을 확인한 뒤 정리하며 serving·tagged revision은 삭제하지 않는다.
+5. 정상 상태와 cleanup을 다시 확인한 뒤 journal annotation을 마지막에 CAS로 지운다. 소유권·복원 상태가 불명확하면 삭제하지 않고 journal과 sanitized blocker를 남긴다.
+
+`always()` 정리와 별개로 `observability-restore`는 같은 concurrency에서 journal과 immutable revision만 사용해 위 절차를 idempotent하게 수행한다. `.github/scripts/observability-service.sh`가 guard·journal·복원을, `.github/scripts/observability-cleanup.sh`가 traffic/template/IAM과 run-owned resource 정리를, `.github/scripts/observability-policies.sh`가 #122 소유 정책의 render/ensure/disable/delete를 담당한다. policy helper는 현재 workflow의 endpoint smoke에서 자동 호출되지 않으며, 위 초기 정책의 전체 live evidence 수집 때 operator가 inventory와 권한을 확인한 뒤 사용한다. 이번 기능만 중단할 때는 #122 소유 policy/check를 disable하고, error logger를 포함하지 않은 검증된 이전 production revision으로 rollback한다. 기존 Logging retention/routing, shared channel, 다른 정책은 그대로 둔다.
+
 ## 공개 배포와 앱 설치 진행 순서
 
 위 절은 실제 실행 결과이며 아래는 재실행 시 유지할 절차다. 실행 전 `CLOUD_RUN_DEPLOY_ENABLED`의 repository 값과 production environment 동명 값 부재를 모두 확인한다. environment 변수가 있으면 우선하므로 repository의 `true`만 보고 실행하지 않는다.
 
 1. GCP 프로젝트·결제, Artifact Registry, runtime/deploy Service Account와 GitHub WIF를 준비한다. runtime Service Account에는 조회 서버에 필요 없는 DB·Firebase 권한을 주지 않는다.
-2. GitHub `production` environment의 운영 식별자 secrets와 repository의 enable 변수를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED=true` 전에는 workflow가 cloud write를 하지 않아야 한다.
+2. GitHub `production` environment의 운영 식별자 secrets와 repository의 enable 변수를 등록한다. `CLOUD_RUN_DEPLOY_ENABLED=true` 전에는 새 배포·검증 cloud write를 하지 않아야 한다. 단, 남은 private validation journal의 복원과 소유 자원 정리는 false 또는 unset 상태에서도 허용한다.
 3. 수동 workflow로 private 검증 service에서 authenticated `/health`, 대표 조회, 안전한 400, docs/notification 404와 무인증 거절을 확인한 뒤 production 첫 revision을 private 기본 traffic으로 배포한다.
 4. 후속 production revision은 tag 없이 no-traffic 배포하고, traffic 승격과 이전 revision rollback을 확인한다. 첫 revision만으로 rollback 검증 완료를 주장하지 않는다.
-5. 비용 중단은 repository enable=false와 production environment 동명 변수 부재 또는 false 확인 → 대기/진행 deploy가 있으면 취소·종료 → production public invoker 제거 → 양 service min0 → drain·default/존재 tag URL 거절 확인 순서다. 기존 immutable revision의 minimum 0을 먼저 전수 조회하며 `--min-instances=0`으로 기존 revision까지 바뀐다고 보지 않는다. 양수 minimum이 있으면 traffic/tag와 실제 인스턴스를 확인해 절차를 조정한다. IAM readback 외 실제 403을 상한 내 재확인하고 누락 지표는 unknown으로 둔다. Min0은 비용 0을 뜻하지 않으며 image/log·늦은 청구가 남는다.
+5. 비용 중단은 repository enable=false와 production environment 동명 변수 부재 또는 false 확인 → 대기·실행 중인 deploy/observability-validate를 취소하거나 완료시킨 뒤 종료 확인 → 남은 validation journal이 있으면 `observability-restore`로 private baseline·소유 자원을 복원 → production public invoker 제거 → 양 service min0 → drain·default/존재 tag URL 거절 확인 순서다. 같은 concurrency 때문에 진행 중인 run이 끝나기 전에는 restore가 시작되지 않는다. 기존 immutable revision의 minimum 0을 먼저 전수 조회하며 `--min-instances=0`으로 기존 revision까지 바뀐다고 보지 않는다. 양수 minimum이 있으면 traffic/tag와 실제 인스턴스를 확인해 절차를 조정한다. IAM readback 외 실제 403을 상한 내 재확인하고 누락 지표는 unknown으로 둔다. Min0은 비용 0을 뜻하지 않으며 image/log·늦은 청구가 남는다.
 6. 정상 복구는 기록한 production revision/digest 100%, production service min/max `1/1`·revision min/max `0/1`, validation service private/minimum 0, production public invoker, 외부 smoke 순서다. IAM·traffic·digest·자원을 재확인한 뒤에만 enable을 마지막으로 복구한다. stable URL 원문은 repository 밖의 보호 파일 `~/.config/vlrgg-mobile/release-api-url`(0700/0600)로만 #112에 전달한다.
 
 workflow 준비와 실제 release 완료를 구분한다. #111은 후속 배포·rollback·비용 중단/복구와 원격 공개 endpoint 검증까지 소유한다. [#112](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/112)는 URL 주입·Fastlane/Actions process와 credential-free 검증을 소유하며, 계정·environment/secrets·서명/auth·Android internal/TestFlight upload·installation/device 조회는 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)의 future work다. 정식 스토어 공개 출시와 Stage 2의 FCM·Firestore·App Check·Scheduler는 이번 완료 조건에 포함하지 않는다. 별도 SDK, 로그인, 앱 진위 검증 또는 앱에 내장하는 server key는 공개 조회의 접근 제어 전제로 추가하지 않는다.

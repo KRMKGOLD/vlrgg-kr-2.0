@@ -298,9 +298,9 @@ printf '%s\n' \
   > "$diagnostics_dir/cloud-run-synthetic.log"
 RUNNER_TEMP="$diagnostics_dir" bash --noprofile --norc -e -o pipefail \
   "$work_dir/diagnostics.sh" > "$diagnostics_dir/output"
-if grep -Eq 'https?://|\.run\.app|-docker\.pkg\.dev/' "$diagnostics_dir/output"; then
-  echo 'FAIL: diagnostics exposed an operational URL or image path' >&2
+if grep -Eq 'https?://|\.run\.app|-docker\.pkg\.dev/|Revision sample' "$diagnostics_dir/output"; then
+  echo 'FAIL: diagnostics exposed provider output' >&2
   exit 1
 fi
-grep -Fq 'Revision sample failed safely.' "$diagnostics_dir/output"
+grep -Fq 'cloud-run-synthetic.log (provider output withheld).' "$diagnostics_dir/output"
 echo 'PASS: sanitized diagnostics'

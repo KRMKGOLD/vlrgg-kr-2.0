@@ -2,6 +2,16 @@ name: Deploy query server
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Deployment or bounded observability recovery operation
+        required: true
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - observability-validate
+          - observability-restore
 
 concurrency:
   group: cloud-run-query-production
@@ -14,7 +24,7 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.operation == 'deploy' && 30 || 120 }}
     environment: production
     permissions:
       contents: read
@@ -27,8 +37,11 @@ jobs:
       VALIDATION_SERVICE: vlrgg-query-check
       REGISTRY_REPOSITORY: vlrgg-server
       RUNTIME_SERVICE_ACCOUNT: ${{ secrets.GCP_RUNTIME_SERVICE_ACCOUNT }}
+      OPERATION: ${{ inputs.operation }}
+      OBSERVABILITY_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Require enabled deployment and successful CI for this main commit
+        id: preflight
         env:
           DEPLOY_ENABLED: ${{ vars.CLOUD_RUN_DEPLOY_ENABLED }}
           WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
@@ -36,14 +49,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          test "$DEPLOY_ENABLED" = true || { echo "::error::Deployment is disabled."; exit 1; }
+          case "$OPERATION" in
+            deploy|observability-validate|observability-restore) ;;
+            *) echo "::error::Unsupported operation."; exit 1 ;;
+          esac
+          if test "$OPERATION" != observability-restore; then
+            test "$DEPLOY_ENABLED" = true || { echo "::error::Deployment is disabled."; exit 1; }
+          fi
           for variable in PROJECT_ID WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT RUNTIME_SERVICE_ACCOUNT; do
             test -n "${!variable}" || { echo "::error::Missing $variable."; exit 1; }
           done
           test "$GITHUB_SHA" = "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=push&branch=main&head_sha=$GITHUB_SHA&per_page=1" \
             | jq --exit-status --arg sha "$GITHUB_SHA" \
-              '.workflow_runs[0] | .head_sha == $sha and .head_branch == "main" and .event == "push" and .conclusion == "success"'
+              '.workflow_runs[0] | .head_sha == $sha and .head_branch == "main" and .event == "push" and .conclusion == "success"' \
+              > /dev/null
 
       - name: Check out the verified commit
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -52,13 +72,35 @@ jobs:
           persist-credentials: false
 
       - name: Build the existing server image before requesting cloud credentials
+        if: inputs.operation != 'observability-restore'
         shell: bash
         run: |
           image="$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY_REPOSITORY/query:$GITHUB_SHA"
-          docker build --tag "$image" .
+          if ! docker build --tag "$image" . > "$RUNNER_TEMP/docker-build.log" 2>&1; then
+            echo "::error::Server image build failed."
+            exit 1
+          fi
           echo "IMAGE_TAG=$image" >> "$GITHUB_ENV"
 
+      - name: Build the validation-only image overlay before requesting cloud credentials
+        if: inputs.operation == 'observability-validate'
+        shell: bash
+        run: |
+          ./gradlew --no-daemon :server:observabilityValidationJar
+          overlay="$RUNNER_TEMP/observability-overlay"
+          mkdir -p "$overlay"
+          cp server/build/libs/server-observability-validation.jar "$overlay/validation.jar"
+          cp .github/scripts/observability-validation.Dockerfile "$overlay/Dockerfile"
+          image="$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY_REPOSITORY/query-observability:$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if ! docker build --build-arg "BASE_IMAGE=$IMAGE_TAG" --tag "$image" "$overlay" \
+            > "$RUNNER_TEMP/docker-observability-build.log" 2>&1; then
+            echo "::error::Validation image build failed."
+            exit 1
+          fi
+          echo "VALIDATION_IMAGE_TAG=$image" >> "$GITHUB_ENV"
+
       - name: Authenticate deployment through Workload Identity Federation
+        id: cloud-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -66,20 +108,54 @@ jobs:
           service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
+        id: gcloud
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Guard or prepare the validation recovery journal
+        id: journal
+        shell: bash
+        run: |
+          case "$OPERATION" in
+            deploy) .github/scripts/observability-service.sh guard ;;
+            observability-validate)
+              .github/scripts/observability-service.sh prepare > "$RUNNER_TEMP/observability-journal.json"
+              echo "prepared=true" >> "$GITHUB_OUTPUT"
+              echo "OBSERVABILITY_DEADLINE_EPOCH=$(($(date +%s) + 5400))" >> "$GITHUB_ENV"
+              ;;
+            observability-restore)
+              journal="$(.github/scripts/observability-service.sh read)"
+              echo "OBSERVABILITY_RUN=$(jq -er '.run' <<< "$journal")" >> "$GITHUB_ENV"
+              ;;
+          esac
 
       - name: Push the image and resolve its immutable digest
         id: image
+        if: inputs.operation == 'deploy'
         shell: bash
         run: |
-          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-          docker push "$IMAGE_TAG"
-          image="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE_TAG")"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet > /dev/null 2>&1
+          docker push "$IMAGE_TAG" > "$RUNNER_TEMP/docker-push.log" 2>&1
+          image="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE_TAG" 2>/dev/null)"
           [[ "$image" == "$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY_REPOSITORY/query@sha256:"* ]]
+          echo "digest=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Push the validation-only image and record its ownership
+        id: validation-image
+        if: inputs.operation == 'observability-validate'
+        shell: bash
+        run: |
+          test "$(date +%s)" -le "$OBSERVABILITY_DEADLINE_EPOCH"
+          .github/scripts/observability-service.sh pending image "$VALIDATION_IMAGE_TAG"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet > /dev/null 2>&1
+          docker push "$VALIDATION_IMAGE_TAG" > "$RUNNER_TEMP/docker-observability-push.log" 2>&1
+          image="$(docker inspect --format '{{index .RepoDigests 0}}' "$VALIDATION_IMAGE_TAG" 2>/dev/null)"
+          [[ "$image" == "$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY_REPOSITORY/query-observability@sha256:"* ]]
+          .github/scripts/observability-service.sh resource image "$image"
           echo "digest=$image" >> "$GITHUB_OUTPUT"
 
       - name: Deploy and inspect the private validation service
         id: validation
+        if: inputs.operation == 'deploy'
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         shell: bash
@@ -90,7 +166,7 @@ jobs:
               '(.metadata.annotations["run.googleapis.com/invoker-iam-disabled"] // "false") != "true"' \
               <<< "$service_json" > /dev/null
             policy="$(gcloud run services get-iam-policy "$VALIDATION_SERVICE" \
-              --project "$PROJECT_ID" --region "$REGION" --format=json)"
+              --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
             jq --exit-status '
               [.bindings[]? |
                 select(.role == "roles/run.invoker") |
@@ -101,12 +177,12 @@ jobs:
           }
 
           services="$(gcloud run services list --project "$PROJECT_ID" --region "$REGION" \
-            --filter "metadata.name=$VALIDATION_SERVICE" --format=json)"
+            --filter "metadata.name=$VALIDATION_SERVICE" --format=json 2>/dev/null)"
           jq --exit-status --arg name "$VALIDATION_SERVICE" \
             'length <= 1 and all(.[]; .metadata.name == $name)' <<< "$services" > /dev/null
           if test "$(jq 'length' <<< "$services")" = 1; then
             existing="$(gcloud run services describe "$VALIDATION_SERVICE" \
-              --project "$PROJECT_ID" --region "$REGION" --format=json)"
+              --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
             jq --exit-status --arg name "$VALIDATION_SERVICE" '.metadata.name == $name' \
               <<< "$existing" > /dev/null
             require_private_service "$existing"
@@ -117,10 +193,10 @@ jobs:
             --revision-suffix "r$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --port=8080 --cpu=1 --memory=768Mi --concurrency=32 --timeout=30s \
             --min=0 --max=1 --min-instances=0 --max-instances=1 --cpu-throttling \
-            --update-env-vars=VLRGG_ENABLE_API_DOCUMENTATION=false \
+            --update-env-vars="VLRGG_ENABLE_API_DOCUMENTATION=false,GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
             > "$RUNNER_TEMP/cloud-run-validation-deploy.log" 2>&1
           service="$(gcloud run services describe "$VALIDATION_SERVICE" \
-            --project "$PROJECT_ID" --region "$REGION" --format=json)"
+            --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
           revision="$VALIDATION_SERVICE-r$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           jq --exit-status --arg name "$VALIDATION_SERVICE" --arg image "$IMAGE_DIGEST" \
             --arg revision "$revision" '
@@ -130,7 +206,7 @@ jobs:
             (.status.url | type == "string" and length > 0)
           ' <<< "$service" > /dev/null
           deployed_revision="$(gcloud run revisions describe "$revision" \
-            --project "$PROJECT_ID" --region "$REGION" --format=json)"
+            --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
           jq --exit-status --arg revision "$revision" --arg image "$IMAGE_DIGEST" '
             .metadata.name == $revision and
             .spec.containers[0].image == $image and
@@ -142,7 +218,7 @@ jobs:
             --project "$PROJECT_ID" --region "$REGION" --to-revisions "$revision=100" \
             > "$RUNNER_TEMP/cloud-run-validation-traffic.log" 2>&1
           service="$(gcloud run services describe "$VALIDATION_SERVICE" \
-            --project "$PROJECT_ID" --region "$REGION" --format=json)"
+            --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
           jq --exit-status --arg name "$VALIDATION_SERVICE" --arg image "$IMAGE_DIGEST" \
             --arg revision "$revision" '
             .metadata.name == $name and
@@ -161,6 +237,7 @@ jobs:
 
       - name: Obtain an ID token for the validation service
         id: validation-auth
+        if: inputs.operation == 'deploy'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -170,14 +247,171 @@ jobs:
           id_token_audience: ${{ steps.validation.outputs.url }}
 
       - name: Verify the private validation service
+        if: inputs.operation == 'deploy'
         env:
           SMOKE_URL: ${{ steps.validation.outputs.url }}
           SMOKE_ID_TOKEN: ${{ steps.validation-auth.outputs.id_token }}
           EXPECT_PRIVATE: "true"
         run: bash .github/scripts/smoke-query-server.sh
 
+      - name: Deploy the validation-only revision without production access
+        id: observability-validation
+        if: inputs.operation == 'observability-validate'
+        env:
+          IMAGE_DIGEST: ${{ steps.validation-image.outputs.digest }}
+        shell: bash
+        run: |
+          test "$(date +%s)" -le "$OBSERVABILITY_DEADLINE_EPOCH"
+          revision="$VALIDATION_SERVICE-o$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          .github/scripts/observability-service.sh pending revision "$revision"
+          gcloud run deploy "$VALIDATION_SERVICE" --quiet --project "$PROJECT_ID" --region "$REGION" \
+            --image "$IMAGE_DIGEST" --service-account "$RUNTIME_SERVICE_ACCOUNT" \
+            --revision-suffix "o$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --no-traffic \
+            --port=8080 --cpu=1 --memory=768Mi --concurrency=1 --timeout=30s \
+            --min-instances=1 --max-instances=1 --cpu-throttling \
+            --update-env-vars="VLRGG_OBSERVABILITY_VALIDATION=true,VLRGG_OBSERVABILITY_ALLOW_EXIT=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
+            > "$RUNNER_TEMP/cloud-run-observability-deploy.log" 2>&1
+          deployed="$(gcloud run revisions describe "$revision" --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
+          jq --exit-status --arg revision "$revision" --arg image "$IMAGE_DIGEST" '
+            .metadata.name == $revision and .status.imageDigest == $image and
+            any(.status.conditions[]?; .type == "Ready" and .status == "True")
+          ' <<< "$deployed" >/dev/null
+          full_revision="projects/$PROJECT_ID/locations/$REGION/services/$VALIDATION_SERVICE/revisions/$revision"
+          .github/scripts/observability-service.sh resource revision "$full_revision"
+          .github/scripts/observability-service.sh pending traffic "$revision"
+          service="$(gcloud run services describe "$VALIDATION_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
+          policy="$(gcloud run services get-iam-policy "$VALIDATION_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
+          jq --exit-status '(.metadata.annotations["run.googleapis.com/invoker-iam-disabled"] // "false") != "true"' \
+            <<< "$service" >/dev/null
+          jq --exit-status '[.bindings[]? | select(.role == "roles/run.invoker") | .members[]? |
+            select(. == "allUsers" or . == "allAuthenticatedUsers")] | length == 0' \
+            <<< "$policy" >/dev/null
+          gcloud run services update-traffic "$VALIDATION_SERVICE" --quiet \
+            --project "$PROJECT_ID" --region "$REGION" --to-revisions "$revision=100" \
+            > "$RUNNER_TEMP/cloud-run-observability-traffic.log" 2>&1
+          service="$(gcloud run services describe "$VALIDATION_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
+          jq --exit-status --arg revision "$revision" '
+            [.status.traffic[]? | select((.percent // 0) > 0)] |
+            length == 1 and .[0].percent == 100 and .[0].revisionName == $revision
+          ' <<< "$service" >/dev/null
+          policy="$(gcloud run services get-iam-policy "$VALIDATION_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
+          jq --exit-status '(.metadata.annotations["run.googleapis.com/invoker-iam-disabled"] // "false") != "true"' \
+            <<< "$service" >/dev/null
+          jq --exit-status '[.bindings[]? | select(.role == "roles/run.invoker") | .members[]? |
+            select(. == "allUsers" or . == "allAuthenticatedUsers")] | length == 0' \
+            <<< "$policy" >/dev/null
+          .github/scripts/observability-service.sh clear-pending traffic "$revision"
+          .github/scripts/observability-service.sh phase fault
+          url="$(jq --exit-status --raw-output '.status.url' <<< "$service")"
+          [[ "$url" =~ ^https://[a-z0-9.-]+\.run\.app$ ]]
+          echo "::add-mask::$url"
+          echo "::add-mask::${url#https://}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Obtain an ID token for the observability validation revision
+        id: observability-auth
+        if: inputs.operation == 'observability-validate'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ steps.observability-validation.outputs.url }}
+
+      - name: Verify fixed validation endpoints without claiming provider gates
+        if: inputs.operation == 'observability-validate'
+        env:
+          SMOKE_URL: ${{ steps.observability-validation.outputs.url }}
+          SMOKE_ID_TOKEN: ${{ steps.observability-auth.outputs.id_token }}
+        shell: bash
+        run: |
+          test "$(date +%s)" -le "$OBSERVABILITY_DEADLINE_EPOCH"
+          response="$RUNNER_TEMP/observability-response"
+          request() {
+            local method="$1" path="$2" expected="$3" authorized="${4:-true}" status header=
+            if test "$authorized" = true; then
+              header="X-Serverless-Authorization: Bearer $SMOKE_ID_TOKEN"
+            fi
+            status="$(curl -q --silent --proto '=https' --connect-timeout 5 --max-time 25 \
+              --max-filesize 2097152 --output "$response" --write-out '%{http_code}' --request "$method" \
+              --header @- "$SMOKE_URL$path" <<< "$header")"
+            test "$status" = "$expected" || { echo "::error::Fixed validation endpoint returned an unexpected status."; exit 1; }
+          }
+          unauthenticated="$(curl -q --silent --proto '=https' --connect-timeout 5 --max-time 25 \
+            --max-filesize 2097152 --output "$response" --write-out '%{http_code}' "$SMOKE_URL/health")"
+          [[ "$unauthenticated" == 401 || "$unauthenticated" == 403 ]]
+          request GET /health 200
+          jq --exit-status '.status == "ok"' "$response" >/dev/null
+          request GET /__observability/internal 500
+          request GET /__observability/internal/other 500
+          request GET /__observability/parsing 502
+          request GET /__observability/upstream 502
+          request GET /__observability/expected 400
+          {
+            echo "Observability provider gates O3-O9: NOT RUN"
+            echo "The fixed private harness responded; Error Reporting groups, native labels, incidents, receivers, and recovery still require protected live evidence."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore the shared validation service
+        id: observability-restore
+        if: >-
+          always() && steps.preflight.outcome == 'success' && steps.cloud-auth.outcome == 'success' &&
+          steps.gcloud.outcome == 'success' &&
+          (inputs.operation == 'observability-restore' || steps.journal.outputs.prepared == 'true')
+        shell: bash
+        run: .github/scripts/observability-cleanup.sh restore
+
+      - name: Verify restored private service health
+        id: restored-validation
+        if: always() && steps.observability-restore.outcome == 'success'
+        shell: bash
+        run: |
+          service="$(gcloud run services describe "$VALIDATION_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
+          url="$(jq --exit-status --raw-output '.status.url' <<< "$service")"
+          [[ "$url" =~ ^https://[a-z0-9.-]+\.run\.app$ ]]
+          echo "::add-mask::$url"
+          echo "::add-mask::${url#https://}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Obtain an ID token for restored validation health
+        id: restored-validation-auth
+        if: always() && steps.observability-restore.outcome == 'success' && steps.restored-validation.outcome == 'success'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ steps.restored-validation.outputs.url }}
+
+      - name: Verify restored private service health before cleanup
+        id: restored-validation-smoke
+        if: always() && steps.restored-validation-auth.outcome == 'success'
+        env:
+          SMOKE_URL: ${{ steps.restored-validation.outputs.url }}
+          SMOKE_ID_TOKEN: ${{ steps.restored-validation-auth.outputs.id_token }}
+          EXPECT_PRIVATE: "true"
+        shell: bash
+        run: |
+          bash .github/scripts/smoke-query-server.sh
+
+      - name: Clean resources owned by this validation run
+        id: observability-cleanup
+        if: always() && steps.restored-validation-smoke.outcome == 'success'
+        shell: bash
+        run: .github/scripts/observability-cleanup.sh cleanup
+
+      - name: Clear the recovery journal last
+        if: always() && steps.observability-cleanup.outcome == 'success'
+        shell: bash
+        run: |
+          .github/scripts/observability-service.sh clear
+
       - name: Deploy the verified image to production
         id: production
+        if: inputs.operation == 'deploy'
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         shell: bash
@@ -188,7 +422,7 @@ jobs:
               '(.metadata.annotations["run.googleapis.com/invoker-iam-disabled"] // "false") != "true"' \
               <<< "$service_json" > /dev/null
             policy="$(gcloud run services get-iam-policy "$SERVICE" \
-              --project "$PROJECT_ID" --region "$REGION" --format=json)"
+              --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
             jq --exit-status '
               [.bindings[]? |
                 select(.role == "roles/run.invoker") |
@@ -199,7 +433,7 @@ jobs:
           }
 
           services="$(gcloud run services list --project "$PROJECT_ID" --region "$REGION" \
-            --filter "metadata.name=$SERVICE" --format=json)"
+            --filter "metadata.name=$SERVICE" --format=json 2>/dev/null)"
           jq --exit-status --arg name "$SERVICE" \
             'length <= 1 and all(.[]; .metadata.name == $name)' <<< "$services" > /dev/null
           previous="$(jq --exit-status --raw-output '
@@ -214,7 +448,7 @@ jobs:
           if test -z "$previous"; then
             if test "$(jq 'length' <<< "$services")" = 1; then
               existing="$(gcloud run services describe "$SERVICE" \
-                --project "$PROJECT_ID" --region "$REGION" --format=json)"
+                --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
               jq --exit-status --arg name "$SERVICE" '
                 .metadata.name == $name and
                 (.status.latestReadyRevisionName // "") == "" and
@@ -234,10 +468,10 @@ jobs:
             --revision-suffix "r$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --port=8080 --cpu=1 --memory=768Mi --concurrency=32 --timeout=30s \
             --min=1 --max=1 --min-instances=0 --max-instances=1 --cpu-throttling \
-            --update-env-vars=VLRGG_ENABLE_API_DOCUMENTATION=false "${flags[@]}" \
+            --update-env-vars="VLRGG_ENABLE_API_DOCUMENTATION=false,GOOGLE_CLOUD_PROJECT=$PROJECT_ID" "${flags[@]}" \
             > "$RUNNER_TEMP/cloud-run-production-deploy.log" 2>&1
           service="$(gcloud run services describe "$SERVICE" \
-            --project "$PROJECT_ID" --region "$REGION" --format=json)"
+            --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
           revision="$SERVICE-r$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           jq --exit-status --arg name "$SERVICE" --arg image "$IMAGE_DIGEST" \
             --arg revision "$revision" '
@@ -247,7 +481,7 @@ jobs:
             (.status.url | type == "string" and length > 0)
           ' <<< "$service" > /dev/null
           deployed_revision="$(gcloud run revisions describe "$revision" \
-            --project "$PROJECT_ID" --region "$REGION" --format=json)"
+            --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
           jq --exit-status --arg revision "$revision" --arg image "$IMAGE_DIGEST" '
             .metadata.name == $revision and
             .spec.containers[0].image == $image and
@@ -275,6 +509,7 @@ jobs:
 
       - name: Obtain an ID token for the production service
         id: production-auth
+        if: inputs.operation == 'deploy'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -285,7 +520,7 @@ jobs:
 
       - name: Promote the verified revision
         id: promote
-        if: steps.production.outputs.previous_revision != ''
+        if: inputs.operation == 'deploy' && steps.production.outputs.previous_revision != ''
         env:
           REVISION: ${{ steps.production.outputs.revision }}
         run: >-
@@ -294,6 +529,7 @@ jobs:
           > "$RUNNER_TEMP/cloud-run-promote.log" 2>&1
 
       - name: Verify the serving URL after promotion
+        if: inputs.operation == 'deploy'
         env:
           SMOKE_URL: ${{ steps.production.outputs.url }}
           SMOKE_ID_TOKEN: ${{ steps.production-auth.outputs.id_token }}
@@ -301,7 +537,7 @@ jobs:
         run: bash .github/scripts/smoke-query-server.sh
 
       - name: Restore previous traffic if promotion or serving checks fail
-        if: failure() && steps.production.outputs.previous_revision != '' && steps.promote.outcome != 'skipped'
+        if: failure() && inputs.operation == 'deploy' && steps.production.outputs.previous_revision != '' && steps.promote.outcome != 'skipped'
         env:
           PREVIOUS_REVISION: ${{ steps.production.outputs.previous_revision }}
         run: >-
@@ -310,7 +546,7 @@ jobs:
           > "$RUNNER_TEMP/cloud-run-rollback.log" 2>&1
 
       - name: Remove warm capacity after a failed first deployment
-        if: failure() && steps.production.outputs.first_deployment == 'true'
+        if: failure() && inputs.operation == 'deploy' && steps.production.outputs.first_deployment == 'true'
         run: >-
           gcloud run services update "$SERVICE" --quiet
           --project "$PROJECT_ID" --region "$REGION" --min=0
@@ -322,15 +558,11 @@ jobs:
         run: |
           for log in "$RUNNER_TEMP"/cloud-run-*.log; do
             test -f "$log" || continue
-            echo "${log##*/}"
-            sed -E \
-              -e 's#https?://[^[:space:]"<>]+#***#g' \
-              -e 's#(https?://)?[[:alnum:].-]+\.run\.app#***#g' \
-              -e 's#[[:alnum:]-]+-docker\.pkg\.dev/[^[:space:]"<>]+#***#g' \
-              "$log" | tail -n 80
+            echo "Cloud operation failed: ${log##*/} (provider output withheld)."
           done
 
       - name: Record the deployed release
+        if: inputs.operation == 'deploy'
         run: |
           {
             echo "Commit: $GITHUB_SHA"
