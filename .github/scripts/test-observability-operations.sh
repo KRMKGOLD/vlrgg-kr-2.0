@@ -1294,6 +1294,106 @@ chmod +x "$CASE_DIR/ingest-after-wait"
 ( export OBSERVABILITY_SLEEP_COMMAND="$CASE_DIR/ingest-after-wait"; live poll_count 5xx '==' 0 2 ) >/dev/null
 pass 'PromQL polling retries an initially absent series instead of aborting or treating absence as zero'
 
+new_case live-o7-recovery-retry
+cat > "$CASE_DIR/recovery-http" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+method="$1"
+url="$2"
+test "$method" = GET
+printf '%s\n' "$url" >> "$CASE_DIR/recovery-urls"
+case "$url" in
+  *'/prometheus/api/v1/query?'*)
+    if [[ "$url" == *'response_code_class%3D%225xx%22'* ]]; then
+      printf '%s\n' 5xx >> "$CASE_DIR/recovery-kinds"
+      sample_count=0
+      test ! -f "$CASE_DIR/recovery-5xx-count" || sample_count="$(cat "$CASE_DIR/recovery-5xx-count")"
+      sample_count=$((sample_count + 1))
+      printf '%s\n' "$sample_count" > "$CASE_DIR/recovery-5xx-count"
+      sample=0
+      test "$sample_count" = 1 && sample=5
+      printf '%s\n' "$sample" >> "$CASE_DIR/recovery-samples"
+      printf '%s\n' "{\"status\":\"success\",\"data\":{\"resultType\":\"vector\",\"result\":[{\"metric\":{},\"value\":[1700000000,\"$sample\"]}]}}"
+    else
+      printf '%s\n' 2xx >> "$CASE_DIR/recovery-kinds"
+      printf '%s\n' '{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1700000000,"4"]}]}}'
+    fi ;;
+  *) echo 'unexpected recovery provider request' >&2; exit 1 ;;
+esac
+SH
+chmod +x "$CASE_DIR/recovery-http"
+printf '%s\n' '{"alerts":[]}' > "$CASE_DIR/alerts-pre-threshold.json"
+printf '%s\n' '{"alerts":[{"name":"projects/test-project/alerts/o7","policy":{"name":"projects/test-project/alertPolicies/owned","userLabels":{"managed_by":"issue122-validation","validation_run":"123_1","resource_kind":"5xx"}},"state":"OPEN","openTime":"2023-11-14T22:13:20Z"}]}' > "$CASE_DIR/alerts-open.json"
+printf '%s\n' '{"alerts":[{"name":"projects/test-project/alerts/o7","policy":{"name":"projects/test-project/alertPolicies/owned","userLabels":{"managed_by":"issue122-validation","validation_run":"123_1","resource_kind":"5xx"}},"state":"CLOSED","openTime":"2023-11-14T22:13:20Z","closeTime":"2023-11-14T22:13:21Z"}]}' > "$CASE_DIR/alerts-closed.json"
+# Keep this direct: run_o7 must execute under the source script's set -e, not an if/OR context.
+env CASE_DIR="$CASE_DIR" PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_RUN=123-1 OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+  OBSERVABILITY_DEADLINE_EPOCH=1800000000 OBSERVABILITY_HTTP="$CASE_DIR/recovery-http" \
+  GITHUB_STEP_SUMMARY="$CASE_DIR/summary" bash -c '
+    source "$1"
+    evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    now() { printf "%s\n" 1700000000; }
+    sleep_for() { :; }
+    private_request() {
+      printf "%s %s %s\n" "$1" "$2" "$3" >> "$CASE_DIR/private-calls"
+      case "$1 $2 $3" in
+        "GET /health 200"|"GET /__observability/internal 500") printf "%s\n" "{}" > "$evidence/private-response" ;;
+        *) fail "unexpected private request" ;;
+      esac
+    }
+    poll_count() {
+      printf "%s %s %s\n" "$1" "$2" "$3" >> "$CASE_DIR/count-calls"
+      case "$1 $2 $3" in
+        "2xx > 0") printf "%s\n" 1 ;;
+        "5xx == 0") printf "%s\n" 0 ;;
+        "5xx > 0") printf "%s\n" 2 ;;
+        "5xx >= 3") printf "%s\n" 3 ;;
+        *) fail "unexpected native count poll" ;;
+      esac
+    }
+    poll_native_failures() {
+      printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/native-calls"
+      case "$2" in 2|3) ;; *) fail "unexpected native ledger target" ;; esac
+    }
+    ensure_policy() { test "$1" = 5xx; printf "%s\n" projects/test-project/alertPolicies/owned; }
+    verify_single_condition() { test "$1" = projects/test-project/alertPolicies/owned; }
+    disable_policy() {
+      printf "%s\n" "$1" > "$CASE_DIR/disabled-policy"
+      test "$1" = projects/test-project/alertPolicies/owned
+    }
+    api() {
+      test "$1" = GET
+      case "$2" in
+        */alerts\?pageSize=1000) ;;
+        *) fail "unexpected provider read" ;;
+      esac
+      call_count=0
+      test ! -f "$CASE_DIR/alert-read-count" || call_count="$(cat "$CASE_DIR/alert-read-count")"
+      call_count=$((call_count + 1))
+      printf "%s\n" "$call_count" > "$CASE_DIR/alert-read-count"
+      case "$call_count" in
+        1) printf "%s\n" pre-threshold >> "$CASE_DIR/alert-states"; cp "$CASE_DIR/alerts-pre-threshold.json" "$3" ;;
+        2) printf "%s\n" open >> "$CASE_DIR/alert-states"; cp "$CASE_DIR/alerts-open.json" "$3" ;;
+        3) printf "%s\n" closed >> "$CASE_DIR/alert-states"; cp "$CASE_DIR/alerts-closed.json" "$3" ;;
+        *) fail "unexpected alert read count" ;;
+      esac
+    }
+    run_o7
+  ' _ "$live_helper"
+test "$(tr '\n' ' ' < "$CASE_DIR/recovery-samples")" = '5 0 '
+test "$(grep -c '^2xx$' "$CASE_DIR/recovery-kinds")" = 2
+test "$(grep -c '^5xx$' "$CASE_DIR/recovery-kinds")" = 2
+test "$(awk '{print $2}' "$CASE_DIR/native-calls" | tr '\n' ' ')" = '2 3 '
+test "$(awk '{print $1}' "$CASE_DIR/native-calls" | sort -u | wc -l | tr -d ' ')" = 1
+test "$(tr '\n' ' ' < "$CASE_DIR/alert-states")" = 'pre-threshold open closed '
+jq -e '.alerts | length == 1 and .[0].state == "CLOSED" and .[0].name == "projects/test-project/alerts/o7"' \
+  "$CASE_DIR/evidence/alerts.json" >/dev/null
+test "$(cat "$CASE_DIR/disabled-policy")" = projects/test-project/alertPolicies/owned
+grep -qx 'Observability O7: PASS' "$CASE_DIR/summary"
+grep -qx 'GET /health 200' "$CASE_DIR/private-calls"
+grep -q '^GET /__observability/internal 500$' "$CASE_DIR/private-calls"
+pass 'run_o7 catches a real recovery failure, retries fresh 2xx plus numeric-zero 5xx, then closes and disables the same incident'
+
 new_case live-alert-transitions
 jq -n '{alerts:[{name:"projects/test-project/alerts/exact",policy:{name:"projects/test-project/alertPolicies/owned",userLabels:{managed_by:"issue122-validation",validation_run:"123_1",resource_kind:"5xx"}},state:"OPEN",openTime:"2026-01-01T00:00:00Z"}]}' \
   > "$CASE_DIR/alerts-open.json"
