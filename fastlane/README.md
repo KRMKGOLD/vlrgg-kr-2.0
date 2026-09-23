@@ -1,6 +1,6 @@
 # Internal app deployment process
 
-The two app workflows are manual-only and deploy the immutable `main` commit that triggered the run. They require `APP_VERSION` (one to three numeric components) and a positive `APP_BUILD_NUMBER`; each platform refuses to continue unless the exact commit already has a successful `CI` push run.
+The two app workflows are manual-only and deploy the immutable `main` commit that triggered the run. They require `APP_VERSION` (one to three numeric components) and a positive `APP_BUILD_NUMBER`; Android requires a successful `verify` job in the latest `main` push `ci.yml` run and attempt for that exact commit, without waiting for the `ios` job. Missing evidence or a run/attempt change during lookup stops deployment. iOS deployment still requires the entire matching CI run to succeed.
 
 ## Repository setup deferred to #117
 
