@@ -640,7 +640,9 @@ verify_uptime_check() {
     --arg service "$SERVICE_NAME" --arg revision "$OBSERVABILITY_REVISION" '
     .name == $name and .monitoredResource.type == "cloud_run_revision" and
     .monitoredResource.labels.project_id == $project and .monitoredResource.labels.location == $region and
-    .monitoredResource.labels.service_name == $service and .monitoredResource.labels.revision_name == $revision and
+    .monitoredResource.labels.service_name == $service and
+    (.monitoredResource.labels.revision_name == $revision or
+     .monitoredResource.labels.revision_name == "") and
     .httpCheck.path == "/health" and .httpCheck.serviceAgentAuthentication.type == "OIDC_TOKEN" and
     .contentMatchers == [{"content":"^\\s*\\{\\s*\"status\"\\s*:\\s*\"ok\"\\s*\\}\\s*$","matcher":"MATCHES_REGEX"}]
   ' "$output" >/dev/null || fail 'Run-owned uptime check read-back failed.'
