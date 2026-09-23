@@ -174,11 +174,11 @@ Deploy identity는 GitHub OIDC와 GCP Workload Identity Federation으로 deploy 
 
 ### #112 앱 배포 절차 — 구현 완료, 인증정보 없이 검사
 
-`.github/workflows/deploy-app-android.yml`과 `deploy-app-ios.yml`, 고정된 Bundler/Fastlane lane, Release URL/version 입력 검증은 구현됐다. workflow는 `workflow_dispatch`와 `main` ref로 제한하고 GitHub Actions에서 `GITHUB_SHA`·immutable `SOURCE_SHA`·checkout `HEAD`와 작업 디렉터리의 일치를 확인하며, 같은 SHA의 성공한 `main` push `CI`가 없으면 실패로 중단한다. Android lane은 Play `internal`, iOS lane은 TestFlight 대상이고 플랫폼별 `cancel-in-progress: false` 동시 실행 제어, 읽기 전용 token, environment secret 경계 및 항상 실행하는 정리를 가진다.
+`.github/workflows/deploy-app-android.yml`과 `deploy-app-ios.yml`, 고정된 Bundler/Fastlane lane, Release URL/version 입력 검증은 구현됐다. workflow는 `workflow_dispatch`와 `main` ref로 제한하고 GitHub Actions에서 `GITHUB_SHA`·immutable `SOURCE_SHA`·checkout `HEAD`와 작업 디렉터리의 일치를 확인하며, 같은 SHA의 성공한 `main` push `CI`가 없으면 실패로 중단한다. Android lane은 Play `internal`, iOS lane은 TestFlight 대상이고 플랫폼별 `cancel-in-progress: false` 동시 실행 제어, 기본 읽기 전용 token 권한, environment secret 경계 및 항상 실행하는 정리를 가진다. Android와 서버의 `deploy` job은 WIF용 `id-token: write`를 사용한다.
 
 `API_BASE_URL`은 raw HTTPS origin이며 Android `BuildConfig`와 iOS xcconfig/Info.plist에 그대로 전달한다. `APP_VERSION`은 숫자 1~3 component, `APP_BUILD_NUMBER`은 양의 Android-compatible integer만 허용하며 Ruby `3.3.7`과 Fastlane `2.239.0`은 lockfile과 `bundle exec`로 고정한다. iOS는 `macos-26`의 Xcode `26.6` build `17F113`을 검사한다. public 저장소의 Actions log·summary·artifact는 비공개 경계가 아니므로 URL 원문·서명 자료·credential·AAB/IPA·raw Fastlane output을 올리지 않는다.
 
-개발자 계정이 없으므로 #112의 결과는 배포 절차와 인증정보 없이 실행한 검사뿐이다. `android-internal`/`ios-testflight` environment, secret/approval/main 정책, account/app record, signing/auth, 실제 upload/receipt/processing/tester/physical-device 조회는 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)의 후속 작업이다. 자동 조회 범위는 Android internal track의 같은 번호와 iOS 해당 마케팅 버전의 최신 build다. 응답 유실이나 처리 상태가 모호한 업로드는 스토어 접수를 확인한 뒤에만 다음 실행을 판단한다. 정확한 environment 값·실행 순서·검증 한계는 [앱 내부 배포 절차](app-release.md)를 따른다.
+#112 완료 당시에는 개발자 계정이 없어 배포 절차와 인증정보 없는 검사까지만 확인했다. 이후 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)에서 Android 첫 Play 내부 배포·설치를 완료했으며, 후속 Actions 배포·업데이트·앱 조회 검증은 남아 있다. iOS 서명·TestFlight 배포는 Apple 개발자 계정이 없어 보류한다. 자동 조회 범위는 Android internal track의 같은 번호와 iOS 해당 마케팅 버전의 최신 build다. 응답 유실이나 처리 상태가 모호한 업로드는 스토어 접수를 확인한 뒤에만 다음 실행을 판단한다. 최신 준비 현황·environment 값·실행 순서·검증 한계는 [앱 내부 배포 절차](app-release.md)를 따른다.
 
 ### Future notification release gate
 
