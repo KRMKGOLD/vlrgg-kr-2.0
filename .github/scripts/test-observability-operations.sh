@@ -1444,12 +1444,12 @@ pass 'live alert polling binds OPEN and CLOSED to one alert name without a nonex
 new_case live-uptime-freshness
 jq -n '["USA_IOWA","EUROPE","ASIA_PACIFIC"] as $locations | {timeSeries:[$locations[] as $location | {
   metric:{labels:{check_id:"check-1",checker_location:$location}},
-  resource:{labels:{project_id:"test-project",location:"test-region",service_name:"vlrgg-query-check",revision_name:"vlrgg-query-check-o123-1"}},
+  resource:{type:"cloud_run_revision",labels:{project_id:"test-project",location:"test-region",service_name:"vlrgg-query-check",revision_name:"vlrgg-query-check-o123-1",configuration_name:"vlrgg-query-check"}},
   points:[{interval:{endTime:"2100-01-01T00:00:00Z"},value:{boolValue:true}}]
 }]}' > "$CASE_DIR/uptime-passed.json"
 jq -n '["USA_IOWA","EUROPE","ASIA_PACIFIC"] as $locations | {timeSeries:[$locations[] as $location | {
   metric:{labels:{check_id:"check-1",checker_location:$location}},
-  resource:{labels:{project_id:"test-project",location:"test-region",service_name:"vlrgg-query-check",revision_name:"vlrgg-query-check-o123-1"}},
+  resource:{type:"cloud_run_revision",labels:{project_id:"test-project",location:"test-region",service_name:"vlrgg-query-check",revision_name:"vlrgg-query-check-o123-1",configuration_name:"vlrgg-query-check"}},
   points:[{interval:{endTime:"2100-01-01T00:00:00Z"},value:{stringValue:"200"}}]
 }]}' > "$CASE_DIR/uptime-http.json"
 env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
@@ -1463,8 +1463,30 @@ env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
   poll_uptime_http check-1 0 1 >/dev/null
   stale="$(uptime_locations check-1 true 4102444801)"
   test "$(jq -r .count <<< "$stale")" = 0
+  for kind in passed http; do
+    jq ".timeSeries[].resource.labels |= (.revision_name=\"\" | .configuration_name=\"\")" \
+      "$CASE_DIR/uptime-$kind.json" > "$CASE_DIR/normalized-$kind.json"
+  done
+  api() { if [[ "$2" == *http_status* ]]; then cp "$CASE_DIR/normalized-http.json" "$3"; else cp "$CASE_DIR/normalized-passed.json" "$3"; fi; }
+  test "$(uptime_locations check-1 true 0 | jq -r .count)" = 3
+  test "$(uptime_http_locations check-1 0 | jq -r .count)" = 3
+  test "$(uptime_locations check-1 true 4102444801 | jq -r .count)" = 0
+  test "$(uptime_http_locations check-1 4102444801 | jq -r .count)" = 0
+  for field in resource.type resource.labels.revision_name resource.labels.configuration_name \
+    resource.labels.project_id resource.labels.location resource.labels.service_name metric.labels.check_id; do
+    for kind in passed http; do
+      jq ".timeSeries[0].$field=\"foreign\"" "$CASE_DIR/normalized-$kind.json" > "$CASE_DIR/foreign-$kind.json"
+    done
+    api() { if [[ "$2" == *http_status* ]]; then cp "$CASE_DIR/foreign-http.json" "$3"; else cp "$CASE_DIR/foreign-passed.json" "$3"; fi; }
+    test "$(uptime_locations check-1 true 0 | jq -r .count)" = 2
+    test "$(uptime_http_locations check-1 0 | jq -r .count)" = 2
+  done
+  jq ".timeSeries[].points[0].value.boolValue=false" "$CASE_DIR/normalized-passed.json" > "$CASE_DIR/failed.json"
+  api() { cp "$CASE_DIR/failed.json" "$3"; }
+  test "$(uptime_locations check-1 false 0 | jq -r .count)" = 3
+  test "$(uptime_locations check-1 true 0 | jq -r .count)" = 0
 ' _ "$live_helper"
-pass 'uptime evidence requires three fresh labeled checker points and fresh HTTP 200 values'
+pass 'uptime accepts provider-normalized labels while rejecting stale and foreign checker evidence'
 
 new_case live-uptime-always-restores
 if env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \

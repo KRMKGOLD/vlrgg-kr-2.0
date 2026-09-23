@@ -565,6 +565,8 @@ rfc3339_ago() {
     || date -u -d "$minutes minutes ago" +%Y-%m-%dT%H:%M:%SZ
 }
 
+# Cloud Run uptime series can normalize revision/configuration labels to empty.
+# The owned check scopes the service; guard_target verifies its sole serving revision.
 uptime_locations() {
   local check_id="$1" wanted="$2" after="$3" output="$evidence/uptime-series.json" filter encoded
   filter="metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND metric.labels.check_id=\"$check_id\" AND resource.labels.project_id=\"$PROJECT_ID\""
@@ -577,8 +579,11 @@ uptime_locations() {
     --arg check "$check_id" --argjson wanted "$wanted" --argjson after "$after" '
     [.timeSeries[]? | select(
       .metric.labels.check_id == $check and (.metric.labels.checker_location | type) == "string" and
+      .resource.type == "cloud_run_revision" and
       .resource.labels.project_id == $project and .resource.labels.location == $region and
-      .resource.labels.service_name == $service and .resource.labels.revision_name == $revision and
+      .resource.labels.service_name == $service and
+      (.resource.labels.revision_name == $revision or .resource.labels.revision_name == "") and
+      (.resource.labels.configuration_name == $service or .resource.labels.configuration_name == "") and
       .points[0].value.boolValue == $wanted and
       ((.points[0].interval.endTime | sub("[.][0-9]+Z$";"Z") | fromdateiso8601) >= $after))] as $series |
     {count:([$series[].metric.labels.checker_location] | unique | length),
@@ -611,8 +616,11 @@ uptime_http_locations() {
     --arg check "$check_id" --argjson after "$after" '
     [.timeSeries[]? | select(
       .metric.labels.check_id == $check and (.metric.labels.checker_location | type) == "string" and
+      .resource.type == "cloud_run_revision" and
       .resource.labels.project_id == $project and .resource.labels.location == $region and
-      .resource.labels.service_name == $service and .resource.labels.revision_name == $revision and
+      .resource.labels.service_name == $service and
+      (.resource.labels.revision_name == $revision or .resource.labels.revision_name == "") and
+      (.resource.labels.configuration_name == $service or .resource.labels.configuration_name == "") and
       (.points[0].value.stringValue // "") == "200" and
       ((.points[0].interval.endTime | sub("[.][0-9]+Z$";"Z") | fromdateiso8601) >= $after))] as $series |
     {count:([$series[].metric.labels.checker_location] | unique | length),
