@@ -386,11 +386,18 @@ ensure_monitoring_invoker() {
 }
 
 verify_resource() {
-  local desired="$1" response="$2"
-  jq -e --argjson desired "$desired" '
+  local desired="$1" response="$2" kind="${3:-}"
+  jq -e --argjson desired "$desired" --arg kind "$kind" '
     . as $actual | [$desired | paths(scalars)] as $paths |
     [$desired | paths(type == "array")] as $arrays |
-    all($paths[]; . as $path | ($actual | getpath($path)) == ($desired | getpath($path))) and
+    all($paths[]; . as $path |
+      if $kind == "uptime" and
+         ($path == ["monitoredResource","labels","revision_name"] or
+          $path == ["monitoredResource","labels","configuration_name"])
+      then (($actual | getpath($path)) == ($desired | getpath($path)) or
+            ($actual | getpath($path)) == "")
+      else ($actual | getpath($path)) == ($desired | getpath($path))
+      end) and
     all($arrays[]; . as $path |
       (($actual | getpath($path) | type) == "array") and
       (($actual | getpath($path) | length) == ($desired | getpath($path) | length))) and
@@ -424,7 +431,7 @@ ensure() {
   if test "$count" = 1; then
     name="$(jq -er '.[0].name' <<< "$matches")"
     response="$(http GET "$monitoring_root/$name")"
-    verify_resource "$desired" "$response"
+    verify_resource "$desired" "$response" "$kind"
     if ! jq -e --arg name "$name" 'any(.resources[]?; .name == $name and .owned == true)' \
       <<< "$journal" >/dev/null; then
       jq -e --arg kind "$kind" '.pending.kind == $kind and .pending.owner == .run' \
@@ -445,7 +452,7 @@ ensure() {
   name="$(jq -er '.name' <<< "$response")"
   [[ "$name" == projects/"$PROJECT_ID"/"$collection"/* ]] || fail 'Unexpected created resource name.'
   response="$(http GET "$monitoring_root/$name")"
-  verify_resource "$desired" "$response"
+  verify_resource "$desired" "$response" "$kind"
   resource_kind=policy
   test "$kind" = uptime && resource_kind=uptime
   "$service_helper" resource "$resource_kind" "$name"

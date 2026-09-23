@@ -159,6 +159,12 @@ case "$method" in
     fi
     name="projects/test-project/$collection/created-$collection"
     jq --arg name "$name" '. + {name:$name}' "$body_file" > "$CASE_DIR/created.json"
+    if test "$collection" = uptimeCheckConfigs; then
+      jq '.monitoredResource.labels.revision_name="" |
+        .monitoredResource.labels.configuration_name=""' "$CASE_DIR/created.json" \
+        > "$CASE_DIR/next-created.json"
+      mv "$CASE_DIR/next-created.json" "$CASE_DIR/created.json"
+    fi
     if test -f "$CASE_DIR/invalid-created-resource"; then
       jq '.validity={code:3,message:"invalid"}' "$CASE_DIR/created.json" > "$CASE_DIR/next-created.json"
       mv "$CASE_DIR/next-created.json" "$CASE_DIR/created.json"
