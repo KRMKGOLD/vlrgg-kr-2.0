@@ -335,6 +335,24 @@ class ReleaseContractTest < Minitest::Test
     refute_includes File.read(File.join(ROOT, "scripts/app-release/release_contract.rb")), ".appstoreconnect/private_keys"
   end
 
+  def test_android_wif_is_scoped_to_the_deployment_job
+    workflow_path = File.join(ROOT, ".github/workflows/deploy-app-android.yml")
+    jobs = YAML.load_file(workflow_path).fetch("jobs")
+    assert_equal({ "contents" => "read", "id-token" => "write" }, jobs.fetch("deploy").fetch("permissions"))
+    refute jobs.fetch("preflight").fetch("permissions", {}).key?("id-token")
+    steps = jobs.fetch("deploy").fetch("steps")
+    auth = steps.find { |step| step["uses"].to_s.start_with?("google-github-actions/auth@") }
+    assert_equal "google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093", auth.fetch("uses")
+    assert_equal({
+      "workload_identity_provider" => "${{ vars.ANDROID_PLAY_WIF_PROVIDER }}",
+      "service_account" => "${{ vars.ANDROID_PLAY_SERVICE_ACCOUNT }}"
+    }, auth.fetch("with"))
+    build_index = steps.index { |step| step["run"].to_s.include?("fastlane android internal") }
+    assert_operator steps.index(auth), :<, build_index
+    refute_includes File.read(workflow_path), "ANDROID_PLAY_SERVICE_ACCOUNT_JSON"
+    refute_includes File.read(File.join(ROOT, "fastlane/Fastfile")), "json_key_data:"
+  end
+
   private
 
   def valid_environment

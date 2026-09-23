@@ -35,12 +35,10 @@ platform :android do
   desc "Build and upload the signed app bundle to Google Play internal testing"
   lane :internal do
     release_environment!
-    credentials = required_release_value("ANDROID_PLAY_SERVICE_ACCOUNT_JSON")
     build_number = ENV.fetch("APP_BUILD_NUMBER").to_i
     existing_builds = google_play_track_version_codes(
       package_name: ANDROID_PACKAGE,
-      track: "internal",
-      json_key_data: credentials
+      track: "internal"
     )
     if existing_builds.include?(build_number)
       UI.user_error!("Google Play already reports this build number; verify its receipt and source before retrying.")
@@ -55,7 +53,6 @@ platform :android do
         track: "internal",
         release_status: "completed",
         aab: bundle_path,
-        json_key_data: credentials,
         skip_upload_apk: true,
         skip_upload_metadata: true,
         skip_upload_changelogs: true,

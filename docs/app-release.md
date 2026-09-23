@@ -1,21 +1,21 @@
 # 앱 내부 배포 절차 (#112 / #117)
 
-Google Play 개발자 계정은 등록됐지만 앱은 아직 생성하지 않았고, Apple 개발자 계정은 없는 상태에서 Android 내부 테스트와 iOS TestFlight 배포 절차를 준비했다. 계정 등록, 앱 소유권·서명 확인, GitHub environment 연결, 실제 업로드·설치·실기기 검증은 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)에서 진행한다. 정식 스토어 공개 출시는 포함하지 않는다.
+Google Play 내부 테스트 앱을 생성하고 첫 AAB `0.1.0(1)`의 Play 설치까지 확인했다. 후속 Actions 배포와 실기기 업데이트 검증은 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)에서 계속한다. Apple 개발자 계정은 없으며 정식 스토어 공개 출시는 포함하지 않는다.
 
 2026-09-22부터 **Android Google Play 내부 테스트를 먼저 진행한다.** iOS는 Apple 개발자 계정이 없어 서명·TestFlight 배포를 보류한다. 기존 iOS SDK·빌드 CI는 유지하며, Apple 계정은 Android 배포의 선행 조건이 아니다.
 
-## 준비 현황 (2026-09-22)
+## 준비 현황 (2026-09-23)
 
 | 항목 | 확인된 상태 | 다음 완료 조건 |
 | --- | --- | --- |
-| 배포 코드·Crashlytics | #112·#119·#121 완료, 수동 Android workflow 있음 | 배포할 정확한 main SHA의 CI 성공 |
-| Play Console 계정·앱 | 사용자 확인: Google Play 개발자 계정 등록 완료, 앱 미생성 | 운영 소유자·Console 잔여 검증 확인 후 앱 생성 |
-| Android 서명·Play API 인증 | `android-internal`에는 Firebase 설정 secret만 있음. 저장소 공통 secret 없음 | 아래 Android signing/API secrets 연결 |
-| 환경 보호·배포 허용 | main 제한 있음, required reviewer 없음, 배포 허용 variable 미설정 | 실제 운영자 기준 승인 정책 확정 후 마지막에 허용 |
-| 첫 AAB·테스터 설치 | 미실행 | 최초 수동 등록 → 내부 테스트 설치 → 후속 Actions 배포 검증 |
+| 배포 코드·Crashlytics | #112·#119·#121·#128 완료, WIF 기반 수동 Android workflow 있음. `1d16d3f` main CI 성공 | 후속 Actions 배포 성공 확인 |
+| Play Console 계정·앱 | 개발자 계정 등록, 앱 생성 완료 (`kr.co.cotton.vlrgg_mobile`) | 후속 버전의 Play 접수·처리 확인 |
+| Android 서명·Play API 인증 | 업로드 키 생성, `android-internal`의 서명·Firebase secrets와 WIF variables 준비. 장기 JSON 키 없음 | 후속 배포에서 서명·Play API 권한 재확인 |
+| 환경 보호·배포 허용 | main 제한, required reviewer 없음, `ANDROID_INTERNAL_DEPLOY_ENABLED=true` | 후속 배포 실행 결과 확인 |
+| 첫 AAB·테스터 설치 | `0.1.0(1)` 내부 출시·Play 경유 설치 확인. `0.1.0(2)` Actions 실행은 빌드 전 실패, Play 업로드 미진입 | 배포 코드 수정 후 재실행·실기기 업데이트 확인 |
 | iOS | 사용자 확인: Apple 개발자 계정 없음 | 계정 준비 후 별도 진행, 배포 허용은 계속 OFF |
 
-절차 준비와 실제 배포 완료를 구분한다. 계정 확인·키 생성·권한 부여·secret 등록·업로드는 각 단계의 대상과 입력이 확인된 뒤 수행한다.
+첫 수동 배포와 후속 Actions 배포의 완료 상태를 구분한다. 업로드 키와 첫 AAB는 gitignored 로컬 보관 상태이며 별도 복구 완료로 기록하지 않는다.
 
 ## 배포 경로와 소스
 
@@ -28,7 +28,7 @@ Google Play 개발자 계정은 등록됐지만 앱은 아직 생성하지 않�
 
 workflow는 시작 시 `github.sha`를 `SOURCE_SHA`로 고정하고 그 commit을 checkout한다. 같은 SHA의 성공한 `main` push `CI`가 있어야 배포 단계로 넘어간다. lane도 GitHub Actions 수동 실행 여부, `main` ref, `GITHUB_SHA`·`SOURCE_SHA`·실제 `HEAD`와 작업 디렉터리를 검사하고, staged·수정·미추적 소스가 있으면 거절한다. 로컬에서 lane만 직접 실행하는 방식은 지원하지 않는다.
 
-플랫폼별 concurrency group으로 같은 배포 workflow의 동시 실행을 막는다. 진행 중 실행은 자동 취소하지 않으며, Console이나 다른 도구의 업로드까지 잠그지는 않는다. token 권한은 `actions: read`, `contents: read`이고 checkout 인증정보는 보존하지 않는다. 배포 인증정보는 플랫폼별 environment에서만 읽는다.
+플랫폼별 concurrency group으로 같은 배포 workflow의 동시 실행을 막는다. 진행 중 실행은 자동 취소하지 않으며, Console이나 다른 도구의 업로드까지 잠그지는 않는다. 기본 token 권한은 `actions: read`, `contents: read`이고, Android 배포 job에만 `contents: read`, `id-token: write`를 부여한다. checkout 인증정보는 보존하지 않는다. 배포 인증정보는 플랫폼별 environment에서만 읽는다.
 
 ## 입력과 도구
 
@@ -58,10 +58,14 @@ CI는 위 도구 확인과 `app/androidApp/scripts/test-release-config.sh`, `app
 
 | Environment | 배포 허용 variable | 필요한 secrets |
 | --- | --- | --- |
-| `android-internal` | `ANDROID_INTERNAL_DEPLOY_ENABLED=true` | `API_BASE_URL`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `ANDROID_PLAY_SERVICE_ACCOUNT_JSON` |
+| `android-internal` | `ANDROID_INTERNAL_DEPLOY_ENABLED=true` | `API_BASE_URL`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` |
 | `ios-testflight` | `IOS_TESTFLIGHT_DEPLOY_ENABLED=true` | `API_BASE_URL`, `IOS_TEAM_ID`, `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT_BASE64` |
 
-#121 준비 과정에서 두 environment를 생성하고 `main` branch 제한과 플랫폼별 Firebase 설정 secret만 등록했다. Android는 `FIREBASE_ANDROID_CONFIG_BASE64`, iOS는 `FIREBASE_IOS_CONFIG_BASE64`를 임시 파일 wrapper로 주입하고 빌드 종료 시 삭제한다. 상세 수명과 검증은 [Crashlytics 연결](app-crashlytics.md)을 따른다. 스토어 인증·서명과 위 표의 배포 secrets, 운영 인원에 맞는 승인 정책은 #117에서 확정·검증한다. 배포 허용 variable은 모든 선행 조건을 확인한 뒤 마지막에 켠다. 값이 정확히 `true`가 아니면 배포 단계가 중단된다.
+#121 준비 과정에서 두 environment를 생성하고 `main` branch 제한과 플랫폼별 Firebase 설정 secret을 등록했다. 이후 Android 서명 secrets와 WIF variables를 연결하고 Android 배포 허용 variable을 `true`로 설정했다. iOS 배포는 계속 보류한다. Android는 `FIREBASE_ANDROID_CONFIG_BASE64`, iOS는 `FIREBASE_IOS_CONFIG_BASE64`를 임시 파일 wrapper로 주입하고 빌드 종료 시 삭제한다. 상세 수명과 검증은 [Crashlytics 연결](app-crashlytics.md)을 따른다. 배포 허용 값이 정확히 `true`가 아니면 배포 단계가 중단된다.
+
+Android는 `android-internal` environment variables `ANDROID_PLAY_WIF_PROVIDER`(전체 WIF provider 경로)와 `ANDROID_PLAY_SERVICE_ACCOUNT`(Play 배포 계정 이메일)도 필요하다. `google-github-actions/auth`가 생성한 임시 ADC 설정을 Fastlane이 읽으며, 장기 서비스 계정 JSON 키는 발급하거나 저장하지 않는다. 임시 `gha-creds-*.json`은 Git에서 제외하고 auth action의 종료 단계에서 삭제한다.
+
+Play 배포 계정에는 대상 앱의 조회·테스트 출시 권한을 부여한다. 서버 인증과 별도 WIF pool을 사용하고, provider는 저장소·소유자 ID, `main`, Android 배포 workflow, `workflow_dispatch`, `android-internal` environment를 제한한다. 해당 environment의 정확한 subject에만 Play 배포 계정의 `roles/iam.workloadIdentityUser`를 부여한다. iOS는 기존 App Store Connect 인증과 서명을 사용한다. [Google 배포 파이프라인 인증](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
 
 ## Android 우선 실행 순서
 
@@ -81,13 +85,13 @@ CI는 위 도구 확인과 `app/androidApp/scripts/test-release-config.sh`, `app
 
 ### 3. 업로드 키 준비와 보관
 
-기존 앱은 현재 등록된 업로드 인증서와 맞는 키를 사용한다. 새 앱은 Android Studio의 **Generate Signed Bundle / APK → Android App Bundle → Create new** 등 공식 도구로 전용 업로드 keystore를 저장소 밖에 만든다. 로컬 Debug 키는 배포 키로 사용하지 않는다.
+기존 앱은 현재 등록된 업로드 인증서와 맞는 키를 사용한다. 새 앱은 Android Studio의 **Generate Signed Bundle / APK → Android App Bundle → Create new** 등 공식 도구로 전용 업로드 keystore를 만든다. 로컬 Debug 키는 배포 키로 사용하지 않는다. 현재 키는 gitignored 로컬 영역에 보관한다.
 
 Google이 관리하는 **앱 서명 키**와 CI가 AAB에 서명할 **업로드 키**를 구분한다. 새 앱은 Play App Signing에서 Google 생성 앱 서명 키를 사용하는 것을 기본으로 하고, 다른 스토어와 서명 공유가 필요하면 첫 등록 전에 별도로 결정한다. [서명 공식 문서](https://developer.android.com/studio/publish/app-signing).
 
-업로드 keystore·alias·비밀번호는 복구 가능한 암호화 보관소에 보관하고 복구 담당자를 정한다. GitHub Environment에도 필요한 값을 등록하되, 빌드에 쓴 로컬 작업 복사본과 base64 임시 파일은 사용 후 삭제한다. 복구 수단이 확인되지 않은 유일한 키까지 삭제하지 않는다. 키의 바이트·비밀번호·개인 정보가 포함된 인증서 출력은 공개하지 않는다.
+업로드 keystore·alias·비밀번호는 복구 가능하도록 관리한다. GitHub Environment에도 필요한 값을 등록하되, 빌드에 쓴 일회용 복사본과 base64 임시 파일만 사용 후 삭제한다. 원본 키와 첫 AAB는 현재 gitignored 로컬 보관 중이며 자동 정리 대상이 아니다. 키의 바이트·비밀번호·개인 정보가 포함된 인증서 출력은 공개하지 않는다.
 
-완료 기준: keystore를 다시 열 수 있고 alias·인증서가 대상 앱과 일치하며, 안전한 복구 수단과 `android-internal` signing secrets가 준비됐다.
+완료 기준: keystore를 다시 열 수 있고 alias·인증서가 대상 앱과 일치하며, `android-internal` signing secrets가 준비됐다. 별도 복구 검증은 확인된 경우에만 완료로 기록한다.
 
 ### 4. 최초 AAB는 Console에 수동 등록
 
@@ -134,17 +138,17 @@ printf 'Console에 등록할 비공개 AAB: %s\n' "$bootstrap_dir/first.aab"
 
 Console의 **Testing → Internal testing**에서 이 AAB를 업로드하고 Play App Signing 설정과 해당 트랙이 요구하는 항목을 완료한다. 앱 콘텐츠·개인정보 관련 질문에는 실제 구현과 Crashlytics 사용에 맞게 답한다. 내부 테스트에 필요하지 않은 production 공개 준비를 이 단계의 선행 조건으로 추가하지 않는다.
 
-완료 기준: 패키지·versionCode·업로드 인증서가 일치하고 internal 릴리스가 처리됐다. Console 접수 및 테스터 설치를 확인한 뒤 출력됐던 AAB와 그 전용 임시 디렉터리도 삭제한다. 공개 기록에는 SHA·버전·성공 여부만 남긴다.
+완료 기준: 패키지·versionCode·업로드 인증서가 일치하고 internal 릴리스가 처리됐다. Console 접수와 Play 경유 테스터 설치를 확인한다. 첫 AAB의 로컬 보관 상태는 운영자가 관리하며, 공개 기록에는 SHA·버전·성공 여부만 남긴다.
 
 ### 5. Play API와 GitHub Environment 연결
 
 기존 GCP 프로젝트에서 Google Play Developer API를 활성화하고, CI용 서비스 계정을 Play Console의 Users and permissions에 추가한다. **이 앱에 한정된 정보 조회와 테스트 트랙 릴리스 권한**을 부여한다. production 릴리스·재무·전체 관리자 권한은 부여하지 않는다. GCP 프로젝트의 Owner/Editor를 CI 서비스 계정에 줄 필요는 없다. 테스터 명단은 운영자가 Console에서 관리하고, CI에 테스터 관리까지 필요할 때만 해당 권한을 추가한다. [API 설정](https://developers.google.com/android-publisher/getting_started), [Play 권한](https://support.google.com/googleplay/android-developer/answer/9844686).
 
-현재 lane은 `ANDROID_PLAY_SERVICE_ACCOUNT_JSON`의 JSON 원문을 메모리로 읽는다. 이 계약에 맞춰 키를 직접 GitHub Environment secret으로 전달한다. 키 파일은 저장소 밖에서 다루며 등록 확인 후 로컬 다운로드를 삭제한다. 키 생성이 조직 정책상 불가능하면 우회하지 않고, 그때 WIF/ADC 인증으로 lane 변경을 별도 검토한다. Firebase 앱 설정과 Play API 서비스 계정 키는 서로 다른 입력이다.
+현재 lane은 WIF로 발급한 임시 Application Default Credentials를 사용한다. `ANDROID_PLAY_WIF_PROVIDER`와 `ANDROID_PLAY_SERVICE_ACCOUNT`를 environment variables로 설정하며 장기 JSON 키는 사용하지 않는다. Firebase 앱 설정 secret은 Play API 인증과 별개다.
 
-`android-internal`의 위 secrets 표와 `FIREBASE_ANDROID_CONFIG_BASE64`를 모두 확인한다. `gh secret list --env android-internal`은 **이름의 존재만** 증명하며 값·서명 호환성·Play 권한을 검증하지 않는다. 필요한 경우 공개 로그가 없는 환경에서 Fastlane의 `validate_play_store_json_key`와 `google_play_track_version_codes`로 인증과 대상 internal 트랙 조회를 확인한다. 조회 실패는 고친 뒤 진행한다.
+`android-internal`의 위 secrets 표, `FIREBASE_ANDROID_CONFIG_BASE64`, WIF variables를 확인한다. `gh secret list --env android-internal`은 **이름의 존재만** 증명하며 값·서명 호환성·Play 권한을 검증하지 않는다. 인증된 Actions 실행의 `google_play_track_version_codes`로 대상 internal 트랙 조회를 확인한다. 조회 실패는 고친 뒤 진행한다.
 
-완료 기준: 입력이 모두 준비되고 앱 범위 API 조회가 성공했다. 운영자에 맞는 environment 승인 정책을 정했으며, 배포 허용 variable은 아직 OFF다.
+완료 기준: 입력이 모두 준비되고 앱 범위 API 조회가 성공했다. `0.1.0(2)` Actions 실행에서 트랙 조회까지 통과했다.
 
 ### 6. 후속 내부 빌드를 Actions로 배포
 
@@ -162,7 +166,7 @@ Console의 **Testing → Internal testing**에서 이 AAB를 업로드하고 Pla
 
 ## iOS 재개 조건
 
-Apple Developer Program/App Store Connect 계정, 앱 소유권, 배포 인증서·프로비저닝, API key와 테스터가 준비된 뒤 기존 iOS workflow를 검증한다. 그 전에는 `IOS_TESTFLIGHT_DEPLOY_ENABLED`를 켜지 않는다. Android 내부 배포 완료와 iOS 미실행을 각각 기록하며, 이번 Android 준비 PR만으로 어느 플랫폼의 스토어 배포도 완료 처리하지 않는다.
+Apple Developer Program/App Store Connect 계정, 앱 소유권, 배포 인증서·프로비저닝, API key와 테스터가 준비된 뒤 기존 iOS workflow를 검증한다. 그 전에는 `IOS_TESTFLIGHT_DEPLOY_ENABLED`를 켜지 않는다. Android 첫 수동 배포와 후속 Actions 배포, iOS 미실행을 각각 기록한다.
 
 ## 실패·재실행·정리
 
@@ -180,7 +184,7 @@ lane의 `ensure`와 workflow의 `always()` 단계에서 임시 서명자료와 A
 
 Android Release 입력 검사, 공유 host 테스트, Debug 빌드·lint와 iOS 입력 검사, 공유 simulator 테스트·컴파일, 무서명 Release simulator 빌드는 통과했다. Ruby 계약 검사와 Ruby `3.3.7`·Bundler `2.4.22`·Fastlane `2.239.0`의 lane 로딩도 통과했으며 CI에서 다시 실행한다.
 
-이 결과는 실제 서명 호환성, 기기용 archive/export, 스토어 인증·접수·처리, 테스터 접근 또는 실기기 설치를 증명하지 않는다. 해당 검증과 개발자 계정 추가는 #117의 미실행 작업이다.
+Android `0.1.0(1)`은 실제 업로드 키로 서명해 Play 내부 트랙에 등록하고 기기에 설치했다. `0.1.0(2)`의 [Actions 실행](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/35818231217)은 Play 트랙 조회 후 Gradle 작업 디렉터리 오류로 빌드 전에 실패했으며 AAB 업로드까지 진행하지 않았다. 코드 수정 후 Actions 배포와 Play 업데이트, 앱 조회 검증은 남아 있다. iOS 기기용 archive/export와 TestFlight 배포도 미실행이다.
 
 ## 공식 참고
 

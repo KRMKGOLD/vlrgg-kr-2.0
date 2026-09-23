@@ -67,6 +67,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: android-internal
+    permissions:
+      contents: read
+      id-token: write
     env:
       APP_VERSION: ${{ inputs.APP_VERSION }}
       APP_BUILD_NUMBER: ${{ inputs.APP_BUILD_NUMBER }}
@@ -100,6 +103,12 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
 
+      - name: Authenticate to Google Play
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.ANDROID_PLAY_WIF_PROVIDER }}
+          service_account: ${{ vars.ANDROID_PLAY_SERVICE_ACCOUNT }}
+
       - name: Materialize temporary Android signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -111,7 +120,6 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.ANDROID_PLAY_SERVICE_ACCOUNT_JSON }}
           FIREBASE_ANDROID_CONFIG_BASE64: ${{ secrets.FIREBASE_ANDROID_CONFIG_BASE64 }}
         run: python3 scripts/firebase/with_config.py android -- bundle exec fastlane android internal
 

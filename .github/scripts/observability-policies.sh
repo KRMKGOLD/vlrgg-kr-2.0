@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly service_helper="$script_dir/observability-service.sh"
 readonly monitoring_root="${MONITORING_API_ROOT:-https://monitoring.googleapis.com/v3}"
+readonly prometheus_root="${MONITORING_PROMETHEUS_API_ROOT:-https://monitoring.googleapis.com/v1}"
 readonly owner='issue122-validation'
 
 fail() { echo "Observability policy operation failed: $*" >&2; exit 1; }
 require_env() { test -n "${!1:-}" || fail "Missing $1."; }
+temporary_file() { mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/issue122-observability.XXXXXX"; }
 
 gcloud_json() {
   local output error
-  output="$(mktemp)"; error="$(mktemp)"
+  output="$(temporary_file)"; error="$(temporary_file)"
   if ! gcloud "$@" > "$output" 2> "$error"; then
     rm -f "$output" "$error"
     fail 'Cloud IAM inventory failed.'
@@ -22,7 +25,7 @@ gcloud_json() {
 
 gcloud_mutate() {
   local output error
-  output="$(mktemp)"; error="$(mktemp)"
+  output="$(temporary_file)"; error="$(temporary_file)"
   if ! gcloud "$@" > "$output" 2> "$error"; then
     rm -f "$output" "$error"
     fail 'Cloud IAM mutation failed.'
@@ -47,16 +50,64 @@ http() {
     "$OBSERVABILITY_HTTP" "$method" "$url" "$body_file"
     return
   fi
-  local token
+  local token output error status curl_exit=0 method_label=provider endpoint=provider reason='' candidate=''
+  local -a body_args=(--header @-)
+  case "$method" in
+    GET|POST|PATCH|DELETE) method_label="$method" ;;
+  esac
+  case "$method $url" in
+    "GET $prometheus_root"/projects/*/location/global/prometheus/api/v1/query\?*) endpoint=monitoring.prometheus.query ;;
+    "GET $monitoring_root"/projects/*/notificationChannels/*) endpoint=monitoring.notificationChannels.get ;;
+    "GET $monitoring_root"/projects/*/metricDescriptors/run.googleapis.com/request_count) endpoint=monitoring.metricDescriptors.get ;;
+    "GET $monitoring_root"/projects/*/timeSeries\?*) endpoint=monitoring.timeSeries.list ;;
+    "GET $monitoring_root"/projects/*/alertPolicies\?*) endpoint=monitoring.alertPolicies.list ;;
+    "GET $monitoring_root"/projects/*/alertPolicies/*) endpoint=monitoring.alertPolicies.get ;;
+    "POST $monitoring_root"/projects/*/alertPolicies) endpoint=monitoring.alertPolicies.create ;;
+    "PATCH $monitoring_root"/projects/*/alertPolicies/*\?updateMask=enabled) endpoint=monitoring.alertPolicies.patch ;;
+    "DELETE $monitoring_root"/projects/*/alertPolicies/*) endpoint=monitoring.alertPolicies.delete ;;
+    "GET $monitoring_root"/projects/*/uptimeCheckConfigs\?*) endpoint=monitoring.uptimeCheckConfigs.list ;;
+    "GET $monitoring_root"/projects/*/uptimeCheckConfigs/*) endpoint=monitoring.uptimeCheckConfigs.get ;;
+    "POST $monitoring_root"/projects/*/uptimeCheckConfigs) endpoint=monitoring.uptimeCheckConfigs.create ;;
+    "DELETE $monitoring_root"/projects/*/uptimeCheckConfigs/*) endpoint=monitoring.uptimeCheckConfigs.delete ;;
+  esac
   token="$(gcloud auth print-access-token 2>/dev/null)" || fail 'Could not obtain a cloud access token.'
+  output="$(temporary_file)"
+  error="$(temporary_file)"
   if test -n "$body_file"; then
-    curl -q --silent --show-error --fail --connect-timeout 5 --max-time 30 --request "$method" \
-      --header @- --header 'Content-Type: application/json' --data-binary "@$body_file" "$url" \
-      <<< "Authorization: Bearer $token"
-  else
-    curl -q --silent --show-error --fail --connect-timeout 5 --max-time 30 --request "$method" --header @- "$url" \
-      <<< "Authorization: Bearer $token"
+    body_args+=(--header 'Content-Type: application/json' --data-binary "@$body_file")
   fi
+  status="$(curl -q --silent --show-error --fail-with-body --connect-timeout 5 --max-time 30 --request "$method" \
+    "${body_args[@]}" --output "$output" --write-out '%{http_code}' "$url" \
+    <<< "Authorization: Bearer $token" 2> "$error")" || curl_exit=$?
+  [[ "$status" =~ ^[0-9]{3}$ ]] || status=000
+  chmod 600 "$output" "$error" 2>/dev/null || true
+  if test "$curl_exit" -ne 0 || [[ "$status" != 2[0-9][0-9] ]]; then
+    candidate="$(jq -r '
+      [.error.details[]? |
+        select(."@type" == "type.googleapis.com/google.rpc.ErrorInfo") |
+        .reason |
+        select(. == "SERVICE_DISABLED" or
+          . == "IAM_PERMISSION_DENIED" or
+          . == "ACCESS_TOKEN_SCOPE_INSUFFICIENT" or
+          . == "BILLING_DISABLED" or
+          . == "CONSUMER_INVALID" or
+          . == "SECURITY_POLICY_VIOLATED" or
+          . == "USER_PROJECT_DENIED" or
+          . == "RATE_LIMIT_EXCEEDED")] | .[0] // empty
+    ' "$output" 2>/dev/null || true)"
+    case "$candidate" in
+      SERVICE_DISABLED|IAM_PERMISSION_DENIED|ACCESS_TOKEN_SCOPE_INSUFFICIENT|BILLING_DISABLED|CONSUMER_INVALID|SECURITY_POLICY_VIOLATED|USER_PROJECT_DENIED|RATE_LIMIT_EXCEEDED)
+        reason="$candidate" ;;
+    esac
+    rm -f "$output" "$error"
+    test -z "$reason" || fail "Cloud Monitoring request failed: $method_label $endpoint (HTTP $status, curl $curl_exit, reason $reason)."
+    fail "Cloud Monitoring request failed: $method_label $endpoint (HTTP $status, curl $curl_exit)."
+  fi
+  if ! cat "$output"; then
+    rm -f "$output" "$error"
+    fail 'Cloud Monitoring response could not be read.'
+  fi
+  rm -f "$output" "$error"
 }
 
 channels() {
@@ -75,22 +126,64 @@ labels() {
     '{managed_by:$owner,validation_run:($run|gsub("-";"_")),resource_kind:($kind|gsub("-";"_")),spec_version:"v1"}'
 }
 
+request_count_arm() {
+  local response_class="$1"
+  printf 'sum(increase({"run.googleapis.com/request_count",monitored_resource="cloud_run_revision",project_id="%s",location="%s",service_name="%s",response_code_class="%s"}[5m]))' \
+    "$PROJECT_ID" "$REGION" "$SERVICE_NAME" "$response_class"
+}
+
+request_count_query() {
+  local five_x two_x
+  five_x="$(request_count_arm 5xx)"
+  two_x="$(request_count_arm 2xx)"
+  printf '(%s or 0 * %s)' "$five_x" "$two_x"
+}
+
+query_prometheus_sample() {
+  local query="$1" at="${2:-$(date +%s)}" encoded response value
+  [[ "$at" =~ ^[0-9]{10}$ ]] || fail 'Invalid PromQL evaluation time.'
+  encoded="$(jq -rn --arg value "$query" '$value|@uri')"
+  response="$(http GET "$prometheus_root/projects/$PROJECT_ID/location/global/prometheus/api/v1/query?query=$encoded&time=$at&timeout=20s")"
+  value="$(jq -er '
+    select(.status == "success" and .data.resultType == "vector") |
+    .data.result as $result | select(($result | length) == 1) |
+    $result[0].value as $sample |
+    select(($sample | type) == "array" and ($sample | length) == 2 and
+      ($sample[0] | type) == "number" and ($sample[0] | isfinite) and $sample[0] >= 0 and
+      ($sample[1] | type) == "string" and
+      ($sample[1] | test("^-?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$")) and
+      (($sample[1] | tonumber) as $number | ($number | isfinite) and $number >= 0)) |
+    $sample
+  ' <<< "$response")" || fail 'PromQL query did not return one finite numeric sample.'
+  python3 - "$value" <<'PY' || fail 'PromQL query did not return one finite numeric sample.'
+import json
+import math
+import sys
+
+number = float(json.loads(sys.argv[1])[1])
+sys.exit(not (math.isfinite(number) and number >= 0))
+PY
+  printf '%s\n' "$value"
+}
+
+query_prometheus() {
+  query_prometheus_sample "$1" "${2:-$(date +%s)}" | jq -er '.[1]'
+}
+
 render_5xx() {
-  local notification_channels filter
+  local notification_channels query
   notification_channels="$(channels)"
-  filter="resource.type = \"cloud_run_revision\" AND resource.labels.project_id = \"$PROJECT_ID\" AND resource.labels.location = \"$REGION\" AND resource.labels.service_name = \"$SERVICE_NAME\" AND metric.type = \"run.googleapis.com/request_count\" AND metric.labels.response_code_class = \"5xx\""
-  jq -cn --arg display "issue122 validation 5xx $OBSERVABILITY_RUN" --arg filter "$filter" \
+  query="$(request_count_query) >= 3"
+  jq -cn --arg display "issue122 validation 5xx $OBSERVABILITY_RUN" --arg query "$query" \
     --argjson labels "$(labels 5xx)" --argjson channels "$notification_channels" '
     {
       displayName:$display, enabled:true, combiner:"OR", userLabels:$labels,
       notificationChannels:$channels,
-      alertStrategy:{autoClose:"1800s",notificationPrompts:["OPENED","CLOSED"],
+      alertStrategy:{notificationPrompts:["OPENED","CLOSED"],
         notificationChannelStrategy:[{notificationChannelNames:$channels,renotifyInterval:"3600s"}]},
       conditions:[{
         displayName:"Cloud Run native 5xx >= 3 in 5m",
-        conditionThreshold:{filter:$filter,comparison:"COMPARISON_GT",thresholdValue:2,duration:"0s",
-          aggregations:[{alignmentPeriod:"300s",perSeriesAligner:"ALIGN_SUM",
-            crossSeriesReducer:"REDUCE_SUM",groupByFields:[]}],trigger:{count:1}}
+        conditionPrometheusQueryLanguage:{query:$query,duration:"0s",evaluationInterval:"30s"}
       }]
     }'
 }
@@ -109,7 +202,7 @@ render_uptime() {
       displayName:$display, userLabels:$labels, period:"300s", timeout:"10s",
       selectedRegions:["USA_IOWA","EUROPE","ASIA_PACIFIC"],
       monitoredResource:{type:"cloud_run_revision",labels:{project_id:$project,location:$region,service_name:$service,revision_name:$revision,configuration_name:$service}},
-      httpCheck:{requestMethod:"GET",useSsl:true,validateSsl:true,port:443,path:"/health",
+      httpCheck:{requestMethod:"GET",useSsl:true,port:443,path:"/health",
         acceptedResponseStatusCodes:[{statusValue:200}],
         serviceAgentAuthentication:{type:"OIDC_TOKEN"}},
       contentMatchers:[{content:"^\\s*\\{\\s*\"status\"\\s*:\\s*\"ok\"\\s*\\}\\s*$",matcher:"MATCHES_REGEX"}],
@@ -145,11 +238,14 @@ render_log() {
   require_env SYSTEM_LOG_SIGNATURE
   [[ "$SYSTEM_LOG_NAME" =~ ^projects/${PROJECT_ID}/logs/[A-Za-z0-9._%+~-]+$ ]] || fail 'Invalid SYSTEM_LOG_NAME.'
   test "${#SYSTEM_LOG_SIGNATURE}" -le 240 || fail 'SYSTEM_LOG_SIGNATURE is too long.'
-  [[ "$SYSTEM_LOG_SIGNATURE" =~ ^[A-Za-z0-9._:/\ -]+$ ]] \
+  [[ "$SYSTEM_LOG_SIGNATURE" =~ ^[A-Za-z0-9._:/\ \(\)-]+$ ]] \
     || fail 'SYSTEM_LOG_SIGNATURE contains unsupported characters.'
   local notification_channels filter
   notification_channels="$(channels)"
-  filter="resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"$PROJECT_ID\" AND resource.labels.location=\"$REGION\" AND resource.labels.service_name=\"$SERVICE_NAME\" AND logName=\"$SYSTEM_LOG_NAME\" AND textPayload:\"$SYSTEM_LOG_SIGNATURE\""
+  filter="resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"$PROJECT_ID\" AND resource.labels.location=\"$REGION\" AND resource.labels.service_name=\"$SERVICE_NAME\" AND logName=\"$SYSTEM_LOG_NAME\" AND textPayload=\"$SYSTEM_LOG_SIGNATURE\""
+  if test "$SERVICE_NAME" = vlrgg-query-check; then
+    filter+=" AND resource.labels.revision_name=\"${SERVICE_NAME}-o${OBSERVABILITY_RUN}\""
+  fi
   jq -cn --arg display "issue122 validation abnormal exit $OBSERVABILITY_RUN" --arg filter "$filter" \
     --argjson labels "$(labels log)" --argjson channels "$notification_channels" '
     {
@@ -180,9 +276,12 @@ verify_5xx_label() {
     || fail 'Native request metric descriptor lacks response_code_class.'
   filter="metric.type=\"run.googleapis.com/request_count\" AND resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"$PROJECT_ID\" AND resource.labels.location=\"$REGION\" AND resource.labels.service_name=\"$SERVICE_NAME\""
   encoded="$(jq -rn --arg value "$filter" '$value|@uri')"
-  response="$(http GET "$monitoring_root/projects/$PROJECT_ID/timeSeries?filter=$encoded&interval.endTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)&interval.startTime=$(date -u -v-15M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '15 minutes ago' +%Y-%m-%dT%H:%M:%SZ)&view=HEADERS")"
-  jq -e 'any(.timeSeries[]?; .metric.labels.response_code_class == "5xx")' <<< "$response" >/dev/null \
-    || fail 'Live native metric inventory did not prove response_code_class=5xx.'
+  response="$(http GET "$monitoring_root/projects/$PROJECT_ID/timeSeries?filter=$encoded&interval.endTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)&interval.startTime=$(date -u -v-15M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '15 minutes ago' +%Y-%m-%dT%H:%M:%SZ)&view=FULL")"
+  jq -e 'any(.timeSeries[]?;
+    .metric.labels.response_code_class == "5xx" and
+    any(.points[]?; ((.value.int64Value // .value.doubleValue // null) | tonumber? // 0) > 0))
+  ' <<< "$response" >/dev/null \
+    || fail 'Live native metric inventory did not prove a numeric response_code_class=5xx point.'
 }
 
 resource_type() {
@@ -215,19 +314,28 @@ mutation_journal() {
 require_deadline() {
   require_env OBSERVABILITY_DEADLINE_EPOCH
   [[ "$OBSERVABILITY_DEADLINE_EPOCH" =~ ^[0-9]{10}$ ]] || fail 'Invalid observability deadline.'
-  test "$(date +%s)" -le "$OBSERVABILITY_DEADLINE_EPOCH" || fail 'The 90-minute validation deadline expired.'
+  test "$(date +%s)" -le "$((OBSERVABILITY_DEADLINE_EPOCH - 1800))" \
+    || fail 'The validation fault cutoff expired; the restoration reserve is active.'
 }
 
 ensure_monitoring_invoker() {
-  require_env MONITORING_SERVICE_AGENT
-  [[ "$MONITORING_SERVICE_AGENT" =~ ^service-[0-9]+@gcp-sa-monitoring-notification\.iam\.gserviceaccount\.com$ ]] \
-    || fail 'Invalid Monitoring service agent.'
-  local principal="$MONITORING_SERVICE_AGENT" identity journal policy bindings count existed
-  identity="$(gcloud_json iam service-accounts describe "$principal" \
-    --project "$PROJECT_ID" --format=json)"
-  jq -e --arg email "$principal" --arg project "$PROJECT_ID" '
-    .email == $email and .projectId == $project and (.disabled // false) == false
-  ' <<< "$identity" >/dev/null || fail 'Monitoring service-agent identity does not belong to this project.'
+  local principal project_number project project_policy agent_bindings journal policy bindings count existed
+  project="$(gcloud_json projects describe "$PROJECT_ID" --format=json)"
+  project_number="$(jq -er --arg project "$PROJECT_ID" '
+    select(.projectId == $project) | .projectNumber | tostring | select(test("^[0-9]+$"))
+  ' <<< "$project")" || fail 'Live project inventory lacks an exact numeric project number.'
+  principal="service-$project_number@gcp-sa-monitoring-notification.iam.gserviceaccount.com"
+  MONITORING_SERVICE_AGENT="$principal"
+  export MONITORING_SERVICE_AGENT
+  project_policy="$(gcloud_json projects get-iam-policy "$PROJECT_ID" --format=json)"
+  agent_bindings="$(jq -c --arg member "serviceAccount:$principal" '
+    [.bindings[]? | select(.role == "roles/monitoring.notificationServiceAgent" and
+      any(.members[]?; . == $member))]
+  ' <<< "$project_policy")"
+  test "$(jq 'length' <<< "$agent_bindings")" = 1 \
+    || fail 'Monitoring notification service-agent project role is missing or ambiguous.'
+  jq -e '.[0] | has("condition") | not' <<< "$agent_bindings" >/dev/null \
+    || fail 'Monitoring notification service-agent project role is conditional.'
   journal="$(mutation_journal)"
   policy="$(gcloud_json run services get-iam-policy "$SERVICE_NAME" \
     --project "$PROJECT_ID" --region "$REGION" --format=json)"
@@ -277,6 +385,26 @@ ensure_monitoring_invoker() {
   "$service_helper" iam-added
 }
 
+verify_resource() {
+  local desired="$1" response="$2" kind="${3:-}"
+  jq -e --argjson desired "$desired" --arg kind "$kind" '
+    . as $actual | [$desired | paths(scalars)] as $paths |
+    [$desired | paths(type == "array")] as $arrays |
+    all($paths[]; . as $path |
+      if $kind == "uptime" and
+         ($path == ["monitoredResource","labels","revision_name"] or
+          $path == ["monitoredResource","labels","configuration_name"])
+      then (($actual | getpath($path)) == ($desired | getpath($path)) or
+            ($actual | getpath($path)) == "")
+      else ($actual | getpath($path)) == ($desired | getpath($path))
+      end) and
+    all($arrays[]; . as $path |
+      (($actual | getpath($path) | type) == "array") and
+      (($actual | getpath($path) | length) == ($desired | getpath($path) | length))) and
+    ((.validity.code // 0) == 0)
+  ' <<< "$response" >/dev/null || fail 'Owned resource read-back has a different or invalid configuration.'
+}
+
 ensure() {
   local kind="$1" collection desired list matches count body response name journal resource_kind
   export VALIDATION_SERVICE=vlrgg-query-check
@@ -303,14 +431,7 @@ ensure() {
   if test "$count" = 1; then
     name="$(jq -er '.[0].name' <<< "$matches")"
     response="$(http GET "$monitoring_root/$name")"
-    jq -e --argjson desired "$desired" '
-      . as $actual | [$desired | paths(scalars)] as $paths |
-      [$desired | paths(type == "array")] as $arrays |
-      all($paths[]; . as $path | ($actual | getpath($path)) == ($desired | getpath($path))) and
-      all($arrays[]; . as $path |
-        (($actual | getpath($path) | type) == "array") and
-        (($actual | getpath($path) | length) == ($desired | getpath($path) | length)))
-    ' <<< "$response" >/dev/null || fail 'Owned resource exists with a different configuration.'
+    verify_resource "$desired" "$response" "$kind"
     if ! jq -e --arg name "$name" 'any(.resources[]?; .name == $name and .owned == true)' \
       <<< "$journal" >/dev/null; then
       jq -e --arg kind "$kind" '.pending.kind == $kind and .pending.owner == .run' \
@@ -324,12 +445,14 @@ ensure() {
   fi
   jq -e 'has("pending") | not' <<< "$journal" >/dev/null || fail 'Another journal mutation is pending.'
   "$service_helper" pending "$kind" "$kind"
-  body="$(mktemp)"
+  body="$(temporary_file)"
   printf '%s\n' "$desired" > "$body"
   response="$(http POST "$monitoring_root/projects/$PROJECT_ID/$collection" "$body")"
   rm -f "$body"
   name="$(jq -er '.name' <<< "$response")"
   [[ "$name" == projects/"$PROJECT_ID"/"$collection"/* ]] || fail 'Unexpected created resource name.'
+  response="$(http GET "$monitoring_root/$name")"
+  verify_resource "$desired" "$response" "$kind"
   resource_kind=policy
   test "$kind" = uptime && resource_kind=uptime
   "$service_helper" resource "$resource_kind" "$name"
@@ -366,7 +489,7 @@ disable() {
     jq -e --arg name "$name" '.pending.kind == "disable-policy" and .pending.target == $name' \
       <<< "$journal" >/dev/null || fail 'Another journal mutation is pending.'
   fi
-  body="$(mktemp)"
+  body="$(temporary_file)"
   http GET "$monitoring_root/$name" | jq -e --arg owner "$owner" --arg run "${OBSERVABILITY_RUN//-/_}" \
     --arg name "$name" '
     .name == $name and .userLabels.managed_by == $owner and .userLabels.validation_run == $run
@@ -410,8 +533,12 @@ case "${1:-}" in
   render) render "${2:-}" ;;
   find-owned) find_owned "${2:-}" ;;
   verify-5xx-label) verify_5xx_label ;;
+  query-5xx-count) query_prometheus "$(request_count_query)" "${2:-}" ;;
+  query-2xx-count) query_prometheus "$(request_count_arm 2xx)" "${2:-}" ;;
+  query-5xx-sample) query_prometheus_sample "$(request_count_query)" "${2:-}" ;;
+  query-2xx-sample) query_prometheus_sample "$(request_count_arm 2xx)" "${2:-}" ;;
   ensure) ensure "${2:-}" ;;
   disable) disable "${2:-}" ;;
   delete) delete_owned "${2:-}" "${3:-}" ;;
-  *) fail 'Usage: observability-policies.sh render|ensure|find-owned KIND | verify-5xx-label | disable NAME | delete NAME KIND' ;;
+  *) fail 'Usage: observability-policies.sh render|ensure|find-owned KIND | verify-5xx-label | query-(2xx|5xx)-(count|sample) [EPOCH] | disable NAME | delete NAME KIND' ;;
 esac
