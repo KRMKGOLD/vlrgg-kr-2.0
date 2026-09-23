@@ -46,7 +46,7 @@ platform :android do
 
     bundle_path = File.join(ROOT, "app/androidApp/build/outputs/bundle/release/androidApp-release.aab")
     begin
-      sh(File.join(ROOT, "gradlew"), "--no-daemon", "--no-configuration-cache", "--no-build-cache", ":app:androidApp:bundleRelease")
+      sh(File.join(ROOT, "gradlew"), "--project-dir", ROOT, "--no-daemon", "--no-configuration-cache", "--no-build-cache", ":app:androidApp:bundleRelease")
       UI.user_error!("The expected Android app bundle was not produced.") unless File.file?(bundle_path)
       upload_to_play_store(
         package_name: ANDROID_PACKAGE,

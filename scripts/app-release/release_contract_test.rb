@@ -335,6 +335,42 @@ class ReleaseContractTest < Minitest::Test
     refute_includes File.read(File.join(ROOT, "scripts/app-release/release_contract.rb")), ".appstoreconnect/private_keys"
   end
 
+  def test_android_lane_selects_repository_root_from_fastlane_directory
+    previous_build_number = ENV["APP_BUILD_NUMBER"]
+    previous_umask = File.umask
+    fastfile_path = File.join(ROOT, "fastlane/Fastfile")
+    lane_body = nil
+    context = Module.new
+    context.extend(context)
+    context.define_singleton_method(:opt_out_usage) {}
+    context.define_singleton_method(:desc) { |_description| }
+    context.define_singleton_method(:platform) { |name, &block| block.call if name == :android }
+    context.define_singleton_method(:lane) { |_name, &block| lane_body = block }
+    context.module_eval(File.read(fastfile_path), fastfile_path)
+    context.define_singleton_method(:release_environment!) {}
+    context.define_singleton_method(:google_play_track_version_codes) { |**_options| [1] }
+    context.define_singleton_method(:sh) { |*command| throw :gradle_command, [Dir.pwd, command] }
+    ENV["APP_BUILD_NUMBER"] = "2"
+
+    directory, command = ReleaseContract.stub(:cleanup_android!, nil) do
+      Dir.chdir(File.join(ROOT, "fastlane")) do
+        catch(:gradle_command) { lane_body.call }
+      end
+    end
+    project_option = command.index("--project-dir") || command.index("-p")
+    project_directory = if project_option
+                          File.expand_path(command.fetch(project_option + 1), directory)
+                        else
+                          directory
+                        end
+    assert_equal ROOT, project_directory
+    assert_equal File.join(ROOT, "gradlew"), command.first
+    assert_includes command, ":app:androidApp:bundleRelease"
+  ensure
+    ENV["APP_BUILD_NUMBER"] = previous_build_number
+    File.umask(previous_umask)
+  end
+
   def test_android_wif_is_scoped_to_the_deployment_job
     workflow_path = File.join(ROOT, ".github/workflows/deploy-app-android.yml")
     jobs = YAML.load_file(workflow_path).fetch("jobs")
