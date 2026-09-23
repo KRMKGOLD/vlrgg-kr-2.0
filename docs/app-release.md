@@ -26,7 +26,7 @@ Google Play 내부 테스트 앱을 생성하고 첫 AAB `0.1.0(1)`의 Play 설�
 | Android | `.github/workflows/deploy-app-android.yml` | `bundle exec fastlane android internal` | Google Play `internal` |
 | iOS | `.github/workflows/deploy-app-ios.yml` | `bundle exec fastlane ios internal` | TestFlight 내부 테스트 |
 
-workflow는 시작 시 `github.sha`를 `SOURCE_SHA`로 고정하고 그 commit을 checkout한다. 같은 SHA의 성공한 `main` push `CI`가 있어야 배포 단계로 넘어간다. lane도 GitHub Actions 수동 실행 여부, `main` ref, `GITHUB_SHA`·`SOURCE_SHA`·실제 `HEAD`와 작업 디렉터리를 검사하고, staged·수정·미추적 소스가 있으면 거절한다. 로컬에서 lane만 직접 실행하는 방식은 지원하지 않는다.
+workflow는 시작 시 `github.sha`를 `SOURCE_SHA`로 고정하고 그 commit을 checkout한다. Android는 같은 SHA의 최신 `main` push `ci.yml` 실행·재실행에서 `verify` job이 성공해야 배포 단계로 넘어가며, `ios` job의 완료·성공을 기다리지 않는다. 조회 중 CI 실행·재실행이 바뀌거나 결과가 누락되면 중단한다. iOS 배포는 기존대로 같은 SHA의 전체 CI 성공을 요구한다. lane도 GitHub Actions 수동 실행 여부, `main` ref, `GITHUB_SHA`·`SOURCE_SHA`·실제 `HEAD`와 작업 디렉터리를 검사하고, staged·수정·미추적 소스가 있으면 거절한다. 로컬에서 lane만 직접 실행하는 방식은 지원하지 않는다.
 
 플랫폼별 concurrency group으로 같은 배포 workflow의 동시 실행을 막는다. 진행 중 실행은 자동 취소하지 않으며, Console이나 다른 도구의 업로드까지 잠그지는 않는다. 기본 token 권한은 `actions: read`, `contents: read`이고, Android의 `deploy` job 권한은 `contents: read`, `id-token: write`다. checkout 인증정보는 보존하지 않는다. 배포 인증정보는 플랫폼별 environment에서만 읽는다.
 
@@ -99,7 +99,7 @@ Fastlane `supply`는 **앱의 수동 초기 설정과 최소 한 번의 빌드 �
 
 최초 등록용 AAB만 신뢰하는 로컬 환경의 깨끗한 전용 checkout에서 만든다. GitHub Actions의 공개 artifact나 Release에는 올리지 않는다. 이 단계는 Gradle 빌드와 Console 수동 업로드이며, Actions 전용 Fastlane lane을 로컬에서 실행하는 예외가 아니다.
 
-빌드 전 `SOURCE_SHA`를 성공한 main CI의 전체 SHA로 고정하고 그 checkout으로 이동한다. Console에서 미사용 `APP_VERSION`·`APP_BUILD_NUMBER`를 정한다. Java 21과 Android SDK, 해당 저장소 Actions 실행 조회 권한(`actions: read`)으로 인증한 GitHub CLI `gh`, Python 3, Ruby `3.3.7`을 준비하고 `API_BASE_URL`, `APP_VERSION`, `APP_BUILD_NUMBER`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `FIREBASE_ANDROID_CONFIG_BASE64`를 포함한 빌드 입력은 비공개 환경 변수로 export한다. 아래 예시는 원본 파일을 직접 사용하지 않고 메모리의 base64 입력에서 일회용 키·설정을 만든다. 보관소에서 입력을 준비할 때 다운로드한 작업 복사본이 있으면 입력 확인 후 삭제하고, 전용 비공개 셸은 작업 후 종료한다.
+빌드 전 `SOURCE_SHA`를 main CI의 `verify` job이 성공한 전체 SHA로 고정하고 그 checkout으로 이동한다. Console에서 미사용 `APP_VERSION`·`APP_BUILD_NUMBER`를 정한다. Java 21과 Android SDK, 해당 저장소 Actions 실행 조회 권한(`actions: read`)으로 인증한 GitHub CLI `gh`, Python 3, Ruby `3.3.7`을 준비하고 `API_BASE_URL`, `APP_VERSION`, `APP_BUILD_NUMBER`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `FIREBASE_ANDROID_CONFIG_BASE64`를 포함한 빌드 입력은 비공개 환경 변수로 export한다. 아래 예시는 원본 파일을 직접 사용하지 않고 메모리의 base64 입력에서 일회용 키·설정을 만든다. 보관소에서 입력을 준비할 때 다운로드한 작업 복사본이 있으면 입력 확인 후 삭제하고, 전용 비공개 셸은 작업 후 종료한다.
 
 최초 AAB는 후속 Actions의 `android-internal` 환경에 등록한 것과 동일한 업로드 keystore와 `ANDROID_KEY_ALIAS`로 서명한다. Console 등록 전에 `first.aab` 서명자의 인증서 SHA-256 fingerprint를 Actions signing secret에 등록한 원본 키의 해당 alias 업로드 인증서 SHA-256 fingerprint와 비교한다. 불일치하면 등록하지 말고 동일한 키와 alias로 다시 빌드한다.
 
@@ -108,9 +108,7 @@ Fastlane `supply`는 **앱의 수동 초기 설정과 최소 한 번의 빌드 �
 set -euo pipefail
 test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
 test -z "$(git status --porcelain --untracked-files=all)"
-gh api --method GET repos/KRMKGOLD/vlrgg-kr-2.0/actions/workflows/ci.yml/runs \
-  -f branch=main -f event=push -f head_sha="$SOURCE_SHA" -f status=success \
-  | ruby scripts/app-release/release_contract.rb verify-ci "$SOURCE_SHA"
+ruby scripts/app-release/release_contract.rb verify-android-ci "$SOURCE_SHA" KRMKGOLD/vlrgg-kr-2.0
 test ! -e app/androidApp/build
 test -z "${FIREBASE_ANDROID_CONFIG_SOURCE:-}"
 umask 077
@@ -156,7 +154,7 @@ Console의 **Testing → Internal testing**에서 이 AAB를 업로드하고 Pla
 
 최초 수동 빌드보다 큰 미사용 versionCode를 Console에서 확인한다. 앱이 초안 상태인 경우 현재 lane의 `release_status: completed`를 사용할 수 있도록 최초 내부 릴리스의 처리를 먼저 마친다. 준비가 끝나면 마지막으로 `ANDROID_INTERNAL_DEPLOY_ENABLED=true`를 설정하고 **Deploy Android internal**을 `main`에서 수동 실행한다. workflow가 고정한 SHA는 승인 대기 중에도 유지된다.
 
-완료 기준: 정확한 SHA의 성공한 main CI → Actions 실행 → 새 versionCode의 Play 접수·처리가 연결된다. Fastlane exit 0만으로 테스터 설치 성공을 대신하지 않는다. 재실행 판단은 아래 실패 절차를 따른다.
+완료 기준: 정확한 SHA의 최신 main CI `verify` 성공 → Actions 실행 → 새 versionCode의 Play 접수·처리가 연결된다. Fastlane exit 0만으로 테스터 설치 성공을 대신하지 않는다. 재실행 판단은 아래 실패 절차를 따른다.
 
 ### 7. Play 경유 실기기 설치와 종료 증거
 

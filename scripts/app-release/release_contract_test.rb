@@ -45,6 +45,82 @@ class ReleaseContractTest < Minitest::Test
     end
   end
 
+  def test_android_ci_accepts_verify_without_waiting_for_ios
+    run, jobs = android_ci_responses
+    [nil, "failure"].each do |ios_conclusion|
+      run["status"] = ios_conclusion ? "completed" : "in_progress"
+      run["conclusion"] = ios_conclusion
+      jobs["jobs"][1]["status"] = ios_conclusion ? "completed" : "in_progress"
+      jobs["jobs"][1]["conclusion"] = ios_conclusion
+      paths = []
+      api = lambda do |path|
+        paths << path
+        path.include?("/attempts/") ? jobs : { "total_count" => 2, "workflow_runs" => [run.merge("id" => 84, "run_number" => 6), run] }
+      end
+      assert ReleaseContract.verify_android_ci!(run.fetch("head_sha"), "owner/repository", api: api)
+      assert_equal paths.first, paths.last
+      assert_includes paths[1], "/runs/83/attempts/2/jobs?per_page=100"
+    end
+  end
+
+  def test_android_ci_rejects_wrong_or_incomplete_evidence
+    mutations = [
+      ->(run, _jobs) { run["head_sha"] = "c" * 40 },
+      ->(run, _jobs) { run["head_branch"] = "feature" },
+      ->(run, _jobs) { run["event"] = "pull_request" },
+      ->(run, _jobs) { run["path"] = ".github/workflows/other.yml" },
+      ->(run, _jobs) { run["id"] = "83" },
+      ->(run, _jobs) { run["run_number"] = 0 },
+      ->(run, _jobs) { run["run_attempt"] = 0 },
+      ->(_run, jobs) { jobs["jobs"][0]["head_sha"] = "c" * 40 },
+      ->(_run, jobs) { jobs["jobs"][0]["run_id"] = 82 },
+      ->(_run, jobs) { jobs["jobs"][0]["run_attempt"] = 1 },
+      ->(_run, jobs) { jobs["jobs"][0].delete("run_attempt") },
+      ->(_run, jobs) { jobs["jobs"][0]["status"] = "in_progress" },
+      ->(_run, jobs) { jobs["jobs"][0]["conclusion"] = "failure" },
+      ->(_run, jobs) { jobs["jobs"][0]["conclusion"] = "skipped" },
+      ->(_run, jobs) { jobs["jobs"][0]["conclusion"] = "cancelled" },
+      ->(_run, jobs) { jobs["jobs"][0]["name"] = "other" },
+      ->(_run, jobs) { jobs["jobs"] = [jobs["jobs"][0], jobs["jobs"][0]] },
+      ->(_run, jobs) { jobs["total_count"] = 101 },
+      ->(_run, jobs) { jobs["jobs"] = nil }
+    ]
+    mutations.each do |mutate|
+      run, jobs = android_ci_responses
+      mutate.call(run, jobs)
+      older_run = run.merge("id" => 82, "run_number" => 6, "status" => "completed", "conclusion" => "success")
+      api = ->(path) { path.include?("/attempts/") ? jobs : { "total_count" => 2, "workflow_runs" => [older_run, run] } }
+      assert_raises(ReleaseContract::Error) { ReleaseContract.verify_android_ci!("b" * 40, "owner/repository", api: api) }
+    end
+    [nil, {}, { "total_count" => 0, "workflow_runs" => [] }, { "total_count" => 101, "workflow_runs" => [android_ci_responses.first] }].each do |response|
+      assert_raises(ReleaseContract::Error) do
+        ReleaseContract.verify_android_ci!("b" * 40, "owner/repository", api: ->(_path) { response })
+      end
+    end
+  end
+
+  def test_android_ci_rejects_a_new_run_or_attempt_during_lookup
+    ["id", "run_number", "run_attempt"].each do |field|
+      run, jobs = android_ci_responses
+      reads = 0
+      api = lambda do |path|
+        next jobs if path.include?("/attempts/")
+
+        reads += 1
+        { "total_count" => 1, "workflow_runs" => [reads == 1 ? run : run.merge(field => run.fetch(field) + 1)] }
+      end
+      assert_raises(ReleaseContract::Error) { ReleaseContract.verify_android_ci!("b" * 40, "owner/repository", api: api) }
+    end
+  end
+
+  def test_android_gate_is_separate_from_ios_full_ci_gate
+    android = File.read(File.join(ROOT, ".github/workflows/deploy-app-android.yml"))
+    ios = File.read(File.join(ROOT, ".github/workflows/deploy-app-ios.yml"))
+    assert_includes android, 'verify-android-ci "$SOURCE_SHA" "$GITHUB_REPOSITORY"'
+    assert_includes ios, 'verify-ci "$SOURCE_SHA"'
+    refute_includes ios, "verify-android-ci"
+  end
+
   def test_requires_manual_workflow_checkout_to_match_source_sha
     Dir.mktmpdir do |repository|
       git = lambda do |*arguments|
@@ -390,6 +466,14 @@ class ReleaseContractTest < Minitest::Test
   end
 
   private
+
+  def android_ci_responses
+    run = { "id" => 83, "run_number" => 7, "run_attempt" => 2, "head_sha" => "b" * 40, "head_branch" => "main",
+            "event" => "push", "path" => ".github/workflows/ci.yml", "status" => "in_progress", "conclusion" => nil }
+    job = { "run_id" => 83, "run_attempt" => 2, "head_sha" => "b" * 40, "name" => "verify",
+            "status" => "completed", "conclusion" => "success" }
+    [run, { "total_count" => 2, "jobs" => [job, job.merge("name" => "ios", "status" => "in_progress", "conclusion" => nil)] }]
+  end
 
   def valid_environment
     {

@@ -69,6 +69,55 @@ module ReleaseContract
     raise Error, "The CI verification response was malformed."
   end
 
+  def github_ci_response(path)
+    output, _error, status = Open3.capture3("gh", "api", "--method", "GET", path)
+    raise Error, "The GitHub CI lookup failed." unless status.success?
+
+    JSON.parse(output)
+  rescue JSON::ParserError, Errno::ENOENT
+    raise Error, "The GitHub CI lookup failed."
+  end
+
+  def verify_android_ci!(source_sha, repository, api: method(:github_ci_response))
+    raise Error, "SOURCE_SHA must be a full lowercase commit SHA." unless SHA_PATTERN.match?(source_sha)
+    raise Error, "The GitHub repository must be owner/name." unless /\A[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\z/.match?(repository)
+
+    expected = { "head_sha" => source_sha, "head_branch" => "main", "event" => "push", "path" => ".github/workflows/ci.yml" }
+    runs_path = "repos/#{repository}/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=#{source_sha}&per_page=100"
+    read_run = lambda do
+      response = api.call(runs_path)
+      runs = response.fetch("workflow_runs")
+      unless runs.is_a?(Array) && response.fetch("total_count") == runs.length && runs.all? { |run|
+        run.is_a?(Hash) && %w[id run_number].all? { |key| run[key].is_a?(Integer) && run[key].positive? }
+      }
+        raise Error, "The Android CI response was malformed."
+      end
+      run = runs.max_by { |candidate| candidate.fetch("run_number") }
+      unless run && expected.all? { |key, value| run[key] == value } && run["run_attempt"].is_a?(Integer) && run["run_attempt"].positive?
+        raise Error, "The frozen source SHA has no matching main push CI run."
+      end
+      run.slice(*expected.keys, "id", "run_number", "run_attempt")
+    end
+
+    run = read_run.call
+    response = api.call("repos/#{repository}/actions/runs/#{run.fetch('id')}/attempts/#{run.fetch('run_attempt')}/jobs?per_page=100")
+    jobs = response.fetch("jobs")
+    unless jobs.is_a?(Array) && jobs.all? { |job| job.is_a?(Hash) } && response.fetch("total_count") == jobs.length
+      raise Error, "The Android CI job response was malformed or incomplete."
+    end
+    verify_jobs = jobs.select { |job| job["name"] == "verify" }
+    expected_job = { "run_id" => run.fetch("id"), "run_attempt" => run.fetch("run_attempt"), "head_sha" => source_sha,
+                     "status" => "completed", "conclusion" => "success" }
+    unless verify_jobs.length == 1 && expected_job.all? { |key, value| verify_jobs.first[key] == value }
+      raise Error, "The latest main push CI attempt has no successful verify job for the frozen source SHA."
+    end
+    raise Error, "The main push CI run changed during verification; retry after verify succeeds." unless read_run.call == run
+
+    true
+  rescue KeyError, TypeError, NoMethodError
+    raise Error, "The Android CI response was malformed."
+  end
+
   def cleanup_android!(environment = ENV, repository_root = default_repository_root)
     signing_directory = environment["ANDROID_SIGNING_TEMP_DIR"]
     runner_temp = environment["RUNNER_TEMP"]
@@ -249,6 +298,8 @@ if $PROGRAM_NAME == __FILE__
       ReleaseContract.validate_workflow_source!
     when "verify-ci"
       ReleaseContract.verify_ci!(STDIN.read, ARGV.fetch(0))
+    when "verify-android-ci"
+      ReleaseContract.verify_android_ci!(ARGV.fetch(0), ARGV.fetch(1))
     when "cleanup-android"
       ReleaseContract.cleanup_android!
     when "cleanup-ios"
