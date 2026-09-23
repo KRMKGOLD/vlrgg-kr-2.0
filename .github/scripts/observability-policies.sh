@@ -202,7 +202,7 @@ render_uptime() {
       displayName:$display, userLabels:$labels, period:"300s", timeout:"10s",
       selectedRegions:["USA_IOWA","EUROPE","ASIA_PACIFIC"],
       monitoredResource:{type:"cloud_run_revision",labels:{project_id:$project,location:$region,service_name:$service,revision_name:$revision,configuration_name:$service}},
-      httpCheck:{requestMethod:"GET",useSsl:true,validateSsl:true,port:443,path:"/health",
+      httpCheck:{requestMethod:"GET",useSsl:true,port:443,path:"/health",
         acceptedResponseStatusCodes:[{statusValue:200}],
         serviceAgentAuthentication:{type:"OIDC_TOKEN"}},
       contentMatchers:[{content:"^\\s*\\{\\s*\"status\"\\s*:\\s*\"ok\"\\s*\\}\\s*$",matcher:"MATCHES_REGEX"}],

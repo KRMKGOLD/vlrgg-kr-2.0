@@ -151,6 +151,12 @@ case "$method" in
     fi ;;
   POST)
     test -n "$body_file"
+    if test "$collection" = uptimeCheckConfigs && jq -e '
+      .monitoredResource.type == "cloud_run_revision" and .httpCheck.validateSsl == true
+    ' "$body_file" >/dev/null 2>&1; then
+      printf '%s\n' '{"error":{"code":400,"status":"INVALID_ARGUMENT","message":"validate_ssl is unsupported for cloud_run_revision"}}' >&2
+      exit 1
+    fi
     name="projects/test-project/$collection/created-$collection"
     jq --arg name "$name" '. + {name:$name}' "$body_file" > "$CASE_DIR/created.json"
     if test -f "$CASE_DIR/invalid-created-resource"; then
@@ -716,8 +722,18 @@ uptime="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-quer
   MONITORING_SERVICE_AGENT=service-123@gcp-sa-monitoring-notification.iam.gserviceaccount.com \
   "$policy_helper" render uptime)"
 jq -e '
+  .userLabels == {managed_by:"issue122-validation",validation_run:"123_1",resource_kind:"uptime",spec_version:"v1"} and
   .period=="300s" and .timeout=="10s" and
   .selectedRegions==["USA_IOWA","EUROPE","ASIA_PACIFIC"] and
+  .monitoredResource.type=="cloud_run_revision" and
+  .monitoredResource.labels == {
+    project_id:"test-project",location:"test-region",service_name:"vlrgg-query-check",
+    revision_name:"validation-r123-1",configuration_name:"vlrgg-query-check"
+  } and
+  .httpCheck.requestMethod=="GET" and .httpCheck.useSsl==true and
+  (.httpCheck | has("validateSsl") | not) and
+  .httpCheck.port==443 and .httpCheck.path=="/health" and
+  .httpCheck.serviceAgentAuthentication=={"type":"OIDC_TOKEN"} and
   .httpCheck.acceptedResponseStatusCodes==[{"statusValue":200}] and
   .contentMatchers==[{"content":"^\\s*\\{\\s*\"status\"\\s*:\\s*\"ok\"\\s*\\}\\s*$","matcher":"MATCHES_REGEX"}]
 ' <<< "$uptime" >/dev/null
