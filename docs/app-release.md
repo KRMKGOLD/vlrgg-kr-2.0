@@ -101,6 +101,8 @@ Fastlane `supply`는 **앱의 수동 초기 설정과 최소 한 번의 빌드 �
 
 빌드 전 `SOURCE_SHA`를 성공한 main CI의 전체 SHA로 고정하고 그 checkout으로 이동한다. Console에서 미사용 `APP_VERSION`·`APP_BUILD_NUMBER`를 정한다. Java 21과 Android SDK, 해당 저장소 Actions 실행 조회 권한(`actions: read`)으로 인증한 GitHub CLI `gh`, Python 3, Ruby `3.3.7`을 준비하고 `API_BASE_URL`, `APP_VERSION`, `APP_BUILD_NUMBER`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `FIREBASE_ANDROID_CONFIG_BASE64`를 포함한 빌드 입력은 비공개 환경 변수로 export한다. 아래 예시는 원본 파일을 직접 사용하지 않고 메모리의 base64 입력에서 일회용 키·설정을 만든다. 보관소에서 입력을 준비할 때 다운로드한 작업 복사본이 있으면 입력 확인 후 삭제하고, 전용 비공개 셸은 작업 후 종료한다.
 
+최초 AAB는 후속 Actions의 `android-internal` 환경에 등록한 것과 동일한 업로드 keystore와 `ANDROID_KEY_ALIAS`로 서명한다. Console 등록 전에 `first.aab` 서명자의 인증서 SHA-256 fingerprint를 Actions signing secret에 등록한 원본 키의 해당 alias 업로드 인증서 SHA-256 fingerprint와 비교한다. 불일치하면 등록하지 말고 동일한 키와 alias로 다시 빌드한다.
+
 ```bash
 (
 set -euo pipefail
