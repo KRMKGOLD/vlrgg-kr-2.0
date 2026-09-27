@@ -1,7 +1,7 @@
 # Server FCM Match Notification — Stage 1.1 offline contract
 
 - Status: Stage 1.1 offline server implementation GREEN
-- Last reviewed: 2026-07-31
+- Last reviewed: 2026-09-27 — 문서·코드·Stage 2 범위 대조; 아래 offline 실행 증거는 2026-07-31 기록이며 이번 문서 검토에서 재실행하지 않았다.
 - Scope: `server` only, credential-free and offline-verifiable
 - Related: [ADR-0001](adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](adr/0002-match-notification-stage1-1-offline-firestore-boundary.md), [Feature Guide](../feature/README.md), [Stage 2 Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76), [Matches](../feature/matches/README.md), [CI/CD](../ci-cd.md)
 

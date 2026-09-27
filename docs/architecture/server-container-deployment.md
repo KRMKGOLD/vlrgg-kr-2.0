@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포와 운영
 
-일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 exact `main` SHA, private validation, production 승격, 실제 rollback, 비용 중단 실패 후 drain·복구와 공개 조회를 확인했다. #122의 Logging·Error Reporting·Monitoring 코드는 구현됐지만 live 정책·장애·수신·복원 검증은 아직 `NOT RUN`이다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
+일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 exact `main` SHA, private validation, production 승격, 실제 rollback, 비용 중단 실패 후 drain·복구와 공개 조회를 확인했다. #122의 Logging·Error Reporting·Monitoring 코드는 구현됐으며 private live 검증을 진행 중이다. 전체 완료 여부는 아래 [live runbook](#122-observability-live-runbook)의 증거 경계를 따른다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
 
 ## Image and runtime contract
 
@@ -41,7 +41,9 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 
 ## #122 observability live runbook
 
-로컬 server tests, validation jar, stdout smoke와 workflow stub은 통과했다. GCP inventory, policy ensure, 장애 주입, Error Reporting grouping, trace, sampling, notification receipt, incident close와 실제 private restore는 모두 `NOT RUN`이다. endpoint status만으로 #122 완료를 선언하지 않는다.
+2026-09-27 확인 기준, 로컬 server tests, validation jar, stdout smoke와 workflow stub은 통과했고 실제 private 검증에도 착수했다. [실행 36294474231](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36294474231)은 main `53244e3`에서 provider 접근 확인·recovery journal 준비·validation revision 배포를 통과한 뒤 bounded private validation을 진행 중이며 복원·정리 단계는 대기 중이었다. 이는 Actions 단계 상태이며 실수신·incident close·최종 복원 성공의 증거를 대신하지 않는다.
+
+전체 live 완료와 production 적용을 완료로 표시하지 않는다. 최신 실행에서 policy·장애·grouping·trace·sampling·receipt·복원·정리의 개별 결과를 확인하고, 미실행은 `NOT RUN`, 실패는 `FAIL`, 실행 중은 `IN PROGRESS`, 증거 미확인은 `UNKNOWN`으로 구분한다. endpoint status나 workflow 착수만으로 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)를 종료하지 않는다.
 
 ### Authority and preflight
 

@@ -1,6 +1,8 @@
 # 앱 내부 배포 계약
 
-Android Google Play internal 배포를 먼저 진행한다. `0.1.0(1)`은 수동으로 등록해 Play 경유 설치까지 확인했다. 후속 Actions upload·update·외부망 앱 조회는 남아 있다. iOS는 Apple Developer Program/App Store Connect 계정이 없어 signing과 TestFlight를 보류한다.
+2026-09-27 기준 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)의 Android 내부 배포 검증은 완료됐다. `0.1.0(1)` 수동 설치 이후 `0.1.0(2)`의 [Actions 빌드·서명·Play internal 업로드](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/35855931943), 기존 앱의 Play 업데이트, 실기기 정상 동작과 실행 직후 crash·ANR 미발생을 확인했다. 동작·Crashlytics 확인은 #117에 기록된 사용자 확인이며 전체 접근성/E2E 검증 완료를 뜻하지 않는다.
+
+iOS signing·TestFlight는 Apple Developer Program/App Store Connect 계정 준비 전 보류하며 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 추적한다. 아래 내용은 후속 배포에도 유지할 절차이며, 완료된 Android 작업을 미완료로 다시 분류하지 않는다.
 
 ## Common gates
 
@@ -64,9 +66,9 @@ Fastlane `supply`는 앱의 수동 초기 설정과 최소 한 번의 build uplo
 
 ## Android completion evidence
 
-Play tester가 지정 계정으로 internal testing에 참여해 물리 Android 기기에서 설치하고, 후속 Actions build로 update한다. 외부망에서 뉴스·경기 목록과 연결된 상세의 HTTPS 조회·표시·기본 이동을 확인한다. SHA, CI run, deployment run, version/build, Play receipt, tester install/update, 기기/OS, query 결과와 cleanup을 기록하되 tester identity와 raw logs는 공개하지 않는다.
+배포마다 Play tester가 지정 계정으로 internal testing에 참여해 물리 Android 기기에서 설치·업데이트하고, 외부망에서 뉴스·경기 목록과 연결된 상세의 HTTPS 조회·표시·기본 이동을 확인한다. SHA, CI run, deployment run, version/build, Play receipt, tester install/update, 기기/OS, query 결과와 cleanup을 기록하되 tester identity와 raw logs는 공개하지 않는다. `0.1.0(2)`의 완료 근거와 사용자 확인 범위는 #117이 소유한다.
 
-## iOS account gate
+## iOS 재개 조건
 
 Apple Developer Program과 App Store Connect enrollment, `kr.co.cotton.vlrggmobile` 앱 소유권, distribution certificate/profile, App Store Connect API key와 internal tester가 준비된 뒤에만 iOS workflow를 켠다.
 

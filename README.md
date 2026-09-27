@@ -11,7 +11,7 @@ VLR.GG의 Valorant e-sports 정보를 Android와 iOS에서 탐색하는 Compose 
 - News, Matches, Events, Search, Team·Player·Series Detail, Team·Player 즐겨찾기와 MyPage, About의 앱 화면과 필요한 서버 API가 연결되어 있습니다.
 - Android/iOS 실기기·접근성 검증과 E2E 후속 작업은 [#49](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/49), [#62](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/62)에서 관리합니다. 구현 완료와 MVP 검증 완료는 구분합니다.
 - 경기 알림은 [MVP 이후 Stage 2](docs/feature/README.md#mvp-이후-stage-2-경기-알림)입니다. 서버의 offline 기반 구현은 앱의 실제 푸시 연동 완료를 의미하지 않습니다.
-- 조회 서버의 Cloud Run 배포와 앱 내부 배포 절차는 [운영 문서](docs/README.md)에 있습니다. 공개 서비스 운영이나 스토어 정식 출시 완료를 뜻하지 않습니다.
+- 조회 서버의 Cloud Run 배포와 Android 내부 배포·Play 업데이트 검증은 완료됐습니다. iOS TestFlight는 계정 준비 전 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 보류하며, 상세 상태와 절차는 [운영 문서](docs/README.md)를 따릅니다. 공개 서비스 운영이나 스토어 정식 출시 완료를 뜻하지 않습니다.
 
 ## 구조
 

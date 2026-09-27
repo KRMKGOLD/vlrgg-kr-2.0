@@ -81,8 +81,8 @@ Target Secret, registration token과 App Check token은 repository/environment v
 | --- | --- | --- |
 | Stage 1.1 notification server | Emulator contract/concurrency/security tests, build/installDist, notification-disabled packaged smoke GREEN | App·real Firebase/GCP/Cloud Run은 `NOT RUN — Stage 2` |
 | Query server | private validation, production promotion, rollback, public smoke와 cost-stop recovery PASS | 실제 invoice·Budget/Monitoring receipt·Spend cap 미확인 |
-| App release process | credential-free workflow/lane/input/cleanup checks GREEN | Android 후속 Actions upload/update/device query; iOS account/signing/TestFlight |
+| App release process | [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117): Android `0.1.0(2)` Actions 업로드·Play 업데이트·실기기 정상 동작·cleanup 확인 완료 | iOS account/signing/TestFlight는 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 보류 |
 | Crashlytics | Android fatal·ANR, iOS fatal·dSYM 실수신 확인 | store release 안정성은 별도 운영 관측 |
-| #122 observability | local code/workflow/stub checks GREEN | policy, fault, receipt, incident close, live restore `NOT RUN` |
+| #122 observability | local code/workflow/stub checks GREEN; private live validation 실행 착수 | 실수신·incident close·복원·정리 등 전체 완료는 미확인. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
 
 Branch protection은 CI workflow가 제공하는 실제 check 이름만 사용한다. direct push 제한, PR 요구와 최신 branch 상태를 적용하되 존재하지 않는 check를 미리 등록하지 않는다.
