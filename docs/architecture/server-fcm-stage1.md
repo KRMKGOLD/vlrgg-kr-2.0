@@ -48,7 +48,7 @@ Stage 1.1의 종료 문구는 다음과 같다.
 
 - 알림을 위한 `app/**` 구현과 Android/iOS FCM·App Check 연동. 충돌 수집은 별도 [#121 Crashlytics](../app-crashlytics.md) 범위다.
 - 실제 Firebase App Check token 검증과 Firebase App ID allowlist
-- 실제 FCM registration token 획득·갱신·발송·기기 표시
+- 실제 FCM 전달 주소 획득·갱신·발송·기기 표시. Stage 1.1 token에서 FID로 전환하는 계약은 [#77](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/77)에서 확정한다.
 - production Firestore client factory, ADC, IAM, index activation과 live smoke
 - public Scheduler route, Google OIDC 검증, Cloud Scheduler resource
 - GCP API/Service Account/IAM, Cloud Run, WIF, GitHub Actions CD, traffic 전환과 rollback
