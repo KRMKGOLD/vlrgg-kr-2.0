@@ -58,7 +58,7 @@ PROTECTED_ROUTE_LOAD_REPORT_PATH=/tmp/vlrgg-protected-load.properties \
 - `observability-validate`: private validation overlay와 bounded live driver만 사용하고 production을 변경하지 않는다.
 - `observability-restore`: enable 값과 무관하게 journal 기반 복원만 수행하며 build/push를 하지 않는다.
 
-`validation_scope`는 validate에서만 `all` 또는 `o8-o9`를 허용한다. `o8-o9`도 새 private revision·journal·preflight와 `always()` 복원·정리를 사용하고, 생략한 O3~O7은 해당 실행의 PASS로 표시하지 않는다.
+`validation_scope`는 validate에서만 `all`, uptime·종료용 `o8-o9`, 종료 전용 `o9`를 허용한다. 축소 범위도 새 private revision·journal·preflight와 `always()` 복원·정리를 사용하고, 생략한 단계는 해당 실행의 PASS로 표시하지 않는다. 상세 paging·fault cutoff 계약은 [배포 runbook](architecture/server-container-deployment.md#private-validation-and-recovery)이 소유한다.
 
 ## App deployment
 
@@ -87,6 +87,6 @@ Target Secret, registration token과 App Check token은 repository/environment v
 | Query server | private validation, production promotion, rollback, public smoke와 cost-stop recovery PASS | 실제 invoice·Budget/Monitoring receipt·Spend cap 미확인 |
 | App release process | [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117): Android `0.1.0(2)` Actions 업로드·Play 업데이트·실기기 정상 동작·cleanup 확인 완료 | iOS account/signing/TestFlight는 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 보류 |
 | Crashlytics | Android fatal·ANR, iOS fatal·dSYM 실수신 확인 | store release 안정성은 별도 운영 관측 |
-| #122 observability | local checks GREEN; private O3~O7 provider 전이·실제 수신·복원 확인, O8 OPEN 수신 뒤 독립 복원 확인 | O8 CLOSED·O9, production 영구 정책·정상 배포 미확인. O9·OOM은 `NOT RUN`. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
+| #122 observability | local checks GREEN; private O3~O7과 O8 provider 전이·실제 수신·독립 복원 확인 | O9와 production 영구 정책·정상 배포 미확인. O9·OOM은 `NOT RUN`. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
 
 Branch protection은 CI workflow가 제공하는 실제 check 이름만 사용한다. direct push 제한, PR 요구와 최신 branch 상태를 적용하되 존재하지 않는 check를 미리 등록하지 않는다.

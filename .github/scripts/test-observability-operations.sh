@@ -519,9 +519,12 @@ for enabled in true false unset; do
   run_preflight_case unknown "$enabled" reject
 done
 run_preflight_case observability-validate true pass o8-o9
+run_preflight_case observability-validate true pass o9
 run_preflight_case observability-validate true reject unknown
 run_preflight_case deploy true reject o8-o9
+run_preflight_case deploy true reject o9
 run_preflight_case observability-restore true reject o8-o9
+run_preflight_case observability-restore true reject o9
 pass 'workflow preflight validates operation and phase scope before auth while retaining main SHA and CI checks'
 
 new_case journal
@@ -1606,7 +1609,7 @@ test ! -s "$CASE_DIR/results" || fail 'uptime deadline reported a false pass'
 pass 'uptime deadline expiry still restores health and never reports a pass'
 
 new_case live-phase-scope
-for scope in all o8-o9 invalid; do
+for scope in all o8-o9 o9 invalid; do
   : > "$CASE_DIR/phases"
   if env OBSERVABILITY_SCOPE="$scope" OBSERVABILITY_RUN=123-1 RUNNER_TEMP="$CASE_DIR" \
     GITHUB_STEP_SUMMARY="$CASE_DIR/summary" OBSERVABILITY_WORKFLOW_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -1626,10 +1629,11 @@ for scope in all o8-o9 invalid; do
   case "$scope" in
     all) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O3-O6 O7 O8 O9 ' ;;
     o8-o9) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O8 O9 ' ;;
+    o9) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O9 ' ;;
     invalid) test ! -s "$CASE_DIR/phases" ;;
   esac || fail "live phase sequence for $scope is wrong"
 done
-pass 'default runs all phases; scoped validation runs O8 then O9; invalid scope stops before preflight'
+pass 'default runs all phases; scoped validation runs O8/O9 or O9; invalid scope stops before preflight'
 
 new_case live-uptime-delayed-open
 env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
@@ -1733,6 +1737,108 @@ for path in /__observability/health/fail /__observability/exit /__observability/
   done
 done
 pass 'post-guard cutoff blocks health faults and exits at the boundary while allowing explicit restore'
+
+new_case live-system-log-pagination
+for mode in sparse repeat cycle malformed null pages entries cutoff scan-time; do
+  page_case="$CASE_DIR/$mode"
+  mkdir -p "$page_case"
+  printf '100\n' > "$page_case/clock"
+  status=0
+  env MODE="$mode" CASE_DIR="$page_case" PROJECT_ID=test-project REGION=test-region \
+    SERVICE_NAME=vlrgg-query-check OBSERVABILITY_DEADLINE_EPOCH="$([ "$mode" = cutoff ] && printf 1901 || printf 2000)" \
+    bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+      now() { cat "$CASE_DIR/clock"; }
+      api() {
+        test "$1" = POST && test "$2" = "$logging_root/entries:list"
+        jq -S "del(.pageToken)" "$4" > "$CASE_DIR/request.json"
+        if test -f "$CASE_DIR/first-request.json"; then
+          cmp -s "$CASE_DIR/first-request.json" "$CASE_DIR/request.json" || exit 1
+        else cp "$CASE_DIR/request.json" "$CASE_DIR/first-request.json"; fi
+        local count=0
+        test ! -f "$CASE_DIR/calls" || count="$(cat "$CASE_DIR/calls")"
+        count=$((count + 1)); printf "%s\n" "$count" > "$CASE_DIR/calls"
+        case "$MODE" in
+          sparse)
+            if test "$count" = 1; then printf "%s\n" "{\"entries\":[],\"nextPageToken\":\"next\\n \"}" > "$3"
+            else jq -e ".pageToken == \"next\\n \"" "$4" >/dev/null &&
+              printf "%s\n" "{\"entries\":[{\"textPayload\":\"found\"}]}" > "$3"; fi ;;
+          repeat) printf "%s\n" "{\"entries\":[],\"nextPageToken\":\"same\"}" > "$3" ;;
+          cycle) jq -n --arg token "$([ "$count" = 2 ] && printf second || printf first)" \
+            "{entries:[],nextPageToken:\$token}" > "$3" ;;
+          malformed) printf "%s\n" "{\"entries\":{}}" > "$3" ;;
+          null) printf "%s\n" "{\"entries\":null}" > "$3" ;;
+          pages) jq -n --arg token "page-$count" "{entries:[],nextPageToken:\$token}" > "$3" ;;
+          entries) jq -n --arg token "page-$count" "{entries:[range(0;1000)|{n:.}],nextPageToken:\$token}" > "$3" ;;
+          cutoff) printf "%s\n" "{\"entries\":[],\"nextPageToken\":\"next\"}" > "$3";
+            printf "101\n" > "$CASE_DIR/clock" ;;
+          scan-time) printf "%s\n" "{\"entries\":[],\"nextPageToken\":\"next\"}" > "$3";
+            printf "461\n" > "$CASE_DIR/clock" ;;
+        esac
+      }
+      system_logs 2026-01-01T00:00:00Z "$CASE_DIR/result.json"
+    ' _ "$live_helper" > /dev/null 2> "$page_case/stderr" || status=$?
+  if test "$mode" = sparse; then
+    test "$status" = 0 && test "$(cat "$page_case/calls")" = 2 &&
+      jq -e '.entries == [{"textPayload":"found"}]' "$page_case/result.json" >/dev/null \
+      || fail 'empty Logging page with a token did not continue to its later entry'
+  else
+    test "$status" != 0 && test ! -s "$page_case/result.json" \
+      || fail "unsafe system-log pagination $mode passed"
+    case "$mode" in
+      repeat) test "$(cat "$page_case/calls")" = 2 ;;
+      cycle) test "$(cat "$page_case/calls")" = 3 ;;
+      malformed|null|cutoff|scan-time) test "$(cat "$page_case/calls")" = 1 ;;
+      pages) test "$(cat "$page_case/calls")" = 12 ;;
+      entries) test "$(cat "$page_case/calls")" = 4 ;;
+    esac || fail "system-log pagination $mode exceeded its bound"
+  fi
+done
+pass 'system-log pagination accepts sparse token pages and bounds shape, tokens, pages, entries, scan time, and fault time'
+
+new_case live-o9-paged-safety
+for mode in collision ambiguous; do
+  page_case="$CASE_DIR/$mode"
+  mkdir -p "$page_case"
+  status=0
+  env MODE="$mode" CASE_DIR="$page_case" PROJECT_ID=test-project REGION=test-region \
+    SERVICE_NAME=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
+    OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 OBSERVABILITY_DEADLINE_EPOCH=2000000000 \
+    bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+      now() { printf 1700000000; }
+      api() {
+        local stage=history count=0
+        test -f "$CASE_DIR/exits" && stage=discovery
+        test ! -f "$CASE_DIR/$stage-calls" || count="$(cat "$CASE_DIR/$stage-calls")"
+        count=$((count + 1)); printf "%s\n" "$count" > "$CASE_DIR/$stage-calls"
+        if test "$stage" = history; then
+          if test "$MODE" = collision && test "$count" = 1; then
+            printf "%s\n" "{\"entries\":[],\"nextPageToken\":\"next\"}" > "$3"
+          elif test "$MODE" = collision; then
+            printf "%s\n" "{\"entries\":[{\"textPayload\":\"Starting container exit status 42\"}]}" > "$3"
+          else printf "%s\n" "{\"entries\":[]}" > "$3"; fi
+        elif test "$MODE" = collision; then
+          jq -n --arg revision "$OBSERVABILITY_REVISION" \
+            "{entries:[{resource:{labels:{revision_name:\$revision}},textPayload:\"Starting container exit status 42\"}]}" > "$3"
+        elif test "$count" = 1; then
+          jq -n --arg revision "$OBSERVABILITY_REVISION" \
+            "{entries:[{resource:{labels:{revision_name:\$revision}},textPayload:\"Container called exit(42).\"}],nextPageToken:\"next\"}" > "$3"
+        else
+          jq -n --arg revision "$OBSERVABILITY_REVISION" \
+            "{entries:[{resource:{labels:{revision_name:\$revision}},textPayload:\"Container terminated exit 42\"}]}" > "$3"
+        fi
+      }
+      private_exit() { printf "exit\n" >> "$CASE_DIR/exits"; }
+      poll_health() { :; }; ensure_policy() { printf "policy\n" > "$CASE_DIR/policy"; }
+      run_o9
+    ' _ "$live_helper" > /dev/null 2> "$page_case/stderr" || status=$?
+  test "$status" != 0 && test "$(wc -l < "$page_case/exits" | tr -d ' ')" = 1 &&
+    test ! -e "$page_case/policy" || fail "O9 $mode crossed the policy or second-exit guard"
+  test "$(cat "$page_case/discovery-calls")" = "$([ "$mode" = collision ] && printf 1 || printf 2)" \
+    || fail "O9 $mode skipped a Logging page"
+done
+pass 'O9 finds later-page normal collisions and ambiguous exit signatures before policy or second exit'
 
 new_case live-o9-exits
 env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
@@ -1999,6 +2105,7 @@ pass 'gcloud failures expose only fixed sanitized errors'
 grep -q '^  cancel-in-progress: false$' "$workflow"
 grep -A7 '^      validation_scope:' "$workflow" | grep -q 'default: all'
 grep -A7 '^      validation_scope:' "$workflow" | grep -q 'o8-o9'
+grep -A8 '^      validation_scope:' "$workflow" | grep -q '^          - o9$'
 grep -Fq 'VALIDATION_SCOPE: ${{ inputs.validation_scope }}' "$workflow"
 grep -A3 'name: Deploy the verified image to production' "$workflow" \
   | grep -q "if: inputs.operation == 'deploy'"

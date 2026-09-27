@@ -20,6 +20,7 @@ on:
         options:
           - all
           - o8-o9
+          - o9
 
 concurrency:
   group: cloud-run-query-production
@@ -63,7 +64,7 @@ jobs:
             *) echo "::error::Unsupported operation."; exit 1 ;;
           esac
           case "$OPERATION:$VALIDATION_SCOPE" in
-            deploy:all|observability-validate:all|observability-validate:o8-o9|observability-restore:all) ;;
+            deploy:all|observability-validate:all|observability-validate:o8-o9|observability-validate:o9|observability-restore:all) ;;
             *) echo "::error::Unsupported validation scope for operation."; exit 1 ;;
           esac
           if test "$OPERATION" != observability-restore; then

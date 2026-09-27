@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포와 운영
 
-일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 exact `main` SHA, private validation, production 승격, 실제 rollback, 비용 중단 실패 후 drain·복구와 공개 조회를 확인했다. #122는 private O3~O7 provider 전이, 오류 재발과 O7 OPEN/CLOSED 실제 수신, 실패 실행의 독립 복원을 확인했다. O8은 3개 지역의 정상→장애→정상 지표와 OPEN 수신을 확인했지만 CLOSED 확인 전에 대기가 끝났으며, O8/O9 완료와 production 영구 정책·정상 배포는 아직 남아 있다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
+일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 exact `main` SHA, private validation, production 승격, 실제 rollback, 비용 중단 실패 후 drain·복구와 공개 조회를 확인했다. #122는 private O3~O7 provider 전이와 실제 수신, 후속 O8의 3개 지역 정상→장애→정상 지표·동일 incident OPEN/CLOSED·실제 두 이메일 수신, 실패 실행의 독립 복원과 소유 자원 정리를 확인했다. O9는 첫 종료 요청 전 시스템 로그 목록 완전성 검사에서 중단됐으며, O9와 production 영구 정책·정상 배포는 아직 남아 있다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
 
 ## Image and runtime contract
 
@@ -41,7 +41,7 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 
 ## #122 observability live runbook
 
-2026-09-27 확인 기준, 로컬 server tests, validation jar, stdout smoke와 workflow stub은 통과했다. Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 실패 실행의 baseline template·traffic·IAM 복원 및 소유 자원 정리도 확인했다. O8은 OPEN 수신 뒤 driver 대기가 먼저 끝나 전체 PASS가 아니며 O9와 OOM은 `NOT RUN`이다.
+2026-09-27 확인 기준, 로컬 server tests, validation jar, stdout smoke와 workflow stub은 통과했다. Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신, 실패 실행의 baseline template·실제 100% traffic·IAM 복원 및 소유 자원 정리도 확인했다. O9는 장애 주입 전에 중단됐고 OOM과 함께 `NOT RUN`이다. 당시 provider 원문은 보호 경로에만 있어 실패 page 내용은 확정하지 않으며, 이후 읽기 전용 조회에서는 완전한 목록을 확인했다.
 
 전체 live 완료와 production 적용을 완료로 표시하지 않는다. policy·장애·grouping·trace·sampling·receipt·복원·정리의 개별 결과를 확인하고, 미실행은 `NOT RUN`, 실패는 `FAIL`, 실행 중은 `IN PROGRESS`, 증거 미확인은 `UNKNOWN`으로 구분한다. endpoint status나 workflow 착수만으로 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)를 종료하지 않는다.
 
@@ -70,12 +70,13 @@ Observability custom role은 다음 23개 권한으로 고정한다: `serviceusa
 
 ### Private validation and recovery
 
-workflow operation은 `deploy`, `observability-validate`, `observability-restore`만 허용한다. 모두 exact SHA CI, protected environment와 WIF를 사용한다. deploy/validate는 enable=true가 필요하지만 restore는 비용 중단 중에도 실행할 수 있도록 enable 검사에서 제외한다. `validation_scope`는 validate에서만 `all` 또는 `o8-o9`를 허용한다. `o8-o9`도 새 private revision·journal·preflight·복원을 사용하며 생략한 O3~O7을 해당 실행의 PASS로 기록하지 않는다.
+workflow operation은 `deploy`, `observability-validate`, `observability-restore`만 허용한다. 모두 exact SHA CI, protected environment와 WIF를 사용한다. deploy/validate는 enable=true가 필요하지만 restore는 비용 중단 중에도 실행할 수 있도록 enable 검사에서 제외한다. `validation_scope`는 validate에서만 `all`, uptime·종료용 `o8-o9`, 종료 전용 `o9`를 허용한다. 축소 범위도 새 private revision·journal·preflight·복원을 사용하며 생략한 단계는 해당 실행의 PASS로 기록하지 않는다.
 
 - validate는 test-only overlay를 고정 private service에 배포하며 production token, traffic, IAM과 policy를 변경하지 않는다.
 - 8 KiB 이하 annotation journal에 immutable baseline revision, allowlist로 투영한 template와 hash, traffic/IAM, run-owned resource와 pending mutation을 기록한다. etag CAS와 read-back이 성공하기 전에는 IAM, policy, image와 fault를 변경하지 않는다. active/unknown journal 또는 조회 실패가 있으면 새 deploy를 첫 mutation 전에 중단한다.
 - provider access를 cloud 인증 직후와 overlay 배포 후 다시 확인한다. 각 fault·mutation 직전 target guard도 반복한다.
 - live driver는 90분 deadline을 사용하고 workflow attempt 120분을 넘기지 않는다. 마지막 30분에는 새 fault나 mutation을 시작하지 않는다. O8 장애 주입 직전에는 두 fault poll, provider 처리 여유와 O9 진입 시간을 포함해 최소 2,940초가 남았는지 다시 확인하고 부족하면 복원한다.
+- O9의 12시간 정상 이력과 종료 후 signature 조회는 같은 bounded system-log pagination을 사용한다. 빈 page에 token이 있어도 계속 읽되 page·누적 entry·scan time·token 반복과 응답 형식을 제한하고 매 조회 전 fault cutoff를 확인한다. 완전한 목록을 얻지 못하면 종료 장애를 주입하지 않는다.
 - raw provider body는 `RUNNER_TEMP`의 0600 파일에만 두고 summary는 receipt 확인 전 `RECEIPT PENDING`으로 남긴다. receiver-side 증거 없이는 PASS로 올리지 않는다.
 - failure에서도 immutable baseline revision의 존재·Ready 확인 → 그 revision으로 traffic 100% 복원 → allowlist template/hash 복원 → private IAM·health/query·scaling read-back → owned-resource cleanup → journal clear 순서를 `always()` 경로로 실행한다. 전체 service export를 덮어쓰지 않는다.
 - serving 또는 tagged revision은 삭제하지 않는다. fault revision/image/policy/check는 journal의 exact name·digest·ownership label과 다른 참조 부재가 확인된 경우에만 정리한다.
