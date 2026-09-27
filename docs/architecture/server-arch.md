@@ -206,9 +206,9 @@ Discord notification은 선택적인 운영 확장이다. 실제 도입할 때 w
 
 ## Configuration and Deployment
 
-현재 구현은 Kotlin/JVM 기반 Ktor 3와 Netty를 사용하며 local 실행이 기준이다. production provider는 아직 확정하지 않았으며 상시 대기 조건에서 [배포 비용 검토](server-deployment-costs.md)와 보호 적용 후 실측으로 선택한다. repository root가 `server`와 직접 의존 모듈 `core`, root Gradle 설정을 함께 제공해야 한다.
+현재 구현은 Kotlin/JVM 기반 Ktor 3와 Netty를 사용한다. 일반 조회 서버는 서울 Cloud Run에 배포했으며 운영 결과와 비용 경계는 [서버 배포 경로](server-container-deployment.md)와 [배포 비용 검토](server-deployment-costs.md)를 따른다. repository root가 `server`와 직접 의존 모듈 `core`, root Gradle 설정을 함께 제공해야 한다.
 
-Stage 1.1은 `0.0.0.0`, `PORT`, `/health`, `:server:installDist`의 credential-free packaged smoke까지만 소유한다. #52 일반 조회 배포의 packaging, public host/base URL, 시험 배포·전환·rollback은 provider 선택 후 검증한다. 알림의 App Check/FCM/Firestore production gate는 일반 조회의 선행조건이 아니며 [CI/CD 문서](../ci-cd.md)에서 구분한다.
+Stage 1.1은 `0.0.0.0`, `PORT`, `/health`, `:server:installDist`의 credential-free packaged smoke까지만 소유한다. #52 일반 조회의 packaging, 공개 배포·전환·rollback은 #111에서 검증했다. #122 관측 검증은 별도로 진행 중이다. 알림의 App Check/FCM/Firestore production gate는 일반 조회의 선행조건이 아니며 [CI/CD 문서](../ci-cd.md)에서 구분한다.
 
 server config와 secret은 source code에 넣지 않는다. `ServerConfig` 또는 동등한 config boundary를 실제 도입할 때 사용하고, Discord webhook 같은 secret은 environment variable로만 전달한다.
 

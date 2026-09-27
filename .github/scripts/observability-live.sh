@@ -710,7 +710,7 @@ run_o8() {
   jq -e '.status == "configured"' "$evidence/private-response" >/dev/null \
     || fail 'Health fault acknowledgement was malformed.'
   if ! alert="$(poll_uptime_locations "$check_id" false 2 "$fault_started" 40 >/dev/null &&
-    poll_alert_open "$policy" "$fault_started" uptime 20)"; then fault_ok=false; fi
+    poll_alert_open "$policy" "$fault_started" uptime 40)"; then fault_ok=false; fi
   recovered_at="$(now)"
   private_request POST /__observability/health/restore 200
   jq -e '.status == "configured"' "$evidence/private-response" >/dev/null \
@@ -816,6 +816,10 @@ run_o9() {
 
 main() {
   umask 077
+  case "${OBSERVABILITY_SCOPE:-all}" in
+    all|o8-o9) ;;
+    *) fail 'Unsupported private validation scope.' ;;
+  esac
   require_env RUNNER_TEMP
   [[ "${OBSERVABILITY_RUN:-}" =~ ^[0-9]+-[0-9]+$ ]] || fail 'Invalid observability run identifier.'
   evidence="$RUNNER_TEMP/issue122-live-${OBSERVABILITY_RUN:-unknown}"
@@ -824,10 +828,12 @@ main() {
   require_env OBSERVABILITY_WORKFLOW_STARTED_AT
   set_validation_deadline "$OBSERVABILITY_WORKFLOW_STARTED_AT"
   preflight
-  require_fault_window 3300
-  run_o3_o6
-  require_fault_window 2400
-  run_o7
+  if test "${OBSERVABILITY_SCOPE:-all}" = all; then
+    require_fault_window 3300
+    run_o3_o6
+    require_fault_window 2400
+    run_o7
+  fi
   require_fault_window 1200
   run_o8
   require_fault_window 300

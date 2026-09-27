@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포 경로
 
-기록일: 2026-09-06, 갱신일: 2026-09-21. Issue #52의 보호 구현을 적용한 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)의 private validation 후속 배포, 실제 rollback, 비용 중단 실패 후 drain·정상 복구, 기본 `run.app` HTTPS 공개 조회와 G 독립 검증은 PASS다. #122의 Logging·Error Reporting·Monitoring live 검증은 아직 실행하지 않았다. 실제 청구액·알림 수신·Spend cap 활성화는 미확인이며 #112 앱 release process와 실제 #117 앱 release는 서버 운영과 별도다. 현재 서버 배포 이력은 #111, 관측 검증은 #122에서 추적한다.
+기록일: 2026-09-06, 갱신일: 2026-09-27. Issue #52의 보호 구현을 적용한 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 기존 Docker image로 배포한다. GitHub Actions Linux runner가 이미지를 빌드해 Artifact Registry `vlrgg-server`에 push하며 Cloud Build·buildpack·`project.toml`은 사용하지 않는다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)의 private validation 후속 배포, 실제 rollback, 비용 중단 실패 후 drain·정상 복구, 기본 `run.app` HTTPS 공개 조회와 G 독립 검증은 PASS다. #122는 앞선 private 검증에서 O3~O7의 provider 전이, 오류 재발 수신, O7 OPEN/CLOSED 수신을 확인했다. 현재 merged-main 재검증의 O8/O9와 production 영구 정책 적용·정상 배포는 완료 증거를 기다린다. 실제 청구액·알림 수신·Spend cap 활성화는 미확인이며 #112 앱 release process와 실제 #117 앱 release는 서버 운영과 별도다. 이 미확인 알림은 Budget 알림이며 #122 운영 알림 수신과 구분한다. 현재 서버 배포 이력은 #111, 관측 검증은 #122에서 추적한다.
 
 ## 이미지 계약
 
@@ -63,13 +63,13 @@ IAM 제거 직후 200은 전파 지연과 일치하는 관측이며 내부 원�
 
 ## #122 관측 운영·검증 runbook
 
-이 절의 명령과 정책 값은 향후 전체 live evidence를 수집할 운영 절차다. 이번 변경에서는 로컬 코드·script 검증까지만 수행했다. GCP inventory, policy 생성·변경, 장애 주입, Error Reporting group 생성, 실제 채널 수신·incident 종료와 private service 실제 복구는 모두 **NOT RUN**이며 #122를 닫을 근거가 아니다. 실제 URL, notification receiver, project/revision/digest, credential과 raw log는 repository·Issue·Actions summary에 남기지 않는다.
+이 절의 명령과 정책 값은 private live 검증과 production 영구 정책의 운영 절차다. Private 검증에서 GCP inventory, O3~O7 provider 전이, 오류 재발 수신, O7 OPEN/CLOSED 수신과 독립 복원을 확인했다. O8은 3개 지역의 정상→장애→정상 지표와 실제 OPEN 수신을 관측했지만, driver의 OPEN 대기가 먼저 끝나 CLOSED 검증을 마치지 못했다. 해당 실행의 baseline template·traffic·IAM 복원과 소유 자원 정리는 확인했다. O8 전체 결과·O9와 production 영구 정책·정상 배포는 아직 완료로 기록하지 않는다. OOM과 O9는 **NOT RUN**이다. O9는 OPEN 수신만 요구하고 자동 종료를 복구 수신으로 간주하지 않는다. 실제 URL, notification receiver, project/revision/digest, credential과 raw log는 repository·Issue·Actions summary에 남기지 않는다.
 
 ### 범위와 읽기 전용 사전 조사
 
 operator는 exact `main` SHA와 같은 SHA의 성공한 CI, workflow run ID/attempt, project/location, production·validation service, 양 service의 serving revision·immutable digest·traffic·template·IAM을 보호 기록에 먼저 고정한다. 이어서 Logging bucket·retention·sink·exclusion, Error Reporting 사용 가능 여부, alert policy·uptime check·notification channel, Monitoring service agent와 현재 권한을 읽기 전용으로 조사한다. 이름이나 display name만으로 자원 소유권을 추정하지 않는다.
 
-필요 권한은 위 inventory 조회, validation service의 annotation/template/traffic 변경, 해당 service IAM 조회와 필요한 최소 invoker binding, 이번 run 소유 Monitoring policy/check의 생성·조회·비활성화·삭제, 이번 run 소유 revision/image 정리에 한정한다. 기존 shared channel·policy·image·baseline revision과 production IAM/policy는 변경하지 않는다. 권한·API·routing·receiver가 없거나 불명확하면 fault 전에 해당 항목을 NOT RUN으로 종료한다. 장기 Service Account key, 새 bucket·DB·secret store를 만들지 않는다.
+필요 권한은 위 inventory 조회, validation service의 annotation/template/traffic 변경, 해당 service IAM 조회와 필요한 최소 invoker binding, 이번 run 소유 Monitoring policy/check의 생성·조회·비활성화·삭제, 이번 run 소유 revision/image 정리에 한정한다. 기존 shared channel·policy·image·baseline revision을 보존하며, private 검증 중에는 production IAM/policy를 변경하지 않는다. 권한·API·routing·receiver가 없거나 불명확하면 fault 전에 해당 항목을 NOT RUN으로 종료한다. 장기 Service Account key, 새 bucket·DB·secret store를 만들지 않는다.
 
 Logs Explorer에서는 placeholder로 project/location/service와 시간 범위를 정확히 제한하고 `jsonPayload.error_code`, `jsonPayload.category`, `jsonPayload.serviceContext.version`, `resource.labels.revision_name`을 확인한다. Error Reporting group의 representative event에서 revision을 얻고, 보호 기록의 revision→immutable digest→exact SHA/workflow run 대응표로 배포를 추적한다. group을 service 이름만으로 분리됐다고 가정하지 않으며 validation 전용 exception type과 상위 user-owned frame이 production group과 합쳐지면 시험을 중단한다. 기존 production group을 resolve하거나 수정하지 않는다.
 
@@ -86,11 +86,25 @@ Logs Explorer에서는 placeholder로 project/location/service와 시간 범위�
 
 metric policy는 OPENED/CLOSED를 통지하고 재알림 3,600초로 시작한다. uptime policy의 auto-close는 1,800초지만, native DELTA 5xx PromQL policy에는 auto-close를 두지 않는다. log policy는 provider의 OPENED-only 동작을 따르며 silent auto-close를 서비스 복구로 보지 않는다. production policy는 production service만, 임시 검증 policy는 validation service와 check ID만 scope로 삼는다. 5xx 회복은 동일 시각에 평가한 fresh 2xx와 numeric 0을 확인하고, 정상 요청을 재개한 뒤 같은 알림이 CLOSED가 됐는지 확인한다. 원본 DELTA 값으로 요청 2건·3건을 대조하며 PromQL `increase`의 보간값을 정수 요청 수로 간주하지 않는다. empty/multiple/NaN/infinite 응답과 uptime missing data는 성공으로 처리하지 않는다.
 
+### production 영구 정책 적용과 정상 검증
+
+아래는 private O7~O9의 provider 결과·실제 수신·독립 복원을 모두 확인한 뒤 실행할 절차다. 현재 적용 완료를 뜻하지 않는다. 기존 `deploy` workflow로 검증된 main의 정상 이미지를 배포하고, 실행 중인 workflow와 private journal이 없는 상태에서 production Ready·단일 revision 100% traffic·immutable digest·template·IAM을 보호 기록에 고정한다. 공개 `/health`와 대표 조회의 정상 응답을 확인하며 production에는 장애를 주입하지 않는다.
+
+`observability-policies.sh render`는 production service의 5xx·uptime·uptime-policy·log 요청을 생성하는 데 재사용한다. `ensure`·`disable`·`delete`의 private guard를 해제하지 않는다. 영구 자원은 `managed_by=vlrgg-server-observability`, `service=vlrgg-query`, `resource_kind` label과 별도 display name을 사용하고 `validation_run`을 제거한다. 5xx와 log 조건은 production service 전체 revision을 대상으로 하며, log 조건에는 private O9에서 실제로 확인한 system log name과 좁은 비정상 종료 signature만 넣는다. OOM을 실행하지 않았다면 OOM 감지를 검증했다고 기록하지 않는다.
+
+적용 직전 `alertPolicies`와 `uptimeCheckConfigs`를 끝 페이지까지 조회해 기존 동등 정책·check 및 소유권을 확인한다. 다른 소유자의 동등 자원이나 중복 후보가 있으면 덮어쓰거나 추가 생성하지 않는다. 승인된 channel의 활성 상태와 수신자를 재확인한 뒤 native Monitoring API로 5xx policy → uptime check → 반환된 exact check ID를 쓰는 uptime policy → log policy를 하나씩 생성한다. 각 POST의 요청·응답과 exact resource name을 보호 경로에 보관하고, GET으로 요청한 모든 scalar·array·label·channel·enabled·validity를 대조한다. 응답을 잃으면 전체 inventory로 생성 여부부터 확인하며 POST를 바로 반복하지 않는다.
+
+Cloud Run uptime의 config와 metric에서 `revision_name`·`configuration_name`은 provider가 빈 문자열로 정규화할 수 있다. 해당 두 label의 정확한 요청값 또는 빈 문자열만 허용하고, 누락·다른 값은 거부한다. exact check ID, `cloud_run_revision`, project/location/service와 서로 다른 세 checker location의 fresh `check_passed=true`·HTTP 200을 확인한다. 빈 revision label 자체는 serving revision의 증거가 아니므로 Run Ready·실제 100% traffic·정상 native request log를 별도로 대조한다. 다음 정상 배포에서도 같은 검사를 수행하고, 이전 revision에 고정됐다는 증거가 있으면 새 소유 check/policy로 교체한 뒤 이전 policy를 먼저 정리한다. 이번 배포의 정상값만으로 미래 rollout 추종을 보장하지 않는다.
+
+적용 후 production template·traffic·IAM이 고정한 정상 배포 상태와 같고, `/health`·대표 조회·로그 수집이 정상이며 의도하지 않은 OPEN incident가 없는지 확인한다. production 5xx 표본을 얻으려고 오류를 발생시키지 않는다. 정책 일부가 실패하면 새 생성을 멈추고, 이번 적용의 exact ID와 소유 label로 확인한 정책만 비활성화한다. 철회 시 log·5xx·uptime alert policy를 먼저 삭제·부재 확인한 뒤 해당 uptime check를 삭제한다. 기존 channel·Logging bucket/routing·다른 정책·production IAM과 serving revision은 보존한다.
+
 ### private validation 배타 사용과 복원
 
 `.github/workflows/deploy-server.yml`의 `operation`은 기본 `deploy`, `observability-validate`, `observability-restore`만 허용한다. 기존 workflow concurrency와 `cancel-in-progress: false`, exact SHA CI, protected environment, WIF를 재사용한다. deploy와 validation은 enable=true가 필요하지만 journal 기반 private restore는 비용 중단 중에도 실행할 수 있도록 enable 검사에서 제외한다. validation은 production token·traffic·policy를 건드리지 않고, restore는 source/test/image build와 push를 건너뛴다. workflow 밖의 수동 cloud 변경은 validation 시간 동안 금지한다.
 
 `observability-validate`는 test-only overlay revision을 고정 private service에 배포한 뒤 `.github/scripts/observability-live.sh`로 O3~O9 provider 전이를 확인한다. driver는 journal 소유 revision·100% traffic·private IAM·URL/token audience·channel·Error Reporting 등록·Alerts API를 먼저 확인하고, 각 fault와 provider mutation 직전에도 target guard를 다시 실행한다. live driver 시작 시 90분 deadline을 다시 계산하되 GitHub의 해당 실행 attempt 시작부터 120분을 넘기지 않는다. 마지막 30분에는 새 fault나 mutation을 시작하지 않으며 준비 지연으로 검증 시간이 부족하면 장애 주입 전에 복원한다. raw provider body는 권한 0600의 `RUNNER_TEMP`에만 두고 summary에는 gate 상태와 실제 수신 확인 전의 `RECEIPT PENDING`만 남긴다. receiver-side 실제 메시지를 보호된 증거에 연결하기 전에는 receipt와 이슈 종료를 PASS로 승격하지 않는다. 실패해도 기존 `always()` restore/health/cleanup/journal-clear 순서는 그대로 실행된다.
+
+`validation_scope`의 기본값 `all`은 전체 순서를 유지하고, `o8-o9`는 별도 private 실행에서 uptime과 통제된 종료만 검증한다. 이 선택은 `observability-validate`에만 허용하며 preflight·소유권·fault cutoff·복원 절차를 그대로 적용한다. 생략한 O3~O7을 새 실행의 PASS로 기록하지 않는다. 이전 증거를 함께 사용할 때는 각 실행의 exact-main CI·commit·image·revision·실제 수신·복원 기록을 보존하고 관련 server·fixture·policy·복원 코드의 동일성을 확인한다. O8 OPEN poll은 600초 지속 조건과 300초 probe 주기 뒤 provider 반영 시간을 확보하되, 절대 fault cutoff를 넘기지 않는다.
 
 production environment에는 channel resource-name 배열 `GCP_OBSERVABILITY_NOTIFICATION_CHANNELS_JSON`, 실제 수신자 확인 `GCP_OBSERVABILITY_CONFIRMED_RECEIVERS=true`, Error Reporting 등록 확인 `GCP_ERROR_REPORTING_ENROLLED=true` 세 값을 protected secret으로 둔다. driver는 `projects describe`에서 숫자 project number를 읽고 `service-PROJECT_NUMBER@gcp-sa-monitoring-notification.iam.gserviceaccount.com`을 직접 도출한 뒤, identity가 project IAM의 unconditional `roles/monitoring.notificationServiceAgent` member인지 확인한다. Google-managed service account 자체의 `iam.serviceAccounts.get`이나 별도 identity secret은 요구하지 않는다. driver가 첫 private exit로 실제 exit 42 signature를 발견하고 두 번째 exit로 policy를 검증하며, ambiguous/unsafe/normal-colliding signature에서는 두 번째 exit를 보내지 않는다.
 
@@ -114,7 +128,7 @@ validation harness는 test source의 `observability.validation.ObservabilityVali
 4. journal로 이번 run의 추가가 확인되는 invoker binding과 ownership label이 일치하는 policy/check만 정리한다. fault revision은 정확한 run revision 이름·overlay digest로, overlay image는 run 전용 tag·다른 참조 부재로 소유권을 확인한 뒤 정리하며 serving·tagged revision은 삭제하지 않는다.
 5. 정상 상태와 cleanup을 다시 확인한 뒤 journal annotation을 마지막에 CAS로 지운다. 소유권·복원 상태가 불명확하면 삭제하지 않고 journal과 sanitized blocker를 남긴다.
 
-`always()` 정리와 별개로 `observability-restore`는 같은 concurrency에서 journal과 immutable revision만 사용해 위 절차를 idempotent하게 수행한다. `.github/scripts/observability-service.sh`가 guard·journal·복원을, `.github/scripts/observability-cleanup.sh`가 traffic/template/IAM과 run-owned resource 정리를, `.github/scripts/observability-policies.sh`가 #122 소유 정책의 render/ensure/disable/delete와 공용 native PromQL query를 담당한다. 이번 기능만 중단할 때는 #122 소유 policy/check를 disable하고, error logger를 포함하지 않은 검증된 이전 production revision으로 rollback한다. 기존 Logging retention/routing, shared channel, 다른 정책은 그대로 둔다.
+`always()` 정리와 별개로 `observability-restore`는 같은 concurrency에서 journal과 immutable revision만 사용해 위 절차를 idempotent하게 수행한다. `.github/scripts/observability-service.sh`가 guard·journal·복원을, `.github/scripts/observability-cleanup.sh`가 traffic/template/IAM과 run-owned resource 정리를, `.github/scripts/observability-policies.sh`가 #122 소유 정책의 render/ensure/disable/delete와 공용 native PromQL query를 담당한다. 이번 기능만 중단할 때는 소유권이 확인된 #122 alert policy를 비활성화하고 uptime check를 중지하거나 의존 policy 정리 후 삭제한다. 애플리케이션 변경도 철회할 때는 error logger를 포함하지 않은 검증된 이전 production revision으로 rollback한다. 기존 Logging retention/routing, shared channel, 다른 정책은 그대로 둔다.
 
 ## 공개 배포와 앱 설치 진행 순서
 

@@ -478,20 +478,20 @@ prepare_live_case() {
 }
 
 run_preflight_case() {
-  local operation="$1" enabled="$2" expected="$3" result=0
-  CASE_DIR="$work_dir/preflight-$operation-${enabled:-unset}"
+  local operation="$1" enabled="$2" expected="$3" scope="${4:-all}" result=0
+  CASE_DIR="$work_dir/preflight-$operation-${enabled:-unset}-$scope"
   export CASE_DIR
   mkdir -p "$CASE_DIR"
   : > "$CASE_DIR/gh-calls"
   if test "$enabled" = unset; then
-    env -u DEPLOY_ENABLED PATH="$work_dir/bin:$PATH" OPERATION="$operation" PROJECT_ID=test-project \
+    env -u DEPLOY_ENABLED PATH="$work_dir/bin:$PATH" OPERATION="$operation" VALIDATION_SCOPE="$scope" PROJECT_ID=test-project \
       WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
       RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=test-sha \
       GITHUB_REPOSITORY=test-repository GH_TOKEN=test-token \
       bash --noprofile --norc -e -o pipefail "$preflight_script" \
       > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || result=$?
   else
-    env PATH="$work_dir/bin:$PATH" OPERATION="$operation" DEPLOY_ENABLED="$enabled" PROJECT_ID=test-project \
+    env PATH="$work_dir/bin:$PATH" OPERATION="$operation" VALIDATION_SCOPE="$scope" DEPLOY_ENABLED="$enabled" PROJECT_ID=test-project \
       WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
       RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=test-sha \
       GITHUB_REPOSITORY=test-repository GH_TOKEN=test-token \
@@ -518,7 +518,11 @@ for enabled in true false unset; do
   run_preflight_case observability-restore "$enabled" pass
   run_preflight_case unknown "$enabled" reject
 done
-pass 'workflow preflight allows disabled restore only and retains operation, main SHA, and CI checks'
+run_preflight_case observability-validate true pass o8-o9
+run_preflight_case observability-validate true reject unknown
+run_preflight_case deploy true reject o8-o9
+run_preflight_case observability-restore true reject o8-o9
+pass 'workflow preflight validates operation and phase scope before auth while retaining main SHA and CI checks'
 
 new_case journal
 journal="$(service prepare)"
@@ -1576,6 +1580,60 @@ test "$(wc -l < "$CASE_DIR/queries" | tr -d ' ')" = 4 || fail 'expired fault pol
 test ! -s "$CASE_DIR/results" || fail 'uptime deadline reported a false pass'
 pass 'uptime deadline expiry still restores health and never reports a pass'
 
+new_case live-phase-scope
+for scope in all o8-o9 invalid; do
+  : > "$CASE_DIR/phases"
+  if env OBSERVABILITY_SCOPE="$scope" OBSERVABILITY_RUN=123-1 RUNNER_TEMP="$CASE_DIR" \
+    GITHUB_STEP_SUMMARY="$CASE_DIR/summary" OBSERVABILITY_WORKFLOW_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    CASE_DIR="$CASE_DIR" bash -c '
+      source "$1"
+      preflight() { printf "preflight\n" >> "$CASE_DIR/phases"; }
+      run_o3_o6() { printf "O3-O6\n" >> "$CASE_DIR/phases"; }
+      run_o7() { printf "O7\n" >> "$CASE_DIR/phases"; }
+      run_o8() { printf "O8\n" >> "$CASE_DIR/phases"; }
+      run_o9() { printf "O9\n" >> "$CASE_DIR/phases"; }
+      main
+    ' _ "$live_helper" > /dev/null 2> "$CASE_DIR/$scope.stderr"; then
+    test "$scope" != invalid || fail 'invalid live scope was accepted'
+  else
+    test "$scope" = invalid || fail "live scope $scope failed"
+  fi
+  case "$scope" in
+    all) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O3-O6 O7 O8 O9 ' ;;
+    o8-o9) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O8 O9 ' ;;
+    invalid) test ! -s "$CASE_DIR/phases" ;;
+  esac || fail "live phase sequence for $scope is wrong"
+done
+pass 'default runs all phases; scoped validation runs O8 then O9; invalid scope stops before preflight'
+
+new_case live-uptime-delayed-open
+env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
+  SERVICE_NAME=vlrgg-query-check OBSERVABILITY_RUN=123-1 OBSERVABILITY_DEADLINE_EPOCH=2000000000 \
+  CASE_DIR="$CASE_DIR" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    now() { printf 1700000000; }; sleep_for() { :; }
+    ensure_policy() {
+      if test "$1" = uptime; then printf "projects/test-project/uptimeCheckConfigs/check-1\n"
+      else printf "projects/test-project/alertPolicies/owned\n"; fi
+    }
+    verify_uptime_check() { :; }; verify_single_condition() { :; }
+    poll_uptime_locations() { printf "{\"count\":3,\"evidenceEpoch\":1700000001}\n"; }
+    poll_uptime_http() { printf "{\"count\":3,\"evidenceEpoch\":1700000001}\n"; }
+    private_request() { printf "{\"status\":\"configured\"}\n" > "$evidence/private-response"; }
+    poll_health() { :; }; poll_alert_closed() { :; }; disable_policy() { :; }; result() { :; }
+    alerts_for_policy() {
+      local count=0
+      test ! -f "$CASE_DIR/alert-polls" || count="$(cat "$CASE_DIR/alert-polls")"
+      count=$((count + 1)); printf "%s\n" "$count" > "$CASE_DIR/alert-polls"
+      if test "$count" -le 21; then printf "[]\n"; else
+        printf "%s\n" "[{\"name\":\"projects/test-project/alerts/uptime\",\"state\":\"OPEN\",\"openTime\":\"2026-01-01T00:00:00Z\",\"policy\":{\"userLabels\":{\"managed_by\":\"issue122-validation\",\"validation_run\":\"123_1\",\"resource_kind\":\"uptime_policy\"}}}]"
+      fi
+    }
+    run_o8
+  ' _ "$live_helper"
+test "$(cat "$CASE_DIR/alert-polls")" = 22 || fail 'uptime OPEN was not observed after the old polling limit'
+pass 'uptime OPEN polling allows provider latency beyond 20 polls within the unchanged absolute cutoff'
+
 new_case live-attempt-deadline
 bash -c '
   source "$1"
@@ -1865,6 +1923,9 @@ pass 'gcloud failures expose only fixed sanitized errors'
 # Workflow assertions operate on actual step declarations, so validation and
 # restore cannot accidentally reach production deploy, token, traffic, or build/push steps.
 grep -q '^  cancel-in-progress: false$' "$workflow"
+grep -A7 '^      validation_scope:' "$workflow" | grep -q 'default: all'
+grep -A7 '^      validation_scope:' "$workflow" | grep -q 'o8-o9'
+grep -Fq 'VALIDATION_SCOPE: ${{ inputs.validation_scope }}' "$workflow"
 grep -A3 'name: Deploy the verified image to production' "$workflow" \
   | grep -q "if: inputs.operation == 'deploy'"
 grep -A3 'name: Obtain an ID token for the production service' "$workflow" \
@@ -1889,6 +1950,7 @@ grep -q 'started_at="$(gh api' <<< "$live_step"
 grep -q 'export OBSERVABILITY_WORKFLOW_STARTED_AT="$started_at"' <<< "$live_step"
 grep -q 'attempts/\$GITHUB_RUN_ATTEMPT' <<< "$live_step"
 grep -q 'GCP_OBSERVABILITY_NOTIFICATION_CHANNELS_JSON' <<< "$live_step"
+grep -Fq 'OBSERVABILITY_SCOPE: ${{ inputs.validation_scope }}' <<< "$live_step"
 ! grep -Eq 'GCP_PROJECT_NUMBER|GCP_MONITORING_SERVICE_AGENT' <<< "$live_step" \
   || fail 'workflow still trusts redundant project-number or Google-managed identity secrets'
 ! grep -q '/__observability/internal' <<< "$live_step" \
