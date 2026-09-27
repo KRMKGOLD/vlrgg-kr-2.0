@@ -1,37 +1,19 @@
 # ADR-0001: Stage 1 Match notification storage and provider boundary
 
-- Status: Superseded in part by [ADR-0002](0002-match-notification-stage1-1-offline-firestore-boundary.md); retained as Stage 1 history
+- Status: Superseded by [ADR-0002](0002-match-notification-stage1-1-offline-firestore-boundary.md); retained as Stage 1 history
 - Date: 2026-07-29
-- Decision scope: `server` Match notification vertical slice only
-- Related: [Stage 1.1 technical contract](../server-fcm-stage1.md), [ADR-0002](0002-match-notification-stage1-1-offline-firestore-boundary.md), [Matches product contract](../../feature/matches/README.md)
+- Scope: `server` Match notification vertical slice
 
-## Context at decision time
+## Context and decision
 
-Match notifications needed durable subscription intent, one START and one END intent per target/Match, and safe recovery around an external push-provider call. At the time of this decision, the Ktor server had no notification implementation, database, Firebase Admin dependency, or background-job lifecycle. Stage 1 had to remain locally verifiable without live credentials or a network connection and could not turn a push address into identity or authority.
+Stage 1 needed durable subscription and START/END intent, safe recovery around an external provider call, and credential-free local verification before the server had a database or notification lifecycle.
 
-## Current implementation status
+It selected a disposable single-JVM H2/Flyway store, bounded JDBC pool, process-owned observation/delivery loops and an internal Firebase Admin adapter. Public/domain contracts used an opaque provider value rather than treating a push address as identity or authority. Offline tests replaced runtime factories and the async SDK boundary so they did not resolve ADC or make network calls.
 
-Stage 1 Wave A/B/C implemented this decision's H2/Flyway persistence, local/private desired-state routes, fixed-delay tracking, durable START/END delivery intent, offline-testable Firebase provider adapter, claim/retry processing and owned lifecycle. It remains the historical explanation for the current code until Stage 1.1 replaces that runtime.
+Delivery persisted intent and a committed call marker before provider work. A result that became ambiguous after that marker entered `UNKNOWN` and was never automatically resent, preferring possible loss over duplicate user notification.
 
-The later product decision requires an install-scoped anonymous Target, Target Secret authority, START-only MVP delivery, Firestore persistence and request-bound scheduling suitable for Cloud Run scale-to-zero. [ADR-0002](0002-match-notification-stage1-1-offline-firestore-boundary.md) supersedes this ADR for those areas. This ADR still records why the existing Stage 1 code looks as it does and preserves the call-marker/`UNKNOWN` safety rationale adopted by ADR-0002.
+## Supersession and consequences
 
-## Decision
+[ADR-0002](0002-match-notification-stage1-1-offline-firestore-boundary.md) replaced H2, registration-value identity, START/END scope and process loops with Firestore, anonymous Target authority, START-only intent and request-bound scheduling. The current normative contract is [Stage 1.1](../server-fcm-stage1.md).
 
-Stage 1 uses a provider-neutral public/domain boundary (`registrationValue` and opaque `PushTarget`) with one internal Firebase Admin adapter. Firebase target mode is an internal, persisted selector: `FID` by default, or `LEGACY_TOKEN`; public DTOs and domain contracts do not expose either provider-specific term. The adapter is real and named-FirebaseApp based. Offline tests replace notification runtime factories and the async SDK boundary, so those paths do not resolve real ADC or make a network call; they do not directly inject and validate a credential.
-
-Stage 1 uses a file-backed H2 store with Flyway migrations, bounded owned JDBC pool, and H2-specific claim SQL behind portable repository contracts. It is disposable, local, single-JVM, and non-production: it is not a production stepping stone and cannot be selected with public/production exposure or multi-instance ownership.
-
-An external 32-byte lookup-digest key belongs to one Stage 1 store. The store retains a keyed HMAC lookup digest and non-secret key metadata, while an active raw provider value remains unencrypted at rest behind the storage interface. On provider-proven permanent invalidity, the raw value is logically erased and a keyed tombstone supports only conservative `target-refresh-required` re-sync; it never proves equality, reactivates the target, or restores subscriptions.
-
-Delivery persists intent and call boundaries before asynchronous provider work. `UNKNOWN` is never automatically resent, so the design deliberately prefers possible loss in the post-marker/pre-call window over duplicate sending. The complete state, retry, lifecycle, and verification contract is normative in the linked Stage 1 technical contract.
-
-## Consequences
-
-- Stage 1 can be tested offline and retains a provider-replacement seam, but does not prove device delivery, live Firebase credentials, or FID compatibility.
-- H2 crash/reopen tests prove only committed-state readability for the selected local JVM/filesystem configuration; they do not prove power-loss, PostgreSQL, or multi-process behavior.
-- Active provider values require strict redaction but are not encrypted. Encryption, KMS/rotation, backup handling, and secure-deletion policy are Stage 3 gates.
-- Retained production data, a second process, immediate Stage 3, or reliable local/CI PostgreSQL provisioning invalidates this H2 decision and requires PostgreSQL-first.
-
-## Deferred decisions
-
-These were the deferred decisions at the time of Stage 1. The current stage ownership is defined by ADR-0002 and the Stage 1.1 contract; in particular PostgreSQL is no longer the planned default and Firestore is selected for this narrow notification state.
+This ADR remains only to explain the removed Stage 1 runtime and the retained `UNKNOWN` safety rationale. It does not claim power-loss, multi-process, production Firebase or device-delivery readiness.
