@@ -20,6 +20,8 @@ PR과 `main` push는 credential-free CI를 실행한다. 서버와 앱 배포는
 
 도구 버전, task 목록과 workflow step은 workflow/build source가 소유한다. 저장소에 ktlint나 Detekt가 추가되기 전에는 존재하지 않는 task를 gate로 만들지 않는다. Stage 1.1의 과거 `app/**` zero-touch 검사는 해당 구현 branch의 증거이며 향후 앱 PR을 막는 규칙이 아니다.
 
+중간 작업에서는 같은 commit의 성공한 iOS CI를 재사용할 수 있지만 최종 완료 판정은 최종 exact commit의 iOS CI 성공을 다시 확인한다.
+
 ### G0 synthetic benchmark
 
 보호 로직의 regression 자료가 필요할 때만 opt-in benchmark를 실행한다.
@@ -53,8 +55,10 @@ PROTECTED_ROUTE_LOAD_REPORT_PATH=/tmp/vlrgg-protected-load.properties \
 `operation`은 다음 세 값만 허용한다.
 
 - `deploy`: 일반 조회 배포. active/unknown observability journal이 있으면 mutation 전에 중단한다.
-- `observability-validate`: private validation overlay만 사용하고 production을 변경하지 않는다.
+- `observability-validate`: private validation overlay와 bounded live driver만 사용하고 production을 변경하지 않는다.
 - `observability-restore`: enable 값과 무관하게 journal 기반 복원만 수행하며 build/push를 하지 않는다.
+
+`validation_scope`는 validate에서만 `all` 또는 `o8-o9`를 허용한다. `o8-o9`도 새 private revision·journal·preflight와 `always()` 복원·정리를 사용하고, 생략한 O3~O7은 해당 실행의 PASS로 표시하지 않는다.
 
 ## App deployment
 
@@ -83,6 +87,6 @@ Target Secret, registration token과 App Check token은 repository/environment v
 | Query server | private validation, production promotion, rollback, public smoke와 cost-stop recovery PASS | 실제 invoice·Budget/Monitoring receipt·Spend cap 미확인 |
 | App release process | [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117): Android `0.1.0(2)` Actions 업로드·Play 업데이트·실기기 정상 동작·cleanup 확인 완료 | iOS account/signing/TestFlight는 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 보류 |
 | Crashlytics | Android fatal·ANR, iOS fatal·dSYM 실수신 확인 | store release 안정성은 별도 운영 관측 |
-| #122 observability | local code/workflow/stub checks GREEN; private live validation 실행 착수 | 실수신·incident close·복원·정리 등 전체 완료는 미확인. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
+| #122 observability | local checks GREEN; private O3~O7 provider 전이·실제 수신·복원 확인, O8 OPEN 수신 뒤 독립 복원 확인 | O8 CLOSED·O9, production 영구 정책·정상 배포 미확인. O9·OOM은 `NOT RUN`. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
 
 Branch protection은 CI workflow가 제공하는 실제 check 이름만 사용한다. direct push 제한, PR 요구와 최신 branch 상태를 적용하되 존재하지 않는 check를 미리 등록하지 않는다.

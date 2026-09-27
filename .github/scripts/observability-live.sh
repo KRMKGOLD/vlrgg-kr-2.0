@@ -9,6 +9,7 @@ readonly logging_root="${LOGGING_API_ROOT:-https://logging.googleapis.com/v2}"
 readonly error_root="${ERROR_REPORTING_API_ROOT:-https://clouderrorreporting.googleapis.com/v1beta1}"
 readonly poll_seconds="${OBSERVABILITY_POLL_SECONDS:-30}"
 readonly fault_reserve=1800
+readonly o9_fault_window=300
 
 fail() { echo "Observability live validation failed: $*" >&2; exit 1; }
 require_env() { test -n "${!1:-}" || fail "Missing $1."; }
@@ -184,7 +185,7 @@ private_request() {
   [[ "$path" == /health || "$path" == /__observability/* ]] || fail 'Private request path is not allowlisted.'
   case "$path" in
     /__observability/health/restore) guard_target ;;
-    /__observability/*) require_fault_time; guard_target ;;
+    /__observability/*) require_fault_time; guard_target; require_fault_time ;;
     /health) ensure_id_token ;;
   esac
   output="$evidence/private-response"
@@ -695,6 +696,7 @@ run_o7() {
 
 run_o8() {
   local check policy check_id check_started fault_started alert recovered_at passed http recovery_epoch fault_ok=true
+  local fault_attempts=40 provider_allowance=300
   check_started="$(now)"
   check="$(ensure_policy uptime)"
   check_id="${check##*/}"
@@ -705,12 +707,16 @@ run_o8() {
   verify_single_condition "$policy"
   poll_uptime_locations "$check_id" true 3 "$check_started" >/dev/null
   poll_uptime_http "$check_id" "$check_started" >/dev/null
+  # Baseline polling already spent part of the shared fault window. Admit the
+  # fault only with both polling waits, provider overhead and O9's minimum left.
+  # Slower provider calls still fail closed at the unchanged absolute cutoff.
+  require_fault_window "$((2 * (fault_attempts - 1) * poll_seconds + provider_allowance + o9_fault_window))"
   fault_started="$(now)"
   private_request POST /__observability/health/fail 200
   jq -e '.status == "configured"' "$evidence/private-response" >/dev/null \
     || fail 'Health fault acknowledgement was malformed.'
-  if ! alert="$(poll_uptime_locations "$check_id" false 2 "$fault_started" 40 >/dev/null &&
-    poll_alert_open "$policy" "$fault_started" uptime 20)"; then fault_ok=false; fi
+  if ! alert="$(poll_uptime_locations "$check_id" false 2 "$fault_started" "$fault_attempts" >/dev/null &&
+    poll_alert_open "$policy" "$fault_started" uptime "$fault_attempts")"; then fault_ok=false; fi
   recovered_at="$(now)"
   private_request POST /__observability/health/restore 200
   jq -e '.status == "configured"' "$evidence/private-response" >/dev/null \
@@ -741,6 +747,7 @@ private_exit() {
   local status output="$evidence/private-response"
   require_fault_time
   guard_target
+  require_fault_time
   if test -n "${OBSERVABILITY_PRIVATE_HTTP:-}"; then
     status="$("$OBSERVABILITY_PRIVATE_HTTP" POST "$SMOKE_URL" /__observability/exit "$output" '')" || status=000
   else
@@ -816,6 +823,10 @@ run_o9() {
 
 main() {
   umask 077
+  case "${OBSERVABILITY_SCOPE:-all}" in
+    all|o8-o9) ;;
+    *) fail 'Unsupported private validation scope.' ;;
+  esac
   require_env RUNNER_TEMP
   [[ "${OBSERVABILITY_RUN:-}" =~ ^[0-9]+-[0-9]+$ ]] || fail 'Invalid observability run identifier.'
   evidence="$RUNNER_TEMP/issue122-live-${OBSERVABILITY_RUN:-unknown}"
@@ -824,13 +835,15 @@ main() {
   require_env OBSERVABILITY_WORKFLOW_STARTED_AT
   set_validation_deadline "$OBSERVABILITY_WORKFLOW_STARTED_AT"
   preflight
-  require_fault_window 3300
-  run_o3_o6
-  require_fault_window 2400
-  run_o7
+  if test "${OBSERVABILITY_SCOPE:-all}" = all; then
+    require_fault_window 3300
+    run_o3_o6
+    require_fault_window 2400
+    run_o7
+  fi
   require_fault_window 1200
   run_o8
-  require_fault_window 300
+  require_fault_window "$o9_fault_window"
   run_o9
   result restore 'PENDING ALWAYS STEP'
 }

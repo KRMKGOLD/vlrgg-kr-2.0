@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포와 운영
 
-일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 exact `main` SHA, private validation, production 승격, 실제 rollback, 비용 중단 실패 후 drain·복구와 공개 조회를 확인했다. #122의 Logging·Error Reporting·Monitoring 코드는 구현됐으며 private live 검증을 진행 중이다. 전체 완료 여부는 아래 [live runbook](#122-observability-live-runbook)의 증거 경계를 따른다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
+일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 exact `main` SHA, private validation, production 승격, 실제 rollback, 비용 중단 실패 후 drain·복구와 공개 조회를 확인했다. #122는 private O3~O7 provider 전이, 오류 재발과 O7 OPEN/CLOSED 실제 수신, 실패 실행의 독립 복원을 확인했다. O8은 3개 지역의 정상→장애→정상 지표와 OPEN 수신을 확인했지만 CLOSED 확인 전에 대기가 끝났으며, O8/O9 완료와 production 영구 정책·정상 배포는 아직 남아 있다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
 
 ## Image and runtime contract
 
@@ -41,15 +41,15 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 
 ## #122 observability live runbook
 
-2026-09-27 확인 기준, 로컬 server tests, validation jar, stdout smoke와 workflow stub은 통과했고 실제 private 검증에도 착수했다. [실행 36294474231](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36294474231)은 main `53244e3`에서 provider 접근 확인·recovery journal 준비·validation revision 배포를 통과한 뒤 bounded private validation을 진행 중이며 복원·정리 단계는 대기 중이었다. 이는 Actions 단계 상태이며 실수신·incident close·최종 복원 성공의 증거를 대신하지 않는다.
+2026-09-27 확인 기준, 로컬 server tests, validation jar, stdout smoke와 workflow stub은 통과했다. Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 실패 실행의 baseline template·traffic·IAM 복원 및 소유 자원 정리도 확인했다. O8은 OPEN 수신 뒤 driver 대기가 먼저 끝나 전체 PASS가 아니며 O9와 OOM은 `NOT RUN`이다.
 
-전체 live 완료와 production 적용을 완료로 표시하지 않는다. 최신 실행에서 policy·장애·grouping·trace·sampling·receipt·복원·정리의 개별 결과를 확인하고, 미실행은 `NOT RUN`, 실패는 `FAIL`, 실행 중은 `IN PROGRESS`, 증거 미확인은 `UNKNOWN`으로 구분한다. endpoint status나 workflow 착수만으로 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)를 종료하지 않는다.
+전체 live 완료와 production 적용을 완료로 표시하지 않는다. policy·장애·grouping·trace·sampling·receipt·복원·정리의 개별 결과를 확인하고, 미실행은 `NOT RUN`, 실패는 `FAIL`, 실행 중은 `IN PROGRESS`, 증거 미확인은 `UNKNOWN`으로 구분한다. endpoint status나 workflow 착수만으로 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)를 종료하지 않는다.
 
 ### Authority and preflight
 
 - exact `main` SHA/CI/run attempt와 production·validation의 serving revision, digest, traffic, template, IAM을 보호 기록에 고정한다.
 - Logging retention/sink/exclusion, Error Reporting, alert/uptime/channel, Monitoring service agent와 현재 권한을 mutation 전에 읽는다. 이름만으로 소유권을 추정하지 않는다.
-- 권한은 inventory, private validation 변경, 필요한 최소 invoker, 이번 run 소유 policy/check/revision/image의 생성·조회·비활성화·삭제로 제한한다. 기존 shared channel/policy/image/baseline revision과 production IAM/policy를 변경하지 않는다.
+- 권한은 inventory, private validation 변경, 필요한 최소 invoker, 이번 run 소유 policy/check/revision/image의 생성·조회·비활성화·삭제로 제한한다. 기존 shared channel/policy/image/baseline revision을 보존하며 private 검증 중에는 production IAM/policy를 변경하지 않는다.
 - incident, Error Reporting group와 channel 조회가 실패하면 journal·image·revision을 만들기 전에 중단한다. 권한·API·receiver가 불명확해도 fault 전에 `NOT RUN`으로 종료한다.
 - 실제 URL, receiver, project/revision/digest, credential과 raw log는 공개 기록에 남기지 않는다.
 
@@ -70,18 +70,24 @@ Observability custom role은 다음 23개 권한으로 고정한다: `serviceusa
 
 ### Private validation and recovery
 
-workflow operation은 `deploy`, `observability-validate`, `observability-restore`만 허용한다. 모두 exact SHA CI, protected environment와 WIF를 사용한다. deploy/validate는 enable=true가 필요하지만 restore는 비용 중단 중에도 실행할 수 있도록 enable 검사에서 제외한다.
+workflow operation은 `deploy`, `observability-validate`, `observability-restore`만 허용한다. 모두 exact SHA CI, protected environment와 WIF를 사용한다. deploy/validate는 enable=true가 필요하지만 restore는 비용 중단 중에도 실행할 수 있도록 enable 검사에서 제외한다. `validation_scope`는 validate에서만 `all` 또는 `o8-o9`를 허용한다. `o8-o9`도 새 private revision·journal·preflight·복원을 사용하며 생략한 O3~O7을 해당 실행의 PASS로 기록하지 않는다.
 
 - validate는 test-only overlay를 고정 private service에 배포하며 production token, traffic, IAM과 policy를 변경하지 않는다.
 - 8 KiB 이하 annotation journal에 immutable baseline revision, allowlist로 투영한 template와 hash, traffic/IAM, run-owned resource와 pending mutation을 기록한다. etag CAS와 read-back이 성공하기 전에는 IAM, policy, image와 fault를 변경하지 않는다. active/unknown journal 또는 조회 실패가 있으면 새 deploy를 첫 mutation 전에 중단한다.
 - provider access를 cloud 인증 직후와 overlay 배포 후 다시 확인한다. 각 fault·mutation 직전 target guard도 반복한다.
-- live driver는 90분 deadline을 사용하고 workflow attempt 120분을 넘기지 않는다. 마지막 30분에는 새 fault나 mutation을 시작하지 않는다.
+- live driver는 90분 deadline을 사용하고 workflow attempt 120분을 넘기지 않는다. 마지막 30분에는 새 fault나 mutation을 시작하지 않는다. O8 장애 주입 직전에는 두 fault poll, provider 처리 여유와 O9 진입 시간을 포함해 최소 2,940초가 남았는지 다시 확인하고 부족하면 복원한다.
 - raw provider body는 `RUNNER_TEMP`의 0600 파일에만 두고 summary는 receipt 확인 전 `RECEIPT PENDING`으로 남긴다. receiver-side 증거 없이는 PASS로 올리지 않는다.
 - failure에서도 immutable baseline revision의 존재·Ready 확인 → 그 revision으로 traffic 100% 복원 → allowlist template/hash 복원 → private IAM·health/query·scaling read-back → owned-resource cleanup → journal clear 순서를 `always()` 경로로 실행한다. 전체 service export를 덮어쓰지 않는다.
 - serving 또는 tagged revision은 삭제하지 않는다. fault revision/image/policy/check는 journal의 exact name·digest·ownership label과 다른 참조 부재가 확인된 경우에만 정리한다.
 - ownership이나 restore 상태가 불명확하면 resource와 journal을 유지하고 secret 없는 blocker를 남긴다. 정상 상태와 cleanup read-back이 끝난 뒤 journal을 마지막 etag CAS로 지운다. restore는 build/test/image push를 건너뛴다.
 - 실제 private exit signature가 ambiguous하거나 정상 종료와 충돌하면 후속 exit를 보내지 않는다. production service에는 validation main, jar와 `__observability/*` route가 없어야 한다.
 - policy helper는 journal 소유 private service와 run-owned policy/check만 변경한다. render는 cloud mutation 없이 수행하고 기존 production/shared policy나 channel을 이름만으로 갱신·삭제하지 않는다.
+
+### Production permanent policies
+
+Private O7~O9의 provider 결과·실제 수신·독립 복원을 모두 확인한 뒤에만 production 정책을 적용한다. 정상 이미지를 배포해 Ready, 단일 revision 100% traffic, immutable digest, template, IAM과 공개 smoke를 먼저 고정하며 production에 장애를 주입하지 않는다.
+
+기존 alert policy·uptime check를 끝 페이지까지 조회해 중복과 소유권을 확인하고, 소유 label이 있는 5xx policy, uptime check와 그 exact ID를 쓰는 uptime policy, 검증된 system-log signature의 log policy만 만든다. 적용 실패 시 이번 작업이 만든 exact 자원만 비활성화·삭제하고 기존 channel, Logging routing, IAM과 serving revision은 보존한다. OOM을 실행하지 않았다면 OOM 감지를 검증했다고 기록하지 않는다.
 
 재현 가능한 로컬 검증:
 
