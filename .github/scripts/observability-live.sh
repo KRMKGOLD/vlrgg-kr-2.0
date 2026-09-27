@@ -816,7 +816,7 @@ poll_health() {
 run_o9() {
   local policy signature start fault_started
   start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  system_logs "$(rfc3339_ago 43200)" "$evidence/system-history.json"
+  system_logs "$(rfc3339_ago 720)" "$evidence/system-history.json"
   private_exit
   poll_health
   local attempts=12 candidates
@@ -842,6 +842,10 @@ run_o9() {
   export SYSTEM_LOG_SIGNATURE="$signature"
   policy="$(ensure_policy log)"
   verify_single_condition "$policy"
+  # ponytail: fixed diagnostic grace, not readiness proof; revisit only with provider evidence.
+  require_fault_window "$((300 + o9_fault_window))"
+  poll_budget fault 300
+  require_fault_window "$o9_fault_window"
   fault_started="$(now)"
   private_exit
   poll_alert_open "$policy" "$fault_started" log 20 >/dev/null

@@ -1,6 +1,6 @@
 # CI/CD delivery direction — Cloud Run query server
 
-- Status: Stage 1.1 credential-free CI와 #111 조회 서버 후속 배포·rollback·비용 중단 후 복구·공개 조회 및 독립 검증 PASS; #122 private O3~O7·실제 수신·복원 확인, 후속 O8 provider·실제 OPEN/CLOSED 수신·독립 복원 확인, O9 장애 주입 전 로그 목록 검사에서 중단, O9와 production 영구 정책·정상 배포 대기; deployment enable=true, 수동 trigger 유지; notification production deployment deferred
+- Status: Stage 1.1 credential-free CI와 #111 조회 서버 후속 배포·rollback·비용 중단 후 복구·공개 조회 및 독립 검증 PASS; #122 private O3~O7·실제 수신·복원 확인, 후속 O8 provider·실제 OPEN/CLOSED 수신·독립 복원 확인, O9 실제 종료·system log 확인 후 incident·수신 미확인으로 복원, O9와 production 영구 정책·정상 배포 대기; deployment enable=true, 수동 trigger 유지; notification production deployment deferred
 - Last reviewed: 2026-09-27
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
@@ -157,7 +157,7 @@ production installDist/image에는 validation main, jar, `__observability/*` rou
 
 재현 명령은 `./gradlew :server:test :server:build :server:installDist :server:observabilityValidationJar`, `bash .github/scripts/smoke-observability.sh`, `bash .github/scripts/test-observability-operations.sh`다. CI도 validation jar를 만든 뒤 같은 stdout smoke와 operations stub을 실행한다.
 
-Private 운영 실행에서 GCP inventory, O3~O7의 Error Reporting grouping·trace·sampling·5xx incident OPEN/CLOSED, 오류 재발과 O7 OPEN/CLOSED의 실제 수신을 확인했다. 후속 `o8-o9` 실행에서는 O8의 3개 지역 정상→장애→정상 지표와 동일 incident OPEN/CLOSED, 실제 두 이메일 수신을 확인했다. O9는 첫 종료 요청 전 시스템 로그 목록 완전성 검사에서 중단됐다. 실패한 workflow의 baseline template·실제 100% traffic·IAM 복원과 소유 자원 정리는 독립 확인했다. 전체 workflow 실패와 완료된 O8 증거를 구분하며, O9 검증과 production 영구 정책 적용·정상 배포는 남아 있다. O9와 OOM은 **NOT RUN**이다. endpoint smoke나 로컬 GREEN만으로 #122 완료를 주장하지 않는다. 자세한 순서·초기 policy 값·보호 기록은 [서버 컨테이너 배포 경로](architecture/server-container-deployment.md)의 #122 runbook을 따른다.
+Private 운영 실행에서 GCP inventory, O3~O7의 Error Reporting grouping·trace·sampling·5xx incident OPEN/CLOSED, 오류 재발과 O7 OPEN/CLOSED의 실제 수신을 확인했다. 후속 `o8-o9` 실행에서는 O8의 3개 지역 정상→장애→정상 지표와 동일 incident OPEN/CLOSED, 실제 두 이메일 수신을 확인했다. 후속 O9 단독 실행에서 종료 요청과 실제 exit 42 로그를 각각 2건 확인했지만 incident OPEN·메일 수신을 확인하지 못해 workflow가 실패했다. baseline template·실제 100% traffic·IAM 복원과 소유 image·revision·정책 정리는 독립 확인했다. 전체 workflow 실패와 완료된 O8 증거를 구분하며, O9 검증과 production 영구 정책 적용·정상 배포는 남아 있다. O9는 **미완료**, OOM은 **NOT RUN**이다. 다음 O9는 최대 두 번의 종료를 유지하면서 정책 생성 뒤 300초 대기를 두는 진단적 재검증이며, 전파 지연이 원인이라고 확정하지 않는다. endpoint smoke나 로컬 GREEN만으로 #122 완료를 주장하지 않는다. 자세한 순서·초기 policy 값·보호 기록은 [서버 컨테이너 배포 경로](architecture/server-container-deployment.md)의 #122 runbook을 따른다.
 
 ### #111 read-only query deployment path
 

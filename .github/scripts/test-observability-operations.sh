@@ -1843,24 +1843,73 @@ pass 'O9 finds later-page normal collisions and ambiguous exit signatures before
 new_case live-o9-exits
 env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
   SERVICE_NAME=vlrgg-query-check CASE_DIR="$CASE_DIR" \
-  GITHUB_STEP_SUMMARY="$CASE_DIR/summary" bash -c '
+  OBSERVABILITY_DEADLINE_EPOCH=1700002700 GITHUB_STEP_SUMMARY="$CASE_DIR/summary" bash -c '
     source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    printf "1700000000\n" > "$CASE_DIR/clock"
+    now() { cat "$CASE_DIR/clock"; }
+    sleep_for() {
+      printf "sleep %s\n" "$1" >> "$CASE_DIR/events"
+      printf "%s\n" "$(( $(now) + $1 ))" > "$CASE_DIR/clock"
+    }
+    rfc3339_ago() { printf "%s\n" "$1" > "$CASE_DIR/history-minutes"; printf "history-start\n"; }
     system_logs() {
       if [[ "$2" == *history.json ]]; then printf "%s\n" "{\"entries\":[]}" > "$2"
       else printf "%s\n" "{\"entries\":[{\"resource\":{\"labels\":{\"revision_name\":\"$OBSERVABILITY_REVISION\"}},\"textPayload\":\"Container called exit(42).\"}]}" > "$2"; fi
     }
-    private_exit() { printf "exit\n" >> "$CASE_DIR/exits"; }
-    poll_health() { :; }; ensure_policy() { printf "projects/test-project/alertPolicies/log\n"; }
-    verify_single_condition() { :; }; poll_alert_open() { printf "projects/test-project/alerts/log\n"; }
+    private_exit() { printf "exit\n" >> "$CASE_DIR/exits"; printf "exit\n" >> "$CASE_DIR/events"; }
+    poll_health() { :; }
+    ensure_policy() { printf "policy\n" >> "$CASE_DIR/events"; printf "projects/test-project/alertPolicies/log\n"; }
+    verify_single_condition() { printf "readback\n" >> "$CASE_DIR/events"; }
+    poll_alert_open() { printf "projects/test-project/alerts/log\n"; }
     result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
     run_o9
   ' _ "$live_helper"
 test "$(wc -l < "$CASE_DIR/exits" | tr -d ' ')" = 2
+test "$(cat "$CASE_DIR/history-minutes")" = 720
+test "$(tr '\n' ' ' < "$CASE_DIR/events")" = 'exit policy readback sleep 300 exit '
 grep -qx 'OOM NOT RUN' "$CASE_DIR/results"
 if grep -q 'OOM PASS' "$CASE_DIR/results"; then
   fail 'O9 claimed OOM PASS'
 fi
-pass 'O9 uses exactly two exits only for safe discovery and never claims OOM'
+pass 'O9 reads 12 hours, gives a read-back policy 300 seconds, uses exactly two exits and never claims OOM'
+
+new_case live-o9-grace-budget
+for mode in insufficient overrun; do
+  budget_case="$CASE_DIR/$mode"
+  mkdir -p "$budget_case"
+  status=0
+  env MODE="$mode" CASE_DIR="$budget_case" OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+    PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+    OBSERVABILITY_DEADLINE_EPOCH="$([ "$mode" = insufficient ] && printf 1700002399 || printf 1700002400)" \
+    bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+      printf "1700000000\n" > "$CASE_DIR/clock"
+      now() { cat "$CASE_DIR/clock"; }
+      sleep_for() {
+        printf "%s\n" "$1" >> "$CASE_DIR/sleeps"
+        local extra=0
+        test "$MODE" != overrun || extra=1
+        printf "%s\n" "$(( $(now) + $1 + extra ))" > "$CASE_DIR/clock"
+      }
+      rfc3339_ago() { printf "history-start\n"; }
+      system_logs() {
+        if [[ "$2" == *history.json ]]; then printf "%s\n" "{\"entries\":[]}" > "$2"
+        else printf "%s\n" "{\"entries\":[{\"resource\":{\"labels\":{\"revision_name\":\"$OBSERVABILITY_REVISION\"}},\"textPayload\":\"Container called exit(42).\"}]}" > "$2"; fi
+      }
+      private_exit() { printf "exit\n" >> "$CASE_DIR/exits"; }
+      poll_health() { :; }; ensure_policy() { printf "projects/test-project/alertPolicies/log\n"; }
+      verify_single_condition() { :; }; poll_alert_open() { printf "alert\n"; }; result() { :; }
+      run_o9
+    ' _ "$live_helper" > /dev/null 2> "$budget_case/stderr" || status=$?
+  test "$status" != 0 || fail "O9 $mode grace budget unexpectedly passed"
+  test "$(wc -l < "$budget_case/exits" | tr -d ' ')" = 1 || fail "O9 $mode budget allowed the second exit"
+  if test "$mode" = insufficient; then
+    test ! -e "$budget_case/sleeps" || fail 'O9 slept without enough grace and fault budget'
+  else
+    test "$(cat "$budget_case/sleeps")" = 300 || fail 'O9 grace did not use the bounded fault poll'
+  fi
+done
+pass 'O9 blocks its second exit before an unaffordable grace and after grace consumes the remaining fault window'
 
 new_case live-o9-ambiguous
 if env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
