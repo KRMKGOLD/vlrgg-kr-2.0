@@ -1548,12 +1548,37 @@ CASE_DIR="$CASE_DIR" bash -c '
 ' _ "$live_helper"
 pass 'polling stops at the cutoff, caps waits, and gives recovery its separate deadline'
 
+new_case live-uptime-admission-window
+if CASE_DIR="$CASE_DIR" bash -c '
+  source "$1"
+  evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+  OBSERVABILITY_DEADLINE_EPOCH=2000000000
+  printf "1999995140\n" > "$CASE_DIR/clock"
+  now() { cat "$CASE_DIR/clock"; }
+  ensure_policy() { printf "projects/test-project/uptimeCheckConfigs/check-1\n"; }
+  verify_uptime_check() { :; }; verify_single_condition() { :; }
+  poll_uptime_locations() {
+    printf "%s\n" "$(( $(now) + 121 ))" > "$CASE_DIR/clock"
+    printf "{\"count\":3,\"evidenceEpoch\":%s}\n" "$(now)"
+  }
+  poll_uptime_http() { printf "{\"count\":3,\"evidenceEpoch\":%s}\n" "$(now)"; }
+  private_request() { printf "%s\n" "$2" >> "$CASE_DIR/requests"; exit 0; }
+  result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+  run_o8
+' _ "$live_helper" > /dev/null 2> "$CASE_DIR/stderr"; then
+  fail 'uptime fault was admitted after baseline consumed its required window'
+fi
+grep -q 'Insufficient bounded fault time' "$CASE_DIR/stderr"
+test ! -s "$CASE_DIR/requests" || fail 'insufficient uptime window reached the private endpoint'
+test ! -s "$CASE_DIR/results" || fail 'insufficient uptime window reported a pass'
+pass 'uptime rechecks both fault polls, provider allowance and O9 window after baseline before injecting a fault'
+
 new_case live-uptime-deadline-restores
 if CASE_DIR="$CASE_DIR" bash -c '
   source "$1"
   evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
   OBSERVABILITY_DEADLINE_EPOCH=2000000000
-  printf "1999998199\n" > "$CASE_DIR/clock"
+  printf "1999995200\n" > "$CASE_DIR/clock"
   now() { cat "$CASE_DIR/clock"; }
   ensure_policy() { printf "projects/test-project/uptimeCheckConfigs/check-1\n"; }
   verify_uptime_check() { :; }; verify_single_condition() { :; }
@@ -1608,31 +1633,53 @@ pass 'default runs all phases; scoped validation runs O8 then O9; invalid scope 
 
 new_case live-uptime-delayed-open
 env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
-  SERVICE_NAME=vlrgg-query-check OBSERVABILITY_RUN=123-1 OBSERVABILITY_DEADLINE_EPOCH=2000000000 \
+  SERVICE_NAME=vlrgg-query-check OBSERVABILITY_RUN=123-1 OBSERVABILITY_DEADLINE_EPOCH=1700004860 \
   CASE_DIR="$CASE_DIR" bash -c '
     source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
-    now() { printf 1700000000; }; sleep_for() { :; }
+    printf "1700000000\n" > "$CASE_DIR/clock"
+    now() { cat "$CASE_DIR/clock"; }
+    sleep_for() { printf "%s\n" "$(( $(now) + $1 ))" > "$CASE_DIR/clock"; }
     ensure_policy() {
       if test "$1" = uptime; then printf "projects/test-project/uptimeCheckConfigs/check-1\n"
       else printf "projects/test-project/alertPolicies/owned\n"; fi
     }
     verify_uptime_check() { :; }; verify_single_condition() { :; }
-    poll_uptime_locations() { printf "{\"count\":3,\"evidenceEpoch\":1700000001}\n"; }
-    poll_uptime_http() { printf "{\"count\":3,\"evidenceEpoch\":1700000001}\n"; }
-    private_request() { printf "{\"status\":\"configured\"}\n" > "$evidence/private-response"; }
+    uptime_locations() {
+      local count=0 locations=3
+      if test "$2" = false; then
+        sleep_for 2
+        test ! -f "$CASE_DIR/false-polls" || count="$(cat "$CASE_DIR/false-polls")"
+        count=$((count + 1)); printf "%s\n" "$count" > "$CASE_DIR/false-polls"
+        test "$count" -ge 40 || locations=0
+      elif test ! -f "$CASE_DIR/baseline-observed"; then
+        sleep_for 120; : > "$CASE_DIR/baseline-observed"
+      fi
+      printf "{\"count\":%s,\"evidenceEpoch\":%s}\n" "$locations" "$(now)"
+    }
+    uptime_http_locations() { printf "{\"count\":3,\"evidenceEpoch\":%s}\n" "$(now)"; }
+    private_request() {
+      printf "%s\n" "$2" >> "$CASE_DIR/requests"
+      sleep_for 10
+      printf "{\"status\":\"configured\"}\n" > "$evidence/private-response"
+    }
     poll_health() { :; }; poll_alert_closed() { :; }; disable_policy() { :; }; result() { :; }
     alerts_for_policy() {
       local count=0
+      sleep_for 2
       test ! -f "$CASE_DIR/alert-polls" || count="$(cat "$CASE_DIR/alert-polls")"
       count=$((count + 1)); printf "%s\n" "$count" > "$CASE_DIR/alert-polls"
-      if test "$count" -le 21; then printf "[]\n"; else
-        printf "%s\n" "[{\"name\":\"projects/test-project/alerts/uptime\",\"state\":\"OPEN\",\"openTime\":\"2026-01-01T00:00:00Z\",\"policy\":{\"userLabels\":{\"managed_by\":\"issue122-validation\",\"validation_run\":\"123_1\",\"resource_kind\":\"uptime_policy\"}}}]"
+      if test "$count" -lt 40; then printf "[]\n"; else
+        jq -cn --argjson at "$(now)" "[{name:\"projects/test-project/alerts/uptime\",state:\"OPEN\",openTime:(\$at|todateiso8601),policy:{userLabels:{managed_by:\"issue122-validation\",validation_run:\"123_1\",resource_kind:\"uptime_policy\"}}}]"
       fi
     }
     run_o8
+    require_fault_window "$o9_fault_window"
   ' _ "$live_helper"
-test "$(cat "$CASE_DIR/alert-polls")" = 22 || fail 'uptime OPEN was not observed after the old polling limit'
-pass 'uptime OPEN polling allows provider latency beyond 20 polls within the unchanged absolute cutoff'
+test "$(cat "$CASE_DIR/false-polls")" = 40 || fail 'late false-region transition was not observed'
+test "$(cat "$CASE_DIR/alert-polls")" = 40 || fail 'late uptime OPEN was not observed'
+test "$(cat "$CASE_DIR/clock")" = 1700002640 || fail 'polling or provider overhead was not charged to the shared clock'
+grep -qx '/__observability/health/restore' "$CASE_DIR/requests"
+pass 'uptime admits both maximum poll waits plus provider latency, restores health and leaves the O9 minimum window'
 
 new_case live-attempt-deadline
 bash -c '
