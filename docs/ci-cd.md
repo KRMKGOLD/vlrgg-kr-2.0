@@ -87,6 +87,6 @@ Target Secret, registration token과 App Check token은 repository/environment v
 | Query server | private validation, production promotion, rollback, public smoke와 cost-stop recovery PASS | 실제 invoice·Budget/Monitoring receipt·Spend cap 미확인 |
 | App release process | [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117): Android `0.1.0(2)` Actions 업로드·Play 업데이트·실기기 정상 동작·cleanup 확인 완료 | iOS account/signing/TestFlight는 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 보류 |
 | Crashlytics | Android fatal·ANR, iOS fatal·dSYM 실수신 확인 | store release 안정성은 별도 운영 관측 |
-| #122 observability | local checks GREEN; private O3~O7과 O8 provider 전이·실제 수신·독립 복원 확인 | O9와 production 영구 정책·정상 배포 미확인. O9·OOM은 `NOT RUN`. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
+| #122 observability | local checks GREEN; private O3~O7과 O8 provider 전이·실제 수신·독립 복원 확인; 후속 O9 종료·로그 각 2건과 독립 복원 확인 | O9는 incident·수신 미확인으로 `FAIL`, production 영구 정책·정상 배포 대기. OOM은 `NOT RUN`. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
 
 Branch protection은 CI workflow가 제공하는 실제 check 이름만 사용한다. direct push 제한, PR 요구와 최신 branch 상태를 적용하되 존재하지 않는 check를 미리 등록하지 않는다.

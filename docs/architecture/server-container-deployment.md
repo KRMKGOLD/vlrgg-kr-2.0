@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포와 운영
 
-일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 exact `main` SHA, private validation, production 승격, 실제 rollback, 비용 중단 실패 후 drain·복구와 공개 조회를 확인했다. #122는 private O3~O7 provider 전이와 실제 수신, 후속 O8의 3개 지역 정상→장애→정상 지표·동일 incident OPEN/CLOSED·실제 두 이메일 수신, 실패 실행의 독립 복원과 소유 자원 정리를 확인했다. O9는 첫 종료 요청 전 시스템 로그 목록 완전성 검사에서 중단됐으며, O9와 production 영구 정책·정상 배포는 아직 남아 있다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
+일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 exact `main` SHA, private validation, production 승격, 실제 rollback, 비용 중단 실패 후 drain·복구와 공개 조회를 확인했다. #122는 private O3~O7 provider 전이와 실제 수신, 후속 O8의 3개 지역 정상→장애→정상 지표·동일 incident OPEN/CLOSED·실제 두 이메일 수신, 실패 실행의 독립 복원과 소유 자원 정리를 확인했다. 후속 O9 단독 실행에서 실제 종료와 system log는 확인했지만 incident·수신을 확인하지 못해 복원했다. O9와 production 영구 정책·정상 배포는 아직 남아 있다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
 
 ## Image and runtime contract
 
@@ -41,7 +41,7 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 
 ## #122 observability live runbook
 
-2026-09-27 확인 기준, 로컬 server tests, validation jar, stdout smoke와 workflow stub은 통과했다. Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신, 실패 실행의 baseline template·실제 100% traffic·IAM 복원 및 소유 자원 정리도 확인했다. O9는 장애 주입 전에 중단됐고 OOM과 함께 `NOT RUN`이다. 당시 provider 원문은 보호 경로에만 있어 실패 page 내용은 확정하지 않으며, 이후 읽기 전용 조회에서는 완전한 목록을 확인했다.
+2026-09-27 확인 기준, 로컬 server tests, validation jar, stdout smoke와 workflow stub은 통과했다. Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신도 확인했다. 후속 O9 단독 실행에서는 종료 요청과 실제 exit 42 system log를 각각 2건 확인했지만, 정책 생성 뒤 도착한 로그가 있어도 제한 시간 안에 incident OPEN·메일 수신을 확인하지 못해 workflow가 실패했다. baseline template·실제 100% traffic·IAM 복원, 소유 image·revision·정책 삭제와 production 미변경을 독립 확인했다. O9는 `FAIL`로 미완료이며 OOM은 `NOT RUN`이다. O9는 실제 OPEN 수신만 요구하며 자동 종료를 복구 수신으로 간주하지 않는다.
 
 전체 live 완료와 production 적용을 완료로 표시하지 않는다. policy·장애·grouping·trace·sampling·receipt·복원·정리의 개별 결과를 확인하고, 미실행은 `NOT RUN`, 실패는 `FAIL`, 실행 중은 `IN PROGRESS`, 증거 미확인은 `UNKNOWN`으로 구분한다. endpoint status나 workflow 착수만으로 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)를 종료하지 않는다.
 
@@ -76,13 +76,16 @@ workflow operation은 `deploy`, `observability-validate`, `observability-restore
 - 8 KiB 이하 annotation journal에 immutable baseline revision, allowlist로 투영한 template와 hash, traffic/IAM, run-owned resource와 pending mutation을 기록한다. etag CAS와 read-back이 성공하기 전에는 IAM, policy, image와 fault를 변경하지 않는다. active/unknown journal 또는 조회 실패가 있으면 새 deploy를 첫 mutation 전에 중단한다.
 - provider access를 cloud 인증 직후와 overlay 배포 후 다시 확인한다. 각 fault·mutation 직전 target guard도 반복한다.
 - live driver는 90분 deadline을 사용하고 workflow attempt 120분을 넘기지 않는다. 마지막 30분에는 새 fault나 mutation을 시작하지 않는다. O8 장애 주입 직전에는 두 fault poll, provider 처리 여유와 O9 진입 시간을 포함해 최소 2,940초가 남았는지 다시 확인하고 부족하면 복원한다.
-- O9의 12시간 정상 이력과 종료 후 signature 조회는 같은 bounded system-log pagination을 사용한다. 빈 page에 token이 있어도 계속 읽되 page·누적 entry·scan time·token 반복과 응답 형식을 제한하고 매 조회 전 fault cutoff를 확인한다. 완전한 목록을 얻지 못하면 종료 장애를 주입하지 않는다.
+- O9의 12시간 정상 이력과 종료 후 signature 조회는 같은 bounded system-log pagination을 사용한다. 분 단위 helper에 720을 전달하며 이전 43,200은 30일을 조회하던 단위 오류였다. 빈 page에 token이 있어도 계속 읽되 page·누적 entry·scan time·token 반복과 응답 형식을 제한하고 매 조회 전 fault cutoff를 확인한다. 완전한 목록을 얻지 못하면 종료 장애를 주입하지 않는다. [Cloud Logging entries.list](https://docs.cloud.google.com/logging/docs/reference/v2/rest/v2/entries/list)
+- 다음 O9에서는 정책 생성·read-back 후 300초를 둔 뒤 두 번째 종료를 보낸다. 대기 직전에는 대기 300초와 기존 O9 최소 잔여 시간 300초를 합쳐 검사하고, 대기 후 잔여 시간을 다시 확인한다. 최대 종료 2회와 기존 fault cutoff·복원 여유를 유지하며 부족하면 추가 종료 없이 복원한다. O8의 잔여 시간 검사는 이 추가 대기를 포함한 전체 O9 완료를 보장하지 않는다.
 - raw provider body는 `RUNNER_TEMP`의 0600 파일에만 두고 summary는 receipt 확인 전 `RECEIPT PENDING`으로 남긴다. receiver-side 증거 없이는 PASS로 올리지 않는다.
 - failure에서도 immutable baseline revision의 존재·Ready 확인 → 그 revision으로 traffic 100% 복원 → allowlist template/hash 복원 → private IAM·health/query·scaling read-back → owned-resource cleanup → journal clear 순서를 `always()` 경로로 실행한다. 전체 service export를 덮어쓰지 않는다.
 - serving 또는 tagged revision은 삭제하지 않는다. fault revision/image/policy/check는 journal의 exact name·digest·ownership label과 다른 참조 부재가 확인된 경우에만 정리한다.
 - ownership이나 restore 상태가 불명확하면 resource와 journal을 유지하고 secret 없는 blocker를 남긴다. 정상 상태와 cleanup read-back이 끝난 뒤 journal을 마지막 etag CAS로 지운다. restore는 build/test/image push를 건너뛴다.
 - 실제 private exit signature가 ambiguous하거나 정상 종료와 충돌하면 후속 exit를 보내지 않는다. production service에는 validation main, jar와 `__observability/*` route가 없어야 한다.
 - policy helper는 journal 소유 private service와 run-owned policy/check만 변경한다. render는 cloud mutation 없이 수행하고 기존 production/shared policy나 channel을 이름만으로 갱신·삭제하지 않는다.
+
+현재 알림 미발생 원인은 확정하지 못했다. enabled·valid 정책의 정확한 filter로 종료 로그를 조회했고, 로그 bucket 라우팅·결제 활성 상태·제외 규칙 부재·정책 생성 API 성공을 확인했다. 다음 300초 대기는 전파 지연 가설을 확인하기 위한 진단이며 공급자의 활성화 보장이나 검증된 해결책이 아니다. 조회 기간 단위 오류도 incident 미발생 원인으로 확인된 것은 아니다. 내부 notification rule에는 직접 조회하는 준비 상태 API가 없고 공식 LogMatch 예제도 `notificationPrompts`를 생략하므로 field나 filter를 추측으로 변경하지 않는다. [로그 기반 알림](https://cloud.google.com/logging/docs/alerting/log-based-alerts), [정책 변경 전파](https://cloud.google.com/monitoring/alerts/troubleshooting-alerts).
 
 ### Production permanent policies
 
