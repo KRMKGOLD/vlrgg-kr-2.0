@@ -6,6 +6,8 @@
 - Supersedes: [ADR-0001](0001-match-notification-stage1-storage-and-provider-boundary.md) for persistence, target authority, event scope, provider lifecycle and scheduling
 - Related: [Stage 1.1 contract](../server-fcm-stage1.md), [Matches](../../feature/matches/README.md), [CI/CD](../../ci-cd.md)
 
+2026-09-27 제품 범위 갱신: 경기 알림은 1차 MVP에서 제외하고 MVP 이후 Stage 2로 이관한다. 이 ADR의 Stage 1.1 기술 결정과 offline 완료 증거는 보존하며, 제품 완료 범위는 [Feature Guide](../../feature/README.md#mvp-이후-stage-2-경기-알림)를 따른다.
+
 ## Context
 
 2026-07-31 implementation evidence is GREEN for the offline Firestore Emulator, server tests, build, install distribution, packaged health smoke.
@@ -41,7 +43,7 @@ Stage 1.1은 production-facing `AppCheckVerifier`와 `NotificationProvider` 계�
 
 ### START-only and request-bound Scheduler
 
-MVP event는 `START`만 지원한다. `END`는 제거한다. scheduler는 process-owned background loop가 아니라 `NotificationSchedulerUseCase(scheduleSlot, requestOwnerId)` 한 번의 bounded 요청이다. Firestore lease가 동일 slot의 단일 owner를 정하고 persistent fan-out cursor와 delivery state가 요청 종료·crash 후 재개를 보장한다.
+Stage 1.1 event는 `START`만 지원한다. `END`는 제거한다. scheduler는 process-owned background loop가 아니라 `NotificationSchedulerUseCase(scheduleSlot, requestOwnerId)` 한 번의 bounded 요청이다. Firestore lease가 동일 slot의 단일 owner를 정하고 persistent fan-out cursor와 delivery state가 요청 종료·crash 후 재개를 보장한다.
 
 10분은 외부 Scheduler가 요청할 desired 간격이다. Stage 1.1은 active unique Match를 처음 만들 때 즉시 due로 기록하고, 각 observation attempt 뒤 store clock 기준 10분 후 `nextCheckAt`으로 전진시킨다. query는 due, non-terminal, enabled Match만 `activeMatchLimit`까지 읽으므로 scheduler가 non-due 작업을 스캔하지 않는다. Stage 1.1은 test harness로 같은 use case를 검증하며 public Scheduler route를 등록하지 않는다. Google OIDC route와 Cloud Scheduler resource는 Stage 2가 소유한다.
 

@@ -4,7 +4,8 @@
 
 - Status: Active
 - Last reviewed: 2026-09-03
-- Product scope: VLR.GG Mobile Tracker 1차 MVP
+- Scope updated: 2026-09-27 — 경기 알림을 MVP 이후 Stage 2로 이관
+- Product scope: VLR.GG Mobile Tracker 1차 MVP 및 MVP 이후 Stage 2 계획
 - Design source: [`../../DESIGN.md`](../../DESIGN.md)
 - App architecture: [`../app-arch/app-arch.md`](../app-arch/app-arch.md)
 - Server architecture: [`../architecture/server-arch.md`](../architecture/server-arch.md)
@@ -13,18 +14,18 @@
 
 VLR.GG Mobile Tracker는 VLR.GG의 뉴스, 경기, 이벤트, 시리즈, 팀, 선수 정보를 모바일에서 빠르게 탐색할 수 있도록 재구성하는 개인용 포트폴리오 앱이다.
 
-웹사이트를 그대로 복제하지 않는다. 사용자가 News, Match, Event, Series, Team, Player 사이를 자연스럽게 이동하고, 관심 있는 Team·Player를 MyPage에서 다시 찾을 수 있는 연결형 탐색 경험을 제공한다. 경기 시작 알림은 Match 기능의 별도 범위이며 MyPage가 소유하지 않는다.
+웹사이트를 그대로 복제하지 않는다. 사용자가 News, Match, Event, Series, Team, Player 사이를 자연스럽게 이동하고, 관심 있는 Team·Player를 MyPage에서 다시 찾을 수 있는 연결형 탐색 경험을 제공한다. 경기 시작 알림은 1차 MVP 이후 Stage 2에서 제공한다.
 
 앱과 서버는 다음 책임을 가진다.
 
 - Ktor 서버는 VLR.GG HTML을 요청하고 Jsoup으로 해석해 app-facing response로 가공한다.
 - Compose Multiplatform 앱은 서버 API를 통해 데이터를 받고 Android와 iOS에 공통 UI를 제공한다.
 - Team·Player 즐겨찾기는 기기 로컬에 저장한다. Team 즐겨찾기가 주 개인화이고 Player 즐겨찾기는 보조다.
-- 사용자에게 Match 즐겨찾기 기능/그룹을 제공하지 않는다. Match 벨은 `Upcoming`/`Postponed` Match의 서버 알림 구독만 제어하며 로컬 즐겨찾기를 만들지 않는다.
+- 사용자에게 Match 즐겨찾기 기능/그룹을 제공하지 않는다. Stage 2의 Match 벨은 `Upcoming`/`Postponed` Match의 서버 알림 구독만 제어하며 로컬 즐겨찾기를 만들지 않는다.
 
 ## 1차 MVP 범위
 
-Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
+1차 MVP는 Phase 1~5, Cross-feature 기능과 해당 기능의 Android/iOS 검증을 완료해야 한다. 경기 알림 구현·실환경 연동은 MVP 완료 조건에 포함하지 않는다.
 
 | Phase | Feature slice | 문서 |
 | --- | --- | --- |
@@ -34,6 +35,15 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | 4 | Search, Team Detail, Player Detail | [`search/README.md`](search/README.md), [`teams/README.md`](teams/README.md), [`players/README.md`](players/README.md) |
 | 5 | Match Detail Basic, Series Detail | [`matches/README.md`](matches/README.md), [`series/README.md`](series/README.md) |
 | Cross-feature | MyPage, Team·Player 즐겨찾기, About | [`my-page/README.md`](my-page/README.md), [`about/README.md`](about/README.md) |
+
+## MVP 이후 Stage 2: 경기 알림
+
+2026-09-27 제품 범위 결정에 따라 경기 알림 전체를 MVP 이후 Stage 2로 관리한다. Match Detail 구독 벨, 알림 권한·수신·탭 이동, MyPage 전역 OFF, 서버 계약 보완과 실제 App Check/FCM/Firestore/Scheduler 연동·배포·실기기 검증이 포함된다.
+
+- 추적 기준: [Stage 2 Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76), 하위 작업 #77–#91 및 #103. [Stage 2 마일스톤](https://github.com/KRMKGOLD/vlrgg-kr-2.0/milestone/2)에서 별도로 관리하며 이 작업들은 MVP 완료를 차단하지 않는다.
+- 이미 완료된 서버 Stage 1.1 offline 구현과 테스트 증거는 Stage 2의 기반으로 보존한다. 앱 연결이나 실제 푸시 전달까지 완료됐다는 의미는 아니다.
+- 이 문서와 Matches 문서의 알림 계약·수용 기준은 Stage 2에만 적용한다. 현재 MVP에는 알림 벨·권한 요청·설정 UI를 추가하지 않는다.
+- 일반 조회 서버 배포, 앱 Crashlytics, 서버 운영 장애 알림(#122), MVP 기능의 품질·접근성 검증은 이번 경기 알림 이관 대상이 아니다.
 
 ## 구현 상태 (2026-09-03)
 
@@ -62,10 +72,11 @@ Phase 1부터 Phase 5까지를 모두 완료해야 1차 MVP가 완성된다.
 | Player Detail | 구현 완료 — 기본 정보, 현재 팀, Agent Stats, 최근 경기 API | 구현 완료 — 섹션 상태, Team·Match navigation, 로컬 즐겨찾기 |
 | Series Detail | 구현 완료 — Upcoming/Completed Event 그룹 API | 구현 완료 — Upcoming/Completed Event 그룹과 Search → Series → Event navigation |
 | MyPage, Team·Player 즐겨찾기, About | Backend 기능 없음 | 구현 완료 — MyPage Team/Player 독립 목록·Detail 이동·제거/재시도·상태 복원과 About 화면 |
-| Match 알림 | Stage 1.1 server offline GREEN — Firestore Emulator, 익명 Target 권한, START-only, request-bound scheduler | Feature 미구현 — App·실제 Firebase 연동은 `NOT RUN — Stage 2` |
+| Match 알림 (MVP 이후 Stage 2) | Stage 1.1 server offline GREEN — Firestore Emulator, 익명 Target 권한, START-only, request-bound scheduler | Feature 미구현 — App·실제 Firebase 연동은 `NOT RUN — Stage 2`; MVP 완료 조건에서 제외 |
 
 ## MVP 제외 범위
 
+- 경기 START 알림과 관련 구독·권한·수신·탭 이동·전역 OFF — MVP 이후 Stage 2
 - Team·Player 알림 구독
 - 알림함과 알림 이력
 - 로그인, 사용자 계정, 기기 간 즐겨찾기 동기화
@@ -99,7 +110,7 @@ Bottom navigation은 다음 순서로 고정한다.
 ### Shared Top App Bar와 Search
 
 - 모든 최상위 탭은 title과 Search action을 가진 공통 Top App Bar를 사용한다.
-- Detail Top App Bar는 Back과 선택적 title 및 기능별 action만 사용한다. News/Event/Series는 Back-only, Match는 Upcoming/Postponed에만 bell, Team/Player는 star를 사용한다.
+- Detail Top App Bar는 Back과 선택적 title 및 기능별 action만 사용한다. MVP의 News/Event/Series/Match는 Back-only, Team/Player는 star를 사용한다. Upcoming/Postponed Match의 bell은 MVP 이후 Stage 2다.
 - Search는 Bottom navigation item이 아니다.
 - Search action을 누르면 현재 화면 위에 별도 Search Screen을 push한다.
 - Back을 누르면 직전 탭과 화면 상태로 돌아간다.
@@ -175,20 +186,24 @@ MyPage ─────────────────→ Favorite Team / Pl
 
 ### Match 알림
 
+이 절은 MVP 이후 Stage 2 범위다.
+
 - Match Detail의 벨은 `Upcoming`/`Postponed`에서만 노출되는 서버 알림 구독 action이다.
 - 벨 ON/OFF는 로컬 Team/Player 즐겨찾기를 생성·삭제하지 않는다.
 - `Live`, `Completed`, `Cancelled`, `Unavailable`, FFW Match에는 벨을 노출하지 않는다.
 
 ## Match 알림 공통 계약
 
+다음은 Stage 1.1을 기반으로 보존하는 MVP 이후 Stage 2 설계다. 발송 주소의 token/FID 전환은 [#77](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/77), 권한 요청 시점과 전역 설정 UX는 [#78](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/78)에서 정합화하며 MVP 구현·완료 조건으로 사용하지 않는다.
+
 - 사용자가 Match Detail에서 `Upcoming` 또는 `Postponed` 경기에만 알림을 직접 설정한다. `Live`, `Completed`, `Cancelled`, `Unavailable`, FFW에는 벨을 노출하지 않는다.
 - 이 action은 서버 notification subscription만 변경하며 로컬 즐겨찾기를 생성·삭제하지 않는다.
 - Match 알림의 전송 provider는 FCM이다. opaque FCM registration token은 한 익명 Target의 전달 주소이지 사용자 인증, Target 권한, FID나 물리 기기 ID가 아니다.
 - 앱 설치 단위의 Target은 서버가 발급한 Target ID/Secret으로 구분한다. 앱 삭제·재설치로 자격을 잃어 새 Target이 생기는 것은 허용하며 이전 Target을 자동 복원·병합하지 않는다.
-- 같은 Target의 token refresh는 전달 주소만 교체하고 Match 설정을 보존한다. 서로 다른 Target의 독립 구독과 일시적 중복 전달은 MVP에서 허용한다.
+- 같은 Target의 token refresh는 전달 주소만 교체하고 Match 설정을 보존한다. 서로 다른 Target의 독립 구독과 일시적 중복 전달은 Stage 2 설계에서 허용한다.
 - 같은 Target/Match의 설정과 해제는 각각 alarm ON/OFF로 수렴하며 target-scoped revision으로 늦은 요청이 최신 의도를 되돌리지 않게 한다.
 - 서버는 외부 Scheduler가 전달한 10분 schedule slot마다 활성 구독의 고유 Match ID를 확인한다.
-- 서버는 subscription별 경기 START intent를 한 번으로 관리한다. END 알림은 MVP에서 제외한다. 이는 FCM transport나 기기 표시의 exactly-once 보장이 아니다.
+- 서버는 subscription별 경기 START intent를 한 번으로 관리한다. END 알림은 Stage 2에서도 제외한다. 이는 FCM transport나 기기 표시의 exactly-once 보장이 아니다.
 - 완료된 경기의 추적과 구독 작업을 종료한다.
 - 경기 취소·연기·시간 변경·upstream 누락은 내부 상태로 구분한다.
 
@@ -232,7 +247,7 @@ Target/subscription의 상세 의미는 [Matches 추적 계약](matches/README.m
 - 모든 화면은 진입/이탈 경로와 loading·empty·error 상태를 정의한다.
 - 목록 화면은 pagination 또는 MVP의 명시적인 단일-page 정책을 정의한다.
 - Detail 화면은 누락 가능한 데이터의 숨김/대체 표시 정책을 feature 수준에서 정의한다.
-- Team·Player 즐겨찾기와 Match 서버 알림 구독의 차이가 모든 관련 문서에서 동일하다.
+- Team·Player 즐겨찾기는 Match 서버 알림 구독을 생성하지 않는다. Stage 2 알림의 미완료 항목은 MVP 완료 판정에 포함하지 않는다.
 - Navigation 설명은 Bottom navigation, Search push, Back 복귀 계약과 일치한다.
 - UI 결정은 루트 `DESIGN.md`의 Light theme, 접근성, color/token 규칙을 따른다.
 - Parser 구현 전 대표 HTML fixture와 필수 parsing assertion이 feature 문서 또는 테스트 계획에 연결된다.

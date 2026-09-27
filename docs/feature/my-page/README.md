@@ -30,7 +30,7 @@ MyPage는 기기에 저장한 Favorite Team과 Favorite Player를 다시 찾는 
 - Team 또는 Player 알림
 - 즐겨찾기 폴더, 태그, 수동 정렬
 
-제외 항목을 MyPage의 예정 섹션이나 후속 계약으로 유지하지 않는다. 별도 기능이 필요해지면 해당 기능 문서와 Issue에서 새 범위를 정의한다.
+제외 항목을 현재 MVP 화면의 예정 섹션으로 노출하지 않는다. 알림 권한·전역 OFF는 MVP 이후 Stage 2의 [#88](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/88)에서 별도로 구현하며, [경기 알림 범위](../README.md#mvp-이후-stage-2-경기-알림)를 따른다. 알림 미구현은 MyPage의 MVP 완료를 차단하지 않는다. 그 밖의 별도 기능은 해당 기능 문서와 Issue에서 범위를 정의한다.
 
 ## 진입과 이탈 경로
 
