@@ -30,7 +30,7 @@ B2/report.md와 budget-headroom-decision.md는 Git ignored 보호 경로 `.omx/e
 
 uptime check는 3개 region이 각각 5분마다 실행된다는 설계 산술로 월 25,920회다. 실제 checker 수·재시도·Cloud Run 요청 및 로그 비용은 live inventory에서 다시 계산한다. 조사 시 공식 안내의 Logging 50 GiB/월, uptime 100만 회/월 무료량과 metric alert 과금 예정일은 계정·적용 시점에 따라 달라질 수 있으므로 영구 무료 또는 이번 서비스 전용 무료량으로 보지 않는다. custom metric, 중복 log export, 새 장기 보관은 추가하지 않는다.
 
-private validation service는 min 0이어도 overlay image 저장, fault/health 요청, log ingest, uptime probe와 임시 revision 실행 비용이 생길 수 있다. 현재 workflow timeout은 120분이다. bounded live driver는 90분 deadline과 마지막 30분 복원 여유를 적용한다. 앞선 private attempt에서 O3~O7 provider 전이, 오류 재발·O7 OPEN/CLOSED 수신과 해당 attempt의 복원을 확인했으며, 현재 merged-main attempt의 O8/O9·수신·복원과 production 영구 정책 적용은 대기 중이다. 이 검증은 실제 청구액이나 Budget 알림 수신을 증명하지 않는다.
+private validation service는 min 0이어도 overlay image 저장, fault/health 요청, log ingest, uptime probe와 임시 revision 실행 비용이 생길 수 있다. 현재 workflow timeout은 120분이다. bounded live driver는 90분 deadline과 마지막 30분 복원 여유를 적용한다. 앞선 private attempt에서 O3~O7 provider 전이, 오류 재발·O7 OPEN/CLOSED 수신과 해당 attempt의 복원을 확인했으며, 후속 scoped attempt에서 O8 provider 전이·실제 OPEN/CLOSED 수신·독립 복원과 임시 자원 삭제도 확인했다. O9는 첫 종료 요청 전 시스템 로그 목록 완전성 검사에서 중단됐으며 production 영구 정책 적용은 대기 중이다. 다음 `o9` scope는 완료된 uptime 검증의 probe·장애 대기를 반복하지 않는다. 이 검증은 실제 청구액이나 Budget 알림 수신을 증명하지 않는다.
 
 ## 과거 후보 비교 — 2026-09-07
 

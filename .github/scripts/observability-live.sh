@@ -735,12 +735,43 @@ run_o8() {
 
 system_logs() {
   local start="$1" output="$2" filter body="$evidence/system-log-query.json"
+  local page_file="$evidence/system-log-page.json" entries_file="$evidence/system-log-entries.jsonl"
+  local page=0 count=0 token_json='""' next_json scan_deadline=$(( $(now) + 360 )) seen
+  local -a seen_tokens=('""')
   filter="resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"$PROJECT_ID\" AND resource.labels.location=\"$REGION\" AND resource.labels.service_name=\"$SERVICE_NAME\" AND logName=\"projects/$PROJECT_ID/logs/run.googleapis.com%2Fvarlog%2Fsystem\" AND timestamp>=\"$start\""
-  jq -n --arg project "projects/$PROJECT_ID" --arg filter "$filter" \
-    '{resourceNames:[$project],filter:$filter,orderBy:"timestamp asc",pageSize:1000}' > "$body"
-  api POST "$logging_root/entries:list" "$output" "$body"
-  jq -e '(.nextPageToken // "") == "" and ((.entries // []) | length <= 1000)' "$output" >/dev/null \
-    || fail 'Bounded system-log inventory was incomplete.'
+  : > "$entries_file"
+  chmod 600 "$entries_file"
+  while :; do
+    # Bound sparse token pages and accumulated logs before trusting a complete history.
+    test "$page" -lt 12 && test "$(now)" -lt "$scan_deadline" \
+      || fail 'Bounded system-log inventory was incomplete.'
+    poll_budget fault
+    jq -n --arg project "projects/$PROJECT_ID" --arg filter "$filter" --argjson token "$token_json" '
+      {resourceNames:[$project],filter:$filter,orderBy:"timestamp desc",pageSize:1000} +
+      (if $token == "" then {} else {pageToken:$token} end)' > "$body"
+    api POST "$logging_root/entries:list" "$page_file" "$body"
+    test "$(now)" -le "$scan_deadline" && jq -e '
+      type == "object" and
+      (if has("entries") then (.entries | type) == "array" else true end) and
+      (if has("nextPageToken") then (.nextPageToken | type) == "string" else true end) and
+      ((.entries // []) as $entries | (.nextPageToken // "") as $next |
+        ($entries | length) <= 1000 and all($entries[]; type == "object") and
+        ($next | length) <= 4096)
+    ' "$page_file" >/dev/null || fail 'Bounded system-log inventory was incomplete.'
+    count=$((count + $(jq '.entries // [] | length' "$page_file")))
+    test "$count" -le 3000 || fail 'Bounded system-log inventory was incomplete.'
+    jq -c '.entries[]?' "$page_file" >> "$entries_file"
+    next_json="$(jq -c '.nextPageToken // ""' "$page_file")"
+    test "$next_json" = '""' && break
+    for seen in "${seen_tokens[@]}"; do
+      test "$next_json" != "$seen" || fail 'Bounded system-log inventory was incomplete.'
+    done
+    seen_tokens+=("$next_json")
+    token_json="$next_json"
+    page=$((page + 1))
+  done
+  jq -s '{entries:.}' "$entries_file" > "$output"
+  chmod 600 "$output"
 }
 
 private_exit() {
@@ -824,7 +855,7 @@ run_o9() {
 main() {
   umask 077
   case "${OBSERVABILITY_SCOPE:-all}" in
-    all|o8-o9) ;;
+    all|o8-o9|o9) ;;
     *) fail 'Unsupported private validation scope.' ;;
   esac
   require_env RUNNER_TEMP
@@ -841,8 +872,10 @@ main() {
     require_fault_window 2400
     run_o7
   fi
-  require_fault_window 1200
-  run_o8
+  if test "${OBSERVABILITY_SCOPE:-all}" != o9; then
+    require_fault_window 1200
+    run_o8
+  fi
   require_fault_window "$o9_fault_window"
   run_o9
   result restore 'PENDING ALWAYS STEP'
