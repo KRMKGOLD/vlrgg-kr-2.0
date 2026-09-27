@@ -35,6 +35,8 @@ sh app/iosApp/Scripts/test_release_config.sh
 
 Android environment에는 `ANDROID_PLAY_WIF_PROVIDER`와 `ANDROID_PLAY_SERVICE_ACCOUNT` variables도 둔다. GitHub OIDC와 WIF로 Play 배포 Service Account를 impersonate하며 장기 service-account JSON key를 만들거나 저장하지 않는다. 권한은 대상 앱 조회와 testing release로 제한한다. Firebase config는 Play API credential과 별개다.
 
+두 environment는 `main`만 허용한다. Android는 서버 인증과 별도 WIF pool/provider를 사용하고 immutable repository/owner ID, `main`, Android 배포 workflow, `workflow_dispatch`, `android-internal`로 제한한다. Play 배포 계정의 `roles/iam.workloadIdentityUser`는 해당 environment의 정확한 subject에만 부여한다. 임시 ADC `gha-creds-*.json`은 커밋하지 않으며 auth action의 종료 단계에서 삭제한다.
+
 Firebase 설정은 [Crashlytics 설정 수명](app-crashlytics.md)에 따라 private temp file로 주입하고 종료 시 삭제한다. signing key·profile·App Store Connect credential도 environment 밖으로 노출하지 않는다.
 
 ## Android account and app gate
