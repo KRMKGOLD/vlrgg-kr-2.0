@@ -4,6 +4,8 @@
 
 이 문서는 Upcoming/Live, Results, Match Detail과 경기 시작 알림의 제품 요구사항을 정의한다. 공통 시각 언어와 상태 표현은 루트 [`DESIGN.md`](../../../DESIGN.md), 전체 내비게이션과 즐겨찾기 관계는 상위 [`docs/feature/README.md`](../README.md)를 따른다.
 
+2026-09-27 범위 결정: 목록·상세 조회는 1차 MVP에 포함하고, 경기 알림은 MVP 이후 [Stage 2 Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76)으로 이관한다. 이 문서의 알림 관련 데이터·화면 상태·인터랙션·서버 연동·수용 기준은 모두 Stage 2 범위이며 MVP 완료를 차단하지 않는다. 완료된 Stage 1.1 서버 구현과 offline 검증 기록은 보존한다.
+
 ## 구현 상태 (2026-09-04)
 
 - **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
@@ -12,13 +14,13 @@
 - **App Match Detail Basic D1: 구현 완료.** Loading/Content/Error, Upcoming/Postponed/Live/Completed/Cancelled/Unavailable, optional section Partial, `Match hero → Maps → Head to Head`, Team/Event/H2H 이동과 overlay/root 왕복 상태 복원을 구현했다. Android host 테스트·컴파일과 iOS simulator Compose UI 테스트로 검증했으며 실제 양 플랫폼 기기 screenshot·실기기 접근성 검증 완료를 주장하지 않는다.
 - **공통 Match item 계약 (#97): 구현 완료.** 목록 Match card와 Match Detail Head to Head는 UI 전용 `MatchContentItem`을 공유한다. 목록의 `VS`·결측 스코어는 기존 `label`, 완료 스코어는 `display`, Head to Head 스코어는 기존 `bodyStrong` typography를 각각 명시하며, 호출부가 팀 이름·score·metadata·상태와 navigation callback을 제공한다.
 - **이미지 연동 #70: 구현 완료.** #68의 nullable `homeTeam.imageUrl`과 `awayTeam.imageUrl`을 앱 DTO·Domain에 그대로 전달하고 Match Detail hero의 기존 양 팀 geometry 안에서 표시한다. null·blank·load failure는 기존 Team text placeholder를 유지한다. Upcoming/Live·Results 목록의 팀 이미지는 계약상 `null`이며 image request를 만들지 않고, event icon·Team ID/name 기반 URL·related/past Match 이미지를 사용하지 않는다.
-- **App Match 알림: Stage 2 후속 범위.** notification bell, 구독 mutation, Target credential, App Check/FCM, 권한·settings dialog와 전역 알림 흐름은 Match Detail Basic D1에 포함하지 않는다. Match favorite와 `pastMatches` UI도 구현하지 않았다.
+- **App Match 알림: MVP 이후 Stage 2 범위.** notification bell, 구독 mutation, Target credential, App Check/FCM, 권한·settings dialog와 전역 알림 흐름은 1차 MVP와 Match Detail Basic D1에 포함하지 않는다. Match favorite와 `pastMatches` UI도 구현하지 않았다.
 
 ## 목적과 사용자 가치
 
 - 예정, 진행 중, 완료 경기를 시간과 상태 중심으로 빠르게 확인하게 한다.
 - Match에서 관련 Event와 Team으로 이어지는 탐색 경로를 제공한다.
-- 사용자가 선택한 Upcoming/Postponed Match의 서버 알림을 구독하고, 앱을 계속 열어두지 않아도 경기 시작을 알 수 있게 한다.
+- MVP 이후 Stage 2에서는 사용자가 선택한 Upcoming/Postponed Match의 서버 알림을 구독하고, 앱을 계속 열어두지 않아도 경기 시작을 알 수 있게 한다.
 
 ## MVP 범위
 
@@ -47,7 +49,9 @@
 - 맵 목록
 - Head to Head
 
-### Match 알림
+## MVP 이후 Stage 2 범위: Match 알림
+
+아래는 후속 구축을 위해 보존하는 설계다. 현재 Stage 1.1의 token 계약에서 FID로 전환하는 상세는 [#77](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/77), 권한 요청 시점·전역 설정 UX는 [#78](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/78)에서 정합화한다. 현재 MVP에는 알림 UI나 권한 요청을 추가하지 않는다.
 
 - Match 알림 설정은 로컬 즐겨찾기 없이 서버 notification subscription만 생성
 - Match 알림 해제는 로컬 즐겨찾기 부작용 없이 서버 subscription만 해제
@@ -57,6 +61,8 @@
 - 최초 앱 실행의 알림 권한 요청, MyPage 전역 알림 ON/OFF, 비활성 상태의 안내 dialog와 system settings fallback
 
 ## 제외 범위
+
+다음 항목은 1차 MVP와 이번 Stage 2 알림 범위 모두에서 제외한다.
 
 - 맵별 상세 스탯과 선수별 Agent, Rating, K/D/A, KAST, ADR, HS, FK, FD
 - Team 또는 Player 즐겨찾기에 따른 알림
@@ -107,7 +113,7 @@ Live 상태는 색상만으로 전달하지 않고 텍스트 label을 함께 사
 
 ### Match Detail
 
-1. D1에서는 뒤로가기만 제공한다. Upcoming/Postponed Match 알림 action은 후속 범위다.
+1. MVP의 D1에서는 뒤로가기만 제공한다. Upcoming/Postponed Match 알림 action은 MVP 이후 Stage 2 범위다.
 2. 경기 상태와 예정/시작 시각
 3. Event 이름과 경기 설명
 4. 양 팀과 스코어
@@ -144,6 +150,8 @@ Match Detail Basic에 필수인 팀과 상태를 해석하지 못하면 parsing 
 
 ### 알림 구독 상태
 
+MVP 이후 Stage 2에만 적용한다.
+
 - 앱 전역 알림 ON/OFF
 - platform system permission 상태
 - 서버 구독 생성/해제 작업 상태
@@ -172,6 +180,8 @@ FCM registration token, Target Secret, scheduler 내부 delivery marker와 다�
 
 ### 알림 설정
 
+MVP 이후 Stage 2에만 적용한다.
+
 - `Ready`: 전역 알림과 system permission이 활성화되어 설정 가능
 - `ActivationRequired`: 앱 전역 알림 또는 system permission이 비활성화
 - `Subscribing`: 서버 subscription 생성 처리 중
@@ -194,6 +204,8 @@ Mutation 중에는 modal scrim·center spinner를 표시하고 화면 전체 act
 - 실패한 최초/추가 페이지 재시도
 
 ### Match 알림 설정
+
+아래 알림 설정·해제·전역 OFF 흐름은 MVP 이후 Stage 2에만 적용한다.
 
 1. 사용자가 Match Detail에서 알림 action을 선택한다.
 2. 앱 전역 알림과 system permission이 모두 활성화된 경우 server subscription 생성을 진행한다.
@@ -224,12 +236,14 @@ server subscription 생성이 확정적으로 실패하면 벨을 OFF로 유지�
 - 전역 OFF는 current Target에 연결된 Match 알림만 비활성화한다.
 - 현재 target에 연결된 여러 Match subscription 중 일부만 OFF로 확인되거나 응답이 불확실하면 앱은 전역 OFF를 완료 상태로 표시하지 않는다. 이미 OFF로 확인된 subscription은 그대로 유지하고 미확정 subscription만 pending으로 표시해 재시도·재동기화하며, 이 과정에서도 Team/Player 즐겨찾기는 보존한다.
 - 전역 OFF가 pending인 동안 사용자가 개별 Match 알림을 다시 ON으로 선택하면 그 선택이 최신 전역·Match 의도가 된다. 앱은 남은 전역 OFF 재시도를 중단하고 system permission 확인과 앱의 전역 알림 설정 활성화 흐름 뒤 해당 Match를 개별 설정하며, 지연된 이전 bulk OFF 요청이나 응답이 이 ON을 되돌려서는 안 된다. 서버의 false-only global-OFF endpoint에 전체 ON을 요청하지 않는다.
-- 앱과 서버는 잃어버린 이전 Target을 같은 물리 기기나 사용자로 추론하거나 해제하지 않는다. 이전 Target의 구독은 명시적 revoke, provider invalid 또는 정리 정책까지 유효할 수 있고 일시적 중복 전달은 MVP에서 허용한다.
+- 앱과 서버는 잃어버린 이전 Target을 같은 물리 기기나 사용자로 추론하거나 해제하지 않는다. 이전 Target의 구독은 명시적 revoke, provider invalid 또는 정리 정책까지 유효할 수 있고 일시적 중복 전달은 Stage 2 설계에서 허용한다.
 - OFF 상태에서 새 Match 알림을 요청하면 activation-required dialog를 표시한다.
 
-Stage 1.1 서버 계약은 `PUT /api/v1/notification-targets/{targetId}/match-subscriptions`의 `enabled=false` 요청으로 current Target의 최대 100개 subscription을 하나의 Firestore transaction에서 비활성화하고 target-scoped revision을 적용한다. `enabled=true` 전체 ON은 지원하지 않는다. 서버 구현과 App의 pending/reconciliation 흐름은 아직 미구현이다.
+Stage 1.1 서버 계약은 `PUT /api/v1/notification-targets/{targetId}/match-subscriptions`의 `enabled=false` 요청으로 current Target의 최대 100개 subscription을 하나의 Firestore transaction에서 비활성화하고 target-scoped revision을 적용한다. `enabled=true` 전체 ON은 지원하지 않는다. 서버 트랜잭션은 Stage 1.1에서 구현되었으며, App의 pending/reconciliation 흐름은 MVP 이후 Stage 2의 미구현 작업이다.
 
 ## 10분 Match 추적 및 알림 contract
+
+완료된 Stage 1.1 서버 기반과 MVP 이후 Stage 2의 연동 설계다. 아래 알림 계약은 1차 MVP의 완료 조건이 아니다.
 
 ### 구독
 
@@ -254,7 +268,7 @@ token SDK 획득·Target credential 보관·서버 동기화는 Stage 2 App이, 
 - 각 subscription에는 Match 시작 알림을 사용자에게 1회만 보내려는 delivery marker가 필요하다.
 - scheduler 재시도, 서버 재시작, 동일 상태 반복 관찰이 중복 사용자 알림을 만들지 않도록 idempotent하게 처리한다.
 - 여기서 `1회`는 서버가 관리하는 사용자-visible 알림의 exactly-once intent다. 외부 push transport 자체의 절대적 exactly-once 전달 보장을 뜻하지 않는다.
-- 취소, 연기, 시간 변경, upstream missing은 상태로 기록하지만 MVP 사용자 알림은 START만 제공한다.
+- 취소, 연기, 시간 변경, upstream missing은 상태로 기록하지만 Stage 2 사용자 알림은 START만 제공한다.
 
 이 영속 구독, scheduler, delivery marker는 일반 scraping 기능의 request-time/no-database 기준에 대한 Match 알림 전용 예외다.
 
@@ -265,15 +279,15 @@ token SDK 획득·Target credential 보관·서버 동기화는 Stage 2 App이, 
 - 목록/상세 요청에서 `Scraper → Parser → SourceModel → Mapper → Response` 경계를 유지한다.
 - Upcoming/Live, Results, Match Detail HTML을 app-facing response로 가공한다.
 - DOM selector, raw HTML, Jsoup type을 public response에 노출하지 않는다.
-- 알림 기능에 한해 Target별 subscription persistence, 10분 schedule slot 처리, 상태 비교와 idempotent START delivery를 소유한다.
+- MVP 이후 Stage 2 알림 기능에 한해 Target별 subscription persistence, 10분 schedule slot 처리, 상태 비교와 idempotent START delivery를 소유한다. 기존 Stage 1.1 offline 구현은 이 작업의 기반으로 보존한다.
 - network/parsing failure를 안전한 공통 error envelope로 반환하고 실패를 terminal Match 상태로 오인하지 않는다.
 
 ### 앱
 
 - remote DTO를 app Domain Model로 매핑하고 목록/상세 UiState를 관리한다.
 - 앱이 저장하지 않는 로컬 즐겨찾기는 Match뿐이다. Team·Player 로컬 즐겨찾기의 저장 책임은 [`my-page/README.md`](../my-page/README.md) 계약을 따른다.
-- platform permission 확인/요청과 system settings 이동 bridge를 제공한다.
-- 서버 구독 생성/해제 결과를 반영해 로컬과 서버 상태가 일치하도록 조정한다.
+- MVP 이후 Stage 2에서 platform permission 확인/요청과 system settings 이동 bridge를 제공한다.
+- MVP 이후 Stage 2에서 서버 구독 생성/해제 결과를 반영해 로컬과 서버 상태가 일치하도록 조정한다.
 - push credential이나 raw server failure를 UI에 노출하지 않는다.
 
 ## 서버 조회 API 계약 (Matches slice)
@@ -335,7 +349,7 @@ fixture는 최소한 BO1, BO3 2:0, BO3 2:1, BO5 3:1, BO5 3:2, FFW/정보 제한 
 
 ## 검증 가능한 수용 기준
 
-체크된 서버 항목은 `main`에서 실제로 증명된 현재 기능 범위이며, Stage 1.1 Target/Firestore/START-only/scheduler 항목도 offline GREEN evidence가 확인된 구현 사실이다. App 연동, 실제 Firebase/GCP와 기기 표시는 Stage 2다.
+체크된 서버 항목은 `main`에서 실제로 증명된 현재 기능 범위이며, Stage 1.1 Target/Firestore/START-only/scheduler 항목도 offline GREEN evidence가 확인된 구현 사실이다. MVP 완료 판정에는 목록과 상세·Match Detail Basic D1 및 관련 품질 검증을 사용한다. 아래 Stage 2 알림 항목과 App 연동·실제 Firebase/GCP·기기 표시 검증은 MVP 이후에 별도로 완료한다.
 
 ### 목록과 상세
 
@@ -364,7 +378,7 @@ Matches 목록은 #38에서 구현 완료되었고, Match Detail Basic D1과 구
 - [x] Compose UI 테스트에서 48dp interactive target, 접근 가능한 label, 긴 한국어 Team/Event/description의 안전한 배치를 검증한다.
 - [ ] Android/iOS 실제 기기 screenshot 비교와 실기기 접근성 검증은 별도 수행이 필요하다.
 
-### 즐겨찾기, 권한, 전역 설정
+### Stage 2: 즐겨찾기, 권한, 전역 설정
 
 - [ ] 활성 system permission과 앱 전역 알림 설정 ON 상태에서 Upcoming/Postponed Match 알림을 설정하면 server subscription만 생성되고 로컬 즐겨찾기는 생성되지 않는다.
 - [ ] Match 알림은 MyPage에 별도 경기 즐겨찾기 그룹으로 표시되지 않으며, MyPage의 Next Matches는 즐겨찾기 Team 기반 계획 계약이다.
@@ -384,7 +398,7 @@ Matches 목록은 #38에서 구현 완료되었고, Match Detail Basic D1과 구
 - [ ] server unsubscribe가 실패해도 Match Detail을 유지하고 confirmed bell ON과 actionable Snackbar Retry를 표시한다.
 - [ ] Match Detail의 벨은 Live/Completed/Cancelled/Unavailable/FFW에는 노출되지 않는다.
 
-### 서버 추적과 전달
+### Stage 2: 서버 추적과 전달
 
 - [ ] request-bound scheduler가 활성 구독을 Target별이 아닌 고유 Match ID별 10분 schedule slot로 확인한다.
 - [ ] Target별·전체 active unique Match 상한 100을 Firestore transaction과 concurrency test로 지킨다.

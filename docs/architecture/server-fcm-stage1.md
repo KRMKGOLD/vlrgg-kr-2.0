@@ -3,11 +3,11 @@
 - Status: Stage 1.1 offline server implementation GREEN
 - Last reviewed: 2026-07-31
 - Scope: `server` only, credential-free and offline-verifiable
-- Related: [ADR-0001](adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](adr/0002-match-notification-stage1-1-offline-firestore-boundary.md), [Matches](../feature/matches/README.md), [CI/CD](../ci-cd.md)
+- Related: [ADR-0001](adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](adr/0002-match-notification-stage1-1-offline-firestore-boundary.md), [Feature Guide](../feature/README.md), [Stage 2 Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76), [Matches](../feature/matches/README.md), [CI/CD](../ci-cd.md)
 
 ## Document role
 
-이 문서는 완료된 Match 알림 Stage 1.1 구현 계약과 종료 조건을 정의한다. 과거 Stage 1 구현 사실과 현재 Stage 1.1 구현을 구분한다.
+이 문서는 완료된 Match 알림 Stage 1.1 offline 서버 기반의 구현 계약과 종료 조건을 정의한다. 제품 Match 알림은 1차 MVP에서 제외되며 앱·실환경 연동과 운영 배포는 MVP 이후 [Stage 2 Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76)에서 진행한다. 과거 Stage 1 구현 사실과 현재 Stage 1.1 구현을 구분한다.
 
 - 과거 Stage 1: H2/Flyway, registration-value 기반 loopback API, process-owned fixed-delay tracking/delivery loop, START/END intent, Firebase Admin adapter를 사용했다.
 - 현재 Stage 1.1: Firestore SDK + Emulator, 익명 Target 권한, START-only intent, request-bound scheduler use case, test-only fake App Check/FCM으로 교체됐다.
@@ -27,7 +27,7 @@ Stage 1.1의 종료 문구는 다음과 같다.
 - Target ID나 secret이 앱 삭제·재설치 등으로 유실되어 새 Target이 생성되는 것은 허용한다. 이전 Target을 물리 기기나 사용자 기준으로 복원·병합하지 않는다.
 - canonical delivery address는 opaque FCM registration token이다. FID, Android device ID, iOS identifier를 전송 주소나 권한 증명으로 사용하지 않는다.
 - 한 Target은 자신이 선택한 Match만 구독한다. Topic은 공용 공지 요구가 생기기 전까지 사용하지 않는다.
-- MVP 사용자 알림은 Match `START` 한 종류다. `END`, Team/Player 알림, 알림함과 사용자별 이력은 제외한다.
+- Stage 2의 첫 제품 알림 범위는 Match `START` 한 종류다. `END`, Team/Player 알림, 알림함과 사용자별 이력은 현재 Stage 2 범위에서 제외한다.
 - 데이터베이스는 콘텐츠 cache가 아니라 Target, 구독, 한 번만 발송하려는 intent와 scheduler checkpoint를 보존하는 데만 사용한다.
 
 ## Stage boundary
@@ -44,7 +44,7 @@ Stage 1.1의 종료 문구는 다음과 같다.
 - `/health`, `PORT`, `0.0.0.0`, `installDist`의 credential-free local runtime 검증
 - 문서와 PR CI의 offline GREEN evidence 및 live `NOT RUN — Stage 2` ledger
 
-### Stage 2로 이동
+### MVP 이후 Stage 2로 이동
 
 - 알림을 위한 `app/**` 구현과 Android/iOS FCM·App Check 연동. 충돌 수집은 별도 [#121 Crashlytics](../app-crashlytics.md) 범위다.
 - 실제 Firebase App Check token 검증과 Firebase App ID allowlist

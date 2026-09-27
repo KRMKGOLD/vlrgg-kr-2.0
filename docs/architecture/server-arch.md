@@ -6,7 +6,7 @@
 
 Compose Multiplatform 앱은 VLR.GG HTML 구조를 알지 않는다. CSS selector, Jsoup `Document`·`Element`, 원본 HTML, scraping 보정은 서버 경계 안에 머문다. 앱은 app-facing API contract만 사용한다.
 
-첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 일반 콘텐츠 조회에는 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. Match 알림만 익명 Target 구독·delivery 상태를 위한 좁은 Firestore 영속 저장과 request-bound scheduler를 feature-specific 예외로 허용한다. 상세 persistence, provider, retry, authority, 검증과 Stage 2 gate는 [Stage 1.1 technical contract](server-fcm-stage1.md)가 소유한다. 이 문서는 개별 feature 구현이나 API 명세가 아니라 Ktor 서버의 아키텍처와 개발 방향을 정한다.
+첫 단계의 서버는 개인 앱을 위한 작은 개발 서버다. 일반 콘텐츠 조회에는 데이터베이스, 주기 갱신 job, durable cache를 전제하지 않는다. 1차 MVP에서 제외된 Match 알림은 MVP 이후 Stage 2에서 진행하며, 익명 Target 구독·delivery 상태의 좁은 Firestore 영속 저장과 request-bound scheduler를 feature-specific 예외로 허용한다. 기존 Stage 1.1 offline 구현은 그 기반으로 보존한다. 상세 persistence, provider, retry, authority, 검증과 Stage 2 gate는 [Stage 1.1 technical contract](server-fcm-stage1.md)가 소유한다. 이 문서는 개별 feature 구현이나 API 명세가 아니라 Ktor 서버의 아키텍처와 개발 방향을 정한다.
 
 ## Current State and Direction
 
@@ -120,12 +120,12 @@ Jsoup `Document`와 `Element`, CSS selector, raw HTML, parsing 보정은 parser 
 
 ## Match Notification: Stage 1.1 offline gate
 
-Match 알림은 일반 request-time scraping/no-database 정책의 좁은 예외다. 로그인 없이 앱 설치 단위의 익명 Target을 만들고, 그 Target이 선택한 Match의 START 알림만 관리한다. App Check는 앱 진위를, one-time Target Secret은 Target 권한을 증명한다. FCM registration token은 전달 주소이며 FID나 물리 기기 identity가 아니다.
+제품 Match 알림은 1차 MVP 범위에 포함하지 않고 MVP 이후 Stage 2에서 진행한다. 현재 Stage 1.1 구현은 Stage 2를 위한 credential-free offline 서버 기반이며, 일반 request-time scraping/no-database 정책의 좁은 예외다. 로그인 없이 앱 설치 단위의 익명 Target을 만들고, 그 Target이 선택한 Match의 START 알림만 관리한다. App Check는 앱 진위를, one-time Target Secret은 Target 권한을 증명한다. FCM registration token은 전달 주소이며 FID나 물리 기기 identity가 아니다.
 
 - 한 Target은 활성 Match를 최대 100개 구독한다.
 - 전체 active unique Match도 최대 100개이며 같은 Match의 upstream 확인은 Target 수와 무관하게 한 번이다.
 - 10분은 desired schedule 간격이고 실제 작업은 bounded `NotificationSchedulerUseCase` 호출로 수행한다.
-- Match `UPCOMING`/`POSTPONED -> LIVE` 전환만 START intent를 생성한다. END 알림은 MVP에서 제외한다.
+- Match `UPCOMING`/`POSTPONED -> LIVE` 전환만 START intent를 생성한다. END 알림은 현재 Stage 2 범위에서 제외한다.
 - subscription별 START intent는 하나이며 committed call marker 이후 결과가 불명확하면 `UNKNOWN`으로 격리하고 자동 재발송하지 않는다.
 - Target, subscription, capacity, lease, fan-out cursor와 delivery intent는 Firestore에 영속화한다.
 - 일반 scraping response와 이전 Match 결과를 Firestore cache나 failure fallback으로 저장하지 않는다.
@@ -134,7 +134,7 @@ Stage 1.1은 Firestore SDK의 transaction/query/document mapping을 Emulator에�
 
 Stage 2는 Android/iOS Target client, 실제 App Check/FCM, production Firestore/IAM/index, OIDC Scheduler route, Cloud Run과 CD를 소유한다. 앱 삭제·재설치로 Target credential을 잃으면 새 Target을 만들며 이전 Target을 자동 복원·병합하지 않는다.
 
-구체적인 Target API, Firestore transaction, provider command/result, retry, scheduler policy와 offline/live completion gate는 [Stage 1.1 technical contract](server-fcm-stage1.md)가 소유한다. 제품 흐름은 [Matches 기능 문서](../feature/matches/README.md), 배포 방향은 [CI/CD 문서](../ci-cd.md)를 따른다.
+구체적인 Target API, Firestore transaction, provider command/result, retry, scheduler policy와 offline/live completion gate는 [Stage 1.1 technical contract](server-fcm-stage1.md)가 소유한다. 제품 범위는 [Feature Guide](../feature/README.md), Stage 2 실행 범위는 [Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76), 배포 방향은 [CI/CD 문서](../ci-cd.md)를 따른다.
 
 ## Public API Error Contract
 
