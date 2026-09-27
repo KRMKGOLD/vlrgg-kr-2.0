@@ -1,7 +1,7 @@
 # Server FCM Match Notification — Stage 1.1 offline contract
 
 - Status: Stage 1.1 offline server implementation GREEN
-- Last reviewed: 2026-07-31
+- Last reviewed: 2026-09-27 — 문서·코드·Stage 2 범위 대조; 아래 offline 실행 증거는 2026-07-31 기록이며 이번 문서 검토에서 재실행하지 않았다.
 - Scope: `server` only, credential-free and offline-verifiable
 - Related: [ADR-0001](adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](adr/0002-match-notification-stage1-1-offline-firestore-boundary.md), [Feature Guide](../feature/README.md), [Stage 2 Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76), [Matches](../feature/matches/README.md), [CI/CD](../ci-cd.md)
 
@@ -48,35 +48,13 @@ Stage 1.1의 종료 문구는 다음과 같다.
 
 - 알림을 위한 `app/**` 구현과 Android/iOS FCM·App Check 연동. 충돌 수집은 별도 [#121 Crashlytics](../app-crashlytics.md) 범위다.
 - 실제 Firebase App Check token 검증과 Firebase App ID allowlist
-- 실제 FCM registration token 획득·갱신·발송·기기 표시
+- 실제 FCM 전달 주소 획득·갱신·발송·기기 표시. Stage 1.1 token에서 FID로 전환하는 계약은 [#77](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/77)에서 확정한다.
 - production Firestore client factory, ADC, IAM, index activation과 live smoke
 - public Scheduler route, Google OIDC 검증, Cloud Scheduler resource
 - GCP API/Service Account/IAM, Cloud Run, WIF, GitHub Actions CD, traffic 전환과 rollback
 - 실제 health/auth/Firestore/FCM/Cloud Run smoke와 비용·운영 관측
 
 Stage 1.1에서는 위 항목을 skip-success로 만들지 않는다. 결과 표기는 정확히 `NOT RUN — Stage 2`다.
-
-## Architecture
-
-```text
-Test client
-  -> Ktor Target routes
-     -> fake AppCheckVerifier
-     -> Target Secret authorization
-     -> Target use cases
-        -> FirestoreNotificationStore
-           -> Firestore Emulator
-
-Test scheduler harness
-  -> NotificationSchedulerUseCase(scheduleSlot, requestOwnerId)
-     -> unique Match poll
-     -> persistent START fan-out resume
-     -> due delivery claim
-     -> fake NotificationProvider
-     -> durable result/failure state
-```
-
-일반 `main`/local/packaged runtime에는 fake App Check/FCM 생성 경로와 public scheduler route가 없다. Stage 1.1의 packaged smoke에서는 알림 route가 disabled/fail-closed인 상태로 `/health`만 검증한다.
 
 ## Anonymous Target authority
 
@@ -188,14 +166,7 @@ CALL_STARTED -> ACCEPTED | INVALID_TARGET | RETRY_WAIT | TERMINAL_FAILURE | UNKN
 
 FCM provider acceptance는 실제 기기 표시를 보장하지 않는다. 이 계약의 “한 번”은 서버가 동일 intent를 의도적으로 다시 발송하지 않는다는 의미다.
 
-## Configuration, redaction, and local runtime
-
-- 서버는 Cloud Run 호환을 위해 `0.0.0.0`에 bind하고 `PORT`를 읽어야 한다. 현재 환경 변수 이름과 이전 listener 설정의 migration은 구현 단계에서 테스트로 고정한다.
-- `/health`는 외부 credential 없이 server process 상태를 확인할 수 있어야 한다.
-- `application.mainClass`는 `kr.co.cotton.vlrgg_mobile.ApplicationKt`이며 현재 확인된 packaging task는 `:server:installDist`다.
-- local/main/packaged runtime은 emulator host나 credential을 암묵적으로 탐색하지 않는다. offline integration test만 explicit emulator factory를 생성한다.
-- secret, registration token, App Check evidence, provider message ID, raw exception/status/header, intent/claim identifiers를 response, URL, log, metric label에 기록하지 않는다.
-- 허용 관측은 bounded category, state transition count, backlog count, scheduler result 정도다.
+일반 `main`/local/packaged runtime에는 fake App Check/FCM 생성 경로와 public scheduler route가 없다. 알림 route는 disabled/fail-closed이며 `/health`만 credential 없이 확인한다. Emulator integration test만 explicit emulator factory를 만든다. Target Secret은 최초 Target 생성 성공 응답에서 정확히 한 번만 반환한다. 해당 응답 본문만 secret을 포함할 수 있는 유일한 예외이며, 그 밖의 모든 response, URL, log와 metric label에는 secret, registration token, App Check evidence, provider message ID, raw exception/status/header와 intent/claim identifier를 기록하지 않는다.
 
 ## Verification and completion gate
 
@@ -213,15 +184,3 @@ Stage 1.1 구현 PR은 최소 다음을 fresh GREEN으로 증명해야 한다.
 10. live matrix의 모든 항목이 정확히 `NOT RUN — Stage 2`
 
 구현 중 TDD RED는 임시 로컬 상태일 수 있지만 commit/PR terminal에는 의도적인 실패 테스트를 남기지 않는다. Emulator category는 default `test`에서 제외하고 전용 task와 CI에서 명시적으로 실행한다. 신규 JUnit5 전환은 하지 않는다.
-
-## Implementation order
-
-1. 문서와 ADR 정합화
-2. repository/domain/provider 계약 추출과 기존 동작 parity test
-3. Firestore SDK + Emulator adapter GREEN
-4. composition 전환
-5. H2/Flyway/Hikari, Firebase lifecycle, fixed-delay loops 제거
-6. 익명 Target authority와 START-only HTTP 계약 구현
-7. persistent tracking/fan-out/delivery와 request-bound scheduler 구현
-8. credential-free CI와 전체 offline evidence 수집
-9. 별도 Stage 2에서 App·실제 Firebase/GCP·Cloud Run smoke 수행
