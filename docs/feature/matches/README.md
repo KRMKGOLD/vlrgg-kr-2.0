@@ -201,7 +201,7 @@ Mutation 중에는 modal scrim·center spinner를 표시하고 화면 전체 act
 
 ### Match 알림 설정
 
-아래 알림 설정·해제·전역 OFF 흐름은 MVP 이후 Stage 2에만 적용한다.
+알림 설정·해제·전역 OFF는 MVP 이후 Stage 2 범위다. 아래 1~7의 권한 요청·전역 설정 변경·시스템 설정 이동 순서는 [#78](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/78)에서 확정하기 전의 UX 제안이다.
 
 1. 사용자가 Match Detail에서 알림 action을 선택한다.
 2. 앱 전역 알림과 system permission이 모두 활성화된 경우 server subscription 생성을 진행한다.
@@ -215,7 +215,7 @@ Mutation 중에는 modal scrim·center spinner를 표시하고 화면 전체 act
 
 server subscription 생성이 확정적으로 실패하면 벨을 OFF로 유지하고 전체 설정 실패를 표시한다. 성공한 것으로 보이는 중간 상태를 유지하지 않으며 사용자는 같은 동작을 재시도할 수 있다.
 
-권한 요청 시점과 전역 설정 UX는 #78에서 확정한다. 어떤 정책을 택해도 권한 거부가 News/Matches 등 비알림 기능 사용을 막아서는 안 된다.
+어떤 정책을 택해도 권한 거부가 News/Matches 등 비알림 기능 사용을 막아서는 안 된다.
 
 ### Match 알림 해제
 
