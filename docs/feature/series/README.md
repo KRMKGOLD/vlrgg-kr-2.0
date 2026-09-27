@@ -15,7 +15,7 @@ Standings·ranking·포인트, 고급 진행 상태, 즐겨찾기·알림, 필�
 
 - Back app bar 아래 Series identity와 Upcoming, Completed를 표시한다.
 - 한 섹션만 비면 그 섹션의 Empty를 표시하고 다른 콘텐츠를 유지한다. 둘 다 비면 전체 Empty다.
-- optional metadata는 row의 missing marker로 처리한다. ID나 이름이 없어 식별할 수 없는 항목은 노출하지 않는다.
+- optional metadata 누락은 row의 missing marker로 처리한다. Event ID나 이름이 누락되면 Event를 개별적으로 생략하지 않고 전체 response를 `SOURCE_PARSING_FAILURE`로 실패시킨다.
 - response는 atomic이다. generic Partial이나 section transport error를 만들지 않고 조회·해석 실패는 identity와 섹션을 대체하는 full Error+Retry로 처리한다.
 - Event 왕복 뒤 scroll과 섹션 상태, Series 종료 뒤 Search query·결과·scroll을 복원한다.
 

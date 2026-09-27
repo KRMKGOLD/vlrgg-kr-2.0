@@ -14,7 +14,7 @@ Android/iOS 앱이 사용하는 공개 조회 API의 비싼 작업과 비용을 
 | request target / headers / body | 4 KiB / 16 KiB / 1 KiB | 400·413·431 또는 platform rejection |
 | upstream HTML / success JSON | 1 MiB / 2 MiB | 안전한 502 |
 
-잘못된 config는 server start에서 거절한다. 전체 deadline은 느린 body 수신보다 먼저 시작하고 request size → API token/concurrency → upstream admission 순서로 자원을 얻는다. 실패·취소 때 모두 반환한다. unknown route/method도 저비용 request limit 대상이며 upstream을 호출하지 않는다.
+잘못된 config는 server start에서 거절한다. 전체 deadline은 느린 body 수신보다 먼저 시작하고 request size → API token/concurrency → upstream admission 순서로 자원을 얻는다. 실패·취소 시 이미 획득한 API concurrency semaphore와 upstream fetch admission permit은 반환하지만, 소비한 token-bucket token은 환불하지 않는다. unknown route/method도 저비용 request limit 대상이며 upstream을 호출하지 않는다.
 
 과부하 response는 공통 `{code, message}`와 정수 `Retry-After`를 사용한다. exception, HTML, selector와 원본 URL은 반환하지 않는다. success JSON은 header 전송 전에 capped buffer로 직렬화한다. `/health`는 constant liveness response이며 API quota, upstream과 request log에서 분리한다.
 

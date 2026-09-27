@@ -30,7 +30,7 @@ OS process 종료에 자원 회수를 맡기며 별도 `AppRuntime` wrapper와 p
 
 ### Repository 실패
 
-Repository는 non-cancellation 실패를 `AppResult.Failure`로 변환하고 `CancellationException`은 전파한다. Raw exception, HTTP status, server message, upstream URL과 parser 세부사항은 공개 contract와 UI에 노출하지 않는다. 이후 추가된 `Busy` 경계는 [Domain](../domain-layer.md)과 [Data](../data-layer.md) 문서가 소유한다.
+Repository는 `PublicApiBusyException`을 `AppResult.Busy`로 변환하고, 그 밖의 non-cancellation 예외를 `AppResult.Failure`로 변환하며, `CancellationException`은 전파한다. Raw exception, HTTP status, server message, upstream URL과 parser 세부사항은 공개 contract와 UI에 노출하지 않는다. 이후 추가된 `Busy` 경계는 [Domain](../domain-layer.md)과 [Data](../data-layer.md) 문서가 소유한다.
 
 ## 결과
 

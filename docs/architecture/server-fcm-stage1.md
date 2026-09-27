@@ -166,7 +166,7 @@ CALL_STARTED -> ACCEPTED | INVALID_TARGET | RETRY_WAIT | TERMINAL_FAILURE | UNKN
 
 FCM provider acceptance는 실제 기기 표시를 보장하지 않는다. 이 계약의 “한 번”은 서버가 동일 intent를 의도적으로 다시 발송하지 않는다는 의미다.
 
-일반 `main`/local/packaged runtime에는 fake App Check/FCM 생성 경로와 public scheduler route가 없다. 알림 route는 disabled/fail-closed이며 `/health`만 credential 없이 확인한다. Emulator integration test만 explicit emulator factory를 만든다. secret, registration token, App Check evidence, provider message ID, raw exception/status/header와 intent/claim identifier는 response, URL, log와 metric label에 기록하지 않는다.
+일반 `main`/local/packaged runtime에는 fake App Check/FCM 생성 경로와 public scheduler route가 없다. 알림 route는 disabled/fail-closed이며 `/health`만 credential 없이 확인한다. Emulator integration test만 explicit emulator factory를 만든다. Target Secret은 최초 Target 생성 성공 응답에서 정확히 한 번만 반환한다. 해당 응답 본문만 secret을 포함할 수 있는 유일한 예외이며, 그 밖의 모든 response, URL, log와 metric label에는 secret, registration token, App Check evidence, provider message ID, raw exception/status/header와 intent/claim identifier를 기록하지 않는다.
 
 ## Verification and completion gate
 
