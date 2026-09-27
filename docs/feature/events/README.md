@@ -6,14 +6,9 @@ Events 기능은 사용자가 Valorant 대회의 현재 진행 상태를 훑고,
 
 이 문서는 제품 동작을 정의한다. 색상, 타이포그래피, 공통 컴포넌트와 접근성 기준은 루트 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
-## 구현 상태 (2026-09-03)
+## 구현 상태
 
-- **Backend: 구현 완료.** Event 목록, 상세, Matches, News, Stats endpoint와 scraper/parser/mapper 및 fixture/route 테스트가 구현되어 있다.
-- **App E1 — Event List: 구현 완료.** `GET /api/v1/events` 응답을 Domain Model로 매핑해 `Ongoing`, `Upcoming`, `Completed / Paused` 세 그룹을 항상 표시한다. 각 Event row는 이름, 상태 chip과 원본에 있는 경우 이미지·일정/기간(`dateLabel`)·지역(`regionCode`)을 표시하며, 선택하면 Events root back stack에 Event Detail route를 push한다.
-- **E1 화면 상태: 구현 완료.** 최초 로딩 skeleton, 전체 empty, 전체 오류와 재시도, pull-to-refresh를 제공한다. 한 상태 그룹이 비어도 해당 그룹의 빈 안내를 표시하고 다른 그룹의 콘텐츠는 유지한다.
-- **App E2–E4 — Event Detail: 구현 완료.** Event identity와 Matches(기본)/News/Stats 탭을 각각 독립 endpoint에 연결했다. identity 실패는 전체 Initial Error+Retry로, 탭 실패는 identity와 다른 성공 탭을 유지하는 tab-local Error+Retry로 처리한다.
-- **Event Detail 상태 복원: 구현 완료.** Navigation 3 entry의 ViewModel/saveable state 경계와 `SavedStateHandle`을 사용해 selected tab, 탭별 loaded data, 세로 scroll과 Stats metric 가로 scroll을 탭 전환·하위 Detail Back·root 전환 뒤에도 보존한다. 성공한 탭은 재선택할 때 다시 요청하지 않는다.
-- **후속 진입 경로: 구현 완료.** Matches의 Event 참조와 Search의 Event 결과가 Event Detail destination으로 연결된다. Team Detail과 Player Detail에는 Event 직접 이동 요소를 추가하지 않는다.
+목록·상세·Matches·News·Stats 서버 API와 앱 화면, 탭별 상태·복원, Matches/Search 진입 경로가 구현되어 있다. 자동화 검증은 완료됐지만 Android/iOS 실기기 시각·접근성 검증은 남아 있다.
 
 ## MVP 범위
 
@@ -38,7 +33,6 @@ Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 
 - Event List 2페이지 이후의 페이지네이션
 - VCT, VCL, Game Changers, Americas, EMEA, Pacific, China 필터
-- Matches Event 참조 및 Search Event 결과를 통한 Event Detail 진입
 - Overview 확장 콘텐츠
 - 브래킷
 - 참가 팀 전용 섹션
@@ -181,26 +175,7 @@ Player Agent Stats와 공통 Table을 사용하며 Event의 긴 목록은 기존
 
 MVP에서 제공하지 않는 필터나 브래킷 탭은 비활성 placeholder로 노출하지 않는다.
 
-## 앱과 서버 책임 경계
-
-### 앱
-
-- app-facing Response를 app Domain Model로 매핑한다.
-- Event 상태별 그룹화와 화면용 날짜·시간 포맷을 담당한다.
-- loading, empty, populated, tab-local error, stale 화면 상태를 표현한다.
-- Event, Match, News 선택을 Navigation 3 Screen callback으로 전달한다.
-- VLR.GG HTML, selector, Jsoup 타입을 알지 않는다.
-
-### 서버
-
-- VLR.GG Event List와 Event Detail HTML을 요청 시점에 가져온다.
-- DOM을 Jsoup으로 해석하고 server-internal `SourceModel`로 변환한다.
-- 원본 구조를 앱에 적합한 Event List/Detail Response로 정규화한다.
-- Matches, News, Stats의 정상 empty와 조회·해석 실패를 구분하며 누락 값을 임의 생성하지 않는다.
-- upstream 통신 실패는 `UPSTREAM_NETWORK_FAILURE`, DOM 해석 실패는 `SOURCE_PARSING_FAILURE` 공통 오류로 반환한다.
-- raw HTML, selector, 원본 예외 문구를 앱에 노출하지 않는다.
-
-### 서버 API 계약
+## 서버 API 계약
 
 Event Detail의 탭별 상태와 독립 재시도를 지원하기 위해 기본 정보, 경기, 뉴스, 통계를 각각 조회한다. `GET /api/v1/events/{eventId}` 실패는 Event Detail 전체 Initial Error+Retry이며, 기본 정보가 성공한 뒤 Matches, News, Stats endpoint 중 하나가 실패하면 Event identity와 성공한 다른 탭을 유지하고 해당 탭만 Retry 상태로 표시한다.
 

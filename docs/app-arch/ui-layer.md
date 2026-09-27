@@ -1,161 +1,39 @@
 # UI Layer
 
-## Responsibility
+UI 코드는 `app/shared/src/commonMain/.../ui`에 둔다. UI는 화면 렌더링, 상태 수집, 사용자 event와 navigation callback 전달을 담당하고 repository 구현이나 transport/storage model을 알지 않는다.
 
-UI Layer는 `commonMain/ui` 아래에 둔다.
+## App과 navigation
 
-UI Layer는 화면 렌더링, 사용자 이벤트 전달, navigation callback 연결, ViewModel state 수집, UI behavior 처리를 담당한다. 비즈니스 규칙, remote/local model 처리, repository 구현은 UI Layer에 두지 않는다.
+- 플랫폼 owner가 만든 `AppGraph`를 공통 `App(graph)`에 전달한다. `App`은 `LocalMetroViewModelFactory`, theme와 `AppNavigation`을 연결하며 graph를 recomposition 중 만들거나 feature parameter로 전달하지 않는다.
+- Navigation 3 key에는 복원에 필요한 안정적인 식별자만 넣고 직렬화 가능하게 만든다.
+- News, Matches, MyPage, Events, About는 root별 stack과 decorator state를 유지한다. 같은 root를 다시 고르면 그 root의 overlay만 pop한다.
+- Screen은 이동 의도를 callback으로 올린다. ViewModel은 back stack을 직접 조작하지 않는다.
 
-## `App.kt`
+수명, 복원과 root별 stack 계약은 [`app-runtime.md`](app-runtime.md)를 따른다.
 
-`App.kt`는 Compose 앱의 공통 진입점이다.
+## Screen, Content, ViewModel
 
-- 필요한 runtime dependency는 플랫폼 owner가 준비해 전달한다.
-- 공통 Theme를 적용한다.
-- `App.kt`는 `AppGraph`의 `metroViewModelFactory`를 `LocalMetroViewModelFactory`에 제공하고 `AppNavigation()`을 연결한다. Graph와 factory는 `NavigationContent`나 feature Screen parameter로 전달하지 않는다.
-- 최상위 navigation host를 연결한다.
-- 전역 scaffold나 app-level composition local이 필요하면 이 레벨에서 다룬다.
-- 개별 feature의 세부 UI나 비즈니스 로직을 직접 넣지 않는다.
-- graph를 composable 본문이나 recomposition 경로에서 생성하지 않는다.
-
-Graph와 navigation 상태의 기본 경계, preview/test seam은 `app-runtime.md`를 따른다.
-
-## `ui/theme`
-
-Theme 관련 코드는 `ui/theme` 아래에 둔다.
-
-예상 파일:
-
-- `Theme.kt`
-- `Colors.kt`
-- `Typography.kt`
-- `Dimensions.kt`
-
-Theme는 [`../../DESIGN.md`](../../DESIGN.md), Stitch 결과물, 화면 기획 문서를 기준으로 갱신한다.
-
-## `ui/component`
-
-여러 feature에서 실제로 재사용되는 component만 `ui/component`로 올린다.
-
-한 feature 안에서만 쓰는 component는 먼저 해당 feature의 `components/` 아래에 둔다. 재사용 가능성이 있다는 이유만으로 공통 component로 올리지 않는다.
-
-## Navigation
-
-Navigation 관련 코드는 `commonMain/ui/navigation` 아래에 둔다.
-
-Android와 iOS는 가능한 동일한 화면 흐름을 가진다. Compose Multiplatform Navigation 3 의존성과 공통 runtime은 구현되어 있으며 현재 정책은 `app-runtime.md`를 따른다.
-
-현재 공통 runtime 파일:
-
-- `AppNavKey.kt`
-- `AppNavigation.kt`
-- `AppNavigationState.kt`
-
-### `AppNavKey.kt`
-
-`AppNavKey.kt`는 앱에서 사용하는 screen key를 모아두는 파일이다.
-
-- key는 navigation 구현에 맞는 `NavKey` 형태로 둔다.
-- 저장·복원이 필요한 key에는 안정적인 식별자만 넣고 직렬화 가능하게 만든다.
-- route string을 화면 곳곳에 흩뿌리지 않는다.
-
-### `AppNavigation.kt`
-
-`AppNavigation.kt`는 앱 navigation 상태와 entry mapping을 정의한다.
-
-- Screen callback을 기준으로 화면 이동을 처리한다.
-- News, Matches, MyPage, Events, About마다 독립 root back stack과 transient overlay를 관리한다. root 전환은 stack을 보존하고, 같은 root 재선택만 그 root의 overlay를 pop한다.
-- 직렬화 가능한 key와 `SavedStateConfiguration`으로 모든 root stack을, `rememberSaveable`로 selected root를 저장·복원한다.
-- root별 `rememberDecoratedNavEntries`, saveable-state와 ViewModelStore entry decorator를 사용한다. 선택되지 않은 root도 decorator state가 유지되므로 entry ViewModel과 loaded page/selected tab, scroll·`rememberSaveable` UI state를 유지한다.
-- ViewModel이 `NavBackStack` 또는 동등한 navigation state를 직접 다루지 않게 한다.
-
-전체 runtime 구성, state restoration, deep link와 product-flow의 결정 경계는 `app-runtime.md`에서 관리한다. Deep link, adaptive scene, 인증 navigation은 후속 기능에서 당시 호환 API를 기준으로 결정한다.
-
-## Feature Package Rules
-
-Feature는 화면 단위로 패키지를 나눈다.
-
-기본 구성:
-
-```text
-feature/
-  home/
-    components/
-      MainTabRow.kt
-    MainScreen.kt
-    MainContent.kt
-    MainUiState.kt
-    MainContentState.kt # optional
-    MainViewModel.kt
-```
-
-각 파일의 책임은 다음과 같다.
-
-| File | Responsibility |
+| 구성 | 책임 |
 | --- | --- |
-| `*Screen.kt` | ViewModel state 수집, event callback 연결, navigation callback 전달 |
-| `*Content.kt` | stateless UI rendering |
-| `*UiState.kt` | 한 화면의 전체 UI 상태를 표현하는 single state container |
-| `*ContentState.kt` | 주요 콘텐츠 상태가 복잡할 때만 사용하는 optional sealed state |
-| `*ViewModel.kt` | 화면 상태 관리, repository/usecase 호출, UI event 처리 |
-| `components/*` | 해당 feature 내부에서만 쓰는 하위 composable |
+| `*Screen` | ViewModel 상태 수집, event/navigation callback 연결 |
+| `*Content` | `UiState`와 callback으로 그리는 UI |
+| `*UiState` | 한 화면의 전체 render snapshot |
+| `*ContentState` | 주요 콘텐츠 상태가 복잡할 때만 쓰는 선택적 하위 상태 |
+| `*ViewModel` | repository/use case 호출과 상태 변경 |
 
-Screen은 ViewModel과 UI를 연결한다. Content는 가능하면 순수하게 `uiState`와 callback만 받아 화면을 그린다.
+ViewModel은 MetroX map binding에 기여하고 Screen은 `metroViewModel()`로 현재 navigation entry의 instance를 얻는다. Runtime parameter가 필요한 ViewModel만 해당 feature에서 assisted creation을 사용한다.
 
-예시:
+## 상태와 event
 
-```kotlin
-@Composable
-fun MainScreen(
-    viewModel: MainViewModel,
-    onNavigateToMatchDetail: (String) -> Unit,
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+- 화면마다 하나의 `UiState` data class를 `StateFlow`로 노출한다.
+- 단순한 loading/content/error field로 충분하면 sealed state를 만들지 않는다. 배타적 상태와 표시 규칙이 복잡해 잘못된 조합이 생길 때만 feature-local `ContentState`를 둔다. `ContentState`는 `UiState`를 대체하거나 다시 포함하지 않는다.
+- Domain Model은 그대로 표시할 수 있으면 직접 사용한다. 형식화, label/icon, 화면별 그룹화·선택 상태가 필요할 때만 UI 전용 model을 둔다.
+- 사용자 event는 명시적인 ViewModel 함수 callback으로 전달한다. 공통 `UiAction`, reducer, Effect 또는 one-off stream은 실제 요구 전에는 만들지 않는다.
+- `AppResult.Failure`와 `Busy`는 화면 상태로 변환한다. raw exception, HTTP code와 data 내부 오류를 UI가 해석하지 않는다.
+- 재시도는 사용자가 누르는 명시적 event로 제공하며 자동 재시도하지 않는다. 비동기 완료 뒤 이동이 필요하면 해당 기능에서 state 기반 계약을 정한다.
 
-    MainContent(
-        uiState = uiState,
-        onRefreshClick = viewModel::refresh,
-        onFavoriteClick = viewModel::toggleFavorite,
-        onMatchClick = { matchId ->
-            onNavigateToMatchDetail(matchId)
-        },
-    )
-}
+## Component와 시각 규칙
 
-class MainViewModel(
-    private val matchRepository: MatchRepository,
-) : ViewModel() {
+feature 하나에서만 쓰는 composable은 해당 feature에 둔다. 두 feature 이상에서 같은 계약으로 재사용할 때 `ui/component`로 옮긴다. Theme와 접근성·시각 결정은 [`../../DESIGN.md`](../../DESIGN.md), 기능 문서와 Stitch 결과물을 따른다.
 
-    private val _uiState = MutableStateFlow(MainUiState())
-    val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
-
-    fun refresh() {
-        // fetch data and update uiState
-    }
-
-    fun toggleFavorite(matchId: String) {
-        // update favorite state
-    }
-}
-
-data class MainUiState(
-    val favoriteIds: List<String> = emptyList(),
-)
-```
-
-DI는 Metro DI와 MetroX ViewModel integration을 사용한다. Platform owner가 생성한 `AppGraph`는 `ViewModelGraph`를 확장하고, 공통 `App`이 graph의 `MetroViewModelFactory`를 `LocalMetroViewModelFactory`에 한 번 제공한다. 각 ViewModel은 `@ViewModelKey`와 `@ContributesIntoMap(AppScope::class)`로 provider map에 기여하며 Screen은 `metroViewModel()`로 현재 Navigation entry의 `ViewModelStoreOwner`에 속한 instance를 얻는다. `NavigationContent`는 graph, factory 또는 owner를 parameter로 전달하지 않는다. Feature composable은 app graph를 생성하거나 service locator처럼 조회하지 않으며, runtime parameter가 필요한 ViewModel의 assisted creation은 해당 기능 요구가 생길 때 MetroX 계약으로 추가한다.
-
-## UI State Rules
-
-- 화면 상태는 한 화면당 하나의 `UiState` data class로 표현하며, `UiState`는 화면 전체의 render snapshot이다.
-- 기본적으로는 `isLoading`, content, generic error처럼 필요한 단순 field만 사용한다.
-- loading, empty, error, content가 배타적이면서 각 상태별 data/표시 규칙이 많아 단순 field만으로 읽기 어렵거나 잘못된 조합이 생길 때만 feature-local sealed `ContentState`를 도입한다.
-- `ContentState`는 주요 콘텐츠 영역의 optional 하위 상태다. 전체 화면 snapshot인 `UiState`를 대체하거나 `UiState`를 다시 포함하지 않는다.
-- Domain Model은 presentation 변환이 필요하지 않으면 `UiState`의 content로 직접 사용할 수 있다.
-- 날짜/시간 표시, 상태 label·icon, 화면용 그룹화, 선택·확장 상태가 필요할 때만 UI Layer에 UiModel을 만든다. UiModel은 Domain Model을 포함할 수 있지만 Domain Layer로 전달하지 않는다.
-- ViewModel은 repository의 `AppResult`를 success 또는 generic error `UiState`로 변환한다. UI는 raw exception, HTTP code, Data Layer failure type을 해석하지 않는다.
-- UI event는 explicit ViewModel function callback으로 전달한다. 초기 구조에는 `UiAction`, `Effect`, reducer, Channel/SharedFlow 기반 one-off event stream을 도입하지 않는다.
-- 재시도는 해당 화면 요구가 있을 때만 명시적인 UI event로 추가한다. 자동 재시도와 failure type별 화면 분기는 초기 규칙에 포함하지 않는다.
-- navigation event는 ViewModel이 직접 실행하지 않고 Screen callback 또는 `AppNavigation`이 처리한다.
-- 초기에는 사용자의 직접 입력으로 발생하는 navigation을 Screen callback으로 처리한다. 비동기 작업 성공 뒤 자동 navigation이 필요한 기능은 해당 기능에서 state 기반 계약을 별도로 설계한다.
-- Toast·Snackbar는 UI behavior다. 공통 message 구현은 지금 정의하지 않으며, 실제 화면 요구가 생길 때 Compose UI 방식과 필요한 platform 위치를 함께 결정한다.
+상태 전이는 ViewModel test로, callback과 주요 상태 렌더링은 가장 좁은 UI test로 검증한다. 플랫폼별 실제 접근성과 시각 동작은 simulator/device 확인이 필요한 별도 근거로 취급한다.

@@ -1,171 +1,32 @@
-<!-- markdownlint-disable MD013 -->
-
 # VLR.GG Mobile 2.0
 
-VLR.GG의 Valorant e-sports 정보를 Android와 iOS에서 탐색할 수 있도록 재구성한 Compose Multiplatform 포트폴리오 프로젝트입니다.
+VLR.GG의 Valorant e-sports 정보를 Android와 iOS에서 탐색하는 Compose Multiplatform 포트폴리오 프로젝트입니다. Ktor 서버가 HTML을 앱용 JSON으로 가공하고, 앱은 UI·상태·데이터 로직을 공유합니다.
 
 [![CI](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/workflows/ci.yml/badge.svg)](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/workflows/ci.yml)
-![Kotlin](https://img.shields.io/badge/Kotlin-2.4.0-7F52FF?logo=kotlin&logoColor=white)
-![Compose Multiplatform](https://img.shields.io/badge/Compose_Multiplatform-1.11.1-4285F4?logo=jetpackcompose&logoColor=white)
-![Ktor](https://img.shields.io/badge/Ktor-3.5.0-087CFA?logo=ktor&logoColor=white)
 
-[Stitch에서 디자인 보기](https://stitch.withgoogle.com/projects/8765150675340843101) · [제품 및 설계 문서](docs/README.md) · [기능 구현 현황](docs/feature/README.md)
+[기능 기획과 구현 범위](docs/feature/README.md) · [문서 지도](docs/README.md) · [Stitch 디자인](https://stitch.withgoogle.com/projects/8765150675340843101)
 
-## 프로젝트 소개
+## 현재 범위
 
-웹 화면을 그대로 옮기지 않고, VLR.GG의 뉴스·경기·이벤트·팀·선수 정보를 모바일 탐색 흐름에 맞게 다시 구성했습니다. Ktor 서버는 HTML을 앱에서 사용하기 쉬운 JSON으로 가공하고, Compose Multiplatform 앱은 UI와 상태 관리 로직을 Android와 iOS에서 공유합니다.
+- News, Matches, Events, Search, Team·Player·Series Detail, Team·Player 즐겨찾기와 MyPage, About의 앱 화면과 필요한 서버 API가 연결되어 있습니다.
+- Android/iOS 실기기·접근성 검증과 E2E 후속 작업은 [#49](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/49), [#62](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/62)에서 관리합니다. 구현 완료와 MVP 검증 완료는 구분합니다.
+- 경기 알림은 [MVP 이후 Stage 2](docs/feature/README.md#mvp-이후-stage-2-경기-알림)입니다. 서버의 offline 기반 구현은 앱의 실제 푸시 연동 완료를 의미하지 않습니다.
+- 조회 서버의 Cloud Run 배포와 앱 내부 배포 절차는 [운영 문서](docs/README.md)에 있습니다. 공개 서비스 운영이나 스토어 정식 출시 완료를 뜻하지 않습니다.
 
-이 프로젝트에서 중점적으로 다룬 문제는 다음과 같습니다.
+## 구조
 
-- Android와 iOS 사이에서 UI, 상태, navigation, data 코드를 얼마나 공유할 것인가
-- 외부 HTML 구조의 변화를 앱 모델에 전파하지 않도록 어디에서 격리할 것인가
-- 화면 수가 늘어날 때 ViewModel과 navigation lifecycle을 어떻게 일관되게 관리할 것인가
-- loading, refresh, pagination, error를 하나의 예측 가능한 상태 흐름으로 어떻게 표현할 것인가
-
-## 주요 구현
-
-- **Compose Multiplatform shared-first 구조**: 대부분의 UI, ViewModel, Domain, Data 코드를 `commonMain`에 배치했습니다.
-- **Metro 기반 compile-time DI**: 플랫폼이 `AppGraph`의 생명주기를 소유하고, ViewModel은 keyed multibinding으로 기능별 등록이 가능합니다.
-- **Navigation 3 상태 관리**: 직렬화 가능한 destination, back stack 복원, entry별 saveable state와 ViewModel scope를 구현했습니다.
-- **UDF 기반 News vertical slice**: 서버 scraping부터 DTO, Domain Model, Repository, `StateFlow<UiState>`, Compose 목록 UI까지 연결했습니다.
-- **안전한 scraping 경계**: Jsoup selector와 DOM traversal을 서버 Parser에 가두고, 원본 HTML이나 내부 오류가 앱에 노출되지 않게 했습니다.
-- **fixture 중심 회귀 테스트**: 외부 HTML 변화에 민감한 Parser와 Route 계약을 fixture와 Ktor Test Host로 검증합니다.
-
-## 현재 구현 범위
-
-- [x] Android/iOS 공통 runtime, Navigation 3, Metro DI
-- [x] Light theme와 공통 UI component
-- [x] News 목록의 Server → Data → Domain → ViewModel → Compose UI 연결
-- [x] News, Matches, Events, Search, Team, Player, Series 서버 API
-- [ ] News Detail 및 나머지 기능의 앱 화면 연결
-- [ ] 실제 Android/iOS 기기의 시각·접근성 검증
-
-상세 상태와 기능별 수용 기준은 [Feature Guide](docs/feature/README.md)에서 관리합니다.
-
-## 시스템 구조
-
-GitHub README에서 환경에 관계없이 보이도록 구조를 텍스트로 표현했습니다.
-
-```text
-┌──────────────────┐               ┌──────────────────┐
-│ Android App      │               │ iOS App          │
-│ Application/Host │               │ SwiftUI App/Host │
-└────────┬─────────┘               └────────┬─────────┘
-         └──────────────┬───────────────────┘
-                        ▼
-              ┌─────────────────────┐
-              │ app/shared          │
-              │ Compose UI          │
-              │ Navigation 3        │
-              │ ViewModel / Domain  │
-              │ Data / Ktor Client  │
-              └──────────┬──────────┘
-                         │ JSON API
-                         ▼
-              ┌─────────────────────┐
-              │ server              │
-              │ Ktor 3 / Netty      │
-              │ Jsoup Parser        │
-              └──────────┬──────────┘
-                         │ request-time fetch
-                         ▼
-                    VLR.GG HTML
-```
-
-### 앱 아키텍처
-
-```text
-Platform Host
-  └─ AppGraph (Metro, application lifetime)
-       └─ App
-            ├─ VlrTheme
-            └─ Navigation 3
-                 └─ Screen
-                      └─ ViewModel: StateFlow<UiState>
-                           └─ Domain Repository: AppResult<T>
-                                └─ Repository Implementation
-                                     └─ RemoteDataSource
-                                          └─ app-scoped Ktor Client
-```
-
-#### 플랫폼과 공통 코드의 경계
-
-Android `Application`과 iOS SwiftUI `App`이 각각 `AppGraph`를 한 번 생성해 공통 `App(graph)`에 전달합니다. Compose 재구성이나 화면 이동은 graph와 Ktor client의 생명주기를 바꾸지 않습니다. 플랫폼 모듈에는 진입점과 설정만 남기고, 제품 로직은 `app/shared`에 모았습니다.
-
-#### 화면 상태와 이벤트
-
-Screen은 ViewModel을 연결하고 실제 UI는 Content composable로 분리합니다. ViewModel은 하나의 `UiState`를 `StateFlow`로 노출하며, navigation은 callback으로 요청합니다. 이 구조를 News 목록에 적용해 초기 로딩, 새로고침, 다음 페이지 요청, 오류 복구, 중복 요청과 중복 기사 삽입 방지를 검증했습니다.
-
-#### 계층별 모델 분리
-
-서버 응답 DTO는 Data 계층에 머물고 Mapper가 Domain Model로 변환합니다. UI는 Domain Model을 사용하되 표시 전용 값은 UI 계층에서 관리합니다. Repository는 일반 예외를 `AppResult.Failure`로 바꾸고 coroutine 취소는 그대로 전파합니다.
-
-#### Navigation과 ViewModel scope
-
-Navigation key에는 화면 복원에 필요한 안정적인 식별자만 저장합니다. root 화면과 그 위에 쌓이는 Search/Detail overlay를 하나의 back stack으로 관리하며, 각 entry가 saveable state와 ViewModelStore를 소유합니다. ViewModel이 back stack을 직접 변경하지 않아 화면 상태와 이동 책임이 섞이지 않습니다.
-
-관련 문서: [App Architecture](docs/app-arch/app-arch.md), [Runtime](docs/app-arch/app-runtime.md), [UI](docs/app-arch/ui-layer.md), [Domain](docs/app-arch/domain-layer.md), [Data](docs/app-arch/data-layer.md)
-
-### 서버 아키텍처
-
-서버는 Ktor의 일반적인 `Application`·plugin·routing 구성을 따르고, 기능 내부를 Route, Service, Scraper, Parser, Mapper로 나눴습니다. Ktor가 특정 디렉터리 구조를 강제하지 않으므로 아래 구조는 각 기능의 HTML 의존성과 API 계약을 한곳에 모으기 위한 프로젝트 규칙입니다.
-
-```text
-server/src/main/kotlin/.../
-├── Application.kt          # Netty 시작, plugin과 dependency 구성
-├── plugins/                # Serialization, logging, error handling
-├── routing/                # 공통 routing과 OpenAPI 설정
-├── common/
-│   ├── http/               # 공통 오류 응답
-│   └── scraping/           # upstream transport와 URL 검증
-└── feature/
-    ├── news/
-    ├── matches/
-    ├── events/
-    ├── search/
-    ├── teams/
-    ├── player/
-    └── series/
-```
-
-```text
-Route → Service → Scraper → Parser → SourceModel → Mapper → Response
-```
-
-공통 Ktor CIO client는 application lifetime 동안 재사용합니다. timeout, 응답 크기, redirect, 허용 host를 transport에서 제한하고, network failure와 parsing failure는 안전한 공통 응답으로 변환합니다. VLR.GG의 selector, 원본 HTML, upstream URL과 내부 예외는 client에 전달하지 않습니다.
-
-관련 문서: [Server Architecture](docs/architecture/server-arch.md)
-
-## 기술 스택
-
-| 영역 | 기술 |
+| 위치 | 역할 |
 | --- | --- |
-| Client | Kotlin Multiplatform, Compose Multiplatform, Material 3, Navigation 3, Metro, Coroutines/StateFlow, Ktor Client |
-| Server | Kotlin/JVM, Ktor 3, Netty, Jsoup, Kotlinx Serialization |
-| Test | kotlin-test, JUnit, Turbine, Mokkery, Ktor Test Host, HTML fixture |
-| Design & CI | Google Stitch, `DESIGN.md`, GitHub Actions |
+| `app/shared` | 공통 Compose UI, Navigation 3, Metro DI, ViewModel·Domain·Data |
+| `app/androidApp`, `app/iosApp` | 플랫폼 진입점과 OS 통합 |
+| `server` | Ktor/Netty API, Jsoup parser, 요청 시점 scraping |
+| `core` | 앱·서버가 공유하는 순수 Kotlin 코드 |
 
-정확한 버전은 [`gradle/libs.versions.toml`](gradle/libs.versions.toml)에서 관리합니다.
-
-## 프로젝트 구조
-
-```text
-.
-├── app/
-│   ├── shared/       # 공통 UI, Navigation, ViewModel, Domain, Data
-│   ├── androidApp/   # Android 진입점
-│   └── iosApp/       # iOS 진입점
-├── server/           # Ktor API와 scraping
-├── core/             # 앱·서버가 공유하는 순수 Kotlin 코드
-├── docs/             # 제품 요구사항, 아키텍처, ADR
-└── DESIGN.md         # Stitch 기반 디자인·접근성 계약
-```
+앱은 `StateFlow<UiState>`와 callback으로 상태를 관리하며 root별 navigation stack을 복원합니다. 서버는 HTML 의존성을 parser에 격리하고 안전한 응답만 노출합니다. 상세 계약은 [앱 아키텍처](docs/app-arch/app-arch.md)와 [서버 아키텍처](docs/architecture/server-arch.md), 정확한 의존성 버전은 [version catalog](gradle/libs.versions.toml)를 따릅니다.
 
 ## 로컬 실행
 
 JDK 21, Android Studio, Android SDK 36이 필요하며 iOS 실행에는 Xcode가 필요합니다.
-
-### 1. 서버 실행
 
 ```bash
 git clone https://github.com/KRMKGOLD/vlrgg-kr-2.0.git
@@ -173,17 +34,17 @@ cd vlrgg-kr-2.0
 ./gradlew :server:run
 ```
 
-서버는 로컬 개발용 `http://localhost:8080`에서 실행합니다. 공개 배포된 backend endpoint는 제공하지 않습니다.
-
-### 2. 앱 실행
-
-Android는 Android Studio에서 `app/androidApp`을 실행하고, iOS는 Xcode에서 `app/iosApp/iosApp.xcodeproj`를 엽니다. 각 플랫폼의 Debug 설정은 로컬 서버를 바라보도록 구성되어 있습니다.
+서버 기본 주소는 `http://localhost:8080`입니다. Android Studio에서 `app/androidApp`을 실행하거나 다음 명령으로 빌드합니다.
 
 ```bash
 ./gradlew :app:androidApp:assembleDebug
 ```
 
-## 검증
+iOS는 Xcode에서 `app/iosApp/iosApp.xcodeproj`를 엽니다. 기본 Debug API 주소는 Android Emulator에서 `http://10.0.2.2:8080`, iOS Simulator에서 `http://127.0.0.1:8080`입니다. 실기기는 접근 가능한 개발 서버 주소가 필요합니다. Release URL·서명·Firebase 설정은 [앱 배포](docs/app-release.md)와 [Crashlytics](docs/app-crashlytics.md)를 따릅니다.
+
+## 검증과 작업 기준
+
+변경한 모듈에 맞는 검증을 실행합니다.
 
 ```bash
 ./gradlew :server:test
@@ -192,32 +53,11 @@ Android는 Android Studio에서 `app/androidApp`을 실행하고, iOS는 Xcode�
 ./gradlew :app:androidApp:assembleDebug
 ```
 
-GitHub Actions는 앱 테스트·lint, 서버 테스트·build, packaged health smoke를 PR과 `main` push에서 검증합니다.
-
-### 로컬 G0 측정 baseline
-
-G0 benchmark는 production route나 VLR.GG에 요청하지 않고, loopback의 synthetic upstream을 사용해 paced/burst 요청의 로컬 기준선을 기록하는 opt-in 테스트입니다. 기본 `:server:test`에서는 `G0_BENCH_REPORT_PATH`가 없으므로 skip되며, synthetic 지연·개발 장비·JVM 상태의 영향을 받기 때문에 성능 보장이나 실제 upstream 측정으로 해석하면 안 됩니다. 보고서는 커밋하지 않으며, `server`를 test working directory로 사용하므로 존재하는 무시 경로인 절대 `/tmp`에 기록하고 `--rerun-tasks`로 이전 skip 결과가 측정 성공처럼 보이지 않도록 강제 재실행합니다.
-
-```bash
-G0_BENCH_REPORT_PATH=/tmp/vlrgg-g0-benchmark.txt \
-  ./gradlew :server:test \
-  --tests 'kr.co.cotton.vlrgg_mobile.benchmark.G0LocalFakeUpstreamBenchmarkTest' \
-  --rerun-tasks
-```
-
-## 디자인과 문서
-
-| 문서 | 내용 |
-| --- | --- |
-| [Stitch 프로젝트](https://stitch.withgoogle.com/projects/8765150675340843101) | 모바일 화면의 시각적 기준과 handoff |
-| [DESIGN.md](DESIGN.md) | 색상, typography, component, layout, 접근성 계약 |
-| [Feature Guide](docs/feature/README.md) | 제품 범위와 기능별 구현 상태 |
-| [Architecture Docs](docs/README.md) | 앱·서버 아키텍처와 ADR 안내 |
+CI gate와 opt-in 로컬 benchmark는 [CI/CD](docs/ci-cd.md), 작업 규칙은 [AGENTS.md](AGENTS.md), 시각·접근성 기준은 [DESIGN.md](DESIGN.md)에서 관리합니다.
 
 ## 프로젝트 운영 범위
 
-- 이 프로젝트는 Riot Games 또는 VLR.GG의 공식 앱이 아닙니다.
-- 개인 학습과 포트폴리오 제출을 위해 소스 코드를 공유합니다.
-- PRD에 정의된 기능을 구현한 뒤에도 공개 서비스로 운영할 계획이 없으며, 실배포 서버 주소도 제공하지 않습니다.
-- VLR.GG의 이용약관은 자동 scraping과 체계적인 데이터 추출을 제한합니다. 본 저장소는 공개 데이터 서비스를 제공하지 않으며, 로컬 개발과 구조 검증 범위에서만 upstream 데이터를 다룹니다.
-- 원본 HTML, 내부 예외, selector, token이나 secret은 API 응답과 저장소에 포함하지 않습니다.
+- Riot Games 또는 VLR.GG의 공식 앱이 아닌 개인 학습·포트폴리오 프로젝트입니다.
+- 공개 데이터 서비스를 운영할 계획은 없으며 실제 서버 주소·운영 식별자는 저장소에 공개하지 않습니다. Cloud Run 및 앱 배포는 개발·검증 범위입니다.
+- 개인 프로젝트라는 사실은 upstream 데이터 사용 허가를 의미하지 않습니다. scraping 제한과 공개 범위 변경 시 검토 사항은 [데이터 사용 경계](docs/feature/README.md#외부-제약)를 따릅니다.
+- 원본 HTML, 내부 예외, selector, token·secret은 API 응답에 노출하지 않으며 secret·운영 로그는 커밋하지 않습니다.

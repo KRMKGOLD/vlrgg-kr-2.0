@@ -1,78 +1,30 @@
-# Documentation Guide
+# 문서 지도
 
-## 목적
+`docs/`는 제품 기획과 아키텍처·운영 계약을 관리합니다. 임시 조사·계획·검토·실행 증거는 `.omx/`에 두고 장기 결정만 이곳에 반영합니다.
 
-`docs/`는 VLR.GG Mobile 2.0의 기능 기획과 앱·서버 아키텍처를 장기적으로 관리하는 source of truth다. 임시 조사, 인터뷰, 실행 계획, 검토 산출물은 `.omx/`에서 관리하고 장기 합의만 `docs/`에 반영한다.
-
-## 구조
-
-```text
-docs/
-  README.md
-  ci-cd.md
-  feature/
-    README.md
-    <feature>/
-      README.md
-  app-arch/
-    app-arch.md
-    app-runtime.md
-    ui-layer.md
-    domain-layer.md
-    data-layer.md
-    adr/
-      0001-thin-app-runtime-kernel.md
-  architecture/
-    server-arch.md
-    server-fcm-stage1.md
-    adr/
-      0001-match-notification-stage1-storage-and-provider-boundary.md
-      0002-match-notification-stage1-1-offline-firestore-boundary.md
-```
-
-| 위치 | 책임 |
+| 문서 | 소유하는 내용 |
 | --- | --- |
-| [`feature/`](feature/README.md) | 전체 MVP 지도, 기능별 사용자 흐름, 화면 상태, 노출 데이터, 수용 기준 |
-| [`app-arch/`](app-arch/app-arch.md) | Compose Multiplatform 앱의 모듈·UI·Domain·Data 경계 |
-| [`architecture/`](architecture/server-arch.md) | Ktor 서버, scraping, API 오류, 공통 server policy와 서버 전용 ADR |
-| [`ci-cd.md`](ci-cd.md) | 실제 Gradle task, credential-free CI, Stage 2 Cloud Run/WIF/CD 방향과 gate |
-| [`../DESIGN.md`](../DESIGN.md) | 공통 visual language, component, 접근성, interaction contract |
-| `.omx/` | 임시 계획, 인터뷰, 분석, 검토와 실행 상태 |
+| [Feature Guide](feature/README.md) | MVP와 Stage 2 범위, 공통 흐름, 기능별 요구사항·수용 기준 |
+| [DESIGN.md](../DESIGN.md) | 시각·컴포넌트·접근성·interaction 계약 |
+| [앱 구조](app-arch/app-arch.md) | 모듈과 레이어 경계 |
+| [앱 runtime](app-arch/app-runtime.md) | 플랫폼 소유 graph, ViewModel scope, navigation 복원 |
+| [UI](app-arch/ui-layer.md) · [Domain](app-arch/domain-layer.md) · [Data](app-arch/data-layer.md) | 각 레이어의 구현 규칙 |
+| [서버 구조](architecture/server-arch.md) | scraping·API·오류 경계 |
+| [서버 알림 기반](architecture/server-fcm-stage1.md) | Stage 1.1 offline 계약과 Stage 2 미구현 경계 |
+| [공개 조회 보호](architecture/server-public-api-protection.md) | 요청 제한과 앱 Busy 처리 |
+| [서버 배포·복구](architecture/server-container-deployment.md) | Cloud Run 배포, rollback, 비용 중단, 운영 알림 검증·복구 |
+| [CI/CD](ci-cd.md) | 검증 gate와 로컬 benchmark |
+| [앱 배포](app-release.md) | Android internal·iOS TestFlight 절차와 계정·서명 gate |
+| [Crashlytics](app-crashlytics.md) | Firebase 설정, 수집 정책, crash 검증 |
+| [AGENTS.md](../AGENTS.md) | 저장소 작업·commit·PR 규칙 |
 
-현재 제품 기획 문서는 `feature/`만 사용한다. `plans/`와 `operations/` 문서는 만들지 않는다.
+각 아키텍처 문서는 관련 ADR을 연결합니다. 현재 동작은 본문에서, 결정 이유와 재검토 조건은 ADR에서 확인합니다.
 
-## Feature 문서 규칙
+## 갱신 규칙
 
-- 전체 기능 관계와 공통 navigation은 `feature/README.md`가 소유한다.
-- 각 기능은 `feature/<feature>/README.md` 하나로 시작한다.
-- 화면이나 계약이 커져 한 파일의 책임이 불분명할 때만 하위 문서로 분리한다.
-- 아직 작업하지 않는 기능의 빈 문서나 placeholder directory를 만들지 않는다.
-- feature 문서는 목적, MVP 범위, 제외 범위, navigation, 화면 상태, 노출 데이터, interaction, app/server 경계, 수용 기준을 포함한다.
-- upstream URL과 parser 주의사항은 제품 동작과 구분해 같은 feature 문서의 별도 section에 둔다.
-- 같은 정책을 여러 문서에 복제하지 않고 canonical 문서에 링크한다.
-
-## 이름과 변경 규칙
-
-- directory와 filename은 소문자 `kebab-case`를 사용한다.
-- 문서 링크는 저장소 기준 상대 경로를 사용한다.
-- 장기 문서에는 필요할 때 `Status`, `Last reviewed`, `Related` metadata를 둔다.
-- 기능 범위가 바뀌면 해당 feature 문서와 `feature/README.md`를 함께 갱신한다.
-- navigation, theme, 공통 interaction이 바뀌면 `DESIGN.md`도 함께 확인한다.
-- module/dependency/layer 경계가 바뀌면 관련 architecture 문서를 함께 갱신한다.
-- 코드와 문서가 충돌하면 현재 구현과 변경 의도를 확인하고 같은 작업에서 정합화한다.
-
-## Source of Truth
-
-- 기능 기획: [`feature/README.md`](feature/README.md)
-- 디자인 시스템: [`../DESIGN.md`](../DESIGN.md)
-- 앱 전체 구조: [`app-arch/app-arch.md`](app-arch/app-arch.md)
-- 앱 runtime 확정 계약: [`app-arch/adr/0001-thin-app-runtime-kernel.md`](app-arch/adr/0001-thin-app-runtime-kernel.md)
-- UI 계층: [`app-arch/ui-layer.md`](app-arch/ui-layer.md)
-- Domain 계층: [`app-arch/domain-layer.md`](app-arch/domain-layer.md)
-- Data 계층: [`app-arch/data-layer.md`](app-arch/data-layer.md)
-- 서버 구조: [`architecture/server-arch.md`](architecture/server-arch.md)
-- Match 알림 Stage 1.1 서버 계약: [`architecture/server-fcm-stage1.md`](architecture/server-fcm-stage1.md)
-- Match 알림 Stage 1 역사 ADR: [`architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md`](architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md)
-- Match 알림 Stage 1.1 ADR: [`architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md`](architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)
-- CI/CD와 Cloud Run 방향: [`ci-cd.md`](ci-cd.md)
-- 저장소 작업 규칙: [`../AGENTS.md`](../AGENTS.md)
+- 기능은 `feature/<feature>/README.md` 하나로 시작합니다. 목적·포함/제외 범위·이동·상태·데이터·interaction·앱/서버 경계·수용 기준을 담고, 책임이 커질 때만 나눕니다. parser 메모는 제품 동작과 구분합니다.
+- 공통 기능 관계와 navigation은 `feature/README.md`가 소유합니다. 같은 정책을 복사하지 않고 해당 문서로 연결합니다.
+- 시작하지 않은 기능의 빈 문서나 `plans/`, `operations/` 같은 별도 문서 체계를 미리 만들지 않습니다.
+- 파일·디렉터리는 소문자 `kebab-case`, 링크는 상대 경로를 사용합니다. 상태나 검증 시점이 중요한 문장에는 기준 시점을 남깁니다.
+- 범위 변경 시 기능 문서와 Feature Guide를, navigation·theme·공통 interaction 변경 시 `DESIGN.md`를, 모듈·의존성·레이어 변경 시 아키텍처 문서를 함께 확인합니다.
+- 코드와 문서가 다르면 현재 구현과 변경 의도를 확인합니다. 미구현 요구사항을 구현 상태에 맞춰 없애거나, 검증하지 않은 동작을 완료로 표시하지 않습니다.

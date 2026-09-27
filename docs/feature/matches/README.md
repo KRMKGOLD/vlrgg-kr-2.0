@@ -6,15 +6,11 @@
 
 2026-09-27 범위 결정: 목록·상세 조회는 1차 MVP에 포함하고, 경기 알림은 MVP 이후 [Stage 2 Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76)으로 이관한다. 이 문서의 알림 관련 데이터·화면 상태·인터랙션·서버 연동·수용 기준은 모두 Stage 2 범위이며 MVP 완료를 차단하지 않는다. 완료된 Stage 1.1 서버 구현과 offline 검증 기록은 보존한다.
 
-## 구현 상태 (2026-09-04)
+## 구현 상태
 
-- **Backend 콘텐츠 조회: 구현 완료.** `GET /api/v1/matches/upcoming`, `GET /api/v1/matches/results`, `GET /api/v1/matches/{matchId}`와 해당 parser/route 테스트가 구현되어 있다.
-- **Backend Match 알림/구독: Stage 1.1 server offline GREEN.** Firestore Emulator, 익명 Target ID/Secret, START-only, request-bound scheduler로 Stage 1 runtime을 교체했고 credential-free contract/emulator/package evidence가 GREEN이다. 전체 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md), [ADR-0001](../../architecture/adr/0001-match-notification-stage1-storage-and-provider-boundary.md), [ADR-0002](../../architecture/adr/0002-match-notification-stage1-1-offline-firestore-boundary.md)를 따른다.
-- **App Matches 목록: 구현 완료.** Upcoming/Live와 Results의 독립 상태·페이지네이션·스크롤, 최초 로딩/빈 상태/오류/새로고침/추가 로딩 상태, 날짜 그룹과 공통 Match card, 실제 Match Detail 진입 및 root/detail 왕복 복원이 구현되어 있다.
-- **App Match Detail Basic D1: 구현 완료.** Loading/Content/Error, Upcoming/Postponed/Live/Completed/Cancelled/Unavailable, optional section Partial, `Match hero → Maps → Head to Head`, Team/Event/H2H 이동과 overlay/root 왕복 상태 복원을 구현했다. Android host 테스트·컴파일과 iOS simulator Compose UI 테스트로 검증했으며 실제 양 플랫폼 기기 screenshot·실기기 접근성 검증 완료를 주장하지 않는다.
-- **공통 Match item 계약 (#97): 구현 완료.** 목록 Match card와 Match Detail Head to Head는 UI 전용 `MatchContentItem`을 공유한다. 목록의 `VS`·결측 스코어는 기존 `label`, 완료 스코어는 `display`, Head to Head 스코어는 기존 `bodyStrong` typography를 각각 명시하며, 호출부가 팀 이름·score·metadata·상태와 navigation callback을 제공한다.
-- **이미지 연동 #70: 구현 완료.** #68의 nullable `homeTeam.imageUrl`과 `awayTeam.imageUrl`을 앱 DTO·Domain에 그대로 전달하고 Match Detail hero의 기존 양 팀 geometry 안에서 표시한다. null·blank·load failure는 기존 Team text placeholder를 유지한다. Upcoming/Live·Results 목록의 팀 이미지는 계약상 `null`이며 image request를 만들지 않고, event icon·Team ID/name 기반 URL·related/past Match 이미지를 사용하지 않는다.
-- **App Match 알림: MVP 이후 Stage 2 범위.** notification bell, 구독 mutation, Target credential, App Check/FCM, 권한·settings dialog와 전역 알림 흐름은 1차 MVP와 Match Detail Basic D1에 포함하지 않는다. Match favorite와 `pastMatches` UI도 구현하지 않았다.
+Matches 조회 API, Upcoming/Live·Results 목록과 Match Detail Basic은 구현되어 있다. 목록의 독립 pagination·refresh, 상태별 Detail, Team/Event/H2H 이동과 화면 복원은 자동 검증을 통과했지만 실제 양 플랫폼 screenshot·실기기 접근성 확인은 남아 있다.
+
+알림은 서버 Stage 1.1 offline 기반만 구현됐다. Firestore Emulator의 익명 Target 권한, START-only delivery와 request-bound scheduler는 GREEN이지만 앱 알림, 실제 App Check/FCM/production Firestore 연결은 Stage 2에서 검증한다. 상세 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md)와 두 ADR을 따른다.
 
 ## 목적과 사용자 가치
 
@@ -58,7 +54,7 @@
 - 앱 설치 단위의 익명 Target ID/Secret과 opaque FCM registration token을 이용한 서버 알림 구독
 - 외부 Scheduler가 10분 schedule slot마다 활성 구독의 고유 Match ID 상태 확인을 요청
 - Match 시작 알림 intent 1회
-- 최초 앱 실행의 알림 권한 요청, MyPage 전역 알림 ON/OFF, 비활성 상태의 안내 dialog와 system settings fallback
+- 알림 권한 요청 시점과 MyPage 전역 ON/OFF UX는 #78에서 확정하며, 비활성 상태의 안내 dialog와 system settings fallback을 제공
 
 ## 제외 범위
 
@@ -81,7 +77,7 @@ BO1/BO3/BO5와 몰수승·패처럼 정보가 제한된 경기는 MVP parser가 
 
 - Bottom navigation의 `Matches` 탭에서 진입한다.
 - Matches는 최상위 탭이므로 공통 Top App Bar와 Search 액션을 제공한다.
-- Event Detail, Team Detail, MyPage의 planned `Next Matches`에서도 Match Detail로 진입할 수 있다.
+- Event Detail, Team Detail과 Player Detail의 지원되는 Match 항목에서도 Match Detail로 진입할 수 있다.
 
 ### 내부 이동과 이탈
 
@@ -122,7 +118,7 @@ Live 상태는 색상만으로 전달하지 않고 텍스트 label을 함께 사
 
 정보가 존재하지 않는 FFW 등의 terminal Match는 비어 있는 정상 스탯 화면처럼 보이지 않아야 한다. 확인 가능한 팀, 결과, 상태를 우선 표시하고 사용할 수 없는 section은 명시적으로 생략하거나 unavailable로 표현한다.
 Upcoming/Postponed pre-match에서는 Maps와 Head to Head를 section-level Empty로 표시할 수 있다. Match Detail의 Event identity와 Team identity는 각각 Event/Team Detail로 이동한다.
-Team hero는 양쪽 모두 로고 영역을 위에, Team name을 아래에 쌓는 대칭 구조이며, score/result는 두 Team hero 사이의 수평 중앙에 배치한다. 서버 Detail 응답은 검증된 team header 이미지가 있을 때만 HTTPS `imageUrl`을 제공한다. 이 URL을 KMP에서 실제로 로드·표시하는 작업은 별도 범위이며, 목록 응답은 source 제약으로 `imageUrl`이 null이다.
+Team hero는 양쪽 모두 로고 영역을 위에, Team name을 아래에 쌓는 대칭 구조이며, score/result는 두 Team hero 사이의 수평 중앙에 배치한다. 서버 Detail 응답은 검증된 team header 이미지가 있을 때만 HTTPS `imageUrl`을 제공하고 KMP가 이를 표시한다. 목록 응답은 source 제약으로 `imageUrl`이 null이다.
 
 ## 표시 데이터와 선택성
 
@@ -219,7 +215,7 @@ Mutation 중에는 modal scrim·center spinner를 표시하고 화면 전체 act
 
 server subscription 생성이 확정적으로 실패하면 벨을 OFF로 유지하고 전체 설정 실패를 표시한다. 성공한 것으로 보이는 중간 상태를 유지하지 않으며 사용자는 같은 동작을 재시도할 수 있다.
 
-앱 최초 실행에서도 platform이 요청을 허용하는 상태라면 알림 권한을 요청한다. 권한 거부 자체가 News/Matches 등 비알림 기능 사용을 막아서는 안 된다.
+권한 요청 시점과 전역 설정 UX는 #78에서 확정한다. 어떤 정책을 택해도 권한 거부가 News/Matches 등 비알림 기능 사용을 막아서는 안 된다.
 
 ### Match 알림 해제
 
@@ -274,21 +270,7 @@ token SDK 획득·Target credential 보관·서버 동기화는 Stage 2 App이, 
 
 ## 앱과 서버 책임 경계
 
-### 서버
-
-- 목록/상세 요청에서 `Scraper → Parser → SourceModel → Mapper → Response` 경계를 유지한다.
-- Upcoming/Live, Results, Match Detail HTML을 app-facing response로 가공한다.
-- DOM selector, raw HTML, Jsoup type을 public response에 노출하지 않는다.
-- MVP 이후 Stage 2 알림 기능에 한해 Target별 subscription persistence, 10분 schedule slot 처리, 상태 비교와 idempotent START delivery를 소유한다. 기존 Stage 1.1 offline 구현은 이 작업의 기반으로 보존한다.
-- network/parsing failure를 안전한 공통 error envelope로 반환하고 실패를 terminal Match 상태로 오인하지 않는다.
-
-### 앱
-
-- remote DTO를 app Domain Model로 매핑하고 목록/상세 UiState를 관리한다.
-- 앱이 저장하지 않는 로컬 즐겨찾기는 Match뿐이다. Team·Player 로컬 즐겨찾기의 저장 책임은 [`my-page/README.md`](../my-page/README.md) 계약을 따른다.
-- MVP 이후 Stage 2에서 platform permission 확인/요청과 system settings 이동 bridge를 제공한다.
-- MVP 이후 Stage 2에서 서버 구독 생성/해제 결과를 반영해 로컬과 서버 상태가 일치하도록 조정한다.
-- push credential이나 raw server failure를 UI에 노출하지 않는다.
+조회 기능은 [공통 데이터 경계](../README.md#데이터와-서버-경계)를 따른다. Match는 로컬 favorite를 저장하지 않는다. Stage 2에서 서버는 Target별 subscription, schedule slot, 상태 비교와 idempotent START intent를 소유하고, 앱은 permission/settings bridge와 구독 상태 reconciliation을 소유한다. push credential과 raw failure는 UI에 노출하지 않는다.
 
 ## 서버 조회 API 계약 (Matches slice)
 
@@ -311,7 +293,7 @@ GET /api/v1/matches/{matchId}
 
 ### 현재 source 한계와 확장 지점
 
-- VLR.GG 목록 markup은 team/event의 안정적인 식별자와 절대 시각을 제공하지 않는다. 따라서 목록에서는 이름과 source 표시 문자열(`dateLabel`, `timeLabel`, `relativeTimeLabel`)만 제공하고 `team.imageUrl`은 null이다. 목록의 `.match-item-icon img`는 event icon이므로 team image로 사용하지 않는다. Detail markup의 검증된 각 team header link 내부 `img[src]`는 `//`·`/`·`https` source만 HTTPS public URL로 정규화해 해당 team의 `imageUrl`로 전달한다. source에 없는 ID·image URL·추정 timestamp를 만들지 않으며, HTTP·blank·data·javascript·bare-relative image source는 null이다. KMP가 Detail imageUrl을 로드·표시하는 적용은 이 server contract와 별도 범위다.
+- VLR.GG 목록 markup은 team/event의 안정적인 식별자와 절대 시각을 제공하지 않는다. 따라서 목록에서는 이름과 source 표시 문자열(`dateLabel`, `timeLabel`, `relativeTimeLabel`)만 제공하고 `team.imageUrl`은 null이다. 목록의 `.match-item-icon img`는 event icon이므로 team image로 사용하지 않는다. Detail markup의 검증된 team header link 안 `img[src]`는 `//`·`/`·`https` source만 HTTPS public URL로 정규화해 KMP가 표시한다. source에 없는 ID·image URL·추정 timestamp를 만들지 않으며, HTTP·blank·data·javascript·bare-relative image source는 null이다.
 - Detail의 `scheduledAt`은 upstream `data-utc-ts`를 안전하게 ISO-8601 UTC로 바꿀 수 있을 때만 포함한다. `timeLabel`은 source에서 읽은 사람이 읽을 수 있는 날짜/시간 label이며 UI가 locale/timezone 표시를 결정한다.
 - Detail의 `pastMatches`는 각 team history block 안에서 canonical numeric match link를 가진 `.match-histories-item`만 source 순서대로 전달한다. link가 없거나 상대 팀명이 빠진 item은 match identity를 합성하지 않고 제외하며, detail header의 team 순서와 item의 상대 팀/score만 사용한다.
 - `headToHead`는 `.match-h2h-matches`의 row가 canonical numeric match link를 직접 제공할 때만 source 순서대로 전달한다. canonical row reference가 없는 H2H row는 안정 식별자가 없다는 좁은 source limit 때문에 제외하며, event·team·score로 ID를 만들지 않는다; 유효한 row가 없으면 list는 빈 배열이다.
@@ -337,11 +319,7 @@ https://www.vlr.gg/matches/results/?page=2
 VLR.GG Match URL은 `/match/{id}/{slug}`가 아니라 `/{matchId}/{slug}` 형태다. 앱 내부 route는 `/matches/{matchId}`처럼 안정적인 ID만 사용한다.
 
 ```text
-https://www.vlr.gg/581310/diutu-vs-101-outlaws-ccce-city-cup-2025-ro23
 https://www.vlr.gg/675209/nongshim-redforce-vs-kiwoom-drx-esports-world-cup-2026-pacific-qualifier-stage-2-lr2
-https://www.vlr.gg/666497/paper-rex-vs-kiwoom-drx-vct-2026-pacific-stage-1-lr2
-https://www.vlr.gg/590032/leviat-n-vs-drx-china-esports-festival-super-champions-cup-gf
-https://www.vlr.gg/13247/vision-strikers-vs-nuturn-champions-tour-korea-stage-1-masters-gf
 https://www.vlr.gg/98525/kings-man-vs-hayabusa-gaming-champions-tour-korea-stage-2-challengers-closed-qualifier-ro12-gr
 ```
 
@@ -361,7 +339,7 @@ Matches 목록은 #38에서 구현 완료되었고, Match Detail Basic D1과 구
 - [x] 목록 pagination이 중복 항목 없이 동작하고 추가 페이지 실패 시 기존 목록을 유지한다.
 - [x] 경기 항목은 실제 Match Detail로, Match Detail의 Event reference는 Event Detail로 이동한다.
 - [x] Match Detail은 Event, 경기 설명, 양 팀, 스코어, 상태, 맵, Head to Head를 사용 가능한 범위에서 표시하고 기존 서버 `pastMatches` field를 UI section으로 렌더링하지 않는다.
-- [x] Match Detail의 양 Team hero는 로고 영역 위·이름 아래의 대칭 구조를 유지하고 score/result를 두 Team 사이 중앙에 배치한다. server Detail의 검증된 `imageUrl` 제공과 KMP remote logo 적용은 별도 경계로 관리한다.
+- [x] Match Detail의 양 Team hero는 로고 영역 위·이름 아래의 대칭 구조를 유지하고 score/result를 두 Team 사이 중앙에 배치하며 검증된 remote logo를 표시한다.
 - [x] BO1/BO3/BO5와 FFW fixture에서 상태별 선택성이 parsing failure와 구분된다.
 - [x] initial loading, empty, initial error, pagination error, unavailable 표현이 정상 populated 상태와 구분된다.
 - [ ] stale 데이터 표시는 현재 범위에 없으며, 향후 도입 시 마지막 확인 시각과 갱신 실패를 명시한다.
@@ -374,20 +352,20 @@ Matches 목록은 #38에서 구현 완료되었고, Match Detail Basic D1과 구
 - [x] map/H2H의 nullable score는 `—`, 실제 numeric zero는 `0`으로 구분한다.
 - [x] Team/Event ID가 있을 때만 전체 identity를 활성화하고 H2H 전체 surface는 관련 Match Detail로 이동한다.
 - [x] Matches Upcoming/Results, Event, Team, Player의 기존 Match route가 같은 실제 destination으로 해석되고 Back·root 전환 뒤 loaded/scroll overlay state를 보존한다.
-- [x] bottom navigation, notification bell·mutation·Snackbar, Match favorite, `pastMatches`를 Match Detail D1에 노출하지 않는다. server Detail `imageUrl`의 KMP remote image 적용은 별도 범위다.
+- [x] bottom navigation, notification bell·mutation·Snackbar, Match favorite, `pastMatches`를 Match Detail D1에 노출하지 않는다.
 - [x] Compose UI 테스트에서 48dp interactive target, 접근 가능한 label, 긴 한국어 Team/Event/description의 안전한 배치를 검증한다.
 - [ ] Android/iOS 실제 기기 screenshot 비교와 실기기 접근성 검증은 별도 수행이 필요하다.
 
 ### Stage 2: 즐겨찾기, 권한, 전역 설정
 
 - [ ] 활성 system permission과 앱 전역 알림 설정 ON 상태에서 Upcoming/Postponed Match 알림을 설정하면 server subscription만 생성되고 로컬 즐겨찾기는 생성되지 않는다.
-- [ ] Match 알림은 MyPage에 별도 경기 즐겨찾기 그룹으로 표시되지 않으며, MyPage의 Next Matches는 즐겨찾기 Team 기반 계획 계약이다.
+- [ ] Match 알림은 MyPage에 경기 즐겨찾기 그룹이나 `Next Matches`를 만들지 않는다.
 - [ ] 허용된 App Check evidence로 Target을 생성하면 Target ID와 one-time Target Secret을 받는다. FCM registration token은 서버 저장소의 전달 주소로만 보관하고 후속 public response, UI/public state, log에는 노출하지 않는다.
 - [ ] 같은 Target/Match의 서버 알림 설정을 반복하면 중복 없이 alarm ON으로 수렴하고 같은 revision/operation을 안전하게 replay한다.
 - [ ] Upcoming/Postponed Match 알림 해제는 current Target의 대응 subscription만 취소하며 반복 해제는 alarm OFF로 수렴한다.
 - [ ] 같은 Target의 설정·해제·global OFF는 revision ordering으로 최신 승인 의도에 수렴하며 stale·replay·conflict·exhaustion을 구분한다.
 - [ ] Team/Player 즐겨찾기는 Match 알림 subscription을 만들지 않는다.
-- [ ] 최초 앱 실행에서 platform이 허용하면 알림 권한을 요청하며, 거부해도 비알림 기능을 사용할 수 있다.
+- [ ] #78에서 권한 요청 시점과 전역 설정 UX를 확정하며, 거부해도 비알림 기능을 사용할 수 있다.
 - [ ] 전역 OFF 또는 권한 비활성 상태에서 Match 알림을 누르면 activation-required dialog가 표시된다.
 - [ ] dialog 활성화 흐름은 permission 성공 뒤에만 전역 설정을 ON으로 바꾸고 구독을 생성한다.
 - [ ] 앱 내 재요청이 불가능하면 명확한 안내와 system settings 이동 action을 제공한다.
