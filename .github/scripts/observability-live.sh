@@ -775,20 +775,27 @@ system_logs() {
 }
 
 private_exit() {
-  local status output="$evidence/private-response"
+  local status curl_exit=0 output="$evidence/private-response"
   require_fault_time
   guard_target
   require_fault_time
-  if test -n "${OBSERVABILITY_PRIVATE_HTTP:-}"; then
-    status="$("$OBSERVABILITY_PRIVATE_HTTP" POST "$SMOKE_URL" /__observability/exit "$output" '')" || status=000
-  else
-    status="$(curl -q --silent --proto '=https' --connect-timeout 5 --max-time 25 --max-filesize 2097152 \
-      --output "$output" --write-out '%{http_code}' --request POST --header @- "$SMOKE_URL/__observability/exit" \
-      <<< "X-Serverless-Authorization: Bearer $SMOKE_ID_TOKEN")" || status=000
-  fi
+  : > "$output"
   chmod 600 "$output"
-  test "$status" = 202 \
-    || fail 'The private abnormal-exit request returned an unexpected status.'
+  if test -n "${OBSERVABILITY_PRIVATE_HTTP:-}"; then
+    status="$("$OBSERVABILITY_PRIVATE_HTTP" POST "$SMOKE_URL" /__observability/exit "$output" '')" || curl_exit=$?
+  else
+    status="$(curl -q --silent --http1.1 --proto '=https' --connect-timeout 5 --max-time 25 --max-filesize 2097152 \
+      --output "$output" --write-out '%{http_code}' --request POST --header @- "$SMOKE_URL/__observability/exit" \
+      <<< "X-Serverless-Authorization: Bearer $SMOKE_ID_TOKEN")" || curl_exit=$?
+  fi
+  [[ "$status" =~ ^[0-9]{3}$ ]] || fail 'The private abnormal-exit request returned an invalid status.'
+  jq -cn --arg status "$status" --argjson exit "$curl_exit" --argjson at "$(now)" \
+    '{httpStatus:$status,curlExit:$exit,observedAt:$at}' >> "$evidence/exit-requests.jsonl"
+  # A synchronous halt interrupts the response; only the later native log proves an exit.
+  case "$curl_exit:$status" in
+    0:500|0:502|0:503|52:000|56:000) ;;
+    *) fail 'The private abnormal-exit request did not have an expected interrupted-response outcome.' ;;
+  esac
 }
 
 poll_health() {
@@ -811,6 +818,48 @@ poll_health() {
     sleep_for "$poll_seconds"
   done
   fail 'The private validation revision did not recover in the bounded poll.'
+}
+
+poll_second_exit_log() {
+  local signature="$1" after="$2" attempts=12 start
+  start="$(jq -nr --argjson at "$after" '$at | todateiso8601')"
+  while test "$attempts" -gt 0; do
+    poll_budget fault
+    system_logs "$start" "$evidence/system-second-exit.json"
+    if jq -e --arg signature "$signature" --arg revision "$OBSERVABILITY_REVISION" --argjson after "$after" \
+      --slurpfile first "$evidence/system-discovery.json" '
+      [$first[0].entries[]? | select(.resource.labels.revision_name == $revision and
+        .textPayload == $signature) | .insertId | select(type == "string" and length > 0)] as $firstIds |
+      ($firstIds | length) > 0 and any(.entries[]?;
+        . as $entry | .resource.labels.revision_name == $revision and .textPayload == $signature and
+        (.insertId | type == "string" and length > 0) and
+        ($firstIds | index($entry.insertId) | not) and
+        ((.timestamp | sub("[.][0-9]+Z$";"Z") | fromdateiso8601) >= $after))
+    ' "$evidence/system-second-exit.json" >/dev/null 2>&1; then return; fi
+    attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
+    poll_budget fault "$poll_seconds"
+  done
+  fail 'A distinct native log for the second abnormal exit did not arrive.'
+}
+
+run_log_delivery() {
+  local policy emitted_at
+  require_fault_window 900
+  export SYSTEM_LOG_NAME="projects/$PROJECT_ID/logs/run.googleapis.com%2Fstdout"
+  export SYSTEM_LOG_SIGNATURE='OBSERVABILITY_LOG_DELIVERY_CANARY'
+  policy="$(ensure_policy log)"
+  verify_single_condition "$policy"
+  # Same diagnostic grace as O9; this does not assert provider rule readiness.
+  require_fault_window 900
+  poll_budget fault 300
+  require_fault_window 600
+  emitted_at="$(now)"
+  private_request POST /__observability/log-canary 200
+  jq -e '.status == "emitted"' "$evidence/private-response" >/dev/null \
+    || fail 'The private log-delivery canary was not acknowledged.'
+  poll_alert_open "$policy" "$emitted_at" log 20 >/dev/null
+  result LOG_DELIVERY PASS
+  result LOG_DELIVERY-receipt 'RECEIPT PENDING'
 }
 
 run_o9() {
@@ -848,6 +897,7 @@ run_o9() {
   require_fault_window "$o9_fault_window"
   fault_started="$(now)"
   private_exit
+  poll_second_exit_log "$signature" "$fault_started"
   poll_alert_open "$policy" "$fault_started" log 20 >/dev/null
   poll_health
   result O9 PASS
@@ -859,7 +909,7 @@ run_o9() {
 main() {
   umask 077
   case "${OBSERVABILITY_SCOPE:-all}" in
-    all|o8-o9|o9) ;;
+    all|o8-o9|o9|log-delivery) ;;
     *) fail 'Unsupported private validation scope.' ;;
   esac
   require_env RUNNER_TEMP
@@ -870,6 +920,11 @@ main() {
   require_env OBSERVABILITY_WORKFLOW_STARTED_AT
   set_validation_deadline "$OBSERVABILITY_WORKFLOW_STARTED_AT"
   preflight
+  if test "${OBSERVABILITY_SCOPE:-all}" = log-delivery; then
+    run_log_delivery
+    result restore 'PENDING ALWAYS STEP'
+    return
+  fi
   if test "${OBSERVABILITY_SCOPE:-all}" = all; then
     require_fault_window 3300
     run_o3_o6
