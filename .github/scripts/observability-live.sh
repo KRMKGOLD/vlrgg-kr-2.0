@@ -185,7 +185,7 @@ private_request() {
   [[ "$path" == /health || "$path" == /__observability/* ]] || fail 'Private request path is not allowlisted.'
   case "$path" in
     /__observability/health/restore) guard_target ;;
-    /__observability/*) require_fault_time; guard_target ;;
+    /__observability/*) require_fault_time; guard_target; require_fault_time ;;
     /health) ensure_id_token ;;
   esac
   output="$evidence/private-response"
@@ -747,6 +747,7 @@ private_exit() {
   local status output="$evidence/private-response"
   require_fault_time
   guard_target
+  require_fault_time
   if test -n "${OBSERVABILITY_PRIVATE_HTTP:-}"; then
     status="$("$OBSERVABILITY_PRIVATE_HTTP" POST "$SMOKE_URL" /__observability/exit "$output" '')" || status=000
   else

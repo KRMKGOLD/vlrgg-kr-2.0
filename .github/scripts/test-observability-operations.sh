@@ -1707,6 +1707,33 @@ grep -q $'^POST\thttps://vlrgg-query-check-test.run.app\t/__observability/health
 grep -q $'^GET\thttps://vlrgg-query-check-test.run.app\t/health$' "$CASE_DIR/private-calls"
 pass 'fault cutoff blocks new faults but never blocks explicit restore and recovery polling'
 
+new_case live-target-guard-cutoff
+for path in /__observability/health/fail /__observability/exit /__observability/health/restore; do
+  for remaining in 1 0 -1; do
+    : > "$CASE_DIR/private-calls"
+    status=0
+    env CASE_DIR="$CASE_DIR" REMAINING="$remaining" SMOKE_URL=https://vlrgg-query-check-test.run.app \
+      OBSERVABILITY_PRIVATE_HTTP="$work_dir/private-http" OBSERVABILITY_DEADLINE_EPOCH=1700001900 \
+      bash -c '
+        source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+        clock=1700000000
+        now() { printf "%s\n" "$clock"; }
+        guard_target() { clock=$((OBSERVABILITY_DEADLINE_EPOCH - fault_reserve - REMAINING)); }
+        if test "$2" = /__observability/exit; then private_exit
+        else private_request POST "$2" 200; fi
+      ' _ "$live_helper" "$path" > /dev/null 2> "$CASE_DIR/guard-cutoff.stderr" || status=$?
+    if test "$remaining" -gt 0 || test "$path" = /__observability/health/restore; then
+      test "$status" = 0 && test "$(wc -l < "$CASE_DIR/private-calls" | tr -d ' ')" = 1 \
+        || fail 'allowed private request did not reach the endpoint exactly once'
+    else
+      test "$status" != 0 && test ! -s "$CASE_DIR/private-calls" \
+        || fail 'target guard latency allowed a fault at or after its cutoff'
+      grep -q 'fault cutoff expired' "$CASE_DIR/guard-cutoff.stderr"
+    fi
+  done
+done
+pass 'post-guard cutoff blocks health faults and exits at the boundary while allowing explicit restore'
+
 new_case live-o9-exits
 env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
   SERVICE_NAME=vlrgg-query-check CASE_DIR="$CASE_DIR" \
