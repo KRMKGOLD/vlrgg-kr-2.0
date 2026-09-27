@@ -1,7 +1,7 @@
 # CI/CD delivery direction — Cloud Run query server
 
-- Status: Stage 1.1 credential-free CI와 #111 조회 서버 후속 배포·rollback·비용 중단 후 복구·공개 조회 및 독립 검증 PASS; #122 관측 코드·workflow는 local validation 범위이며 live GCP 검증 NOT RUN; deployment enable=true, 수동 trigger 유지; notification production deployment deferred
-- Last reviewed: 2026-09-21
+- Status: Stage 1.1 credential-free CI와 #111 조회 서버 후속 배포·rollback·비용 중단 후 복구·공개 조회 및 독립 검증 PASS; #122 private O3~O7·실제 수신·복원 확인, O8 OPEN 대기 만료 후 독립 복원 확인, O8/O9 완료와 production 영구 정책·정상 배포 대기; deployment enable=true, 수동 trigger 유지; notification production deployment deferred
+- Last reviewed: 2026-09-27
 - Related: [Server architecture](architecture/server-arch.md), [Stage 1.1 Match notification](architecture/server-fcm-stage1.md)
 
 ## Goal and stage boundary
@@ -108,6 +108,8 @@ Jobs:
 
 macOS iOS job은 Android/server Linux job과 별도로 모든 `pull_request` 및 `main` push에서 실행한다. 따라서 iOS simulator test와 Kotlin/Native iOS compilation은 PR 병합 전과 `main` 반영 후 모두 검증되며, macOS runner 사용 시간은 이 전체 CI trigger 범위에 따라 발생한다.
 
+중간 작업에서는 같은 commit의 성공한 iOS CI를 재사용한다. 최종 완료 판정에는 최종 정확한 commit의 iOS CI 성공을 다시 확인한다.
+
 `ci.yml`은 Node 22, Java 21, pinned `firebase-tools@15.25.1`의 foreground `emulators:exec`로 Firestore를 시작·ready 확인·`:server:test :server:firestoreEmulatorTest :server:build :server:installDist` 실행·cleanup한다. Linux job의 KMP Android host, Android unit/lint, packaged `/health`와 notification-route fail-closed smoke와 macOS job의 iOS simulator test/compile 모두 credential 없이 실행한다. Patch whitespace 검사는 PR에서는 base SHA와 head SHA의 범위, `main` push에서는 event before와 head SHA의 범위를 검사하며, `app/**` zero-touch는 이 Stage 1.1 branch evidence이지 향후 app PR을 막는 permanent CI rule이 아니다.
 
 ## Verified `deploy-server.yml`
@@ -141,19 +143,21 @@ G가 실제 Actions 로그·배포 PR diff·검토 출처·summary writer 등을
 
 기존 `deploy-server.yml`의 수동 입력 `operation`은 `deploy`(기본값), `observability-validate`, `observability-restore`만 허용한다. 모든 mode는 같은 workflow concurrency와 `cancel-in-progress: false`, `main` exact SHA CI, `production` environment, WIF 경계를 사용한다. `deploy`와 `observability-validate`는 enable=true가 필요하고, journal 기반 private 복원만 enable=false 또는 unset에서도 허용한다. unknown operation은 enable 검사와 cloud mutation 전에 실패한다.
 
+`validation_scope`는 기본 `all` 또는 `o8-o9`이며 후자는 `observability-validate`에서만 허용한다. 잘못된 값이나 다른 operation과의 조합은 cloud 인증 전에 거절한다. 남은 단계만 실행해도 새로운 private revision·journal·preflight와 `always()` 복원·정리를 사용하며, 생략한 단계는 해당 실행의 PASS로 표시하지 않는다. 이전 단계 증거는 원래 commit과 실행에 귀속하고 관련 코드의 동일성을 확인한다.
+
 - `deploy`: 기존 build→private validation→production 경로를 유지한다. cloud 인증 직후 첫 mutation 전에 validation service의 `vlrgg-observability-validation` journal을 조회하며 active·unknown journal 또는 조회 실패가 있으면 중단한다.
-- `observability-validate`: production service/token/traffic/policy를 건드리지 않는다. production image 위에 test-only `server-observability-validation.jar`를 올린 ephemeral validation image만 고정 private service에 배포하고, 인증된 고정 error endpoint의 예상 HTTP status를 확인한 뒤 복원한다. validation main은 `observability.validation.ObservabilityValidationMainKt`이며 `VLRGG_OBSERVABILITY_VALIDATION=true`와 `K_SERVICE=vlrgg-query-check`가 모두 맞아야 한다. 이 mode는 provider의 Error Reporting group·trace·sampling·policy·incident·receiver를 판정하지 않고 O3~O9를 `NOT RUN`으로 기록한다.
+- `observability-validate`: production service/token/traffic/policy를 건드리지 않는다. production image 위에 test-only `server-observability-validation.jar`를 올린 ephemeral validation image만 고정 private service에 배포하고, 인증된 고정 error endpoint를 사용해 bounded live driver로 Logging·Error Reporting·Monitoring의 O3~O9 provider 전이를 확인한 뒤 복원한다. validation main은 `observability.validation.ObservabilityValidationMainKt`이며 `VLRGG_OBSERVABILITY_VALIDATION=true`와 `K_SERVICE=vlrgg-query-check`가 모두 맞아야 한다. 실제 receiver 수신은 별도 보호 증거로 확인하며, driver summary의 `RECEIPT PENDING`은 수신 성공을 뜻하지 않는다.
 - `observability-restore`: enable 값과 무관하게 source checkout 이후 build/test jar/Docker build/image push 없이 인증→journal 조회→baseline traffic/template/IAM·health 복원→소유 자원 정리만 수행한다. journal이 없거나 불명확한 자원을 임의 삭제하지 않는다.
 
-validation job은 최대 120분이며 신규 검증 변경은 90분 deadline으로 제한해 복원 시간을 남긴다. `observability-service.sh`는 validation guard, 8 KiB 이하 annotation journal, baseline traffic/template 복원을 담당하고, `observability-cleanup.sh`는 traffic/template/IAM과 run-owned resource 정리를 수행한다. `observability-policies.sh`는 향후 전체 live 검증에서 ownership이 확인된 #122 policy/check만 render/ensure/disable/delete하는 별도 helper이며 현재 workflow가 자동 호출하지 않는다. policy 변경은 고정 private validation service와 소유 journal이 확인된 경우에만 허용하며, uptime ensure는 실제 Monitoring service-agent identity와 private invoker 권한을 확인한다. render는 cloud 변경 없이 다른 service의 정책도 생성할 수 있다. `test-observability-operations.sh`는 gcloud/API stub으로 production mutation 부재, restore의 build/push 부재, journal/CAS, traffic-first 복원, owner-only cleanup과 policy helper 동작을 로컬 검사한다.
+validation job은 최대 120분이며 신규 검증 변경은 90분 deadline으로 제한해 복원 시간을 남긴다. `observability-service.sh`는 validation guard, 8 KiB 이하 annotation journal, baseline traffic/template 복원을 담당하고, `observability-cleanup.sh`는 traffic/template/IAM과 run-owned resource 정리를 수행한다. live driver가 호출하는 `observability-policies.sh`는 ownership이 확인된 #122 private policy/check만 render/ensure/disable/delete한다. policy 변경은 고정 private validation service와 소유 journal이 확인된 경우에만 허용하며, uptime ensure는 실제 Monitoring service-agent identity와 private invoker 권한을 확인한다. render는 cloud 변경 없이 다른 service의 정책도 생성할 수 있다. 이 private policy/check는 production 영구 정책의 적용 증거가 아니다. `test-observability-operations.sh`는 gcloud/API stub으로 production mutation 부재, restore의 build/push 부재, journal/CAS, traffic-first 복원, owner-only cleanup과 policy helper 동작을 로컬 검사한다.
 
 production installDist/image에는 validation main, jar, `__observability/*` route가 없어야 한다. harness의 고정 route는 `/health`, health fail/restore, internal/other/parsing/upstream/expected failure, opt-in exit뿐이며 body/query/header로 예외 문자열·stack·exit code를 받지 않는다. exit route는 `VLRGG_OBSERVABILITY_ALLOW_EXIT=true`가 추가로 필요하다. 로컬 실행은 `VLRGG_OBSERVABILITY_LOCAL=true`이고 `K_SERVICE`가 없을 때만 허용한다.
 
-최종 local 검증은 server test 245개 중 243개 통과·기존 opt-in benchmark 2개 skip, `:server:build`, `:server:installDist`, `:server:observabilityValidationJar`, 실제 packaged production+test jar process의 Logback stdout smoke와 installDist의 harness 제외를 모두 통과했다. `test-observability-operations.sh`의 39개 시나리오와 `test-query-production-deploy.sh`의 28개 시나리오도 모두 PASS다. 로컬 Docker가 없어 production Docker image 실행·artifact 검사는 하지 않았고 Dockerfile/context 정적 검사와 실제 installDist 격리로 대체했다. 초기 CodeRabbit CLI review는 rate limit으로 실행하지 못했다. 이후 GitHub CodeRabbit 지적 5건 중 4건을 반영하고 1건은 누락 표시 수정과 검증 범위 명확화로 부분 수용했으며, 2026-09-22 기준 재검토를 기다린다.
+초기 구현의 local 검증은 server test 245개 중 243개 통과·기존 opt-in benchmark 2개 skip, `:server:build`, `:server:installDist`, `:server:observabilityValidationJar`, 실제 packaged production+test jar process의 Logback stdout smoke와 installDist의 harness 제외를 모두 통과했다. `test-observability-operations.sh`의 39개 시나리오와 `test-query-production-deploy.sh`의 28개 시나리오도 모두 PASS다. 로컬 Docker가 없어 production Docker image 실행·artifact 검사는 하지 않았고 Dockerfile/context 정적 검사와 실제 installDist 격리로 대체했다. 초기 CodeRabbit CLI review는 rate limit으로 실행하지 못했다. 이후 GitHub CodeRabbit 지적 5건 중 4건을 반영하고 1건은 누락 표시 수정과 검증 범위 명확화로 부분 수용했으며, 해당 후속 PR들의 검토와 병합으로 이어졌다. O8 대기·범위와 장애 주입 전 시간 확인 보완에서는 observability operations 71개와 Bash 문법·diff 검사를 통과했다. 변경하지 않은 workflow YAML과 production deployment guard 28개 통과 결과는 재사용하며, 독립 코드 리뷰와 CodeRabbit CLI에서 추가 지적은 없었다. 최신 PR의 원격 리뷰·CI 결과는 별도로 확인한다.
 
 재현 명령은 `./gradlew :server:test :server:build :server:installDist :server:observabilityValidationJar`, `bash .github/scripts/smoke-observability.sh`, `bash .github/scripts/test-observability-operations.sh`다. CI도 validation jar를 만든 뒤 같은 stdout smoke와 operations stub을 실행한다.
 
-GCP read-only inventory, policy ensure, health failure/abnormal exit 주입, Error Reporting grouping, trace 연결, sampling 비교, notification receipt, incident close와 private service 실제 복원은 별도 운영 실행이며 아직 **NOT RUN**이다. 따라서 endpoint smoke 또는 로컬 GREEN만으로 #122 완료를 주장하지 않는다. 자세한 순서·초기 policy 값·보호 기록은 [서버 컨테이너 배포 경로](architecture/server-container-deployment.md)의 #122 runbook을 따른다.
+Private 운영 실행에서 GCP inventory, O3~O7의 Error Reporting grouping·trace·sampling·5xx incident OPEN/CLOSED, 오류 재발과 O7 OPEN/CLOSED의 실제 수신을 확인했다. O8은 3개 지역 정상→장애→정상 지표와 OPEN 수신을 관측했지만 driver 대기가 먼저 만료돼 전체 PASS가 아니다. 실패 실행의 baseline template·traffic·IAM과 소유 자원 정리는 독립 확인했다. O8 CLOSED·실제 수신과 O9 검증, production 영구 정책 적용·정상 배포는 남아 있다. O9와 OOM은 **NOT RUN**이다. endpoint smoke나 로컬 GREEN만으로 #122 완료를 주장하지 않는다. 자세한 순서·초기 policy 값·보호 기록은 [서버 컨테이너 배포 경로](architecture/server-container-deployment.md)의 #122 runbook을 따른다.
 
 ### #111 read-only query deployment path
 
