@@ -49,6 +49,7 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 | O7 | native 5xx 5분 창 2건에서는 OPEN 없음, 3건에서 OPEN, 복구 후 동일 incident CLOSED와 실제 두 이메일 확인 |
 | O8 | 서로 다른 3개 checker의 정상→장애→정상 값, 동일 incident OPEN/CLOSED와 실제 두 이메일, 독립 복원·정리 확인 |
 | log-delivery | [run 36410338960](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36410338960/attempts/1), attempt 1: 고정 canary→exact-policy OPEN→실제 이메일→독립 복원. O9와 별도 증거 |
+| OOM discovery D1 | [run 36430026199](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36430026199/attempts/1), attempt 1: 파일 쓰기 discovery는 `FAIL`, 실제 native OOM은 입증하지 못함. 실패 원문을 확보하지 못해 원인은 미확정이며 독립 복원·소유 자원 정리는 확인 |
 | OOM discovery D2 | [run 36446508402](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36446508402/attempts/1), attempt 1: 실제 native 768 MiB 메모리 한도 초과와 독립 복원 확인. 조기 cap guard로 workflow는 `FAIL`이며 이 결과를 성공으로 바꾸지 않음 |
 | O9 OOM 알림 | [run 36464164330](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36464164330/attempts/1), attempt 1: 정책 생성·300초 대기 후 단 한 번의 OOM 요청, 같은 revision의 fresh native OOM→exact-policy OPEN→승인 수신함의 실제 이메일→독립 복원·소유 image/revision/policy 삭제 확인. 독립 감사 `PASS` |
 | Production | [run 36467015465](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36467015465/attempts/1), attempt 1: 검증된 `main`의 정상 이미지 배포, Ready·100% traffic·IAM·공개 health/query·native 정상 요청 로그 확인. 영구 자원 4개 read-back, 생성 이후 3개 지역 정상/HTTP 200, 열린 소유 incident 없음 확인 |
