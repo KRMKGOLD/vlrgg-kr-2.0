@@ -23,6 +23,7 @@ on:
           - o9
           - log-delivery
           - o9-oom-discovery
+          - o9-oom
 
 concurrency:
   group: cloud-run-query-production
@@ -75,7 +76,7 @@ jobs:
             *) echo "::error::Unsupported operation."; exit 1 ;;
           esac
           case "$OPERATION:$VALIDATION_SCOPE" in
-            deploy:all|observability-validate:all|observability-validate:o8-o9|observability-validate:o9|observability-validate:log-delivery|observability-validate:o9-oom-discovery|observability-restore:all) ;;
+            deploy:all|observability-validate:all|observability-validate:o8-o9|observability-validate:o9|observability-validate:log-delivery|observability-validate:o9-oom-discovery|observability-validate:o9-oom|observability-restore:all) ;;
             *) echo "::error::Unsupported validation scope for operation."; exit 1 ;;
           esac
           if test "$OPERATION" != observability-restore; then
@@ -113,7 +114,7 @@ jobs:
             echo "::error::Validation image build failed."
             exit 1
           fi
-          if test "$VALIDATION_SCOPE" = o9-oom-discovery; then
+          if test "$VALIDATION_SCOPE" = o9-oom-discovery || test "$VALIDATION_SCOPE" = o9-oom; then
             umask 077
             container=""
             cleanup_manifest_container() {
@@ -134,6 +135,18 @@ jobs:
             applicability="$(jq --exit-status --raw-output '.applicabilitySha256' \
               "$RUNNER_TEMP/observability-runtime-manifest.json")"
             [[ "$applicability" =~ ^[0-9a-f]{64}$ ]]
+            if test "$VALIDATION_SCOPE" = o9-oom; then
+              test "$(sha256sum .github/scripts/observability-oom.json | awk '{print $1}')" = \
+                079b9f3a0b59193cde25369249e1030ea6d9ea3e9097bd5f2a99b0b7c1e1ef64
+              jq --exit-status --arg applicability "$applicability" '
+                type == "object" and
+                keys == ["applicabilitySha256","discoveryTextSha256","logId","memoryLimitMiB","textPattern"] and
+                .logId == "run.googleapis.com/varlog/system" and .memoryLimitMiB == 768 and
+                (.discoveryTextSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+                (.applicabilitySha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+                .applicabilitySha256 == $applicability
+              ' .github/scripts/observability-oom.json > /dev/null
+            fi
             echo "OOM_RUNTIME_APPLICABILITY_SHA256=$applicability" >> "$GITHUB_ENV"
             cleanup_manifest_container
             container=""
@@ -206,7 +219,7 @@ jobs:
           image="$(docker inspect --format '{{index .RepoDigests 0}}' "$VALIDATION_IMAGE_TAG" 2>/dev/null)"
           [[ "$image" == "$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY_REPOSITORY/query-observability@sha256:"* ]]
           .github/scripts/observability-service.sh resource image "$image"
-          if test "$VALIDATION_SCOPE" = o9-oom-discovery; then
+          if test "$VALIDATION_SCOPE" = o9-oom-discovery || test "$VALIDATION_SCOPE" = o9-oom; then
             [[ "$OOM_RUNTIME_APPLICABILITY_SHA256" =~ ^[0-9a-f]{64}$ ]]
             test -s "$RUNNER_TEMP/observability-runtime-manifest.json"
             umask 077
@@ -335,7 +348,7 @@ jobs:
               env_vars+=",VLRGG_OBSERVABILITY_ALLOW_EXIT=true"
               remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_OOM)
               ;;
-            o9-oom-discovery)
+            o9-oom-discovery|o9-oom)
               env_vars+=",VLRGG_OBSERVABILITY_ALLOW_OOM=true"
               remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_EXIT)
               ;;
@@ -348,7 +361,7 @@ jobs:
               ;;
           esac
           .github/scripts/observability-service.sh pending revision "$revision"
-          if test "$VALIDATION_SCOPE" = o9-oom-discovery; then
+          if test "$VALIDATION_SCOPE" = o9-oom-discovery || test "$VALIDATION_SCOPE" = o9-oom; then
             jq --exit-status \
               --arg applicabilitySha256 "$OOM_RUNTIME_APPLICABILITY_SHA256" \
               --arg immutableOverlayDigest "$IMAGE_DIGEST" '
@@ -368,7 +381,7 @@ jobs:
             .metadata.name == $revision and .status.imageDigest == $image and
             any(.status.conditions[]?; .type == "Ready" and .status == "True")
           ' <<< "$deployed" >/dev/null
-          if test "$VALIDATION_SCOPE" = o9-oom-discovery; then
+          if test "$VALIDATION_SCOPE" = o9-oom-discovery || test "$VALIDATION_SCOPE" = o9-oom; then
             actual_image="$(jq --exit-status --raw-output '.status.imageDigest' <<< "$deployed")"
             binding_tmp="$RUNNER_TEMP/observability-runtime-binding.tmp"
             jq --exit-status --arg actualRevisionImageDigest "$actual_image" '
@@ -431,6 +444,7 @@ jobs:
           SMOKE_ID_TOKEN: ${{ steps.observability-auth.outputs.id_token }}
           OBSERVABILITY_REVISION: ${{ steps.observability-validation.outputs.revision }}
           OBSERVABILITY_EXPECTED_IMAGE_DIGEST: ${{ steps.validation-image.outputs.digest }}
+          OOM_RUNTIME_APPLICABILITY_SHA256: ${{ env.OOM_RUNTIME_APPLICABILITY_SHA256 }}
           OBSERVABILITY_NOTIFICATION_CHANNELS_JSON: ${{ secrets.GCP_OBSERVABILITY_NOTIFICATION_CHANNELS_JSON }}
           OBSERVABILITY_CONFIRMED_RECEIVERS: ${{ secrets.GCP_OBSERVABILITY_CONFIRMED_RECEIVERS }}
           OBSERVABILITY_ERROR_REPORTING_ENROLLED: ${{ secrets.GCP_ERROR_REPORTING_ENROLLED }}

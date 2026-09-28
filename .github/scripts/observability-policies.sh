@@ -4,6 +4,8 @@ umask 077
 
 readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly service_helper="$script_dir/observability-service.sh"
+readonly oom_contract="$script_dir/observability-oom.json"
+readonly oom_contract_sha256='079b9f3a0b59193cde25369249e1030ea6d9ea3e9097bd5f2a99b0b7c1e1ef64'
 readonly monitoring_root="${MONITORING_API_ROOT:-https://monitoring.googleapis.com/v3}"
 readonly prometheus_root="${MONITORING_PROMETHEUS_API_ROOT:-https://monitoring.googleapis.com/v1}"
 readonly owner='issue122-validation'
@@ -234,13 +236,44 @@ render_uptime_policy() {
 }
 
 render_log() {
+  local notification_channels filter signal='abnormal exit'
+  if test "${SYSTEM_LOG_MODE:-}" = oom; then
+    local log_id pattern contract_sha
+    if command -v sha256sum >/dev/null; then contract_sha="$(sha256sum "$oom_contract" | awk '{print $1}')"
+    else contract_sha="$(shasum -a 256 "$oom_contract" | awk '{print $1}')"; fi
+    test "$contract_sha" = "$oom_contract_sha256" || fail 'The fixed OOM contract hash changed.'
+    jq -e '
+      type == "object" and
+      keys == ["applicabilitySha256","discoveryTextSha256","logId","memoryLimitMiB","textPattern"] and
+      .logId == "run.googleapis.com/varlog/system" and .memoryLimitMiB == 768 and
+      (.discoveryTextSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.applicabilitySha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.textPattern | type == "string" and startswith("^") and endswith("$") and
+        length <= 240 and ((contains("\"") or contains("\\") or contains("\n") or contains("\r")) | not))
+    ' "$oom_contract" >/dev/null || fail 'The fixed OOM contract is invalid.'
+    log_id="$(jq -er '.logId' "$oom_contract")"
+    pattern="$(jq -er '.textPattern' "$oom_contract")"
+    notification_channels="$(channels)"
+    filter="resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"$PROJECT_ID\" AND resource.labels.location=\"$REGION\" AND resource.labels.service_name=\"$SERVICE_NAME\" AND logName=\"projects/$PROJECT_ID/logs/${log_id//\//%2F}\" AND severity=ERROR AND textPayload =~ \"$pattern\""
+    if test "$SERVICE_NAME" = vlrgg-query-check; then
+      filter+=" AND resource.labels.revision_name=\"${SERVICE_NAME}-o${OBSERVABILITY_RUN}\""
+    fi
+    jq -cn --arg display "issue122 validation OOM $OBSERVABILITY_RUN" --arg filter "$filter" \
+      --argjson labels "$(labels log)" --argjson channels "$notification_channels" '
+      {
+        displayName:$display,enabled:true,combiner:"OR",userLabels:$labels,notificationChannels:$channels,
+        alertStrategy:{autoClose:"1800s",notificationRateLimit:{period:"300s"}},
+        conditions:[{displayName:"Verified Cloud Run native OOM",conditionMatchedLog:{filter:$filter}}]
+      }'
+    return
+  fi
+  test -z "${SYSTEM_LOG_MODE:-}" || fail 'Invalid SYSTEM_LOG_MODE.'
   require_env SYSTEM_LOG_NAME
   require_env SYSTEM_LOG_SIGNATURE
   [[ "$SYSTEM_LOG_NAME" =~ ^projects/${PROJECT_ID}/logs/[A-Za-z0-9._%+~-]+$ ]] || fail 'Invalid SYSTEM_LOG_NAME.'
   test "${#SYSTEM_LOG_SIGNATURE}" -le 240 || fail 'SYSTEM_LOG_SIGNATURE is too long.'
   [[ "$SYSTEM_LOG_SIGNATURE" =~ ^[A-Za-z0-9._:/\ \(\)-]+$ ]] \
     || fail 'SYSTEM_LOG_SIGNATURE contains unsupported characters.'
-  local notification_channels filter signal='abnormal exit'
   if test "$SYSTEM_LOG_NAME" = "projects/$PROJECT_ID/logs/run.googleapis.com%2Fstdout" \
     && test "$SYSTEM_LOG_SIGNATURE" = OBSERVABILITY_LOG_DELIVERY_CANARY; then
     test "$SERVICE_NAME" = vlrgg-query-check || fail 'The log-delivery canary is validation-only.'
