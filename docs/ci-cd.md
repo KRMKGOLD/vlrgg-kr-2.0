@@ -40,6 +40,14 @@ gh workflow run ci.yml --ref main -f target=server -f source_sha="$source_sha"
 
 `target`은 `server`, `android`, `ios`, `all`이며 source SHA와 dispatch의 main SHA가 다르면 실패한다. 실행 완료 후 배포 source SHA와 CI run/attempt가 일치하는지 확인한다. 선택 검증은 production 작업을 하지 않으며 skipped job을 성공 증거로 바꾸지 않는다. 수동 검증은 새 patch가 없으므로 과거 전체 source의 whitespace를 재검사하지 않는다. PR/main push의 patch 검사는 유지한다.
 
+### Platform CI and deployment concurrency
+
+각 CI 플랫폼 job과 대응 deploy job은 `ci-deploy-${{ github.ref }}-android|server|ios` 그룹을 공유하고 `cancel-in-progress: false`를 사용한다. 배포의 최종 CI 증명 조회부터 인증·signing·배포·복원·cleanup까지 같은 job 잠금 안에서 수행하므로, 조회 직후 같은 플랫폼의 CI가 새로 실행되어 증명을 바꾸는 race를 막는다. server CI job이 완료되면 server 잠금이 풀리며 실행 중인 iOS나 최종 `verify`를 기다리지 않는다. main과 PR ref도 서로 다른 그룹이다.
+
+기존 CI workflow concurrency와 플랫폼별 배포 workflow mutex(`cloud-run-query-production` 포함)는 별도 key로 유지한다. CI·배포 전체를 하나의 그룹으로 묶지 않는다. 앱의 초기 preflight는 플랫폼 잠금 밖에서 빠르게 실패할 수 있고, 최종 검증은 environment 승인 뒤 잠긴 deploy job 안에서 다시 수행한다.
+
+새 run/job의 등록·대기 자체는 막지 않는다. 최종 검증 전에 더 최신 run/attempt가 생겼는데 해당 플랫폼 job이 queued·누락·실패라면 즉시 거부하고, 현재 배포가 잠근 job을 기다리거나 이전 성공으로 대체하지 않는다. 최종 검증 후 등록된 같은 플랫폼의 CI는 배포 job 종료까지 실행을 기다린다. 기본 concurrency queue는 running 하나와 pending 하나를 유지하며 새 요청이 기존 pending을 대체할 수 있다. `cancel-in-progress: false`는 이미 실행 중인 job을 보호한다. environment 승인과 잠금 획득 순서는 보장되지 않아 승인 대기가 플랫폼 CI를 지연시킬 수 있다. 잠금은 같은 그룹을 사용하는 repository Actions job에 적용되며 local/Console 작업을 직렬화하지 않는다. [GitHub job concurrency](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency), [deployment concurrency](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments#using-concurrency).
+
 ### G0 synthetic benchmark
 
 보호 로직의 regression 자료가 필요할 때만 opt-in benchmark를 실행한다.

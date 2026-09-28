@@ -120,6 +120,8 @@ module CiContract
     raise Error, "The GitHub CI lookup failed."
   end
 
+  # Final deployment authorization runs inside the shared platform job concurrency group.
+  # This read verifies the latest proof; the job lock prevents concurrent same-platform CI execution.
   def verify_platform!(target, source_sha, repository, api: method(:github_response))
     raise Error, "Invalid CI target, source SHA, or repository." unless
       TARGETS.include?(target) && SHA.match?(source_sha) && /\A[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\z/.match?(repository)

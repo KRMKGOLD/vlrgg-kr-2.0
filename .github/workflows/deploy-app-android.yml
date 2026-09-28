@@ -61,6 +61,9 @@ jobs:
 
   deploy:
     needs: preflight
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-android
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: android-internal

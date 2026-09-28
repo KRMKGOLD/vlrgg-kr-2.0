@@ -61,6 +61,9 @@ jobs:
 
   deploy:
     needs: preflight
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-ios
+      cancel-in-progress: false
     runs-on: macos-26
     timeout-minutes: 60
     environment: ios-testflight

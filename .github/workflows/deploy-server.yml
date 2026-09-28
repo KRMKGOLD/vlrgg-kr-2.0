@@ -33,6 +33,9 @@ permissions:
 jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-server
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.operation == 'deploy' && 30 || 120 }}
     environment: production

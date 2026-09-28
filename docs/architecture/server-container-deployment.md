@@ -12,7 +12,7 @@
 
 ## Deployment and rollback
 
-`.github/workflows/deploy-server.yml`은 exact `main` SHA의 최신 CI run/attempt에서 Linux `server` job 하나가 완료·성공한 수동 배포만 허용한다. 전체 job inventory와 `run_id`, `run_attempt`, `head_sha`를 확인하고 같은 run을 다시 읽어 attempt 변경을 거부한다. main push와 main 수동 CI 중 최신 run을 사용하며 Android/macOS `ios` job을 기다리지 않는다. 대상이 skip됐으면 [명시적 CI 검증](../ci-cd.md#skipped-platform-validation-before-deployment)을 같은 main SHA에서 실행한다. skip이나 이전 성공은 배포 증거가 아니다. GitHub OIDC와 GCP WIF로 deploy Service Account를 impersonate하며 장기 key를 저장하지 않는다.
+`.github/workflows/deploy-server.yml`은 exact `main` SHA의 최신 CI run/attempt에서 Linux `server` job 하나가 완료·성공한 수동 배포만 허용한다. 전체 job inventory와 `run_id`, `run_attempt`, `head_sha`를 확인하고 같은 run을 다시 읽어 attempt 변경을 거부한다. main push와 main 수동 CI 중 최신 run을 사용하며 Android/macOS `ios` job을 기다리지 않는다. server CI와 deploy job은 [ref별 플랫폼 잠금](../ci-cd.md#platform-ci-and-deployment-concurrency)을 공유해 CI 증명 조회부터 배포·복원·cleanup이 끝날 때까지 같은 플랫폼 CI의 실행을 막는다. 기존 `cloud-run-query-production` workflow mutex도 유지한다. 대상이 skip됐으면 [명시적 CI 검증](../ci-cd.md#skipped-platform-validation-before-deployment)을 같은 main SHA에서 실행한다. skip이나 이전 성공은 배포 증거가 아니다. GitHub OIDC와 GCP WIF로 deploy Service Account를 impersonate하며 장기 key를 저장하지 않는다.
 
 Deploy identity는 project의 Cloud Run developer/invoker, Artifact Registry repository writer와 runtime Service Account user 권한만 사용한다. WIF provider는 immutable repository/owner ID, `main`, 지정 workflow와 `production` environment로 제한한다. Runtime identity에는 일반 조회에 필요하지 않은 DB·Firebase 권한을 주지 않는다.
 

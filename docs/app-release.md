@@ -12,7 +12,7 @@ iOS signing·TestFlight는 Apple Developer Program/App Store Connect 계정 준�
 - `APP_BUILD_NUMBER`: `1`~`2100000000`의 미사용 정수
 - `API_BASE_URL`: credential, query, fragment와 `/` 이외 path가 없는 HTTPS origin
 
-Android는 exact SHA의 최신 main CI run/attempt에서 `android`, iOS는 `ios` job 하나의 완료·성공을 요구한다. main push와 수동 CI 중 최신 실행을 선택하고 전체 run/job inventory·workflow·SHA·run·attempt 및 재조회 identity를 검사한다. 다른 플랫폼이나 aggregate 성공, skip, 이전 attempt 성공으로 대체하지 않는다. 대상이 skip됐다면 [명시적 CI 검증](ci-cd.md#skipped-platform-validation-before-deployment)을 같은 main SHA에서 실행한다. 초기 preflight 이후 environment 승인을 기다렸다면 배포 job이 인증·signing 정보를 사용하기 직전에 최신 CI를 다시 검사한다. 플랫폼별 workflow concurrency는 repository workflow끼리만 직렬화하며 local/Console upload를 감지하지 못한다.
+Android는 exact SHA의 최신 main CI run/attempt에서 `android`, iOS는 `ios` job 하나의 완료·성공을 요구한다. main push와 수동 CI 중 최신 실행을 선택하고 전체 run/job inventory·workflow·SHA·run·attempt 및 재조회 identity를 검사한다. 다른 플랫폼이나 aggregate 성공, skip, 이전 attempt 성공으로 대체하지 않는다. 대상이 skip됐다면 [명시적 CI 검증](ci-cd.md#skipped-platform-validation-before-deployment)을 같은 main SHA에서 실행한다. 초기 preflight 이후 environment 승인을 기다렸다면 배포 job이 인증·signing 정보를 사용하기 직전에 최신 CI를 다시 검사한다. deploy job은 [동일 플랫폼 CI와 실행 잠금](ci-cd.md#platform-ci-and-deployment-concurrency)을 공유하며 기존 플랫폼별 배포 workflow mutex도 유지한다. local/Console upload는 이 잠금에 포함되지 않는다.
 
 공개 Actions log·summary·artifact는 비공개 경계가 아니다. URL 원문, signing credential, AAB/IPA와 raw Fastlane output을 올리지 않는다. URL은 앱 binary에서 추출 가능하므로 인증 수단으로 사용하지 않는다.
 

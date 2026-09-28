@@ -53,6 +53,9 @@ jobs:
   android:
     needs: changes
     if: needs.changes.outputs.android == 'true'
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-android
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -100,6 +103,9 @@ jobs:
   server:
     needs: changes
     if: needs.changes.outputs.server == 'true'
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-server
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -154,6 +160,9 @@ jobs:
   ios:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-ios
+      cancel-in-progress: false
     runs-on: macos-26
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer

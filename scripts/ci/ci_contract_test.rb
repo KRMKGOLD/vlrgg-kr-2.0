@@ -140,7 +140,7 @@ class CiContractTest < Minitest::Test
       ->(run, _) { run["id"] = "83" }, ->(run, _) { run["run_number"] = 0 }, ->(run, _) { run["run_attempt"] = 0 },
       ->(_, jobs) { jobs["jobs"][0]["head_sha"] = "c" * 40 }, ->(_, jobs) { jobs["jobs"][0]["run_id"] = 82 },
       ->(_, jobs) { jobs["jobs"][0]["run_attempt"] = 1 }, ->(_, jobs) { jobs["jobs"][0].delete("run_attempt") },
-      ->(_, jobs) { jobs["jobs"][0]["status"] = "in_progress" },
+      *%w[queued pending waiting in_progress].map { |status| ->(_, jobs) { jobs["jobs"][0]["status"] = status } },
       *%w[failure skipped cancelled].map { |result| ->(_, jobs) { jobs["jobs"][0]["conclusion"] = result } },
       ->(_, jobs) { jobs["jobs"][0]["name"] = "verify" },
       ->(_, jobs) { jobs["jobs"] = [jobs["jobs"][0], jobs["jobs"][0]] },
@@ -192,7 +192,7 @@ class CiContractTest < Minitest::Test
       assert CiContract.verify_platform!(target, SHA, "owner/repository", api: api) # Early preflight.
       run["run_attempt"] += 1
       jobs["jobs"][0]["run_attempt"] = run["run_attempt"]
-      [["in_progress", nil], ["completed", "failure"]].each do |status, conclusion|
+      [["queued", nil], ["in_progress", nil], ["completed", "failure"]].each do |status, conclusion|
         jobs["jobs"][0].merge!("status" => status, "conclusion" => conclusion)
         assert_raises(CiContract::Error) { CiContract.verify_platform!(target, SHA, "owner/repository", api: api) }
       end
@@ -211,6 +211,31 @@ class CiContractTest < Minitest::Test
       assert_operator verification, :<, credentials
       assert_equal "${{ github.token }}", steps[verification].fetch("env").fetch("GH_TOKEN")
     end
+  end
+
+  def test_platform_ci_and_deployment_share_job_locks_without_replacing_operational_mutexes
+    ci = YAML.load_file(File.join(ROOT, ".github/workflows/ci.yml"))
+    assert_equal "ci-${{ github.workflow }}-${{ github.ref }}", ci.fetch("concurrency").fetch("group")
+    assert_equal "${{ github.event_name == 'pull_request' }}", ci.fetch("concurrency").fetch("cancel-in-progress")
+    %w[changes verify].each { |name| refute ci.fetch("jobs").fetch(name).key?("concurrency") }
+    operational_mutexes = { "android" => "deploy-app-android-internal", "server" => "cloud-run-query-production", "ios" => "deploy-app-ios-testflight" }
+    main_groups = CiContract::TARGETS.map do |target|
+      file = target == "server" ? "deploy-server.yml" : "deploy-app-#{target}.yml"
+      workflow = YAML.load_file(File.join(ROOT, ".github/workflows", file))
+      assert_equal({ "group" => operational_mutexes.fetch(target), "cancel-in-progress" => false }, workflow.fetch("concurrency"))
+      expected = { "group" => "ci-deploy-${{ github.ref }}-#{target}", "cancel-in-progress" => false }
+      assert_equal expected, ci.fetch("jobs").fetch(target).fetch("concurrency")
+      deploy = workflow.fetch("jobs").fetch("deploy")
+      assert_equal expected, deploy.fetch("concurrency")
+      refute_equal workflow.fetch("concurrency").fetch("group"), expected.fetch("group")
+      refute_equal ci.fetch("concurrency").fetch("group"), expected.fetch("group")
+      assert deploy.fetch("steps").any? { |step| step["run"].to_s.include?("ruby scripts/ci/ci_contract.rb verify #{target}") },
+             "The final CI proof must run in the locked deployment job."
+      main_group = expected.fetch("group").sub("${{ github.ref }}", "refs/heads/main")
+      refute_equal main_group, expected.fetch("group").sub("${{ github.ref }}", "refs/pull/147/merge")
+      main_group
+    end
+    assert_equal 3, main_groups.uniq.length, "Server CI/deployment must not share iOS or Android's lock."
   end
 
   def test_workflows_use_platform_proof_and_unconditional_final_gate
