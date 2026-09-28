@@ -1268,7 +1268,7 @@ pass 'live driver uses the actual 200 health mutation and interrupted abnormal-e
 new_case live-private-exit-outcomes
 for fixture in \
   server500:500:0:pass server502:502:0:pass server503:503:0:pass empty52:000:52:pass reset56:000:56:pass \
-  old202:202:0:reject success200:200:0:reject auth401:401:0:reject auth403:403:0:reject redirect302:302:0:reject \
+  old202:202:0:reject success200:200:0:reject auth401:401:0:reject auth403:403:0:reject redirect302:302:0:reject framing411:411:0:reject \
   dns:000:6:reject connect:000:7:reject tls:000:35:reject timeout:000:28:reject other000:000:1:reject; do
   IFS=: read -r name http_status hook_exit expected <<< "$fixture"
   exit_case="$CASE_DIR/$name"
@@ -1296,6 +1296,41 @@ for fixture in \
     || fail "private exit outcome $name lost the hook result"
 done
 pass 'private exit preserves hook status and accepts only bounded interrupted-response outcomes behind target and deadline guards'
+
+new_case live-private-exit-curl-framing
+for fixture in server503:503:0:pass empty52:000:52:pass framing411:411:0:reject; do
+  IFS=: read -r name http_status curl_exit expected <<< "$fixture"
+  exit_case="$CASE_DIR/$name"
+  mkdir -p "$exit_case/evidence"
+  status=0
+  env CASE_DIR="$exit_case" PRIVATE_EXIT_STATUS="$http_status" PRIVATE_EXIT_CODE="$curl_exit" \
+    SMOKE_URL=https://vlrgg-query-check-test.run.app SMOKE_ID_TOKEN=fixture-token \
+    OBSERVABILITY_PRIVATE_HTTP= OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      now() { printf "1700000000\n"; }; guard_target() { :; }
+      curl() {
+        printf "%s\n" "$@" > "$CASE_DIR/curl-arguments"
+        cat > "$CASE_DIR/curl-headers"
+        # Model the provider framing rejection in the real curl branch, not the private HTTP hook.
+        if ! grep -Fxq -- "Content-Length: 0" "$CASE_DIR/curl-arguments"; then printf 411; return 0; fi
+        printf "%s" "$PRIVATE_EXIT_STATUS"
+        return "$PRIVATE_EXIT_CODE"
+      }
+      private_exit
+    ' _ "$live_helper" > "$exit_case/stdout" 2> "$exit_case/stderr" || status=$?
+  if test "$expected" = pass; then
+    test "$status" = 0 || fail "framed private exit outcome $name failed"
+  else
+    test "$status" != 0 || fail 'framing rejection was accepted as an abnormal exit'
+    grep -Fq 'HTTP 411, curl 0' "$exit_case/stderr" || fail 'private exit lost its sanitized failure status'
+  fi
+  grep -Fxq -- '--http1.1' "$exit_case/curl-arguments"
+  grep -Fxq -- '@-' "$exit_case/curl-arguments"
+  grep -Fxq 'X-Serverless-Authorization: Bearer fixture-token' "$exit_case/curl-headers"
+  ! grep -Fq fixture-token "$exit_case/curl-arguments" "$exit_case/stdout" "$exit_case/stderr" \
+    || fail 'private exit exposed an authentication token'
+done
+pass 'real private-exit curl branch frames an empty HTTP/1.1 POST and reports only numeric failure status'
 
 new_case live-o3-o6-schema
 # Minimal synthetic fixtures follow the formatter and provider contracts; no local runtime logs are required.

@@ -41,7 +41,7 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 
 ## #122 observability live runbook
 
-2026-09-28 확인 기준, Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신을 확인했다. 이전 O9 실행은 exit 42 system log 2건 이후 incident·수신을 확인하지 못했고, PR #144 이후 두 실행은 첫 종료 요청 뒤 실제 종료 로그가 없어 정책 생성 전에 실패했다. 각 실행의 baseline template·실제 100% traffic·IAM 복원, 소유 자원 정리와 production 미변경을 독립 확인했다. 전달 경로를 분리한 `log-delivery`와 요청 처리 중 종료하는 새 fixture의 cloud 검증은 아직 `NOT RUN`이다. O9는 `FAIL`로 미완료이며 OOM은 `NOT RUN`이다. O9는 실제 OPEN 수신만 요구하며 자동 종료를 복구 수신으로 간주하지 않는다.
+2026-09-28 확인 기준, Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신을 확인했다. 이전 O9 실행은 exit 42 system log 2건 이후 incident·수신을 확인하지 못했고, PR #144 이후 두 실행은 첫 종료 요청 뒤 실제 종료 로그가 없어 정책 생성 전에 실패했다. 각 실행의 baseline template·실제 100% traffic·IAM 복원, 소유 자원 정리와 production 미변경을 독립 확인했다. 후속 `log-delivery`는 실제 canary 로그·OPEN incident·승인 수신함의 실제 이메일과 독립 복원을 확인했다. 이어진 O9는 첫 종료 요청의 HTTP/curl 응답 검사에서 실패했고, 종료 로그·정책·incident·수신에는 도달하지 못한 채 복원·정리를 마쳤다. 정상 복원한 비공개 서비스의 `/health`로 재현한 결과, 본문 길이 없는 HTTP/1.1 POST는 411, 빈 본문 길이를 명시한 POST는 405였다. 실패 실행의 응답 숫자는 보존되지 않아 동일 원인이라는 판단은 추론이다. 종료 요청에 `Content-Length: 0`을 추가하고 실패 시 HTTP/curl 숫자만 출력하며, 이 수정으로 O9가 통과했는지는 새 실행으로 검증해야 한다. O9는 `FAIL`로 미완료이며 OOM은 `NOT RUN`이다. O9는 실제 OPEN 수신만 요구하며 자동 종료를 복구 수신으로 간주하지 않는다.
 
 전체 live 완료와 production 적용을 완료로 표시하지 않는다. policy·장애·grouping·trace·sampling·receipt·복원·정리의 개별 결과를 확인하고, 미실행은 `NOT RUN`, 실패는 `FAIL`, 실행 중은 `IN PROGRESS`, 증거 미확인은 `UNKNOWN`으로 구분한다. endpoint status나 workflow 착수만으로 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)를 종료하지 않는다.
 

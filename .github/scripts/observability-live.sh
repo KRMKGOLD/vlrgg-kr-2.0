@@ -785,7 +785,7 @@ private_exit() {
     status="$("$OBSERVABILITY_PRIVATE_HTTP" POST "$SMOKE_URL" /__observability/exit "$output" '')" || curl_exit=$?
   else
     status="$(curl -q --silent --http1.1 --proto '=https' --connect-timeout 5 --max-time 25 --max-filesize 2097152 \
-      --output "$output" --write-out '%{http_code}' --request POST --header @- "$SMOKE_URL/__observability/exit" \
+      --output "$output" --write-out '%{http_code}' --request POST --header 'Content-Length: 0' --header @- "$SMOKE_URL/__observability/exit" \
       <<< "X-Serverless-Authorization: Bearer $SMOKE_ID_TOKEN")" || curl_exit=$?
   fi
   [[ "$status" =~ ^[0-9]{3}$ ]] || fail 'The private abnormal-exit request returned an invalid status.'
@@ -794,7 +794,7 @@ private_exit() {
   # A synchronous halt interrupts the response; only the later native log proves an exit.
   case "$curl_exit:$status" in
     0:500|0:502|0:503|52:000|56:000) ;;
-    *) fail 'The private abnormal-exit request did not have an expected interrupted-response outcome.' ;;
+    *) fail "The private abnormal-exit request did not have an expected interrupted-response outcome (HTTP $status, curl $curl_exit)." ;;
   esac
 }
 
