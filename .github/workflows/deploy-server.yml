@@ -51,6 +51,12 @@ jobs:
       VALIDATION_SCOPE: ${{ inputs.validation_scope }}
       OBSERVABILITY_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
+      - name: Check out the frozen commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       - name: Require enabled deployment and successful server CI for this main commit
         id: preflight
         env:
@@ -75,59 +81,7 @@ jobs:
             test -n "${!variable}" || { echo "::error::Missing $variable."; exit 1; }
           done
           test "$GITHUB_SHA" = "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
-          runs_path="repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=push&branch=main&head_sha=$GITHUB_SHA&per_page=100"
-          read_ci_run() {
-            gh api "$runs_path" | jq --exit-status --compact-output --arg sha "$GITHUB_SHA" '
-              .workflow_runs as $runs
-              | select(
-                  ($runs | type) == "array" and
-                  (.total_count | type) == "number" and
-                  .total_count == ($runs | length) and
-                  .total_count <= 100 and
-                  all($runs[];
-                    (.id | type) == "number" and .id > 0 and
-                    (.run_number | type) == "number" and .run_number > 0 and
-                    (.run_attempt | type) == "number" and .run_attempt > 0))
-              | ($runs | max_by(.run_number)) as $run
-              | select(
-                  $run != null and
-                  $run.head_sha == $sha and
-                  $run.head_branch == "main" and
-                  $run.event == "push" and
-                  $run.path == ".github/workflows/ci.yml")
-              | {id: $run.id, run_number: $run.run_number, run_attempt: $run.run_attempt, head_sha: $run.head_sha}
-            '
-          }
-          ci_run="$(read_ci_run)"
-          run_id="$(jq --exit-status --raw-output '.id' <<< "$ci_run")"
-          run_attempt="$(jq --exit-status --raw-output '.run_attempt' <<< "$ci_run")"
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/attempts/$run_attempt/jobs?per_page=100" \
-            | jq --exit-status --arg sha "$GITHUB_SHA" --argjson run_id "$run_id" --argjson run_attempt "$run_attempt" '
-              .jobs as $jobs
-              | select(
-                  ($jobs | type) == "array" and
-                  (.total_count | type) == "number" and
-                  .total_count == ($jobs | length) and
-                  .total_count <= 100 and
-                  all($jobs[]; type == "object"))
-              | [$jobs[] | select(.name == "verify")] as $verify
-              | $verify | length == 1 and
-                .[0].run_id == $run_id and
-                .[0].run_attempt == $run_attempt and
-                .[0].head_sha == $sha and
-                .[0].status == "completed" and
-                .[0].conclusion == "success"
-            ' > /dev/null
-          test "$(read_ci_run)" = "$ci_run" || {
-            echo "::error::The main push CI run changed during verification."
-            exit 1
-          }
-
-      - name: Check out the verified commit
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
+          ruby scripts/ci/ci_contract.rb verify server "$GITHUB_SHA" "$GITHUB_REPOSITORY"
 
       - name: Build the existing server image before requesting cloud credentials
         if: inputs.operation != 'observability-restore'

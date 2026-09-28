@@ -53,11 +53,11 @@ jobs:
           SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
         run: ruby scripts/app-release/release_contract.rb validate-inputs
 
-      - name: Require successful verify job for frozen main source
+      - name: Require successful Android job for frozen main source
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
-        run: ruby scripts/app-release/release_contract.rb verify-android-ci "$SOURCE_SHA" "$GITHUB_REPOSITORY"
+        run: ruby scripts/ci/ci_contract.rb verify android "$SOURCE_SHA" "$GITHUB_REPOSITORY"
 
   deploy:
     needs: preflight

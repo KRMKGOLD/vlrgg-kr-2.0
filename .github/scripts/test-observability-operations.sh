@@ -371,9 +371,9 @@ cat > "$work_dir/bin/gh" <<'STUB'
 set -euo pipefail
 printf '%s\n' "$*" >> "$CASE_DIR/gh-calls"
 case "$*" in
-  "api repos/test-repository/git/ref/heads/main --jq .object.sha")
-    printf '%s\n' test-sha ;;
-  "api repos/test-repository/actions/workflows/ci.yml/runs?event=push&branch=main&head_sha=test-sha&per_page=100")
+  "api repos/owner/test-repository/git/ref/heads/main --jq .object.sha")
+    printf '%s\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
+  "api --method GET repos/owner/test-repository/actions/workflows/ci.yml/runs?branch=main&head_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&per_page=100")
     count=0
     test ! -f "$CASE_DIR/ci-run-read-count" || count="$(cat "$CASE_DIR/ci-run-read-count")"
     count=$((count + 1))
@@ -382,31 +382,31 @@ case "$*" in
     if test "${CI_CASE:-ios-running}" = reread-attempt-race && test "$count" -gt 1; then attempt=3; fi
     total_count=2
     test "${CI_CASE:-ios-running}" != incomplete-runs-inventory || total_count=3
-    printf '%s\n' "{\"total_count\":$total_count,\"workflow_runs\":[{\"id\":111,\"run_number\":10,\"run_attempt\":1,\"head_sha\":\"test-sha\",\"head_branch\":\"main\",\"event\":\"push\",\"path\":\".github/workflows/ci.yml\"},{\"id\":222,\"run_number\":20,\"run_attempt\":$attempt,\"head_sha\":\"test-sha\",\"head_branch\":\"main\",\"event\":\"push\",\"path\":\".github/workflows/ci.yml\"}]}" ;;
-  "api repos/test-repository/actions/runs/222/attempts/2/jobs?per_page=100")
-    verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"success"}'
-    ios='{"name":"ios","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"in_progress","conclusion":null}'
+    printf '%s\n' "{\"total_count\":$total_count,\"workflow_runs\":[{\"id\":111,\"run_number\":10,\"run_attempt\":1,\"head_sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"head_branch\":\"main\",\"event\":\"push\",\"path\":\".github/workflows/ci.yml\"},{\"id\":222,\"run_number\":20,\"run_attempt\":$attempt,\"head_sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"head_branch\":\"main\",\"event\":\"push\",\"path\":\".github/workflows/ci.yml\"}]}" ;;
+  "api --method GET repos/owner/test-repository/actions/runs/222/attempts/2/jobs?per_page=100")
+    server='{"name":"server","run_id":222,"run_attempt":2,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status":"completed","conclusion":"success"}'
+    ios='{"name":"ios","run_id":222,"run_attempt":2,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status":"in_progress","conclusion":null}'
     case "${CI_CASE:-ios-running}" in
       ios-running) ;;
-      ios-failing) ios='{"name":"ios","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"failure"}' ;;
-      verify-missing) verify= ;;
-      verify-duplicate) verify="$verify,$verify" ;;
-      verify-pending) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"in_progress","conclusion":null}' ;;
-      verify-failure) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"failure"}' ;;
-      verify-skipped) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"skipped"}' ;;
-      verify-cancelled) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"cancelled"}' ;;
-      wrong-run-id) verify='{"name":"verify","run_id":999,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"success"}' ;;
-      wrong-attempt) verify='{"name":"verify","run_id":222,"run_attempt":1,"head_sha":"test-sha","status":"completed","conclusion":"success"}' ;;
-      wrong-head-sha) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"other-sha","status":"completed","conclusion":"success"}' ;;
+      ios-failing) ios='{"name":"ios","run_id":222,"run_attempt":2,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status":"completed","conclusion":"failure"}' ;;
+      server-missing) server= ;;
+      server-duplicate) server="$server,$server" ;;
+      server-pending) server='{"name":"server","run_id":222,"run_attempt":2,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status":"in_progress","conclusion":null}' ;;
+      server-failure) server='{"name":"server","run_id":222,"run_attempt":2,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status":"completed","conclusion":"failure"}' ;;
+      server-skipped) server='{"name":"server","run_id":222,"run_attempt":2,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status":"completed","conclusion":"skipped"}' ;;
+      server-cancelled) server='{"name":"server","run_id":222,"run_attempt":2,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status":"completed","conclusion":"cancelled"}' ;;
+      wrong-run-id) server='{"name":"server","run_id":999,"run_attempt":2,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status":"completed","conclusion":"success"}' ;;
+      wrong-attempt) server='{"name":"server","run_id":222,"run_attempt":1,"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","status":"completed","conclusion":"success"}' ;;
+      wrong-head-sha) server='{"name":"server","run_id":222,"run_attempt":2,"head_sha":"other-sha","status":"completed","conclusion":"success"}' ;;
       incomplete-inventory) ;;
       reread-attempt-race) ;;
       *) echo 'unexpected CI case' >&2; exit 1 ;;
     esac
     jobs="$ios"
-    test -z "$verify" || jobs="$verify,$jobs"
+    test -z "$server" || jobs="$server,$jobs"
     total_count=2
-    test "${CI_CASE:-ios-running}" != verify-missing || total_count=1
-    test "${CI_CASE:-ios-running}" != verify-duplicate || total_count=3
+    test "${CI_CASE:-ios-running}" != server-missing || total_count=1
+    test "${CI_CASE:-ios-running}" != server-duplicate || total_count=3
     test "${CI_CASE:-ios-running}" != incomplete-inventory || total_count=3
     printf '%s\n' "{\"total_count\":$total_count,\"jobs\":[$jobs]}" ;;
   *)
@@ -522,15 +522,15 @@ run_preflight_case() {
   if test "$enabled" = unset; then
     env -u DEPLOY_ENABLED PATH="$work_dir/bin:$PATH" OPERATION="$operation" VALIDATION_SCOPE="$scope" CI_CASE="$ci_case" PROJECT_ID=test-project \
       WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
-      RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=test-sha \
-      GITHUB_REPOSITORY=test-repository GH_TOKEN=test-token \
+      RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+      GITHUB_REPOSITORY=owner/test-repository GH_TOKEN=test-token \
       bash --noprofile --norc -e -o pipefail "$preflight_script" \
       > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || result=$?
   else
     env PATH="$work_dir/bin:$PATH" OPERATION="$operation" VALIDATION_SCOPE="$scope" CI_CASE="$ci_case" DEPLOY_ENABLED="$enabled" PROJECT_ID=test-project \
       WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
-      RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=test-sha \
-      GITHUB_REPOSITORY=test-repository GH_TOKEN=test-token \
+      RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+      GITHUB_REPOSITORY=owner/test-repository GH_TOKEN=test-token \
       bash --noprofile --norc -e -o pipefail "$preflight_script" \
       > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || result=$?
   fi
@@ -568,10 +568,10 @@ run_preflight_case observability-restore true reject o8-o9
 run_preflight_case observability-restore true reject o9
 run_preflight_case observability-restore true reject log-delivery
 run_preflight_case deploy true pass all ios-failing
-for ci_case in verify-missing verify-duplicate verify-pending verify-failure verify-skipped verify-cancelled wrong-run-id wrong-attempt wrong-head-sha incomplete-inventory incomplete-runs-inventory reread-attempt-race; do
+for ci_case in server-missing server-duplicate server-pending server-failure server-skipped server-cancelled wrong-run-id wrong-attempt wrong-head-sha incomplete-inventory incomplete-runs-inventory reread-attempt-race; do
   run_preflight_case deploy true reject-ci all "$ci_case"
 done
-pass 'workflow preflight accepts server verify with iOS running or failed and rejects incomplete, stale, duplicate, or unsuccessful verify evidence'
+pass 'workflow preflight accepts server job with iOS running or failed and rejects incomplete, stale, duplicate, or unsuccessful server evidence'
 
 new_case journal
 journal="$(service prepare)"
