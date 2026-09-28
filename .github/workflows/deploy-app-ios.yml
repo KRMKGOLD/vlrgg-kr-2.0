@@ -53,17 +53,17 @@ jobs:
           SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
         run: ruby scripts/app-release/release_contract.rb validate-inputs
 
-      - name: Require successful CI for frozen main source
+      - name: Require successful iOS job for frozen main source
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
-        run: |
-          gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
-            -f branch=main -f event=push -f head_sha="$SOURCE_SHA" -f status=success -f per_page=100 \
-            | ruby scripts/app-release/release_contract.rb verify-ci "$SOURCE_SHA"
+        run: ruby scripts/ci/ci_contract.rb verify ios "$SOURCE_SHA" "$GITHUB_REPOSITORY"
 
   deploy:
     needs: preflight
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-ios
+      cancel-in-progress: false
     runs-on: macos-26
     timeout-minutes: 60
     environment: ios-testflight
@@ -102,6 +102,11 @@ jobs:
         with:
           ruby-version: .ruby-version
           bundler-cache: true
+
+      - name: Recheck iOS CI after environment approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ruby scripts/ci/ci_contract.rb verify ios "$SOURCE_SHA" "$GITHUB_REPOSITORY"
 
       - name: Build and upload to TestFlight
         env:

@@ -33,6 +33,9 @@ permissions:
 jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-server
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.operation == 'deploy' && 30 || 120 }}
     environment: production
@@ -51,7 +54,13 @@ jobs:
       VALIDATION_SCOPE: ${{ inputs.validation_scope }}
       OBSERVABILITY_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Require enabled deployment and successful CI for this main commit
+      - name: Check out the frozen commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Require enabled deployment and successful server CI for this main commit
         id: preflight
         env:
           DEPLOY_ENABLED: ${{ vars.CLOUD_RUN_DEPLOY_ENABLED }}
@@ -75,16 +84,7 @@ jobs:
             test -n "${!variable}" || { echo "::error::Missing $variable."; exit 1; }
           done
           test "$GITHUB_SHA" = "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
-          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=push&branch=main&head_sha=$GITHUB_SHA&per_page=1" \
-            | jq --exit-status --arg sha "$GITHUB_SHA" \
-              '.workflow_runs[0] | .head_sha == $sha and .head_branch == "main" and .event == "push" and .conclusion == "success"' \
-              > /dev/null
-
-      - name: Check out the verified commit
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
+          ruby scripts/ci/ci_contract.rb verify server "$GITHUB_SHA" "$GITHUB_REPOSITORY"
 
       - name: Build the existing server image before requesting cloud credentials
         if: inputs.operation != 'observability-restore'

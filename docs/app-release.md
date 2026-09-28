@@ -12,7 +12,7 @@ iOS signing·TestFlight는 Apple Developer Program/App Store Connect 계정 준�
 - `APP_BUILD_NUMBER`: `1`~`2100000000`의 미사용 정수
 - `API_BASE_URL`: credential, query, fragment와 `/` 이외 path가 없는 HTTPS origin
 
-Android는 exact SHA의 최신 main CI attempt에서 `verify` job 성공을 요구한다. iOS는 같은 SHA의 전체 CI 성공을 요구한다. 플랫폼별 workflow concurrency는 repository workflow끼리만 직렬화하며 local/Console upload를 감지하지 못한다.
+Android는 exact SHA의 최신 main CI run/attempt에서 `android`, iOS는 `ios` job 하나의 완료·성공을 요구한다. main push와 수동 CI 중 최신 실행을 선택하고 전체 run/job inventory·workflow·SHA·run·attempt 및 재조회 identity를 검사한다. 다른 플랫폼이나 aggregate 성공, skip, 이전 attempt 성공으로 대체하지 않는다. 대상이 skip됐다면 [명시적 CI 검증](ci-cd.md#skipped-platform-validation-before-deployment)을 같은 main SHA에서 실행한다. 초기 preflight 이후 environment 승인을 기다렸다면 배포 job이 인증·signing 정보를 사용하기 직전에 최신 CI를 다시 검사한다. deploy job은 [동일 플랫폼 CI와 실행 잠금](ci-cd.md#platform-ci-and-deployment-concurrency)을 공유하며 기존 플랫폼별 배포 workflow mutex도 유지한다. local/Console upload는 이 잠금에 포함되지 않는다.
 
 공개 Actions log·summary·artifact는 비공개 경계가 아니다. URL 원문, signing credential, AAB/IPA와 raw Fastlane output을 올리지 않는다. URL은 앱 binary에서 추출 가능하므로 인증 수단으로 사용하지 않는다.
 
@@ -55,7 +55,7 @@ Fastlane `supply`는 앱의 수동 초기 설정과 최소 한 번의 build uplo
 
 최초 AAB는 다음 조건으로 수동 등록한다.
 
-1. main CI `verify`가 성공한 exact SHA의 깨끗한 전용 checkout을 사용한다.
+1. main CI `android`가 성공한 exact SHA의 깨끗한 전용 checkout을 사용한다.
 2. Console에서 미사용 version/versionCode를 정하고 Actions와 같은 upload keystore·alias, release API URL과 Firebase config로 `:app:androidApp:bundleRelease`를 실행한다.
 3. AAB signer의 SHA-256 fingerprint가 environment signing secret 원본의 선택한 alias certificate fingerprint와 같은지 확인한다. 다르면 upload하지 않는다.
 4. AAB와 임시 keystore/config/build output은 repository와 공개 artifact 밖에 두고, Console 접수·Play App Signing·internal release 처리를 확인한다.

@@ -173,15 +173,15 @@ class AcceptanceConcurrencyTest {
             "fresh-after-failure"
         })
 
-        val completionReached = CompletableDeferred<Unit>()
+        val completionReached = CompletableDeferred<Job>()
         val first = async(Dispatchers.Default) {
             protection.getHtml(Url("https://www.vlr.gg/completed-entry-race")) {
                 calls += 1
-                completionReached.complete(Unit)
+                completionReached.complete(currentCoroutineContext().job)
                 "completed"
             }
         }
-        completionReached.await()
+        completionReached.await().join()
         val replacement = async(Dispatchers.Default) {
             protection.getHtml(Url("https://www.vlr.gg/completed-entry-race")) { calls += 1; "replacement" }
         }

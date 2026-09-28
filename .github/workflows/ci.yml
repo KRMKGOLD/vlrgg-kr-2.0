@@ -4,6 +4,18 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Platform to validate for deployment
+        required: true
+        default: all
+        type: choice
+        options: [all, android, server, ios]
+      source_sha:
+        description: Exact current main SHA (reject if main moved)
+        required: true
+        type: string
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -13,8 +25,12 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.select.outputs.android }}
+      server: ${{ steps.select.outputs.server }}
+      ios: ${{ steps.select.outputs.ios }}
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -22,10 +38,30 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check production deployment retry and traffic guards
-        run: |
-          bash .github/scripts/test-query-production-deploy.sh
-          bash .github/scripts/test-observability-operations.sh
+      - name: Set up pinned Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: .ruby-version
+
+      - name: Check CI selection and deployment proof contracts
+        run: ruby scripts/ci/ci_contract_test.rb
+
+      - name: Select affected platforms
+        id: select
+        run: ruby scripts/ci/ci_contract.rb detect
+
+  android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-android
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Set up pinned Ruby and fastlane
         uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
@@ -49,17 +85,6 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Set up Node 22
-        uses: actions/setup-node@v6.4.0
-        with:
-          node-version: '22'
-
-      - name: Cache Firebase Emulator downloads
-        uses: actions/cache@v6.1.0
-        with:
-          path: ~/.cache/firebase
-          key: firebase-emulator-${{ runner.os }}-15.25.1
-
       - name: Run credential-free KMP and Android checks
         run: >
           ./gradlew --no-daemon
@@ -74,6 +99,42 @@ jobs:
         run: |
           python3 -B scripts/firebase/test_with_config.py
           sh app/androidApp/scripts/test-crashlytics-config.sh
+
+  server:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-server
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check production deployment retry and traffic guards
+        run: |
+          bash .github/scripts/test-query-production-deploy.sh
+          bash .github/scripts/test-observability-operations.sh
+
+      - name: Set up Java 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Node 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+
+      - name: Cache Firebase Emulator downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/firebase
+          key: firebase-emulator-${{ runner.os }}-15.25.1
 
       - name: Start, wait for, test, and always clean up Firestore Emulator
         env:
@@ -96,23 +157,12 @@ jobs:
         shell: bash
         run: bash .github/scripts/smoke-observability.sh
 
-      - name: Check event patch formatting
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-          HEAD_SHA: ${{ github.sha }}
-        shell: bash
-        run: |
-          if [ "$EVENT_NAME" = pull_request ]; then
-            git diff --check "$PR_BASE_SHA...$HEAD_SHA"
-          elif git rev-parse --verify --quiet "$PUSH_BEFORE_SHA^{commit}" > /dev/null; then
-            git diff --check "$PUSH_BEFORE_SHA...$HEAD_SHA"
-          else
-            git diff --check "$(git hash-object -t tree /dev/null)" "$HEAD_SHA"
-          fi
-
   ios:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-ios
+      cancel-in-progress: false
     runs-on: macos-26
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
@@ -157,3 +207,23 @@ jobs:
             -configuration Release -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$temp_dir/DerivedData" -xcconfig "$temp_dir/Release.xcconfig" \
             CODE_SIGNING_ALLOWED=NO build
+
+  # Keep this stable check name for branch protection; skipped platforms are checked explicitly.
+  verify:
+    if: always()
+    needs: [changes, android, server, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require every selected platform to succeed
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: ruby scripts/ci/ci_contract.rb gate
+
+      - name: Check event patch formatting
+        run: ruby scripts/ci/ci_contract.rb whitespace

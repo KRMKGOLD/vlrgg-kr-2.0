@@ -53,19 +53,23 @@ jobs:
           SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
         run: ruby scripts/app-release/release_contract.rb validate-inputs
 
-      - name: Require successful verify job for frozen main source
+      - name: Require successful Android job for frozen main source
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
-        run: ruby scripts/app-release/release_contract.rb verify-android-ci "$SOURCE_SHA" "$GITHUB_REPOSITORY"
+        run: ruby scripts/ci/ci_contract.rb verify android "$SOURCE_SHA" "$GITHUB_REPOSITORY"
 
   deploy:
     needs: preflight
+    concurrency:
+      group: ci-deploy-${{ github.ref }}-android
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: android-internal
     permissions:
       contents: read
+      actions: read
       id-token: write
     env:
       APP_VERSION: ${{ inputs.APP_VERSION }}
@@ -99,6 +103,11 @@ jobs:
         with:
           ruby-version: .ruby-version
           bundler-cache: true
+
+      - name: Recheck Android CI after environment approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ruby scripts/ci/ci_contract.rb verify android "$SOURCE_SHA" "$GITHUB_REPOSITORY"
 
       - name: Authenticate to Google Play
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
