@@ -113,6 +113,32 @@ jobs:
             echo "::error::Validation image build failed."
             exit 1
           fi
+          if test "$VALIDATION_SCOPE" = o9-oom-discovery; then
+            umask 077
+            container=""
+            cleanup_manifest_container() {
+              if test -n "$container"; then
+                docker rm --force "$container" > /dev/null 2>&1 || true
+              fi
+            }
+            trap cleanup_manifest_container EXIT
+            container="$(docker create "$image")"
+            docker export --output "$RUNNER_TEMP/observability-runtime-rootfs.tar" "$container"
+            docker image inspect "$image" \
+              > "$RUNNER_TEMP/observability-runtime-config.json"
+            python3 .github/scripts/observability-runtime-proof.py \
+              --rootfs "$RUNNER_TEMP/observability-runtime-rootfs.tar" \
+              --config "$RUNNER_TEMP/observability-runtime-config.json" \
+              --dockerfile .github/scripts/observability-validation.Dockerfile \
+              --output "$RUNNER_TEMP/observability-runtime-manifest.json"
+            applicability="$(jq --exit-status --raw-output '.applicabilitySha256' \
+              "$RUNNER_TEMP/observability-runtime-manifest.json")"
+            [[ "$applicability" =~ ^[0-9a-f]{64}$ ]]
+            echo "OOM_RUNTIME_APPLICABILITY_SHA256=$applicability" >> "$GITHUB_ENV"
+            cleanup_manifest_container
+            container=""
+            trap - EXIT
+          fi
           echo "VALIDATION_IMAGE_TAG=$image" >> "$GITHUB_ENV"
 
       - name: Authenticate deployment through Workload Identity Federation
@@ -180,6 +206,16 @@ jobs:
           image="$(docker inspect --format '{{index .RepoDigests 0}}' "$VALIDATION_IMAGE_TAG" 2>/dev/null)"
           [[ "$image" == "$REGION-docker.pkg.dev/$PROJECT_ID/$REGISTRY_REPOSITORY/query-observability@sha256:"* ]]
           .github/scripts/observability-service.sh resource image "$image"
+          if test "$VALIDATION_SCOPE" = o9-oom-discovery; then
+            [[ "$OOM_RUNTIME_APPLICABILITY_SHA256" =~ ^[0-9a-f]{64}$ ]]
+            test -s "$RUNNER_TEMP/observability-runtime-manifest.json"
+            umask 077
+            jq --null-input \
+              --arg applicabilitySha256 "$OOM_RUNTIME_APPLICABILITY_SHA256" \
+              --arg immutableOverlayDigest "$image" \
+              '{applicabilitySha256:$applicabilitySha256,immutableOverlayDigest:$immutableOverlayDigest}' \
+              > "$RUNNER_TEMP/observability-runtime-binding.json"
+          fi
           echo "digest=$image" >> "$GITHUB_OUTPUT"
 
       - name: Deploy and inspect the private validation service
@@ -312,6 +348,14 @@ jobs:
               ;;
           esac
           .github/scripts/observability-service.sh pending revision "$revision"
+          if test "$VALIDATION_SCOPE" = o9-oom-discovery; then
+            jq --exit-status \
+              --arg applicabilitySha256 "$OOM_RUNTIME_APPLICABILITY_SHA256" \
+              --arg immutableOverlayDigest "$IMAGE_DIGEST" '
+                .applicabilitySha256 == $applicabilitySha256 and
+                .immutableOverlayDigest == $immutableOverlayDigest
+              ' "$RUNNER_TEMP/observability-runtime-binding.json" > /dev/null
+          fi
           gcloud run deploy "$VALIDATION_SERVICE" --quiet --project "$PROJECT_ID" --region "$REGION" \
             --image "$IMAGE_DIGEST" --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --revision-suffix "o$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --no-traffic \
@@ -324,6 +368,16 @@ jobs:
             .metadata.name == $revision and .status.imageDigest == $image and
             any(.status.conditions[]?; .type == "Ready" and .status == "True")
           ' <<< "$deployed" >/dev/null
+          if test "$VALIDATION_SCOPE" = o9-oom-discovery; then
+            actual_image="$(jq --exit-status --raw-output '.status.imageDigest' <<< "$deployed")"
+            binding_tmp="$RUNNER_TEMP/observability-runtime-binding.tmp"
+            jq --exit-status --arg actualRevisionImageDigest "$actual_image" '
+              if .immutableOverlayDigest == $actualRevisionImageDigest
+              then . + {actualRevisionImageDigest:$actualRevisionImageDigest}
+              else error("runtime image digest mismatch") end
+            ' "$RUNNER_TEMP/observability-runtime-binding.json" > "$binding_tmp"
+            mv "$binding_tmp" "$RUNNER_TEMP/observability-runtime-binding.json"
+          fi
           full_revision="projects/$PROJECT_ID/locations/$REGION/services/$VALIDATION_SERVICE/revisions/$revision"
           .github/scripts/observability-service.sh resource revision "$full_revision"
           .github/scripts/observability-service.sh pending traffic "$revision"

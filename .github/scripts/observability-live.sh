@@ -827,6 +827,7 @@ guard_oom_runtime() {
 
 private_oom() {
   local status curl_exit=0 output="$evidence/private-response" requested_at fixture_survived=false
+  local fixture_reason=unknown allocated_bytes=null elapsed_millis=null
   require_fault_time
   guard_target
   guard_oom_runtime
@@ -843,12 +844,31 @@ private_oom() {
       <<< "X-Serverless-Authorization: Bearer $SMOKE_ID_TOKEN")" || curl_exit=$?
   fi
   [[ "$status" =~ ^[0-9]{3}$ ]] || fail 'The private OOM request returned an invalid status.'
+  if jq -se 'any(.[]; type == "object" and .status? == "fixture_failed")' "$output" >/dev/null 2>&1 ||
+    { test -s "$output" && ! jq -s '.' "$output" >/dev/null 2>&1; }; then
+    fixture_survived=true
+  fi
+  if jq -se '
+    length == 1 and (.[0] |
+      type == "object" and
+      keys == ["allocatedBytes", "elapsedMillis", "reason", "status"] and
+      .status == "fixture_failed" and
+      (.reason | IN("byte_limit", "time_limit", "allocation_error")) and
+      (.allocatedBytes | type == "number" and . == floor and . >= 0 and . <= 1073741824 and . % 16777216 == 0) and
+      (.elapsedMillis | type == "number" and . == floor and . >= 0 and . <= 25000))
+  ' "$output" >/dev/null 2>&1; then
+    IFS=$'\t' read -r fixture_reason allocated_bytes elapsed_millis \
+      < <(jq -sr '.[0] | [.reason, .allocatedBytes, .elapsedMillis] | @tsv' "$output")
+  fi
   jq -cn --arg status "$status" --argjson exit "$curl_exit" --argjson at "$requested_at" \
-    '{httpStatus:$status,curlExit:$exit,observedAt:$at}' > "$evidence/oom-request.json"
+    --argjson survived "$fixture_survived" --arg reason "$fixture_reason" \
+    --argjson allocated "$allocated_bytes" --argjson elapsed "$elapsed_millis" \
+    '{httpStatus:$status,curlExit:$exit,observedAt:$at,fixtureSurvived:$survived,
+      fixtureReason:$reason,allocatedBytes:$allocated,elapsedMillis:$elapsed}' > "$evidence/oom-request.json"
   chmod 600 "$evidence/oom-request.json"
-  if jq -e '.status == "fixture_failed"' "$output" >/dev/null 2>&1; then fixture_survived=true; fi
-  printf 'OOM discovery request: observedAt=%s httpStatus=%s curlExit=%s fixtureSurvived=%s\n' \
-    "$requested_at" "$status" "$curl_exit" "$fixture_survived"
+  : > "$output"
+  printf 'OOM discovery request: observedAt=%s httpStatus=%s curlExit=%s fixtureSurvived=%s fixtureReason=%s allocatedBytes=%s elapsedMillis=%s\n' \
+    "$requested_at" "$status" "$curl_exit" "$fixture_survived" "$fixture_reason" "$allocated_bytes" "$elapsed_millis"
   if test "$fixture_survived" = true; then
     fail 'The bounded OOM fixture survived and reported failure.'
   fi

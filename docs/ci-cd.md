@@ -84,7 +84,7 @@ PROTECTED_ROUTE_LOAD_REPORT_PATH=/tmp/vlrgg-protected-load.properties \
 - `observability-validate`: private validation overlay와 bounded live driver만 사용하고 production을 변경하지 않는다.
 - `observability-restore`: enable 값과 무관하게 journal 기반 복원만 수행하며 build/push를 하지 않는다.
 
-`validation_scope`는 validate에서만 `all`, uptime·종료용 `o8-o9`, 종료 전용 `o9`, 장애 없는 알림 전달 진단용 `log-delivery`, 비공개 컨테이너 OOM의 실제 system log를 한 번 수집하는 `o9-oom-discovery`를 허용한다. `LOG_DELIVERY`와 OOM discovery는 별도 결과이며 O9 성공으로 계산하지 않는다. Discovery에는 정책 생성이나 두 번째 fault가 없고, 실제 로그를 기반으로 후속 알림 검증 코드를 리뷰한 뒤 진행한다. 축소 범위도 새 private revision·journal·preflight와 `always()` 복원·정리를 사용하고, 생략한 단계는 해당 실행의 PASS로 표시하지 않는다. 상세 paging·fault cutoff 계약은 [배포 runbook](architecture/server-container-deployment.md#private-validation-and-recovery)이 소유한다.
+`validation_scope`는 validate에서만 `all`, uptime·종료용 `o8-o9`, 종료 전용 `o9`, 장애 없는 알림 전달 진단용 `log-delivery`, 비공개 컨테이너 OOM의 실제 system log를 한 번 수집하는 `o9-oom-discovery`를 허용한다. `LOG_DELIVERY`와 OOM discovery는 별도 결과이며 O9 성공으로 계산하지 않는다. Discovery에는 정책 생성이나 두 번째 fault가 없고, 실제 로그를 기반으로 후속 알림 검증 코드를 리뷰한 뒤 진행한다. 검증 overlay는 클라우드 인증 전에 실제 OS·Java·앱 파일의 applicability 해시를 계산하며, 고정 해시만 로그에 남겨 실행 간 바이너리 비교에 사용한다. 축소 범위도 새 private revision·journal·preflight와 `always()` 복원·정리를 사용하고, 생략한 단계는 해당 실행의 PASS로 표시하지 않는다. 상세 paging·fault cutoff 계약은 [배포 runbook](architecture/server-container-deployment.md#private-validation-and-recovery)이 소유한다.
 
 ## App deployment
 
@@ -113,6 +113,6 @@ Target Secret, registration token과 App Check token은 repository/environment v
 | Query server | private validation, production promotion, rollback, public smoke와 cost-stop recovery PASS | 실제 invoice·Budget/Monitoring receipt·Spend cap 미확인 |
 | App release process | [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117): Android `0.1.0(2)` Actions 업로드·Play 업데이트·실기기 정상 동작·cleanup 확인 완료 | iOS account/signing/TestFlight는 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 보류 |
 | Crashlytics | Android fatal·ANR, iOS fatal·dSYM 실수신 확인 | store release 안정성은 별도 운영 관측 |
-| #122 observability | private O3~O8 및 log-delivery의 실제 수신·독립 복원 확인; PR #152의 요청 수정 후에도 native exit42 로그가 없어 실패·복원 | O9 `FAIL`; OOM discovery·후속 실제 알림 검증과 production 적용 대기. OOM `NOT RUN`. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
+| #122 observability | private O3~O8 및 log-delivery의 실제 수신·독립 복원 확인; PR #152의 요청 수정 후에도 native exit42 로그가 없어 실패·복원 | O9 `FAIL`; 파일 쓰기 OOM discovery도 fixture 생존으로 실패·독립 복원. 직접 메모리 discovery·후속 실제 알림 검증과 production 적용 대기. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
 
 Branch protection의 required check는 항상 실행되는 `verify`를 권장한다. 이 문서와 workflow는 repository 설정을 변경하지 않으므로 GitHub에서 실제 보호 설정을 별도로 확인해야 한다. 선택적으로 skip되는 플랫폼 job을 개별 필수 check로 등록하는 대신 `verify`가 선택 결과를 검사하게 한다. direct push 제한·PR 요구·최신 branch 상태도 실제 repository 설정으로 적용한다.
