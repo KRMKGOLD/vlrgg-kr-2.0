@@ -246,6 +246,32 @@ class RuntimeProofTest(unittest.TestCase):
                 with self.assertRaises(runtime_proof.ManifestError):
                     runtime_proof.rootfs_manifest(self._tar(f"bad-zip-{index}.tar", entries))
 
+    def test_legacy_empty_jar_directory_mode_is_accepted_narrowly(self) -> None:
+        def archive(attributes: int, name: str = "META-INF/maven/", content: bytes = b"") -> bytes:
+            output = io.BytesIO()
+            with zipfile.ZipFile(output, "w") as zipped:
+                entry = zipfile.ZipInfo(name)
+                entry.create_system = 3
+                entry.external_attr = attributes
+                zipped.writestr(entry, content)
+            return output.getvalue()
+
+        ordinary = archive((stat.S_IFDIR | 0o755) << 16 | 0x10)
+        legacy = archive(0xFFFF0010)
+        self.assertEqual(
+            runtime_proof._zip_manifest(ordinary, "app/lib/legacy.jar"),
+            runtime_proof._zip_manifest(legacy, "app/lib/legacy.jar"),
+        )
+        for data in (
+            archive(0xFFFF0010, content=b"unexpected"),
+            archive(0xFFFF0010, name="META-INF/maven"),
+            archive(0xFFFF0000),
+            archive((stat.S_IFCHR | 0o644) << 16 | 0x10),
+            archive((stat.S_IFLNK | 0o777) << 16 | 0x10),
+        ):
+            with self.assertRaises(runtime_proof.ManifestError):
+                runtime_proof._zip_manifest(data, "app/lib/legacy.jar")
+
     def _tar(self, name: str, entries: list[dict]) -> Path:
         path = self.root / name
         write_tar(path, entries)

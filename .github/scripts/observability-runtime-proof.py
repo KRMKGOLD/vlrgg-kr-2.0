@@ -104,7 +104,12 @@ def _zip_manifest(data: bytes, archive_path: str) -> tuple[str, list[dict[str, A
                 if stat.S_ISLNK(mode):
                     raise ManifestError(f"ZIP links are not allowed in {archive_path}: {name}")
                 file_type = stat.S_IFMT(mode)
-                if file_type not in (0, stat.S_IFREG, stat.S_IFDIR):
+                # Some existing Maven JARs encode an unset directory mode as 0xffff.
+                legacy_empty_directory = (
+                    info.create_system == 3 and info.external_attr == 0xFFFF0010
+                    and info.is_dir() and info.file_size == 0
+                )
+                if file_type not in (0, stat.S_IFREG, stat.S_IFDIR) and not legacy_empty_directory:
                     raise ManifestError(f"unsupported ZIP entry type in {archive_path}: {name}")
                 if info.flag_bits & 0x1:
                     raise ManifestError(f"encrypted ZIP entry in {archive_path}: {name}")
