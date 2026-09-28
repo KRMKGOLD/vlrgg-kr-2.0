@@ -39,7 +39,9 @@ java = [str(Path(env['JAVA_HOME']) / 'bin/java')] if env.get('JAVA_HOME') else [
 command = java + ['-cp', f'{libs}/*:{validation}', main]
 for guard in ({}, {'VLRGG_OBSERVABILITY_LOCAL': 'true', 'K_SERVICE': 'production'},
               {'K_SERVICE': 'vlrgg-query-check'},
-              {'K_SERVICE': 'production', 'VLRGG_OBSERVABILITY_VALIDATION': 'true'}):
+              {'K_SERVICE': 'production', 'VLRGG_OBSERVABILITY_VALIDATION': 'true'},
+              {'K_SERVICE': 'vlrgg-query-check', 'VLRGG_OBSERVABILITY_VALIDATION': 'true',
+               'VLRGG_OBSERVABILITY_ALLOW_EXIT': 'true', 'VLRGG_OBSERVABILITY_ALLOW_OOM': 'true'}):
     result = subprocess.run(command, env=env | guard, capture_output=True, timeout=15)
     assert result.returncode != 0, 'Harness guard allowed unsafe startup'
 
@@ -102,6 +104,7 @@ with tempfile.TemporaryDirectory(prefix='vlrgg-observability-') as directory:
         request(18081, '/__observability/expected', 400)
         assert request(18081, '/__observability/log-canary', 200, 'POST') == {'status': 'emitted'}
         request(18081, '/__observability/exit', 404, 'POST')
+        request(18081, '/__observability/oom', 404, 'POST')
         request(18081, '/__observability/health/fail', 200, 'POST')
         assert request(18081, '/health', 503) == {'status': 'unavailable'}
         request(18081, '/__observability/health/restore', 200, 'POST')
@@ -132,6 +135,13 @@ with tempfile.TemporaryDirectory(prefix='vlrgg-observability-') as directory:
             assert '@type' not in event and '\n\tat ' not in event.get('message', '')
     assert events[0]['logging.googleapis.com/trace'] == f'projects/validation-project/traces/{trace}'
     assert all('logging.googleapis.com/trace' not in event for event in events[1:])
+
+    local_oom_output = Path(directory) / 'local-oom-validation.log'
+    with running(command, {
+        'VLRGG_OBSERVABILITY_LOCAL': 'true',
+        'VLRGG_OBSERVABILITY_ALLOW_OOM': 'true',
+    }, local_oom_output, 18083):
+        request(18083, '/__observability/oom', 404, 'POST')
 
     exit_output = Path(directory) / 'exit-validation.log'
     with running(command, {

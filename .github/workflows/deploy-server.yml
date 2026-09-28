@@ -22,6 +22,7 @@ on:
           - o8-o9
           - o9
           - log-delivery
+          - o9-oom-discovery
 
 concurrency:
   group: cloud-run-query-production
@@ -74,7 +75,7 @@ jobs:
             *) echo "::error::Unsupported operation."; exit 1 ;;
           esac
           case "$OPERATION:$VALIDATION_SCOPE" in
-            deploy:all|observability-validate:all|observability-validate:o8-o9|observability-validate:o9|observability-validate:log-delivery|observability-restore:all) ;;
+            deploy:all|observability-validate:all|observability-validate:o8-o9|observability-validate:o9|observability-validate:log-delivery|observability-validate:o9-oom-discovery|observability-restore:all) ;;
             *) echo "::error::Unsupported validation scope for operation."; exit 1 ;;
           esac
           if test "$OPERATION" != observability-restore; then
@@ -291,13 +292,32 @@ jobs:
         run: |
           test "$(date +%s)" -le "$OBSERVABILITY_DEADLINE_EPOCH"
           revision="$VALIDATION_SERVICE-o$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          env_vars="VLRGG_OBSERVABILITY_VALIDATION=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID"
+          remove_env=()
+          case "$VALIDATION_SCOPE" in
+            all|o8-o9|o9)
+              env_vars+=",VLRGG_OBSERVABILITY_ALLOW_EXIT=true"
+              remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_OOM)
+              ;;
+            o9-oom-discovery)
+              env_vars+=",VLRGG_OBSERVABILITY_ALLOW_OOM=true"
+              remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_EXIT)
+              ;;
+            log-delivery)
+              remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_EXIT,VLRGG_OBSERVABILITY_ALLOW_OOM)
+              ;;
+            *)
+              echo "::error::Unsupported validation scope."
+              exit 1
+              ;;
+          esac
           .github/scripts/observability-service.sh pending revision "$revision"
           gcloud run deploy "$VALIDATION_SERVICE" --quiet --project "$PROJECT_ID" --region "$REGION" \
             --image "$IMAGE_DIGEST" --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --revision-suffix "o$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --no-traffic \
             --port=8080 --cpu=1 --memory=768Mi --concurrency=1 --timeout=30s \
             --min-instances=1 --max-instances=1 --cpu-throttling \
-            --update-env-vars="VLRGG_OBSERVABILITY_VALIDATION=true,VLRGG_OBSERVABILITY_ALLOW_EXIT=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
+            --update-env-vars="$env_vars" "${remove_env[@]}" \
             > "$RUNNER_TEMP/cloud-run-observability-deploy.log" 2>&1
           deployed="$(gcloud run revisions describe "$revision" --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
           jq --exit-status --arg revision "$revision" --arg image "$IMAGE_DIGEST" '
@@ -356,6 +376,7 @@ jobs:
           SMOKE_URL: ${{ steps.observability-validation.outputs.url }}
           SMOKE_ID_TOKEN: ${{ steps.observability-auth.outputs.id_token }}
           OBSERVABILITY_REVISION: ${{ steps.observability-validation.outputs.revision }}
+          OBSERVABILITY_EXPECTED_IMAGE_DIGEST: ${{ steps.validation-image.outputs.digest }}
           OBSERVABILITY_NOTIFICATION_CHANNELS_JSON: ${{ secrets.GCP_OBSERVABILITY_NOTIFICATION_CHANNELS_JSON }}
           OBSERVABILITY_CONFIRMED_RECEIVERS: ${{ secrets.GCP_OBSERVABILITY_CONFIRMED_RECEIVERS }}
           OBSERVABILITY_ERROR_REPORTING_ENROLLED: ${{ secrets.GCP_ERROR_REPORTING_ENROLLED }}

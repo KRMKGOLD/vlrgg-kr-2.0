@@ -361,6 +361,14 @@ case "$method $path" in
   'POST /__observability/exit')
     printf '%s' "${PRIVATE_EXIT_STATUS:-000}"
     exit "${PRIVATE_EXIT_CODE:-52}" ;;
+  'POST /__observability/oom')
+    if test "${OOM_FIXTURE_SURVIVED:-false}" = true; then
+      printf '%s\n' '{"status":"fixture_failed","reason":"byte_limit"}' > "$output"
+    else
+      printf '%s\n' '{}' > "$output"
+    fi
+    printf '%s' "${PRIVATE_EXIT_STATUS:-000}"
+    exit "${PRIVATE_EXIT_CODE:-52}" ;;
   *) printf '%s\n' '{}' > "$output"; printf 500 ;;
 esac
 STUB
@@ -560,13 +568,16 @@ done
 run_preflight_case observability-validate true pass o8-o9
 run_preflight_case observability-validate true pass o9
 run_preflight_case observability-validate true pass log-delivery
+run_preflight_case observability-validate true pass o9-oom-discovery
 run_preflight_case observability-validate true reject unknown
 run_preflight_case deploy true reject o8-o9
 run_preflight_case deploy true reject o9
 run_preflight_case deploy true reject log-delivery
+run_preflight_case deploy true reject o9-oom-discovery
 run_preflight_case observability-restore true reject o8-o9
 run_preflight_case observability-restore true reject o9
 run_preflight_case observability-restore true reject log-delivery
+run_preflight_case observability-restore true reject o9-oom-discovery
 run_preflight_case deploy true pass all ios-failing
 for ci_case in server-missing server-duplicate server-pending server-failure server-skipped server-cancelled wrong-run-id wrong-attempt wrong-head-sha incomplete-inventory incomplete-runs-inventory reread-attempt-race; do
   run_preflight_case deploy true reject-ci all "$ci_case"
@@ -1332,6 +1343,107 @@ for fixture in server503:503:0:pass empty52:000:52:pass framing411:411:0:reject;
 done
 pass 'real private-exit curl branch frames an empty HTTP/1.1 POST and reports only numeric failure status'
 
+new_case live-private-oom-outcomes
+for fixture in interrupted:000:52:false:pass server503:503:0:false:pass survived:500:0:true:reject success200:200:0:false:reject; do
+  IFS=: read -r name http_status hook_exit survived expected <<< "$fixture"
+  oom_case="$CASE_DIR/$name"
+  mkdir -p "$oom_case/evidence"
+  : > "$oom_case/private-calls"
+  status=0
+  env CASE_DIR="$oom_case" PRIVATE_EXIT_STATUS="$http_status" PRIVATE_EXIT_CODE="$hook_exit" \
+    OOM_FIXTURE_SURVIVED="$survived" SMOKE_URL=https://vlrgg-query-check-test.run.app \
+    OBSERVABILITY_PRIVATE_HTTP="$work_dir/private-http" OBSERVABILITY_DEADLINE_EPOCH=1700003000 \
+    bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      now() { printf "1700000000\n"; }
+      guard_target() { printf "target\n" >> "$CASE_DIR/guards"; }
+      guard_oom_runtime() { printf "runtime\n" >> "$CASE_DIR/guards"; }
+      private_oom
+    ' _ "$live_helper" > "$oom_case/stdout" 2> "$oom_case/stderr" || status=$?
+  if test "$expected" = pass; then
+    test "$status" = 0 || fail "accepted private OOM outcome $name failed"
+  else
+    test "$status" != 0 || fail "unsafe private OOM outcome $name passed"
+  fi
+  test "$(tr '\n' ' ' < "$oom_case/guards")" = 'target runtime ' \
+    || fail "private OOM outcome $name skipped target/runtime guards"
+  test "$(wc -l < "$oom_case/private-calls" | tr -d ' ')" = 1 \
+    || fail "private OOM outcome $name retried the fault"
+  jq -e --arg status "$http_status" --argjson exit "$hook_exit" \
+    '.httpStatus == $status and .curlExit == $exit and .observedAt == 1700000000' \
+    "$oom_case/evidence/oom-request.json" >/dev/null \
+    || fail "private OOM outcome $name lost the recorded request result"
+  grep -Eq "^OOM discovery request: observedAt=1700000000 httpStatus=$http_status curlExit=$hook_exit fixtureSurvived=$survived$" \
+    "$oom_case/stdout" || fail "private OOM outcome $name lost sanitized request evidence"
+done
+pass 'private OOM sends once behind exact guards, rejects fixture survival, and emits sanitized request evidence'
+
+new_case live-private-oom-curl-framing
+mkdir -p "$CASE_DIR/evidence"
+env CASE_DIR="$CASE_DIR" SMOKE_URL=https://vlrgg-query-check-test.run.app SMOKE_ID_TOKEN=fixture-token \
+  OBSERVABILITY_PRIVATE_HTTP= OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"
+    now() { printf "1700000000\n"; }
+    guard_target() { :; }; guard_oom_runtime() { :; }
+    curl() {
+      printf "%s\n" "$@" > "$CASE_DIR/curl-arguments"
+      cat > "$CASE_DIR/curl-headers"
+      printf 503
+    }
+    private_oom
+  ' _ "$live_helper" > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr"
+grep -Fxq -- '--http1.1' "$CASE_DIR/curl-arguments"
+grep -Fxq -- 'Content-Length: 0' "$CASE_DIR/curl-arguments"
+grep -Fxq -- 'https://vlrgg-query-check-test.run.app/__observability/oom' "$CASE_DIR/curl-arguments"
+! grep -Fxq -- '--location' "$CASE_DIR/curl-arguments" || fail 'private OOM followed redirects'
+grep -Fxq 'X-Serverless-Authorization: Bearer fixture-token' "$CASE_DIR/curl-headers"
+! grep -Fq fixture-token "$CASE_DIR/curl-arguments" "$CASE_DIR/stdout" "$CASE_DIR/stderr" \
+  || fail 'private OOM exposed an authentication token'
+pass 'real private-OOM curl branch sends one framed authenticated POST without exposing credentials'
+
+new_case live-oom-runtime-contract
+jq -n '{
+  metadata:{name:"vlrgg-query-check-o123-1",annotations:{
+    "autoscaling.knative.dev/minScale":"1","autoscaling.knative.dev/maxScale":"1",
+    "run.googleapis.com/cpu-throttling":"true","run.googleapis.com/execution-environment":"gen2"}},
+  spec:{containerConcurrency:1,timeoutSeconds:30,containers:[{
+    image:"image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    resources:{limits:{memory:"768Mi",cpu:"1000m"}},
+    env:[{name:"VLRGG_OBSERVABILITY_VALIDATION",value:"true"},{name:"VLRGG_OBSERVABILITY_ALLOW_OOM",value:"true"}]
+  }]},
+  status:{imageDigest:"image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+}' > "$CASE_DIR/good-revision.json"
+for mode in good default-runtime gen1-runtime wrong-memory extra-container volume mount stale-exit command args jvm-env java-opts wrong-runtime wrong-image; do
+  case "$mode" in
+    good) cp "$CASE_DIR/good-revision.json" "$CASE_DIR/revision.json" ;;
+    default-runtime) jq 'del(.metadata.annotations["run.googleapis.com/execution-environment"])' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    gen1-runtime) jq '.metadata.annotations["run.googleapis.com/execution-environment"]="gen1"' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    wrong-memory) jq '.spec.containers[0].resources.limits.memory="1Gi"' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    extra-container) jq '.spec.containers += [.spec.containers[0]]' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    volume) jq '.spec.volumes=[{name:"scratch",emptyDir:{}}]' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    mount) jq '.spec.containers[0].volumeMounts=[{name:"scratch",mountPath:"/tmp"}]' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    stale-exit) jq '.spec.containers[0].env += [{name:"VLRGG_OBSERVABILITY_ALLOW_EXIT",value:"true"}]' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    command) jq '.spec.containers[0].command=["sh"]' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    args) jq '.spec.containers[0].args=["-c"]' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    jvm-env) jq '.spec.containers[0].env += [{name:"JAVA_TOOL_OPTIONS",value:"-Xmx64m"}]' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    java-opts) jq '.spec.containers[0].env += [{name:"JAVA_OPTS",value:"-Xmx64m"}]' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    wrong-runtime) jq '.metadata.annotations["run.googleapis.com/execution-environment"]="sandbox-x"' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+    wrong-image) jq '.status.imageDigest="image@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"' "$CASE_DIR/good-revision.json" > "$CASE_DIR/revision.json" ;;
+  esac
+  status=0
+  env CASE_DIR="$CASE_DIR" MODE="$mode" OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+    OBSERVABILITY_EXPECTED_IMAGE_DIGEST=image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+    PROJECT_ID=test-project REGION=test-region bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence-$MODE"; mkdir -p "$evidence"
+      gcloud_read() { cp "$CASE_DIR/revision.json" "$1"; }
+      guard_oom_runtime
+    ' _ "$live_helper" > /dev/null 2> "$CASE_DIR/$mode.stderr" || status=$?
+  if [[ "$mode" == good || "$mode" == default-runtime || "$mode" == gen1-runtime ]]; then test "$status" = 0 || fail "supported OOM runtime $mode was rejected"
+  else test "$status" != 0 || fail "unsafe OOM runtime $mode was accepted"
+  fi
+done
+pass 'OOM runtime guard requires the exact digest, resources, execution environment, and unmounted storage contract'
+
 new_case live-o3-o6-schema
 # Minimal synthetic fixtures follow the formatter and provider contracts; no local runtime logs are required.
 internal_message='kr.co.cotton.vlrgg_mobile.observability.validation.ValidationInternalFailure: INTERNAL_ERROR
@@ -1742,7 +1854,7 @@ test ! -s "$CASE_DIR/results" || fail 'uptime deadline reported a false pass'
 pass 'uptime deadline expiry still restores health and never reports a pass'
 
 new_case live-phase-scope
-for scope in all o8-o9 o9 log-delivery invalid; do
+for scope in all o8-o9 o9 log-delivery o9-oom-discovery invalid; do
   : > "$CASE_DIR/phases"
   if env OBSERVABILITY_SCOPE="$scope" OBSERVABILITY_RUN=123-1 RUNNER_TEMP="$CASE_DIR" \
     GITHUB_STEP_SUMMARY="$CASE_DIR/summary" OBSERVABILITY_WORKFLOW_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -1754,6 +1866,7 @@ for scope in all o8-o9 o9 log-delivery invalid; do
       run_o8() { printf "O8\n" >> "$CASE_DIR/phases"; }
       run_o9() { printf "O9\n" >> "$CASE_DIR/phases"; }
       run_log_delivery() { printf "LOG_DELIVERY\n" >> "$CASE_DIR/phases"; }
+      run_o9_oom_discovery() { printf "OOM_DISCOVERY\n" >> "$CASE_DIR/phases"; }
       main
     ' _ "$live_helper" > /dev/null 2> "$CASE_DIR/$scope.stderr"; then
     test "$scope" != invalid || fail 'invalid live scope was accepted'
@@ -1765,10 +1878,41 @@ for scope in all o8-o9 o9 log-delivery invalid; do
     o8-o9) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O8 O9 ' ;;
     o9) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O9 ' ;;
     log-delivery) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight LOG_DELIVERY ' ;;
+    o9-oom-discovery) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight OOM_DISCOVERY ' ;;
     invalid) test ! -s "$CASE_DIR/phases" ;;
   esac || fail "live phase sequence for $scope is wrong"
 done
 pass 'default runs all phases; scoped validation isolates O8/O9, O9, or log delivery; invalid scope stops before preflight'
+
+new_case live-o9-oom-discovery
+env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
+  SERVICE_NAME=vlrgg-query-check CASE_DIR="$CASE_DIR" OBSERVABILITY_DEADLINE_EPOCH=1700002700 \
+  GITHUB_STEP_SUMMARY="$CASE_DIR/summary" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    now() { printf "1700000000\n"; }
+    sleep_for() { :; }
+    rfc3339_ago() { test "$1" = 720; printf "history-start\n"; }
+    system_logs() {
+      printf "%s\n" "$1 $2" >> "$CASE_DIR/log-queries"
+      jq -n --arg revision "$OBSERVABILITY_REVISION" \
+        "{entries:[{resource:{type:\"cloud_run_revision\",labels:{revision_name:\$revision}},logName:\"projects/test-project/logs/run.googleapis.com%2Fvarlog%2Fsystem\",insertId:\"native-1\",timestamp:\"2026-01-01T00:00:01Z\",jsonPayload:{providerField:\"unknown\"}}]}" > "$2"
+    }
+    private_oom() { printf "oom\n" >> "$CASE_DIR/faults"; OOM_REQUEST_EPOCH=1700000001; }
+    poll_health() { printf "health\n" >> "$CASE_DIR/events"; }
+    ensure_policy() { printf "policy\n" >> "$CASE_DIR/events"; return 1; }
+    result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+    run_o9_oom_discovery
+  ' _ "$live_helper"
+test "$(wc -l < "$CASE_DIR/faults" | tr -d ' ')" = 1
+test "$(wc -l < "$CASE_DIR/log-queries" | tr -d ' ')" = 13
+grep -qx 'health' "$CASE_DIR/events"
+! grep -qx 'policy' "$CASE_DIR/events" || fail 'OOM discovery created an alert policy'
+test "$(find "$CASE_DIR/evidence" -name 'system-oom-discovery-[0-9]*.json' | wc -l | tr -d ' ')" = 12 \
+  || fail 'OOM discovery did not retain every bounded polling snapshot'
+grep -qx 'OOM-DISCOVERY DISCOVERY ONLY' "$CASE_DIR/results"
+! grep -Eq 'O9 PASS|OOM PASS|RECEIPT' "$CASE_DIR/results" || fail 'OOM discovery reported validation success'
+jq -e '.entries[0].jsonPayload.providerField == "unknown"' "$CASE_DIR/evidence/system-oom-discovery.json" >/dev/null
+pass 'OOM discovery performs one fault, preserves unknown native payload, checks recovery, and cannot report O9 PASS'
 
 new_case live-log-delivery
 env CASE_DIR="$CASE_DIR" PROJECT_ID=test-project OBSERVABILITY_DEADLINE_EPOCH=1700002700 \
@@ -2417,6 +2561,14 @@ grep -q '^  cancel-in-progress: false$' "$workflow"
 grep -A7 '^      validation_scope:' "$workflow" | grep -q 'default: all'
 grep -A7 '^      validation_scope:' "$workflow" | grep -q 'o8-o9'
 grep -A8 '^      validation_scope:' "$workflow" | grep -q '^          - o9$'
+grep -A10 '^      validation_scope:' "$workflow" | grep -q '^          - o9-oom-discovery$'
+grep -Fq 'all|o8-o9|o9)' "$workflow"
+grep -Fq 'env_vars+=",VLRGG_OBSERVABILITY_ALLOW_EXIT=true"' "$workflow"
+grep -Fq 'remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_OOM)' "$workflow"
+grep -Fq 'o9-oom-discovery)' "$workflow"
+grep -Fq 'env_vars+=",VLRGG_OBSERVABILITY_ALLOW_OOM=true"' "$workflow"
+grep -Fq 'remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_EXIT)' "$workflow"
+grep -Fq 'remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_EXIT,VLRGG_OBSERVABILITY_ALLOW_OOM)' "$workflow"
 grep -Fq 'VALIDATION_SCOPE: ${{ inputs.validation_scope }}' "$workflow"
 grep -A3 'name: Deploy the verified image to production' "$workflow" \
   | grep -q "if: inputs.operation == 'deploy'"

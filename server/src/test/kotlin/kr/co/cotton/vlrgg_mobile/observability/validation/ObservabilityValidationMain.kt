@@ -6,6 +6,9 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import java.io.IOException
+import java.io.OutputStream
+import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
@@ -20,6 +23,9 @@ import kr.co.cotton.vlrgg_mobile.protection.createPublicApiProtection
 /** Opt-in test artifact: never included by installDist or the production Dockerfile. */
 fun main() {
     val environment = System.getenv()
+    check(environment["VLRGG_OBSERVABILITY_ALLOW_EXIT"] != "true" || environment["VLRGG_OBSERVABILITY_ALLOW_OOM"] != "true") {
+        "Observability fault flags are mutually exclusive."
+    }
     val service = environment["K_SERVICE"]
     val local = service == null && environment["VLRGG_OBSERVABILITY_LOCAL"] == "true"
     check(local || (service == "vlrgg-query-check" && environment["VLRGG_OBSERVABILITY_VALIDATION"] == "true")) {
@@ -68,8 +74,71 @@ fun main() {
                     Runtime.getRuntime().halt(42)
                 }
             }
+            if (oomFixtureEnabled(environment)) {
+                post("/__observability/oom") {
+                    val failure = runContainerOomFixture()
+                    call.respondText(
+                        "{\"status\":\"fixture_failed\",\"reason\":\"${failure.name.lowercase()}\"}",
+                        ContentType.Application.Json,
+                        HttpStatusCode.InternalServerError,
+                    )
+                }
+            }
         }
     }.start(wait = true)
+}
+
+internal const val OOM_BUFFER_BYTES = 1024 * 1024
+internal const val OOM_MAX_WRITES = 1024
+internal const val OOM_WRITE_BUDGET_NANOS = 10_000_000_000L
+
+internal enum class OomFixtureFailure { BYTE_LIMIT, TIME_LIMIT, IO_ERROR }
+
+internal fun oomFixtureEnabled(environment: Map<String, String>): Boolean =
+    environment["K_SERVICE"] == "vlrgg-query-check" &&
+        environment["VLRGG_OBSERVABILITY_VALIDATION"] == "true" &&
+        environment["VLRGG_OBSERVABILITY_ALLOW_OOM"] == "true" &&
+        environment["VLRGG_OBSERVABILITY_LOCAL"] != "true" &&
+        environment["VLRGG_OBSERVABILITY_ALLOW_EXIT"] != "true"
+
+internal fun runContainerOomFixture(): OomFixtureFailure {
+    val path = try {
+        Files.createTempFile("vlrgg-observability-oom-", ".tmp")
+    } catch (_: IOException) {
+        return OomFixtureFailure.IO_ERROR
+    }
+    return try {
+        val failure = try {
+            Files.newOutputStream(path).use { writeForContainerOom(it) }
+        } catch (_: IOException) {
+            OomFixtureFailure.IO_ERROR
+        }
+        try {
+            Files.deleteIfExists(path)
+            failure
+        } catch (_: IOException) {
+            OomFixtureFailure.IO_ERROR
+        }
+    } finally {
+        runCatching { Files.deleteIfExists(path) }
+    }
+}
+
+internal fun writeForContainerOom(
+    output: OutputStream,
+    nanoTime: () -> Long = System::nanoTime,
+): OomFixtureFailure {
+    val buffer = ByteArray(OOM_BUFFER_BYTES)
+    val started = nanoTime()
+    repeat(OOM_MAX_WRITES) {
+        if (nanoTime() - started >= OOM_WRITE_BUDGET_NANOS) return OomFixtureFailure.TIME_LIMIT
+        try {
+            output.write(buffer)
+        } catch (_: IOException) {
+            return OomFixtureFailure.IO_ERROR
+        }
+    }
+    return OomFixtureFailure.BYTE_LIMIT
 }
 
 private const val SECRET_SENTINEL = "OBSERVABILITY_RAW_SECRET_SENTINEL?token=never-log-this"
