@@ -120,12 +120,12 @@ jobs:
           cache: gradle
 
       - name: Set up Node 22
-        uses: actions/setup-node@v6.4.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '22'
 
       - name: Cache Firebase Emulator downloads
-        uses: actions/cache@v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/firebase
           key: firebase-emulator-${{ runner.os }}-15.25.1
