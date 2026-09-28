@@ -6,9 +6,8 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import java.io.IOException
-import java.io.OutputStream
-import java.nio.file.Files
+import java.lang.ref.Reference
+import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
@@ -78,7 +77,7 @@ fun main() {
                 post("/__observability/oom") {
                     val failure = runContainerOomFixture()
                     call.respondText(
-                        "{\"status\":\"fixture_failed\",\"reason\":\"${failure.name.lowercase()}\"}",
+                        failure.toJson(),
                         ContentType.Application.Json,
                         HttpStatusCode.InternalServerError,
                     )
@@ -88,11 +87,19 @@ fun main() {
     }.start(wait = true)
 }
 
-internal const val OOM_BUFFER_BYTES = 1024 * 1024
-internal const val OOM_MAX_WRITES = 1024
-internal const val OOM_WRITE_BUDGET_NANOS = 10_000_000_000L
+internal const val OOM_DIRECT_BUFFER_BYTES = 16 * 1024 * 1024
+internal const val OOM_MAX_BUFFERS = 64
+internal const val OOM_PAGE_BYTES = 4096
+internal const val OOM_ALLOCATION_BUDGET_NANOS = 10_000_000_000L
+internal const val OOM_MAX_ELAPSED_MILLIS = 25_000L
 
-internal enum class OomFixtureFailure { BYTE_LIMIT, TIME_LIMIT, IO_ERROR }
+internal enum class OomFixtureFailure { BYTE_LIMIT, TIME_LIMIT, ALLOCATION_ERROR }
+
+internal data class OomFixtureResult(
+    val reason: OomFixtureFailure,
+    val allocatedBytes: Long,
+    val elapsedMillis: Long,
+)
 
 internal fun oomFixtureEnabled(environment: Map<String, String>): Boolean =
     environment["K_SERVICE"] == "vlrgg-query-check" &&
@@ -101,45 +108,53 @@ internal fun oomFixtureEnabled(environment: Map<String, String>): Boolean =
         environment["VLRGG_OBSERVABILITY_LOCAL"] != "true" &&
         environment["VLRGG_OBSERVABILITY_ALLOW_EXIT"] != "true"
 
-internal fun runContainerOomFixture(): OomFixtureFailure {
-    val path = try {
-        Files.createTempFile("vlrgg-observability-oom-", ".tmp")
-    } catch (_: IOException) {
-        return OomFixtureFailure.IO_ERROR
-    }
+internal fun runContainerOomFixture(
+    allocator: (Int) -> ByteBuffer = ByteBuffer::allocateDirect,
+    toucher: (ByteBuffer, Int) -> Unit = ::touchDirectBuffer,
+    nanoTime: () -> Long = System::nanoTime,
+): OomFixtureResult {
+    val started = nanoTime()
+    val retained = ArrayList<ByteBuffer>(OOM_MAX_BUFFERS)
+    var allocatedBytes = 0L
+    fun result(reason: OomFixtureFailure) = OomFixtureResult(
+        reason = reason,
+        allocatedBytes = allocatedBytes,
+        elapsedMillis = ((nanoTime() - started).coerceAtLeast(0L) / 1_000_000L)
+            .coerceAtMost(OOM_MAX_ELAPSED_MILLIS),
+    )
     return try {
-        val failure = try {
-            Files.newOutputStream(path).use { writeForContainerOom(it) }
-        } catch (_: IOException) {
-            OomFixtureFailure.IO_ERROR
+        repeat(OOM_MAX_BUFFERS) { blockIndex ->
+            if (nanoTime() - started >= OOM_ALLOCATION_BUDGET_NANOS) {
+                return result(OomFixtureFailure.TIME_LIMIT)
+            }
+            try {
+                val buffer = allocator(OOM_DIRECT_BUFFER_BYTES)
+                retained += buffer
+                allocatedBytes += OOM_DIRECT_BUFFER_BYTES
+                toucher(buffer, blockIndex)
+            } catch (_: OutOfMemoryError) {
+                return result(OomFixtureFailure.ALLOCATION_ERROR)
+            }
         }
-        try {
-            Files.deleteIfExists(path)
-            failure
-        } catch (_: IOException) {
-            OomFixtureFailure.IO_ERROR
-        }
+        result(OomFixtureFailure.BYTE_LIMIT)
     } finally {
-        runCatching { Files.deleteIfExists(path) }
+        Reference.reachabilityFence(retained)
     }
 }
 
-internal fun writeForContainerOom(
-    output: OutputStream,
-    nanoTime: () -> Long = System::nanoTime,
-): OomFixtureFailure {
-    val buffer = ByteArray(OOM_BUFFER_BYTES)
-    val started = nanoTime()
-    repeat(OOM_MAX_WRITES) {
-        if (nanoTime() - started >= OOM_WRITE_BUDGET_NANOS) return OomFixtureFailure.TIME_LIMIT
-        try {
-            output.write(buffer)
-        } catch (_: IOException) {
-            return OomFixtureFailure.IO_ERROR
-        }
+internal fun touchDirectBuffer(buffer: ByteBuffer, blockIndex: Int) {
+    require(buffer.capacity() % OOM_PAGE_BYTES == 0)
+    var pageIndex = 0
+    for (offset in 0 until buffer.capacity() step OOM_PAGE_BYTES) {
+        val token = ((blockIndex + 1).toLong() shl 32) or (pageIndex + 1).toLong()
+        buffer.putLong(offset, token)
+        pageIndex++
     }
-    return OomFixtureFailure.BYTE_LIMIT
 }
+
+internal fun OomFixtureResult.toJson(): String =
+    "{\"status\":\"fixture_failed\",\"reason\":\"${reason.name.lowercase()}\"," +
+        "\"allocatedBytes\":$allocatedBytes,\"elapsedMillis\":$elapsedMillis}"
 
 private const val SECRET_SENTINEL = "OBSERVABILITY_RAW_SECRET_SENTINEL?token=never-log-this"
 private class ValidationInternalFailure : IllegalStateException(SECRET_SENTINEL)

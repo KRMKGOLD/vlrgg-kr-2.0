@@ -362,8 +362,10 @@ case "$method $path" in
     printf '%s' "${PRIVATE_EXIT_STATUS:-000}"
     exit "${PRIVATE_EXIT_CODE:-52}" ;;
   'POST /__observability/oom')
-    if test "${OOM_FIXTURE_SURVIVED:-false}" = true; then
-      printf '%s\n' '{"status":"fixture_failed","reason":"byte_limit"}' > "$output"
+    if test -n "${OOM_FIXTURE_BODY+x}"; then
+      printf '%s\n' "$OOM_FIXTURE_BODY" > "$output"
+    elif test "${OOM_FIXTURE_SURVIVED:-false}" = true; then
+      printf '%s\n' '{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1073741824,"elapsedMillis":10000}' > "$output"
     else
       printf '%s\n' '{}' > "$output"
     fi
@@ -1370,13 +1372,108 @@ for fixture in interrupted:000:52:false:pass server503:503:0:false:pass survived
   test "$(wc -l < "$oom_case/private-calls" | tr -d ' ')" = 1 \
     || fail "private OOM outcome $name retried the fault"
   jq -e --arg status "$http_status" --argjson exit "$hook_exit" \
-    '.httpStatus == $status and .curlExit == $exit and .observedAt == 1700000000' \
+    '.httpStatus == $status and .curlExit == $exit and .observedAt == 1700000000 and
+      .fixtureSurvived == ($status == "500" and $exit == 0) and
+      (if .fixtureSurvived then
+        .fixtureReason == "byte_limit" and .allocatedBytes == 1073741824 and .elapsedMillis == 10000
+       else .fixtureReason == "unknown" and .allocatedBytes == null and .elapsedMillis == null end)' \
     "$oom_case/evidence/oom-request.json" >/dev/null \
     || fail "private OOM outcome $name lost the recorded request result"
-  grep -Eq "^OOM discovery request: observedAt=1700000000 httpStatus=$http_status curlExit=$hook_exit fixtureSurvived=$survived$" \
+  if test "$survived" = true; then
+    diagnostic='fixtureReason=byte_limit allocatedBytes=1073741824 elapsedMillis=10000'
+  else
+    diagnostic='fixtureReason=unknown allocatedBytes=null elapsedMillis=null'
+  fi
+  grep -Eq "^OOM discovery request: observedAt=1700000000 httpStatus=$http_status curlExit=$hook_exit fixtureSurvived=$survived $diagnostic$" \
     "$oom_case/stdout" || fail "private OOM outcome $name lost sanitized request evidence"
 done
 pass 'private OOM sends once behind exact guards, rejects fixture survival, and emits sanitized request evidence'
+
+new_case live-private-oom-survival-diagnostics
+diagnostic_index=0
+while IFS=$'\t' read -r name body reason allocated elapsed; do
+  diagnostic_index=$((diagnostic_index + 1))
+  diagnostic_case="$CASE_DIR/$diagnostic_index-$name"
+  mkdir -p "$diagnostic_case/evidence"
+  : > "$diagnostic_case/private-calls"
+  status=0
+  env CASE_DIR="$diagnostic_case" PRIVATE_EXIT_STATUS=500 PRIVATE_EXIT_CODE=0 OOM_FIXTURE_BODY="$body" \
+    SMOKE_URL=https://vlrgg-query-check-test.run.app OBSERVABILITY_PRIVATE_HTTP="$work_dir/private-http" \
+    OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      now() { printf "1700000000\n"; }
+      guard_target() { :; }; guard_oom_runtime() { :; }
+      private_oom
+    ' _ "$live_helper" > "$diagnostic_case/stdout" 2> "$diagnostic_case/stderr" || status=$?
+  test "$status" != 0 || fail "surviving OOM diagnostic $name was accepted"
+  jq -e --arg reason "$reason" --argjson allocated "$allocated" --argjson elapsed "$elapsed" \
+    '.fixtureSurvived == true and .fixtureReason == $reason and
+      .allocatedBytes == $allocated and .elapsedMillis == $elapsed' \
+    "$diagnostic_case/evidence/oom-request.json" >/dev/null \
+    || fail "surviving OOM diagnostic $name was not safely normalized"
+  grep -Fq "fixtureReason=$reason allocatedBytes=$allocated elapsedMillis=$elapsed" "$diagnostic_case/stdout" \
+    || fail "surviving OOM diagnostic $name lost its sanitized summary"
+  ! grep -Fq 'never-log-this' "$diagnostic_case/stdout" "$diagnostic_case/stderr" \
+    || fail "surviving OOM diagnostic $name exposed raw response text"
+  test ! -s "$diagnostic_case/evidence/private-response" \
+    || fail "surviving OOM diagnostic $name retained a raw response"
+done <<'CASES'
+byte-cap	{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1073741824,"elapsedMillis":25000}	byte_limit	1073741824	25000
+time	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":16777216,"elapsedMillis":10000}	time_limit	16777216	10000
+allocation	{"status":"fixture_failed","reason":"allocation_error","allocatedBytes":0,"elapsedMillis":0}	allocation_error	0	0
+extra-key	{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1073741824,"elapsedMillis":1,"detail":"never-log-this"}	unknown	null	null
+unknown-reason	{"status":"fixture_failed","reason":"io_error","allocatedBytes":0,"elapsedMillis":1}	unknown	null	null
+negative	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":-1,"elapsedMillis":1}	unknown	null	null
+fractional	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":16777216.5,"elapsedMillis":1}	unknown	null	null
+nonmultiple	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":1,"elapsedMillis":1}	unknown	null	null
+too-many-bytes	{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1090519040,"elapsedMillis":1}	unknown	null	null
+too-long	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":0,"elapsedMillis":25001}	unknown	null	null
+CASES
+pass 'private OOM survival diagnostics preserve only the exact allowlisted enum and bounded integers'
+
+new_case live-private-oom-malformed-diagnostic
+mkdir -p "$CASE_DIR/evidence"
+: > "$CASE_DIR/private-calls"
+status=0
+env CASE_DIR="$CASE_DIR" PRIVATE_EXIT_STATUS=500 PRIVATE_EXIT_CODE=0 OOM_FIXTURE_BODY='{never-log-this' \
+  SMOKE_URL=https://vlrgg-query-check-test.run.app OBSERVABILITY_PRIVATE_HTTP="$work_dir/private-http" \
+  OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"
+    now() { printf "1700000000\n"; }
+    guard_target() { :; }; guard_oom_runtime() { :; }
+    private_oom
+  ' _ "$live_helper" > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || status=$?
+test "$status" != 0 || fail 'malformed OOM response was accepted'
+jq -e '.fixtureSurvived == true and .fixtureReason == "unknown" and
+  .allocatedBytes == null and .elapsedMillis == null' "$CASE_DIR/evidence/oom-request.json" >/dev/null \
+  || fail 'malformed OOM response did not produce unknown diagnostics'
+test ! -s "$CASE_DIR/evidence/private-response" || fail 'malformed OOM response was retained'
+! grep -Fq 'never-log-this' "$CASE_DIR/stdout" "$CASE_DIR/stderr" \
+  || fail 'malformed OOM response was printed'
+pass 'malformed OOM response fails conservatively and is never retained or printed'
+
+new_case live-private-oom-multiple-documents
+mkdir -p "$CASE_DIR/evidence"
+: > "$CASE_DIR/private-calls"
+status=0
+multi_document_body='{"status":"fixture_failed","reason":"never-log-this","allocatedBytes":0,"elapsedMillis":0}
+{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1073741824,"elapsedMillis":1}'
+env CASE_DIR="$CASE_DIR" PRIVATE_EXIT_STATUS=500 PRIVATE_EXIT_CODE=0 OOM_FIXTURE_BODY="$multi_document_body" \
+  SMOKE_URL=https://vlrgg-query-check-test.run.app OBSERVABILITY_PRIVATE_HTTP="$work_dir/private-http" \
+  OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"
+    now() { printf "1700000000\n"; }
+    guard_target() { :; }; guard_oom_runtime() { :; }
+    private_oom
+  ' _ "$live_helper" > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || status=$?
+test "$status" != 0 || fail 'multiple OOM response documents were accepted'
+jq -e '.fixtureSurvived == true and .fixtureReason == "unknown" and
+  .allocatedBytes == null and .elapsedMillis == null' "$CASE_DIR/evidence/oom-request.json" >/dev/null \
+  || fail 'multiple OOM response documents did not produce unknown diagnostics'
+test ! -s "$CASE_DIR/evidence/private-response" || fail 'multiple OOM response documents were retained'
+! grep -Fq 'never-log-this' "$CASE_DIR/stdout" "$CASE_DIR/stderr" \
+  || fail 'multiple OOM response documents exposed an unvalidated field'
+pass 'multiple OOM response documents cannot bypass the single-document allowlist'
 
 new_case live-private-oom-curl-framing
 mkdir -p "$CASE_DIR/evidence"
@@ -2557,6 +2654,12 @@ pass 'gcloud failures expose only fixed sanitized errors'
 
 # Workflow assertions operate on actual step declarations, so validation and
 # restore cannot accidentally reach production deploy, token, traffic, or build/push steps.
+grep -Fq '"-Xms128m", "-Xmx384m", "-XX:MaxDirectMemorySize=1536m", "-XX:+ExitOnOutOfMemoryError"' \
+  "$repo_root/.github/scripts/observability-validation.Dockerfile"
+! grep -Fq 'MaxDirectMemorySize' "$repo_root/Dockerfile" \
+  || fail 'the validation direct-memory limit leaked into the production image'
+pass 'validation image fixes the direct-memory limit without changing the production JVM contract'
+
 grep -q '^  cancel-in-progress: false$' "$workflow"
 grep -A7 '^      validation_scope:' "$workflow" | grep -q 'default: all'
 grep -A7 '^      validation_scope:' "$workflow" | grep -q 'o8-o9'

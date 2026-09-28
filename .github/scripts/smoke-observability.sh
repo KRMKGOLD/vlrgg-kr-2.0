@@ -22,9 +22,13 @@ urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHa
 root = Path.cwd()
 libs = root / 'server/build/install/server/lib'
 validation = root / 'server/build/libs/server-observability-validation.jar'
+validation_dockerfile = (root / '.github/scripts/observability-validation.Dockerfile').read_text()
+production_dockerfile = (root / 'Dockerfile').read_text()
 main = 'kr.co.cotton.vlrgg_mobile.observability.validation.ObservabilityValidationMainKt'
 assert validation.is_file(), 'Build :server:observabilityValidationJar first'
 assert list(libs.glob('*.jar')), 'Build :server:installDist first'
+assert '"-Xms128m", "-Xmx384m", "-XX:MaxDirectMemorySize=1536m", "-XX:+ExitOnOutOfMemoryError"' in validation_dockerfile
+assert 'MaxDirectMemorySize' not in production_dockerfile, 'Validation direct-memory limit leaked into production'
 for jar in libs.glob('*.jar'):
     with zipfile.ZipFile(jar) as archive:
         assert not any('/observability/validation/' in name for name in archive.namelist()), 'Harness leaked into production'
