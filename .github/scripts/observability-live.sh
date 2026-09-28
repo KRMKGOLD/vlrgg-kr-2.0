@@ -798,6 +798,67 @@ private_exit() {
   esac
 }
 
+guard_oom_runtime() {
+  require_env OBSERVABILITY_EXPECTED_IMAGE_DIGEST
+  gcloud_read "$evidence/oom-revision.json" run revisions describe "$OBSERVABILITY_REVISION" \
+    --project "$PROJECT_ID" --region "$REGION" --format=json
+  jq -e --arg revision "$OBSERVABILITY_REVISION" --arg image "$OBSERVABILITY_EXPECTED_IMAGE_DIGEST" '
+    .metadata.name == $revision and .status.imageDigest == $image and
+    (.spec.containers | length) == 1 and .spec.containers[0].image == $image and
+    (.spec.containers[0].resources.limits.memory == "768Mi") and
+    (.spec.containers[0].resources.limits.cpu | IN("1", "1000m")) and
+    (.spec.containerConcurrency == 1) and (.spec.timeoutSeconds == 30) and
+    ((.spec.containers[0].command // []) | length) == 0 and
+    ((.spec.containers[0].args // []) | length) == 0 and
+    ((.spec.volumes // []) | length) == 0 and
+    ((.spec.containers[0].volumeMounts // []) | length) == 0 and
+    .metadata.annotations["autoscaling.knative.dev/minScale"] == "1" and
+    .metadata.annotations["autoscaling.knative.dev/maxScale"] == "1" and
+    .metadata.annotations["run.googleapis.com/cpu-throttling"] == "true" and
+    ((.metadata.annotations["run.googleapis.com/execution-environment"] // "default") |
+      IN("default", "gen1", "gen2")) and
+    any(.spec.containers[0].env[]?; .name == "VLRGG_OBSERVABILITY_VALIDATION" and .value == "true") and
+    any(.spec.containers[0].env[]?; .name == "VLRGG_OBSERVABILITY_ALLOW_OOM" and .value == "true") and
+    (all(.spec.containers[0].env[]?;
+      (.name | IN("VLRGG_OBSERVABILITY_ALLOW_EXIT", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS", "JAVA_OPTS") | not)))
+  ' "$evidence/oom-revision.json" >/dev/null \
+    || fail 'The OOM discovery revision does not match the fixed runtime and storage contract.'
+}
+
+private_oom() {
+  local status curl_exit=0 output="$evidence/private-response" requested_at fixture_survived=false
+  require_fault_time
+  guard_target
+  guard_oom_runtime
+  require_fault_time
+  : > "$output"
+  chmod 600 "$output"
+  requested_at="$(now)"
+  OOM_REQUEST_EPOCH="$requested_at"
+  if test -n "${OBSERVABILITY_PRIVATE_HTTP:-}"; then
+    status="$("$OBSERVABILITY_PRIVATE_HTTP" POST "$SMOKE_URL" /__observability/oom "$output" '')" || curl_exit=$?
+  else
+    status="$(curl -q --silent --http1.1 --proto '=https' --connect-timeout 5 --max-time 25 --max-filesize 2097152 \
+      --output "$output" --write-out '%{http_code}' --request POST --header 'Content-Length: 0' --header @- "$SMOKE_URL/__observability/oom" \
+      <<< "X-Serverless-Authorization: Bearer $SMOKE_ID_TOKEN")" || curl_exit=$?
+  fi
+  [[ "$status" =~ ^[0-9]{3}$ ]] || fail 'The private OOM request returned an invalid status.'
+  jq -cn --arg status "$status" --argjson exit "$curl_exit" --argjson at "$requested_at" \
+    '{httpStatus:$status,curlExit:$exit,observedAt:$at}' > "$evidence/oom-request.json"
+  chmod 600 "$evidence/oom-request.json"
+  if jq -e '.status == "fixture_failed"' "$output" >/dev/null 2>&1; then fixture_survived=true; fi
+  printf 'OOM discovery request: observedAt=%s httpStatus=%s curlExit=%s fixtureSurvived=%s\n' \
+    "$requested_at" "$status" "$curl_exit" "$fixture_survived"
+  if test "$fixture_survived" = true; then
+    fail 'The bounded OOM fixture survived and reported failure.'
+  fi
+  # Only a later provider-native record can prove OOM; this accepts transport interruption alone.
+  case "$curl_exit:$status" in
+    0:500|0:502|0:503|52:000|56:000) ;;
+    *) fail "The private OOM request did not have an expected interrupted-response outcome (HTTP $status, curl $curl_exit)." ;;
+  esac
+}
+
 poll_health() {
   local attempts="${1:-20}" status output="$evidence/private-response"
   while test "$attempts" -gt 0; do
@@ -862,6 +923,24 @@ run_log_delivery() {
   result LOG_DELIVERY-receipt 'RECEIPT PENDING'
 }
 
+run_o9_oom_discovery() {
+  local attempts=12 fault_start snapshot
+  require_fault_window 900
+  system_logs "$(rfc3339_ago 720)" "$evidence/system-oom-history.json"
+  private_oom
+  fault_start="$(jq -nr --argjson at "$OOM_REQUEST_EPOCH" '$at | todateiso8601')"
+  poll_health
+  while test "$attempts" -gt 0; do
+    poll_budget fault
+    snapshot="$evidence/system-oom-discovery-$((13 - attempts)).json"
+    system_logs "$fault_start" "$snapshot"
+    cp "$snapshot" "$evidence/system-oom-discovery.json"
+    attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
+    poll_budget fault "$poll_seconds"
+  done
+  result OOM-DISCOVERY 'DISCOVERY ONLY'
+}
+
 run_o9() {
   local policy signature start fault_started
   start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -909,7 +988,7 @@ run_o9() {
 main() {
   umask 077
   case "${OBSERVABILITY_SCOPE:-all}" in
-    all|o8-o9|o9|log-delivery) ;;
+    all|o8-o9|o9|log-delivery|o9-oom-discovery) ;;
     *) fail 'Unsupported private validation scope.' ;;
   esac
   require_env RUNNER_TEMP
@@ -922,6 +1001,11 @@ main() {
   preflight
   if test "${OBSERVABILITY_SCOPE:-all}" = log-delivery; then
     run_log_delivery
+    result restore 'PENDING ALWAYS STEP'
+    return
+  fi
+  if test "${OBSERVABILITY_SCOPE:-all}" = o9-oom-discovery; then
+    run_o9_oom_discovery
     result restore 'PENDING ALWAYS STEP'
     return
   fi
