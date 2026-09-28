@@ -41,7 +41,7 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 
 ## #122 observability live runbook
 
-2026-09-28 확인 기준, Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신을 확인했다. 이전 exit42 O9와 파일 쓰기 OOM discovery는 실패 후 각각 독립 복원했다. 직접 메모리 D2는 HTTP 500/curl 0과 1 GiB byte-cap 응답 뒤 같은 revision에서 `Memory limit of 768 MiB exceeded with 1225 MiB used` Cloud Run system ERROR를 남겼고, baseline traffic·template·IAM·private 경계·소유 image/revision 정리·production 미변경을 독립 확인했다. D2 workflow 자체는 조기 cap guard 때문에 `FAIL`이며 O9 end-to-end 성공으로 바꾸지 않는다. 실제 record에서 고정한 OOM family와 runtime applicability를 쓰는 별도 `o9-oom` 검증은 구현됐지만 아직 실행하지 않았다. O9는 fresh native OOM, exact-policy OPEN, 승인 수신함의 실제 이메일과 독립 복원이 모두 끝나기 전까지 미완료다.
+2026-09-28 확인 기준, Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신을 확인했다. `36410338960-1`의 log-delivery는 고정 canary, exact-policy OPEN, 승인 수신함의 실제 메일과 독립 복원·정리를 확인했다. 이전 exit42 O9와 파일 쓰기 OOM discovery는 실패 후 각각 독립 복원했다. 직접 메모리 D2는 HTTP 500/curl 0과 1 GiB byte-cap 응답 뒤 같은 revision에서 `Memory limit of 768 MiB exceeded with 1225 MiB used` Cloud Run system ERROR를 남겼고, baseline traffic·template·IAM·private 경계·소유 image/revision 정리·production 미변경을 독립 확인했다. D2 workflow 자체는 조기 cap guard 때문에 `FAIL`이며 O9 end-to-end 성공으로 바꾸지 않는다. 실제 record에서 고정한 OOM family와 runtime applicability를 쓰는 별도 `o9-oom` 검증은 구현됐지만 아직 실행하지 않았다. O9는 fresh native OOM, exact-policy OPEN, 승인 수신함의 실제 이메일과 독립 복원이 모두 끝나기 전까지 미완료다.
 
 전체 live 완료와 production 적용을 완료로 표시하지 않는다. policy·장애·grouping·trace·sampling·receipt·복원·정리의 개별 결과를 확인하고, 미실행은 `NOT RUN`, 실패는 `FAIL`, 실행 중은 `IN PROGRESS`, 증거 미확인은 `UNKNOWN`으로 구분한다. endpoint status나 workflow 착수만으로 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)를 종료하지 않는다.
 

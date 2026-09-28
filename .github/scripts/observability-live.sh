@@ -865,6 +865,7 @@ private_oom() {
       <<< "X-Serverless-Authorization: Bearer $SMOKE_ID_TOKEN")" || curl_exit=$?
   fi
   [[ "$status" =~ ^[0-9]{3}$ ]] || fail 'The private OOM request returned an invalid status.'
+  # Every nonempty body, including proxy errors, fails unless it is the exact full-cap HTTP500/curl0 response.
   if test -s "$output"; then
     fixture_survived=true
   fi

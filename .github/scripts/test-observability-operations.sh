@@ -1448,6 +1448,32 @@ for fixture in interrupted:000:52:false:pass server503:503:0:false:pass survived
 done
 pass 'private OOM sends once behind exact guards and advances only an exact HTTP500 full-cap response or interrupted transport'
 
+new_case live-private-oom-proxy-bodies
+for http_status in 502 503; do
+  proxy_case="$CASE_DIR/$http_status"
+  mkdir -p "$proxy_case/evidence"
+  : > "$proxy_case/private-calls"
+  status=0
+  env CASE_DIR="$proxy_case" PRIVATE_EXIT_STATUS="$http_status" PRIVATE_EXIT_CODE=0 \
+    OOM_FIXTURE_BODY='{"error":"arbitrary proxy response"}' \
+    SMOKE_URL=https://vlrgg-query-check-test.run.app OBSERVABILITY_PRIVATE_HTTP="$work_dir/private-http" \
+    OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      now() { printf "1700000000\n"; }
+      guard_target() { :; }; guard_oom_runtime() { :; }
+      private_oom
+    ' _ "$live_helper" > "$proxy_case/stdout" 2> "$proxy_case/stderr" || status=$?
+  test "$status" != 0 || fail "nonempty HTTP $http_status proxy response advanced to native polling"
+  jq -e --arg status "$http_status" '
+    .httpStatus == $status and .curlExit == 0 and .fixtureSurvived == true and
+    .fixtureReason == "unknown" and .allocatedBytes == null and .elapsedMillis == null
+  ' "$proxy_case/evidence/oom-request.json" >/dev/null \
+    || fail "nonempty HTTP $http_status proxy response lost conservative diagnostics"
+  test "$(wc -l < "$proxy_case/private-calls" | tr -d ' ')" = 1 \
+    || fail "nonempty HTTP $http_status proxy response retried the fault"
+done
+pass 'arbitrary nonempty HTTP502 and HTTP503 proxy bodies fail before native polling'
+
 new_case live-private-oom-survival-diagnostics
 diagnostic_index=0
 while IFS=$'\t' read -r name body reason allocated elapsed; do
