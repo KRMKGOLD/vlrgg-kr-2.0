@@ -7,8 +7,6 @@ import io.ktor.server.netty.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
@@ -60,13 +58,14 @@ fun main() {
                 throw UpstreamNetworkFailure(Url("https://www.vlr.gg/"), ValidationNetworkFailure())
             }
             get("/__observability/expected") { throw InvalidInputFailure() }
+            post("/__observability/log-canary") {
+                println("OBSERVABILITY_LOG_DELIVERY_CANARY")
+                System.out.flush()
+                call.respondText("{\"status\":\"emitted\"}", ContentType.Application.Json)
+            }
             if (environment["VLRGG_OBSERVABILITY_ALLOW_EXIT"] == "true") {
                 post("/__observability/exit") {
-                    call.respondText("{\"status\":\"accepted\"}", ContentType.Application.Json, HttpStatusCode.Accepted)
-                    this@embeddedServer.launch {
-                        delay(250)
-                        Runtime.getRuntime().halt(42)
-                    }
+                    Runtime.getRuntime().halt(42)
                 }
             }
         }

@@ -358,7 +358,9 @@ case "$method $path" in
   'GET /health') printf '%s\n' '{"status":"ok"}' > "$output"; printf 200 ;;
   'POST /__observability/health/fail'|'POST /__observability/health/restore')
     printf '%s\n' '{"status":"configured"}' > "$output"; printf 200 ;;
-  'POST /__observability/exit') printf '%s\n' '{"status":"accepted"}' > "$output"; printf 202 ;;
+  'POST /__observability/exit')
+    printf '%s' "${PRIVATE_EXIT_STATUS:-000}"
+    exit "${PRIVATE_EXIT_CODE:-52}" ;;
   *) printf '%s\n' '{}' > "$output"; printf 500 ;;
 esac
 STUB
@@ -520,11 +522,14 @@ for enabled in true false unset; do
 done
 run_preflight_case observability-validate true pass o8-o9
 run_preflight_case observability-validate true pass o9
+run_preflight_case observability-validate true pass log-delivery
 run_preflight_case observability-validate true reject unknown
 run_preflight_case deploy true reject o8-o9
 run_preflight_case deploy true reject o9
+run_preflight_case deploy true reject log-delivery
 run_preflight_case observability-restore true reject o8-o9
 run_preflight_case observability-restore true reject o9
+run_preflight_case observability-restore true reject log-delivery
 pass 'workflow preflight validates operation and phase scope before auth while retaining main SHA and CI checks'
 
 new_case journal
@@ -867,6 +872,21 @@ jq -e '.conditions[0].conditionMatchedLog.filter|contains("Container called exit
   <<< "$valid_log" >/dev/null
 jq -e '.conditions[0].conditionMatchedLog.filter|contains("textPayload=\"Container called exit(42).\"")' \
   <<< "$valid_log" >/dev/null
+jq -e '
+  .displayName == "issue122 validation abnormal exit 123-1" and
+  .conditions[0].displayName == "Verified Cloud Run abnormal exit signature" and
+  .userLabels.resource_kind == "log"
+' <<< "$valid_log" >/dev/null
+canary_filter='resource.type="cloud_run_revision" AND resource.labels.project_id="test-project" AND resource.labels.location="test-region" AND resource.labels.service_name="vlrgg-query-check" AND logName="projects/test-project/logs/run.googleapis.com%2Fstdout" AND textPayload="OBSERVABILITY_LOG_DELIVERY_CANARY" AND resource.labels.revision_name="vlrgg-query-check-o123-1"'
+canary_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_RUN=123-1 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  SYSTEM_LOG_NAME=projects/test-project/logs/run.googleapis.com%2Fstdout \
+  SYSTEM_LOG_SIGNATURE=OBSERVABILITY_LOG_DELIVERY_CANARY "$policy_helper" render log)"
+jq -e --arg filter "$canary_filter" '
+  .displayName == "issue122 validation log delivery 123-1" and
+  .conditions == [{displayName:"Verified Cloud Run log delivery signature",conditionMatchedLog:{filter:$filter}}] and
+  .userLabels.resource_kind == "log"
+' <<< "$canary_log" >/dev/null
 different_run_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
   OBSERVABILITY_RUN=123-2 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
   OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
@@ -884,6 +904,11 @@ production_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vl
   SYSTEM_LOG_SIGNATURE='Container called exit(42).' "$policy_helper" render log)"
 jq -e '.conditions[0].conditionMatchedLog.filter | contains("resource.labels.revision_name") | not' \
   <<< "$production_log" >/dev/null
+expect_fail "$CASE_DIR/production-canary.stderr" env PROJECT_ID=test-project REGION=test-region \
+  SERVICE_NAME=vlrgg-query OBSERVABILITY_RUN=123-1 \
+  OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  SYSTEM_LOG_NAME=projects/test-project/logs/run.googleapis.com%2Fstdout \
+  SYSTEM_LOG_SIGNATURE=OBSERVABILITY_LOG_DELIVERY_CANARY "$policy_helper" render log
 expect_fail "$CASE_DIR/cross-project.stderr" env PROJECT_ID=test-project REGION=test-region \
   SERVICE_NAME=vlrgg-query-check OBSERVABILITY_RUN=123-1 \
   OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
@@ -894,7 +919,7 @@ expect_fail "$CASE_DIR/filter-injection.stderr" env PROJECT_ID=test-project REGI
   OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
   SYSTEM_LOG_NAME=projects/test-project/logs/system SYSTEM_LOG_SIGNATURE='exit" OR true' \
   "$policy_helper" render log
-pass 'log policy pins private run revisions, preserves production scope, and rejects unsafe inputs'
+pass 'log policy distinguishes validation-only delivery canaries from native abnormal exits without changing log ownership'
 
 principal='service-123@gcp-sa-monitoring-notification.iam.gserviceaccount.com'
 member="serviceAccount:$principal"
@@ -1197,7 +1222,39 @@ live private_request POST /__observability/health/fail 200
 jq -e '.status == "configured"' "$CASE_DIR/evidence/private-response" >/dev/null
 live private_exit
 grep -q $'^POST\thttps://vlrgg-query-check-test.run.app\t/__observability/exit$' "$CASE_DIR/private-calls"
-pass 'live driver uses the actual 200 health mutation and 202 abnormal-exit contracts'
+pass 'live driver uses the actual 200 health mutation and interrupted abnormal-exit contracts'
+
+new_case live-private-exit-outcomes
+for fixture in \
+  server500:500:0:pass server502:502:0:pass server503:503:0:pass empty52:000:52:pass reset56:000:56:pass \
+  old202:202:0:reject success200:200:0:reject auth401:401:0:reject auth403:403:0:reject redirect302:302:0:reject \
+  dns:000:6:reject connect:000:7:reject tls:000:35:reject timeout:000:28:reject other000:000:1:reject; do
+  IFS=: read -r name http_status hook_exit expected <<< "$fixture"
+  exit_case="$CASE_DIR/$name"
+  mkdir -p "$exit_case/evidence"
+  : > "$exit_case/private-calls"
+  status=0
+  env CASE_DIR="$exit_case" PRIVATE_EXIT_STATUS="$http_status" PRIVATE_EXIT_CODE="$hook_exit" \
+    SMOKE_URL=https://vlrgg-query-check-test.run.app OBSERVABILITY_PRIVATE_HTTP="$work_dir/private-http" \
+    OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      now() { printf "1700000000\n"; }
+      guard_target() { printf "guard\n" >> "$CASE_DIR/guards"; }
+      private_exit
+    ' _ "$live_helper" > /dev/null 2> "$exit_case/stderr" || status=$?
+  if test "$expected" = pass; then
+    test "$status" = 0 || fail "accepted private exit outcome $name failed"
+  else
+    test "$status" != 0 || fail "unsafe private exit outcome $name passed"
+  fi
+  test "$(wc -l < "$exit_case/guards" | tr -d ' ')" = 1 \
+    || fail "private exit outcome $name skipped a target/deadline guard"
+  jq -e --arg status "$http_status" --argjson exit "$hook_exit" \
+    '.httpStatus == $status and .curlExit == $exit and .observedAt == 1700000000' \
+    "$exit_case/evidence/exit-requests.jsonl" >/dev/null \
+    || fail "private exit outcome $name lost the hook result"
+done
+pass 'private exit preserves hook status and accepts only bounded interrupted-response outcomes behind target and deadline guards'
 
 new_case live-o3-o6-schema
 # Minimal synthetic fixtures follow the formatter and provider contracts; no local runtime logs are required.
@@ -1609,7 +1666,7 @@ test ! -s "$CASE_DIR/results" || fail 'uptime deadline reported a false pass'
 pass 'uptime deadline expiry still restores health and never reports a pass'
 
 new_case live-phase-scope
-for scope in all o8-o9 o9 invalid; do
+for scope in all o8-o9 o9 log-delivery invalid; do
   : > "$CASE_DIR/phases"
   if env OBSERVABILITY_SCOPE="$scope" OBSERVABILITY_RUN=123-1 RUNNER_TEMP="$CASE_DIR" \
     GITHUB_STEP_SUMMARY="$CASE_DIR/summary" OBSERVABILITY_WORKFLOW_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -1620,6 +1677,7 @@ for scope in all o8-o9 o9 invalid; do
       run_o7() { printf "O7\n" >> "$CASE_DIR/phases"; }
       run_o8() { printf "O8\n" >> "$CASE_DIR/phases"; }
       run_o9() { printf "O9\n" >> "$CASE_DIR/phases"; }
+      run_log_delivery() { printf "LOG_DELIVERY\n" >> "$CASE_DIR/phases"; }
       main
     ' _ "$live_helper" > /dev/null 2> "$CASE_DIR/$scope.stderr"; then
     test "$scope" != invalid || fail 'invalid live scope was accepted'
@@ -1630,10 +1688,92 @@ for scope in all o8-o9 o9 invalid; do
     all) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O3-O6 O7 O8 O9 ' ;;
     o8-o9) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O8 O9 ' ;;
     o9) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O9 ' ;;
+    log-delivery) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight LOG_DELIVERY ' ;;
     invalid) test ! -s "$CASE_DIR/phases" ;;
   esac || fail "live phase sequence for $scope is wrong"
 done
-pass 'default runs all phases; scoped validation runs O8/O9 or O9; invalid scope stops before preflight'
+pass 'default runs all phases; scoped validation isolates O8/O9, O9, or log delivery; invalid scope stops before preflight'
+
+new_case live-log-delivery
+env CASE_DIR="$CASE_DIR" PROJECT_ID=test-project OBSERVABILITY_DEADLINE_EPOCH=1700002700 \
+  GITHUB_STEP_SUMMARY="$CASE_DIR/summary" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    printf "1700000000\n" > "$CASE_DIR/clock"
+    now() { cat "$CASE_DIR/clock"; }
+    sleep_for() {
+      printf "sleep %s\n" "$1" >> "$CASE_DIR/events"
+      printf "%s\n" "$(( $(now) + $1 ))" > "$CASE_DIR/clock"
+    }
+    ensure_policy() {
+      test "$1" = log
+      printf "%s\n%s\n" "$SYSTEM_LOG_NAME" "$SYSTEM_LOG_SIGNATURE" > "$CASE_DIR/policy-identity"
+      printf "policy\n" >> "$CASE_DIR/events"
+      printf "projects/test-project/alertPolicies/log-delivery\n"
+    }
+    verify_single_condition() {
+      test "$1" = projects/test-project/alertPolicies/log-delivery
+      printf "readback\n" >> "$CASE_DIR/events"
+    }
+    private_request() {
+      test "$1 $2 $3" = "POST /__observability/log-canary 200"
+      printf "emit\n" >> "$CASE_DIR/events"
+      printf "%s\n" "{\"status\":\"emitted\"}" > "$evidence/private-response"
+    }
+    poll_alert_open() {
+      test "$1 $2 $3 $4" = "projects/test-project/alertPolicies/log-delivery 1700000300 log 20"
+      printf "open\n" >> "$CASE_DIR/events"
+      printf "projects/test-project/alerts/log-delivery\n"
+    }
+    result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+    run_log_delivery
+  ' _ "$live_helper"
+test "$(tr '\n' ' ' < "$CASE_DIR/events")" = 'policy readback sleep 300 emit open '
+test "$(sed -n '1p' "$CASE_DIR/policy-identity")" = 'projects/test-project/logs/run.googleapis.com%2Fstdout'
+test "$(sed -n '2p' "$CASE_DIR/policy-identity")" = 'OBSERVABILITY_LOG_DELIVERY_CANARY'
+test "$(tr '\n' ' ' < "$CASE_DIR/results")" = 'LOG_DELIVERY PASS LOG_DELIVERY-receipt RECEIPT PENDING '
+! grep -Eq '^(O9|OOM) ' "$CASE_DIR/results" || fail 'log-delivery reported an O9 or OOM result'
+pass 'log delivery creates and reads back its stdout policy, waits 300 seconds, emits once, then requires a fresh OPEN'
+
+new_case live-log-delivery-failures
+for mode in budget acknowledgement alert; do
+  delivery_case="$CASE_DIR/$mode"
+  mkdir -p "$delivery_case/evidence"
+  status=0
+  env MODE="$mode" CASE_DIR="$delivery_case" PROJECT_ID=test-project \
+    OBSERVABILITY_DEADLINE_EPOCH=1700002700 bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      printf "1700000000\n" > "$CASE_DIR/clock"
+      now() { cat "$CASE_DIR/clock"; }
+      sleep_for() {
+        printf "sleep %s\n" "$1" >> "$CASE_DIR/events"
+        printf "%s\n" "$(( $(now) + $1 ))" > "$CASE_DIR/clock"
+      }
+      ensure_policy() {
+        printf "policy\n" >> "$CASE_DIR/events"
+        test "$MODE" != budget || printf "1700000001\n" > "$CASE_DIR/clock"
+        printf "projects/test-project/alertPolicies/log-delivery\n"
+      }
+      verify_single_condition() { printf "readback\n" >> "$CASE_DIR/events"; }
+      private_request() {
+        printf "emit\n" >> "$CASE_DIR/events"
+        if test "$MODE" = acknowledgement; then printf "%s\n" "{\"status\":\"wrong\"}" > "$evidence/private-response"
+        else printf "%s\n" "{\"status\":\"emitted\"}" > "$evidence/private-response"; fi
+      }
+      poll_alert_open() {
+        printf "open\n" >> "$CASE_DIR/events"
+        test "$MODE" != alert
+      }
+      result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+      run_log_delivery
+    ' _ "$live_helper" > /dev/null 2> "$delivery_case/stderr" || status=$?
+  test "$status" != 0 || fail "log-delivery $mode failure unexpectedly passed"
+  test ! -e "$delivery_case/results" || fail "log-delivery $mode failure reported PASS"
+  if test "$mode" = budget; then
+    test ! -e "$delivery_case/events" || ! grep -qx emit "$delivery_case/events" \
+      || fail 'log-delivery emitted without enough remaining budget'
+  fi
+done
+pass 'log delivery budget, acknowledgement, and OPEN failures never report diagnostic success'
 
 new_case live-uptime-delayed-open
 env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGION=test-region \
@@ -1796,6 +1936,48 @@ for mode in sparse repeat cycle malformed null pages entries cutoff scan-time; d
 done
 pass 'system-log pagination accepts sparse token pages and bounds shape, tokens, pages, entries, scan time, and fault time'
 
+new_case live-second-exit-log
+for mode in positive stale duplicate wrongrevision wrongsignature missingid missinglog; do
+  second_case="$CASE_DIR/$mode"
+  mkdir -p "$second_case/evidence"
+  jq -n --arg revision vlrgg-query-check-o123-1 '{entries:[{
+    resource:{labels:{revision_name:$revision}},textPayload:"Container called exit(42).",
+    insertId:"first-exit",timestamp:"2023-11-14T22:13:19Z"
+  }]}' > "$second_case/evidence/system-discovery.json"
+  status=0
+  env MODE="$mode" CASE_DIR="$second_case" OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+    OBSERVABILITY_DEADLINE_EPOCH=2000000000 bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      now() { printf "1700000000\n"; }
+      sleep_for() { :; }
+      system_logs() {
+        test "$1" = 2023-11-14T22:13:20Z
+        case "$MODE" in
+          positive) revision="$OBSERVABILITY_REVISION"; signature="Container called exit(42)."; id=second-exit; at=2023-11-14T22:13:21Z ;;
+          stale) revision="$OBSERVABILITY_REVISION"; signature="Container called exit(42)."; id=second-exit; at=2023-11-14T22:13:19Z ;;
+          duplicate) revision="$OBSERVABILITY_REVISION"; signature="Container called exit(42)."; id=first-exit; at=2023-11-14T22:13:21Z ;;
+          wrongrevision) revision=vlrgg-query-check-o999-1; signature="Container called exit(42)."; id=second-exit; at=2023-11-14T22:13:21Z ;;
+          wrongsignature) revision="$OBSERVABILITY_REVISION"; signature="Container terminated exit 42"; id=second-exit; at=2023-11-14T22:13:21Z ;;
+          missingid) revision="$OBSERVABILITY_REVISION"; signature="Container called exit(42)."; id=""; at=2023-11-14T22:13:21Z ;;
+          missinglog) printf "%s\n" "{\"entries\":[]}" > "$2"; return ;;
+        esac
+        jq -n --arg revision "$revision" --arg signature "$signature" --arg id "$id" --arg at "$at" \
+          "{entries:[{resource:{labels:{revision_name:\$revision}},textPayload:\$signature,insertId:\$id,timestamp:\$at}]}" > "$2"
+      }
+      result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+      poll_second_exit_log "Container called exit(42)." 1700000000
+      result O9 PASS
+    ' _ "$live_helper" > /dev/null 2> "$second_case/stderr" || status=$?
+  if test "$mode" = positive; then
+    test "$status" = 0 && grep -qx 'O9 PASS' "$second_case/results" \
+      || fail 'fresh distinct second-exit log did not pass'
+  else
+    test "$status" != 0 && test ! -e "$second_case/results" \
+      || fail "unsafe second-exit log $mode reached O9 PASS"
+  fi
+done
+pass 'O9 requires a fresh exact current-revision second-exit log with a distinct nonempty insert ID'
+
 new_case live-o9-paged-safety
 for mode in collision ambiguous; do
   page_case="$CASE_DIR/$mode"
@@ -1854,7 +2036,11 @@ env OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 PROJECT_ID=test-project REGI
     rfc3339_ago() { printf "%s\n" "$1" > "$CASE_DIR/history-minutes"; printf "history-start\n"; }
     system_logs() {
       if [[ "$2" == *history.json ]]; then printf "%s\n" "{\"entries\":[]}" > "$2"
-      else printf "%s\n" "{\"entries\":[{\"resource\":{\"labels\":{\"revision_name\":\"$OBSERVABILITY_REVISION\"}},\"textPayload\":\"Container called exit(42).\"}]}" > "$2"; fi
+      elif [[ "$2" == *discovery.json ]]; then
+        jq -n --arg revision "$OBSERVABILITY_REVISION" "{entries:[{resource:{labels:{revision_name:\$revision}},textPayload:\"Container called exit(42).\",insertId:\"first-exit\",timestamp:\"2023-11-14T22:13:19Z\"}]}" > "$2"
+      else
+        jq -n --arg revision "$OBSERVABILITY_REVISION" "{entries:[{resource:{labels:{revision_name:\$revision}},textPayload:\"Container called exit(42).\",insertId:\"second-exit\",timestamp:\"2023-11-14T22:18:21Z\"}]}" > "$2"
+      fi
     }
     private_exit() { printf "exit\n" >> "$CASE_DIR/exits"; printf "exit\n" >> "$CASE_DIR/events"; }
     poll_health() { :; }

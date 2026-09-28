@@ -5,6 +5,7 @@ cd "$(dirname "$0")/../.."
 # Real production runtime/configuration; no test framework or cloud credentials.
 python3 - <<'PY'
 import contextlib
+import http.client
 import json
 import os
 from pathlib import Path
@@ -72,14 +73,15 @@ def running(args, overrides, output, port):
             else:
                 raise AssertionError('Server readiness timed out')
             assert process.poll() is None
-            yield
+            yield process
         finally:
-            process.terminate()
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=5)
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
 
 with tempfile.TemporaryDirectory(prefix='vlrgg-observability-') as directory:
     production_log = Path(directory) / 'production.log'
@@ -87,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix='vlrgg-observability-') as directory:
         subprocess.run(['bash', '.github/scripts/smoke-query-server.sh', '--local'], env=env, check=True)
         for path in ('internal', 'internal/other', 'parsing', 'upstream', 'expected'):
             request(18080, '/__observability/' + path, 404)
-        for path in ('health/fail', 'health/restore', 'exit'):
+        for path in ('health/fail', 'health/restore', 'log-canary', 'exit'):
             request(18080, '/__observability/' + path, 404, 'POST')
 
     output = Path(directory) / 'validation.log'
@@ -98,12 +100,15 @@ with tempfile.TemporaryDirectory(prefix='vlrgg-observability-') as directory:
         request(18081, '/__observability/parsing', 502)
         request(18081, '/__observability/upstream', 502)
         request(18081, '/__observability/expected', 400)
+        assert request(18081, '/__observability/log-canary', 200, 'POST') == {'status': 'emitted'}
         request(18081, '/__observability/exit', 404, 'POST')
         request(18081, '/__observability/health/fail', 200, 'POST')
         assert request(18081, '/health', 503) == {'status': 'unavailable'}
         request(18081, '/__observability/health/restore', 200, 'POST')
         assert request(18081, '/health', 200) == {'status': 'ok'}
     raw = output.read_bytes()
+    canary = b'OBSERVABILITY_LOG_DELIVERY_CANARY'
+    assert raw.splitlines().count(canary) == 1, 'Expected exactly one plaintext delivery canary'
     assert b'OBSERVABILITY_RAW_SECRET_SENTINEL' not in raw, 'Raw exception leaked'
     assert b'\x1b' not in raw, 'ANSI escape in stdout'
     events = []
@@ -116,6 +121,7 @@ with tempfile.TemporaryDirectory(prefix='vlrgg-observability-') as directory:
     assert len(events) == 5, f'Expected exactly five JSON events, got {len(events)}'
     errors = [event for event in events if event['severity'] == 'ERROR']
     assert len(errors) == 3
+    assert all(canary.decode() not in event.get('message', '') for event in errors), 'Canary became a structured error'
     for event in errors:
         assert event['@type'] == 'type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent'
         assert event['serviceContext'] == {'service': 'vlrgg-server-local', 'version': 'local-validation'}
@@ -126,5 +132,24 @@ with tempfile.TemporaryDirectory(prefix='vlrgg-observability-') as directory:
             assert '@type' not in event and '\n\tat ' not in event.get('message', '')
     assert events[0]['logging.googleapis.com/trace'] == f'projects/validation-project/traces/{trace}'
     assert all('logging.googleapis.com/trace' not in event for event in events[1:])
+
+    exit_output = Path(directory) / 'exit-validation.log'
+    with running(command, {
+        'VLRGG_OBSERVABILITY_LOCAL': 'true',
+        'VLRGG_OBSERVABILITY_ALLOW_EXIT': 'true',
+    }, exit_output, 18082) as process:
+        exit_request = urllib.request.Request(
+            'http://127.0.0.1:18082/__observability/exit',
+            method='POST',
+        )
+        try:
+            response = urllib.request.urlopen(exit_request, timeout=5)
+        except (urllib.error.URLError, ConnectionError, http.client.HTTPException):
+            pass
+        else:
+            with response:
+                response.read()
+            raise AssertionError('Exit request completed instead of being interrupted')
+        assert process.wait(timeout=10) == 42, 'Exit validation JVM did not halt with status 42'
 print('PASS packaged production isolation, harness guards, structured stdout, trace, and health controls')
 PY

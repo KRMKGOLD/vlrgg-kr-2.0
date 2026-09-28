@@ -240,18 +240,23 @@ render_log() {
   test "${#SYSTEM_LOG_SIGNATURE}" -le 240 || fail 'SYSTEM_LOG_SIGNATURE is too long.'
   [[ "$SYSTEM_LOG_SIGNATURE" =~ ^[A-Za-z0-9._:/\ \(\)-]+$ ]] \
     || fail 'SYSTEM_LOG_SIGNATURE contains unsupported characters.'
-  local notification_channels filter
+  local notification_channels filter signal='abnormal exit'
+  if test "$SYSTEM_LOG_NAME" = "projects/$PROJECT_ID/logs/run.googleapis.com%2Fstdout" \
+    && test "$SYSTEM_LOG_SIGNATURE" = OBSERVABILITY_LOG_DELIVERY_CANARY; then
+    test "$SERVICE_NAME" = vlrgg-query-check || fail 'The log-delivery canary is validation-only.'
+    signal='log delivery'
+  fi
   notification_channels="$(channels)"
   filter="resource.type=\"cloud_run_revision\" AND resource.labels.project_id=\"$PROJECT_ID\" AND resource.labels.location=\"$REGION\" AND resource.labels.service_name=\"$SERVICE_NAME\" AND logName=\"$SYSTEM_LOG_NAME\" AND textPayload=\"$SYSTEM_LOG_SIGNATURE\""
   if test "$SERVICE_NAME" = vlrgg-query-check; then
     filter+=" AND resource.labels.revision_name=\"${SERVICE_NAME}-o${OBSERVABILITY_RUN}\""
   fi
-  jq -cn --arg display "issue122 validation abnormal exit $OBSERVABILITY_RUN" --arg filter "$filter" \
+  jq -cn --arg display "issue122 validation $signal $OBSERVABILITY_RUN" --arg signal "$signal" --arg filter "$filter" \
     --argjson labels "$(labels log)" --argjson channels "$notification_channels" '
     {
       displayName:$display,enabled:true,combiner:"OR",userLabels:$labels,notificationChannels:$channels,
       alertStrategy:{autoClose:"1800s",notificationRateLimit:{period:"300s"}},
-      conditions:[{displayName:"Verified Cloud Run abnormal exit signature",conditionMatchedLog:{filter:$filter}}]
+      conditions:[{displayName:("Verified Cloud Run " + $signal + " signature"),conditionMatchedLog:{filter:$filter}}]
     }'
 }
 

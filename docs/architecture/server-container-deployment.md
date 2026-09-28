@@ -41,7 +41,7 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 
 ## #122 observability live runbook
 
-2026-09-27 확인 기준, 로컬 server tests, validation jar, stdout smoke와 workflow stub은 통과했다. Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신도 확인했다. 후속 O9 단독 실행에서는 종료 요청과 실제 exit 42 system log를 각각 2건 확인했지만, 정책 생성 뒤 도착한 로그가 있어도 제한 시간 안에 incident OPEN·메일 수신을 확인하지 못해 workflow가 실패했다. baseline template·실제 100% traffic·IAM 복원, 소유 image·revision·정책 삭제와 production 미변경을 독립 확인했다. O9는 `FAIL`로 미완료이며 OOM은 `NOT RUN`이다. O9는 실제 OPEN 수신만 요구하며 자동 종료를 복구 수신으로 간주하지 않는다.
+2026-09-28 확인 기준, Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신을 확인했다. 이전 O9 실행은 exit 42 system log 2건 이후 incident·수신을 확인하지 못했고, PR #144 이후 두 실행은 첫 종료 요청 뒤 실제 종료 로그가 없어 정책 생성 전에 실패했다. 각 실행의 baseline template·실제 100% traffic·IAM 복원, 소유 자원 정리와 production 미변경을 독립 확인했다. 전달 경로를 분리한 `log-delivery`와 요청 처리 중 종료하는 새 fixture의 cloud 검증은 아직 `NOT RUN`이다. O9는 `FAIL`로 미완료이며 OOM은 `NOT RUN`이다. O9는 실제 OPEN 수신만 요구하며 자동 종료를 복구 수신으로 간주하지 않는다.
 
 전체 live 완료와 production 적용을 완료로 표시하지 않는다. policy·장애·grouping·trace·sampling·receipt·복원·정리의 개별 결과를 확인하고, 미실행은 `NOT RUN`, 실패는 `FAIL`, 실행 중은 `IN PROGRESS`, 증거 미확인은 `UNKNOWN`으로 구분한다. endpoint status나 workflow 착수만으로 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)를 종료하지 않는다.
 
@@ -70,14 +70,16 @@ Observability custom role은 다음 23개 권한으로 고정한다: `serviceusa
 
 ### Private validation and recovery
 
-workflow operation은 `deploy`, `observability-validate`, `observability-restore`만 허용한다. 모두 exact SHA CI, protected environment와 WIF를 사용한다. deploy/validate는 enable=true가 필요하지만 restore는 비용 중단 중에도 실행할 수 있도록 enable 검사에서 제외한다. `validation_scope`는 validate에서만 `all`, uptime·종료용 `o8-o9`, 종료 전용 `o9`를 허용한다. 축소 범위도 새 private revision·journal·preflight·복원을 사용하며 생략한 단계는 해당 실행의 PASS로 기록하지 않는다.
+workflow operation은 `deploy`, `observability-validate`, `observability-restore`만 허용한다. 모두 exact SHA CI, protected environment와 WIF를 사용한다. deploy/validate는 enable=true가 필요하지만 restore는 비용 중단 중에도 실행할 수 있도록 enable 검사에서 제외한다. `validation_scope`는 validate에서만 `all`, uptime·종료용 `o8-o9`, 종료 전용 `o9`, 장애 없는 알림 전달 진단용 `log-delivery`를 허용한다. 축소 범위도 새 private revision·journal·preflight·복원을 사용하며 생략한 단계는 해당 실행의 PASS로 기록하지 않는다.
 
 - validate는 test-only overlay를 고정 private service에 배포하며 production token, traffic, IAM과 policy를 변경하지 않는다.
 - 8 KiB 이하 annotation journal에 immutable baseline revision, allowlist로 투영한 template와 hash, traffic/IAM, run-owned resource와 pending mutation을 기록한다. etag CAS와 read-back이 성공하기 전에는 IAM, policy, image와 fault를 변경하지 않는다. active/unknown journal 또는 조회 실패가 있으면 새 deploy를 첫 mutation 전에 중단한다.
 - provider access를 cloud 인증 직후와 overlay 배포 후 다시 확인한다. 각 fault·mutation 직전 target guard도 반복한다.
+- `log-delivery`는 현재 private revision의 stdout 고정 문구 `OBSERVABILITY_LOG_DELIVERY_CANARY`에만 맞는 log policy를 생성·read-back하고, 진단용 300초 대기 후 canary를 한 번 출력한다. 생성 이후의 exact-policy OPEN과 승인된 수신함의 실제 이메일을 별도로 확인한다. `LOG_DELIVERY` 결과는 종료 로그·O9 증거로 사용하지 않는다. 기존 run-owned log policy·journal·cleanup을 재사용하며, 복원·실제 수신 확인 후 별도 O9 실행으로 진행한다. [공식 로그 알림 검증 순서](https://cloud.google.com/logging/docs/alerting/log-based-alerts)
 - live driver는 90분 deadline을 사용하고 workflow attempt 120분을 넘기지 않는다. 마지막 30분에는 새 fault나 mutation을 시작하지 않는다. O8 장애 주입 직전에는 두 fault poll, provider 처리 여유와 O9 진입 시간을 포함해 최소 2,940초가 남았는지 다시 확인하고 부족하면 복원한다.
 - O9의 12시간 정상 이력과 종료 후 signature 조회는 같은 bounded system-log pagination을 사용한다. 분 단위 helper에 720을 전달하며 이전 43,200은 30일을 조회하던 단위 오류였다. 빈 page에 token이 있어도 계속 읽되 page·누적 entry·scan time·token 반복과 응답 형식을 제한하고 매 조회 전 fault cutoff를 확인한다. 완전한 목록을 얻지 못하면 종료 장애를 주입하지 않는다. [Cloud Logging entries.list](https://docs.cloud.google.com/logging/docs/reference/v2/rest/v2/entries/list)
 - 다음 O9에서는 정책 생성·read-back 후 300초를 둔 뒤 두 번째 종료를 보낸다. 대기 직전에는 대기 300초와 기존 O9 최소 잔여 시간 300초를 합쳐 검사하고, 대기 후 잔여 시간을 다시 확인한다. 최대 종료 2회와 기존 fault cutoff·복원 여유를 유지하며 부족하면 추가 종료 없이 복원한다. O8의 잔여 시간 검사는 이 추가 대기를 포함한 전체 O9 완료를 보장하지 않는다.
+- 종료 fixture는 응답 후 비동기 작업 대신 활성 요청 안에서 `Runtime.halt(42)`를 호출한다. HTTP 500/502/503 또는 제한된 empty/reset 응답은 요청 관측값일 뿐 종료 증거가 아니다. DNS·연결·TLS·인증·redirect·timeout 오류나 이전 202 응답은 거부한다. 두 번째 종료 후에는 같은 revision·signature, 장애 이후 timestamp, 첫 로그와 다른 `insertId`를 가진 실제 system log와 fresh OPEN을 모두 요구한다. 로컬 subprocess의 exit 42 확인은 Cloud Run 로그 제공을 보장하지 않는다.
 - raw provider body는 `RUNNER_TEMP`의 0600 파일에만 두고 summary는 receipt 확인 전 `RECEIPT PENDING`으로 남긴다. receiver-side 증거 없이는 PASS로 올리지 않는다.
 - failure에서도 immutable baseline revision의 존재·Ready 확인 → 그 revision으로 traffic 100% 복원 → allowlist template/hash 복원 → private IAM·health/query·scaling read-back → owned-resource cleanup → journal clear 순서를 `always()` 경로로 실행한다. 전체 service export를 덮어쓰지 않는다.
 - serving 또는 tagged revision은 삭제하지 않는다. fault revision/image/policy/check는 journal의 exact name·digest·ownership label과 다른 참조 부재가 확인된 경우에만 정리한다.
@@ -86,6 +88,8 @@ workflow operation은 `deploy`, `observability-validate`, `observability-restore
 - policy helper는 journal 소유 private service와 run-owned policy/check만 변경한다. render는 cloud mutation 없이 수행하고 기존 production/shared policy나 channel을 이름만으로 갱신·삭제하지 않는다.
 
 현재 알림 미발생 원인은 확정하지 못했다. enabled·valid 정책의 정확한 filter로 종료 로그를 조회했고, 로그 bucket 라우팅·결제 활성 상태·제외 규칙 부재·정책 생성 API 성공을 확인했다. 다음 300초 대기는 전파 지연 가설을 확인하기 위한 진단이며 공급자의 활성화 보장이나 검증된 해결책이 아니다. 조회 기간 단위 오류도 incident 미발생 원인으로 확인된 것은 아니다. 내부 notification rule에는 직접 조회하는 준비 상태 API가 없고 공식 LogMatch 예제도 `notificationPrompts`를 생략하므로 field나 filter를 추측으로 변경하지 않는다. [로그 기반 알림](https://cloud.google.com/logging/docs/alerting/log-based-alerts), [정책 변경 전파](https://cloud.google.com/monitoring/alerts/troubleshooting-alerts).
+
+요청 기반 CPU 할당에서 응답 후 작업은 실행이 지연될 수 있어 fixture의 응답 이후 작업을 제거했지만, 이번 로그 부재의 원인으로 확정하지 않았다. CPU 설정은 유지한다. 확인한 Cloud Run 문서에는 모든 비정상 종료의 exit-code 로그 제공 보장이 없으며, 검증한 정확한 문구의 탐지를 다른 종료 코드나 OOM 탐지로 확대하지 않는다. canary 실패 시 종료 장애를 추가하지 않고 복원하며, 수정된 O9에서도 신호가 없으면 반복 실행 대신 provider 증거를 조사한다. [CPU 할당](https://cloud.google.com/run/docs/configuring/billing-settings#cpu_allocation_impact), [system logs](https://cloud.google.com/run/docs/logging#system_logs).
 
 ### Production permanent policies
 
