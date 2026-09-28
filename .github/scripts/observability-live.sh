@@ -4,16 +4,22 @@ set -euo pipefail
 readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly service_helper="$script_dir/observability-service.sh"
 readonly policy_helper="$script_dir/observability-policies.sh"
+readonly oom_contract="$script_dir/observability-oom.json"
 readonly monitoring_root="${MONITORING_API_ROOT:-https://monitoring.googleapis.com/v3}"
 readonly logging_root="${LOGGING_API_ROOT:-https://logging.googleapis.com/v2}"
 readonly error_root="${ERROR_REPORTING_API_ROOT:-https://clouderrorreporting.googleapis.com/v1beta1}"
 readonly poll_seconds="${OBSERVABILITY_POLL_SECONDS:-30}"
 readonly fault_reserve=1800
 readonly o9_fault_window=300
+readonly o9_oom_fault_window=1800
+readonly oom_contract_sha256='079b9f3a0b59193cde25369249e1030ea6d9ea3e9097bd5f2a99b0b7c1e1ef64'
 
 fail() { echo "Observability live validation failed: $*" >&2; exit 1; }
 require_env() { test -n "${!1:-}" || fail "Missing $1."; }
 now() { date +%s; }
+now_rfc3339() {
+  python3 -c 'from datetime import datetime, timezone; print(datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"))'
+}
 sleep_for() { "${OBSERVABILITY_SLEEP_COMMAND:-sleep}" "$1"; }
 
 set_validation_deadline() {
@@ -800,6 +806,19 @@ private_exit() {
 
 guard_oom_runtime() {
   require_env OBSERVABILITY_EXPECTED_IMAGE_DIGEST
+  require_env OOM_RUNTIME_APPLICABILITY_SHA256
+  local contract_sha
+  if command -v sha256sum >/dev/null; then contract_sha="$(sha256sum "$oom_contract" | awk '{print $1}')"
+  else contract_sha="$(shasum -a 256 "$oom_contract" | awk '{print $1}')"; fi
+  test "$contract_sha" = "$oom_contract_sha256" || fail 'The fixed OOM contract hash changed.'
+  jq -e --arg applicability "$OOM_RUNTIME_APPLICABILITY_SHA256" '
+    type == "object" and
+    keys == ["applicabilitySha256","discoveryTextSha256","logId","memoryLimitMiB","textPattern"] and
+    .logId == "run.googleapis.com/varlog/system" and .memoryLimitMiB == 768 and
+    (.discoveryTextSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+    (.applicabilitySha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+    .applicabilitySha256 == $applicability
+  ' "$oom_contract" >/dev/null || fail 'The OOM runtime applicability does not match the fixed discovery contract.'
   gcloud_read "$evidence/oom-revision.json" run revisions describe "$OBSERVABILITY_REVISION" \
     --project "$PROJECT_ID" --region "$REGION" --format=json
   jq -e --arg revision "$OBSERVABILITY_REVISION" --arg image "$OBSERVABILITY_EXPECTED_IMAGE_DIGEST" '
@@ -826,8 +845,8 @@ guard_oom_runtime() {
 }
 
 private_oom() {
-  local status curl_exit=0 output="$evidence/private-response" requested_at fixture_survived=false
-  local fixture_reason=unknown allocated_bytes=null elapsed_millis=null
+  local status curl_exit=0 output="$evidence/private-response" requested_at requested_time fixture_survived=false
+  local fixture_reason=unknown allocated_bytes=null elapsed_millis=null full_cap=false
   require_fault_time
   guard_target
   guard_oom_runtime
@@ -835,7 +854,9 @@ private_oom() {
   : > "$output"
   chmod 600 "$output"
   requested_at="$(now)"
+  requested_time="$(now_rfc3339)"
   OOM_REQUEST_EPOCH="$requested_at"
+  OOM_REQUEST_TIME_RFC3339="$requested_time"
   if test -n "${OBSERVABILITY_PRIVATE_HTTP:-}"; then
     status="$("$OBSERVABILITY_PRIVATE_HTTP" POST "$SMOKE_URL" /__observability/oom "$output" '')" || curl_exit=$?
   else
@@ -844,8 +865,8 @@ private_oom() {
       <<< "X-Serverless-Authorization: Bearer $SMOKE_ID_TOKEN")" || curl_exit=$?
   fi
   [[ "$status" =~ ^[0-9]{3}$ ]] || fail 'The private OOM request returned an invalid status.'
-  if jq -se 'any(.[]; type == "object" and .status? == "fixture_failed")' "$output" >/dev/null 2>&1 ||
-    { test -s "$output" && ! jq -s '.' "$output" >/dev/null 2>&1; }; then
+  # Every nonempty body, including proxy errors, fails unless it is the exact full-cap HTTP500/curl0 response.
+  if test -s "$output"; then
     fixture_survived=true
   fi
   if jq -se '
@@ -859,6 +880,9 @@ private_oom() {
   ' "$output" >/dev/null 2>&1; then
     IFS=$'\t' read -r fixture_reason allocated_bytes elapsed_millis \
       < <(jq -sr '.[0] | [.reason, .allocatedBytes, .elapsedMillis] | @tsv' "$output")
+    if test "$fixture_reason" = byte_limit && test "$allocated_bytes" = 1073741824; then
+      full_cap=true
+    fi
   fi
   jq -cn --arg status "$status" --argjson exit "$curl_exit" --argjson at "$requested_at" \
     --argjson survived "$fixture_survived" --arg reason "$fixture_reason" \
@@ -870,13 +894,93 @@ private_oom() {
   printf 'OOM discovery request: observedAt=%s httpStatus=%s curlExit=%s fixtureSurvived=%s fixtureReason=%s allocatedBytes=%s elapsedMillis=%s\n' \
     "$requested_at" "$status" "$curl_exit" "$fixture_survived" "$fixture_reason" "$allocated_bytes" "$elapsed_millis"
   if test "$fixture_survived" = true; then
-    fail 'The bounded OOM fixture survived and reported failure.'
+    test "$full_cap" = true && test "$curl_exit:$status" = 0:500 \
+      || fail 'The bounded OOM fixture returned a non-provisional response.'
+    return
   fi
   # Only a later provider-native record can prove OOM; this accepts transport interruption alone.
   case "$curl_exit:$status" in
     0:500|0:502|0:503|52:000|56:000) ;;
     *) fail "The private OOM request did not have an expected interrupted-response outcome (HTTP $status, curl $curl_exit)." ;;
   esac
+}
+
+require_no_open_alert() {
+  local policy="$1" matches
+  matches="$(alerts_for_policy "$policy" "$evidence/oom-alerts-before.json")"
+  jq -e '[.[] | select(.state == "OPEN")] | length == 0' <<< "$matches" >/dev/null \
+    || fail 'The OOM policy already has an OPEN alert.'
+}
+
+poll_oom_alert_open() {
+  local policy="$1" after="$2" attempts="${3:-20}" matches name
+  while test "$attempts" -gt 0; do
+    poll_budget fault
+    matches="$(alerts_for_policy "$policy" "$evidence/oom-alerts.json")"
+    name="$(jq -er --arg after "$after" --arg run "${OBSERVABILITY_RUN//-/_}" '
+      def instant:
+        capture("^(?<base>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:[.](?<fraction>[0-9]+))?Z$") |
+        {seconds:(.base + "Z" | fromdateiso8601), fraction:(((.fraction // "") + "000000000")[0:9])};
+      ($after | instant) as $boundary |
+      [.[] | select(.state == "OPEN" and (.openTime | type) == "string" and
+        ((.openTime | instant) as $time |
+          ($time.seconds > $boundary.seconds or
+            ($time.seconds == $boundary.seconds and $time.fraction >= $boundary.fraction))) and
+        .policy.userLabels.managed_by == "issue122-validation" and
+        .policy.userLabels.validation_run == $run and
+        .policy.userLabels.resource_kind == "log")] |
+      select(length == 1) | .[0].name |
+      select(test("^projects/[^/]+/alerts/[^/]+$"))
+    ' <<< "$matches" 2>/dev/null || true)"
+    if test -n "$name"; then printf '%s\n' "$name"; return; fi
+    attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
+    poll_budget fault "$poll_seconds"
+  done
+  fail 'The exact OOM policy did not open one fresh alert in the bounded poll.'
+}
+
+poll_oom_native() {
+  local after="$1" attempts=12 start snapshot pattern log_name
+  start="$after"
+  pattern="$(jq -er '.textPattern' "$oom_contract")"
+  log_name="projects/$PROJECT_ID/logs/$(jq -er '.logId | gsub("/"; "%2F")' "$oom_contract")"
+  while test "$attempts" -gt 0; do
+    poll_budget fault
+    snapshot="$evidence/system-oom-validation-$((13 - attempts)).json"
+    system_logs "$start" "$snapshot"
+    if jq -e --arg project "$PROJECT_ID" --arg region "$REGION" --arg service "$SERVICE_NAME" \
+      --arg revision "$OBSERVABILITY_REVISION" --arg log "$log_name" --arg pattern "$pattern" \
+      --arg after "$after" '
+      def instant:
+        capture("^(?<base>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:[.](?<fraction>[0-9]+))?Z$") |
+        {seconds:(.base + "Z" | fromdateiso8601), fraction:(((.fraction // "") + "000000000")[0:9])};
+      ($after | instant) as $boundary |
+      . as $root |
+      [.entries[]? | select(
+        .resource.type == "cloud_run_revision" and
+        .resource.labels.project_id == $project and
+        .resource.labels.location == $region and
+        .resource.labels.service_name == $service and
+        .resource.labels.revision_name == $revision and
+        .logName == $log and .severity == "ERROR" and
+        (.insertId | type == "string" and length > 0) and
+        (.timestamp | type == "string") and ((.timestamp | instant) as $time |
+          ($time.seconds > $boundary.seconds or
+            ($time.seconds == $boundary.seconds and $time.fraction >= $boundary.fraction))) and
+        (.textPayload | type == "string" and test($pattern) and
+          ((contains("\n") or contains("\r")) | not))
+      )] | unique as $matches |
+      select(($matches | length) == 1) |
+      $matches[0] as $match |
+      ([$root.entries[]? | select(.logName == $match.logName and .insertId == $match.insertId)] | unique | length) == 1
+    ' "$snapshot" >/dev/null 2>&1; then
+      cp "$snapshot" "$evidence/system-oom-validation.json"
+      return
+    fi
+    attempts=$((attempts - 1)); test "$attempts" -gt 0 || break
+    poll_budget fault "$poll_seconds"
+  done
+  fail 'One fresh exact native OOM record did not arrive.'
 }
 
 poll_health() {
@@ -961,6 +1065,26 @@ run_o9_oom_discovery() {
   result OOM-DISCOVERY 'DISCOVERY ONLY'
 }
 
+run_o9_oom() {
+  local policy
+  export SYSTEM_LOG_MODE=oom
+  require_fault_window "$((300 + o9_oom_fault_window))"
+  policy="$(ensure_policy log)"
+  verify_single_condition "$policy"
+  require_no_open_alert "$policy"
+  # ponytail: fixed diagnostic grace, not readiness proof; revisit only with provider evidence.
+  poll_budget fault 300
+  require_fault_window "$o9_oom_fault_window"
+  require_no_open_alert "$policy"
+  private_oom
+  poll_oom_native "$OOM_REQUEST_TIME_RFC3339"
+  poll_oom_alert_open "$policy" "$OOM_REQUEST_TIME_RFC3339" 20 >/dev/null
+  poll_health
+  result O9 PASS
+  result OOM PASS
+  result O9-receipt 'RECEIPT PENDING'
+}
+
 run_o9() {
   local policy signature start fault_started
   start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -1008,7 +1132,7 @@ run_o9() {
 main() {
   umask 077
   case "${OBSERVABILITY_SCOPE:-all}" in
-    all|o8-o9|o9|log-delivery|o9-oom-discovery) ;;
+    all|o8-o9|o9|log-delivery|o9-oom-discovery|o9-oom) ;;
     *) fail 'Unsupported private validation scope.' ;;
   esac
   require_env RUNNER_TEMP
@@ -1026,6 +1150,11 @@ main() {
   fi
   if test "${OBSERVABILITY_SCOPE:-all}" = o9-oom-discovery; then
     run_o9_oom_discovery
+    result restore 'PENDING ALWAYS STEP'
+    return
+  fi
+  if test "${OBSERVABILITY_SCOPE:-all}" = o9-oom; then
+    run_o9_oom
     result restore 'PENDING ALWAYS STEP'
     return
   fi

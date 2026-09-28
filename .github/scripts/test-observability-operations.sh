@@ -367,7 +367,7 @@ case "$method $path" in
     elif test "${OOM_FIXTURE_SURVIVED:-false}" = true; then
       printf '%s\n' '{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1073741824,"elapsedMillis":10000}' > "$output"
     else
-      printf '%s\n' '{}' > "$output"
+      : > "$output"
     fi
     printf '%s' "${PRIVATE_EXIT_STATUS:-000}"
     exit "${PRIVATE_EXIT_CODE:-52}" ;;
@@ -571,15 +571,18 @@ run_preflight_case observability-validate true pass o8-o9
 run_preflight_case observability-validate true pass o9
 run_preflight_case observability-validate true pass log-delivery
 run_preflight_case observability-validate true pass o9-oom-discovery
+run_preflight_case observability-validate true pass o9-oom
 run_preflight_case observability-validate true reject unknown
 run_preflight_case deploy true reject o8-o9
 run_preflight_case deploy true reject o9
 run_preflight_case deploy true reject log-delivery
 run_preflight_case deploy true reject o9-oom-discovery
+run_preflight_case deploy true reject o9-oom
 run_preflight_case observability-restore true reject o8-o9
 run_preflight_case observability-restore true reject o9
 run_preflight_case observability-restore true reject log-delivery
 run_preflight_case observability-restore true reject o9-oom-discovery
+run_preflight_case observability-restore true reject o9-oom
 run_preflight_case deploy true pass all ios-failing
 for ci_case in server-missing server-duplicate server-pending server-failure server-skipped server-cancelled wrong-run-id wrong-attempt wrong-head-sha incomplete-inventory incomplete-runs-inventory reread-attempt-race; do
   run_preflight_case deploy true reject-ci all "$ci_case"
@@ -975,6 +978,62 @@ expect_fail "$CASE_DIR/filter-injection.stderr" env PROJECT_ID=test-project REGI
   "$policy_helper" render log
 pass 'log policy distinguishes validation-only delivery canaries from native abnormal exits without changing log ownership'
 
+new_case policy-oom-contract
+oom_contract="$repo_root/.github/scripts/observability-oom.json"
+jq -e '
+  . == {
+    logId:"run.googleapis.com/varlog/system",
+    memoryLimitMiB:768,
+    textPattern:"^Memory limit of 768 MiB exceeded with [1-9][0-9]* MiB used[.] Consider increasing the memory limit, see https://cloud[.]google[.]com/run/docs/configuring/memory-limits$",
+    discoveryTextSha256:"e0566394885f8460f9b40eb8f43cae75cc89768f70941cd25f3aff4b98ad25a0",
+    applicabilitySha256:"e17a31b7785235dbb727602160dc1d7702cc49c660e8f709c2ebce51ec535bb8"
+  }
+' "$oom_contract" >/dev/null
+oom_filter='resource.type="cloud_run_revision" AND resource.labels.project_id="test-project" AND resource.labels.location="test-region" AND resource.labels.service_name="vlrgg-query-check" AND logName="projects/test-project/logs/run.googleapis.com%2Fvarlog%2Fsystem" AND severity=ERROR AND textPayload =~ "^Memory limit of 768 MiB exceeded with [1-9][0-9]* MiB used[.] Consider increasing the memory limit, see https://cloud[.]google[.]com/run/docs/configuring/memory-limits$" AND resource.labels.revision_name="vlrgg-query-check-o123-1"'
+oom_log="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_RUN=123-1 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  SYSTEM_LOG_MODE=oom SYSTEM_LOG_NAME=projects/test-project/logs/stdout SYSTEM_LOG_SIGNATURE='.*' \
+  "$policy_helper" render log)"
+jq -e --arg filter "$oom_filter" '
+  .displayName == "issue122 validation OOM 123-1" and
+  .conditions == [{displayName:"Verified Cloud Run native OOM",conditionMatchedLog:{filter:$filter}}] and
+  .userLabels.resource_kind == "log"
+' <<< "$oom_log" >/dev/null
+production_oom="$(env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query \
+  OBSERVABILITY_RUN=123-1 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  SYSTEM_LOG_MODE=oom "$policy_helper" render log)"
+jq -e '.conditions[0].conditionMatchedLog.filter |
+  contains("severity=ERROR") and contains("textPayload =~") and
+  (contains("resource.labels.revision_name") | not)' <<< "$production_oom" >/dev/null
+pattern="$(jq -r '.textPattern' "$oom_contract")"
+jq -en --arg pattern "$pattern" '
+  ["Memory limit of 768 MiB exceeded with 1 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits",
+   "Memory limit of 768 MiB exceeded with 1225 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits"] |
+  all(.[]; test($pattern))
+' >/dev/null
+jq -en --arg pattern "$pattern" '
+  "Memory limit of 768 MiB exceeded with 1225 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits\n" |
+  (test($pattern) and ((contains("\n") or contains("\r")) | not)) | not
+' >/dev/null || fail 'OOM pattern accepted a payload with a trailing newline'
+while IFS= read -r payload; do
+  jq -en --arg pattern "$pattern" --arg payload "$payload" '$payload | test($pattern) | not' >/dev/null \
+    || fail 'OOM pattern accepted a non-native or widened payload'
+done <<'OOM_NEGATIVES'
+Memory limit of 769 MiB exceeded with 1225 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits
+Memory limit of 768 MiB exceeded with 0 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits
+Memory limit of 768 MiB exceeded with -1 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits
+Memory limit of 768 MiB exceeded with 1.5 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits
+Memory limit of 768 MiB exceeded with 1225 MiB used. Consider increasing the memory limit
+ Memory limit of 768 MiB exceeded with 1225 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits
+Container called exit(42).
+OBSERVABILITY_LOG_DELIVERY_CANARY
+java.lang.OutOfMemoryError: Direct buffer memory
+OOM_NEGATIVES
+expect_fail "$CASE_DIR/mode.stderr" env PROJECT_ID=test-project REGION=test-region SERVICE_NAME=vlrgg-query-check \
+  OBSERVABILITY_RUN=123-1 OBSERVABILITY_NOTIFICATION_CHANNELS_JSON='["projects/test-project/notificationChannels/channel-1"]' \
+  SYSTEM_LOG_MODE=custom "$policy_helper" render log
+pass 'fixed OOM contract renders one exact ERROR system-log family for validation and production'
+
 principal='service-123@gcp-sa-monitoring-notification.iam.gserviceaccount.com'
 member="serviceAccount:$principal"
 
@@ -1346,7 +1405,7 @@ done
 pass 'real private-exit curl branch frames an empty HTTP/1.1 POST and reports only numeric failure status'
 
 new_case live-private-oom-outcomes
-for fixture in interrupted:000:52:false:pass server503:503:0:false:pass survived:500:0:true:reject success200:200:0:false:reject; do
+for fixture in interrupted:000:52:false:pass server503:503:0:false:pass survived:500:0:true:pass cap503:503:0:true:reject success200:200:0:false:reject; do
   IFS=: read -r name http_status hook_exit survived expected <<< "$fixture"
   oom_case="$CASE_DIR/$name"
   mkdir -p "$oom_case/evidence"
@@ -1371,9 +1430,9 @@ for fixture in interrupted:000:52:false:pass server503:503:0:false:pass survived
     || fail "private OOM outcome $name skipped target/runtime guards"
   test "$(wc -l < "$oom_case/private-calls" | tr -d ' ')" = 1 \
     || fail "private OOM outcome $name retried the fault"
-  jq -e --arg status "$http_status" --argjson exit "$hook_exit" \
+  jq -e --arg status "$http_status" --argjson exit "$hook_exit" --argjson survived "$survived" \
     '.httpStatus == $status and .curlExit == $exit and .observedAt == 1700000000 and
-      .fixtureSurvived == ($status == "500" and $exit == 0) and
+      .fixtureSurvived == $survived and
       (if .fixtureSurvived then
         .fixtureReason == "byte_limit" and .allocatedBytes == 1073741824 and .elapsedMillis == 10000
        else .fixtureReason == "unknown" and .allocatedBytes == null and .elapsedMillis == null end)' \
@@ -1387,7 +1446,33 @@ for fixture in interrupted:000:52:false:pass server503:503:0:false:pass survived
   grep -Eq "^OOM discovery request: observedAt=1700000000 httpStatus=$http_status curlExit=$hook_exit fixtureSurvived=$survived $diagnostic$" \
     "$oom_case/stdout" || fail "private OOM outcome $name lost sanitized request evidence"
 done
-pass 'private OOM sends once behind exact guards, rejects fixture survival, and emits sanitized request evidence'
+pass 'private OOM sends once behind exact guards and advances only an exact HTTP500 full-cap response or interrupted transport'
+
+new_case live-private-oom-proxy-bodies
+for http_status in 502 503; do
+  proxy_case="$CASE_DIR/$http_status"
+  mkdir -p "$proxy_case/evidence"
+  : > "$proxy_case/private-calls"
+  status=0
+  env CASE_DIR="$proxy_case" PRIVATE_EXIT_STATUS="$http_status" PRIVATE_EXIT_CODE=0 \
+    OOM_FIXTURE_BODY='{"error":"arbitrary proxy response"}' \
+    SMOKE_URL=https://vlrgg-query-check-test.run.app OBSERVABILITY_PRIVATE_HTTP="$work_dir/private-http" \
+    OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      now() { printf "1700000000\n"; }
+      guard_target() { :; }; guard_oom_runtime() { :; }
+      private_oom
+    ' _ "$live_helper" > "$proxy_case/stdout" 2> "$proxy_case/stderr" || status=$?
+  test "$status" != 0 || fail "nonempty HTTP $http_status proxy response advanced to native polling"
+  jq -e --arg status "$http_status" '
+    .httpStatus == $status and .curlExit == 0 and .fixtureSurvived == true and
+    .fixtureReason == "unknown" and .allocatedBytes == null and .elapsedMillis == null
+  ' "$proxy_case/evidence/oom-request.json" >/dev/null \
+    || fail "nonempty HTTP $http_status proxy response lost conservative diagnostics"
+  test "$(wc -l < "$proxy_case/private-calls" | tr -d ' ')" = 1 \
+    || fail "nonempty HTTP $http_status proxy response retried the fault"
+done
+pass 'arbitrary nonempty HTTP502 and HTTP503 proxy bodies fail before native polling'
 
 new_case live-private-oom-survival-diagnostics
 diagnostic_index=0
@@ -1405,7 +1490,11 @@ while IFS=$'\t' read -r name body reason allocated elapsed; do
       guard_target() { :; }; guard_oom_runtime() { :; }
       private_oom
     ' _ "$live_helper" > "$diagnostic_case/stdout" 2> "$diagnostic_case/stderr" || status=$?
-  test "$status" != 0 || fail "surviving OOM diagnostic $name was accepted"
+  if test "$name" = byte-cap; then
+    test "$status" = 0 || fail 'the exact full-cap OOM diagnostic did not advance to native polling'
+  else
+    test "$status" != 0 || fail "surviving OOM diagnostic $name was accepted"
+  fi
   jq -e --arg reason "$reason" --argjson allocated "$allocated" --argjson elapsed "$elapsed" \
     '.fixtureSurvived == true and .fixtureReason == $reason and
       .allocatedBytes == $allocated and .elapsedMillis == $elapsed' \
@@ -1422,14 +1511,22 @@ byte-cap	{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":10737
 time	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":16777216,"elapsedMillis":10000}	time_limit	16777216	10000
 allocation	{"status":"fixture_failed","reason":"allocation_error","allocatedBytes":0,"elapsedMillis":0}	allocation_error	0	0
 extra-key	{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1073741824,"elapsedMillis":1,"detail":"never-log-this"}	unknown	null	null
+null	null	unknown	null	null
+scalar	42	unknown	null	null
+array	[]	unknown	null	null
+empty-object	{}	unknown	null	null
+wrong-status	{"status":"ok","reason":"byte_limit","allocatedBytes":1073741824,"elapsedMillis":1}	unknown	null	null
+missing-key	{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1073741824}	unknown	null	null
 unknown-reason	{"status":"fixture_failed","reason":"io_error","allocatedBytes":0,"elapsedMillis":1}	unknown	null	null
 negative	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":-1,"elapsedMillis":1}	unknown	null	null
 fractional	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":16777216.5,"elapsedMillis":1}	unknown	null	null
+fractional-elapsed	{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1073741824,"elapsedMillis":1.5}	unknown	null	null
 nonmultiple	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":1,"elapsedMillis":1}	unknown	null	null
+partial-byte-cap	{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1056964608,"elapsedMillis":1}	byte_limit	1056964608	1
 too-many-bytes	{"status":"fixture_failed","reason":"byte_limit","allocatedBytes":1090519040,"elapsedMillis":1}	unknown	null	null
 too-long	{"status":"fixture_failed","reason":"time_limit","allocatedBytes":0,"elapsedMillis":25001}	unknown	null	null
 CASES
-pass 'private OOM survival diagnostics preserve only the exact allowlisted enum and bounded integers'
+pass 'private OOM diagnostics preserve bounded fields but only the exact full byte cap advances'
 
 new_case live-private-oom-malformed-diagnostic
 mkdir -p "$CASE_DIR/evidence"
@@ -1530,6 +1627,7 @@ for mode in good default-runtime gen1-runtime wrong-memory extra-container volum
   status=0
   env CASE_DIR="$CASE_DIR" MODE="$mode" OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
     OBSERVABILITY_EXPECTED_IMAGE_DIGEST=image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+    OOM_RUNTIME_APPLICABILITY_SHA256=e17a31b7785235dbb727602160dc1d7702cc49c660e8f709c2ebce51ec535bb8 \
     PROJECT_ID=test-project REGION=test-region bash -c '
       source "$1"; evidence="$CASE_DIR/evidence-$MODE"; mkdir -p "$evidence"
       gcloud_read() { cp "$CASE_DIR/revision.json" "$1"; }
@@ -1539,6 +1637,15 @@ for mode in good default-runtime gen1-runtime wrong-memory extra-container volum
   else test "$status" != 0 || fail "unsafe OOM runtime $mode was accepted"
   fi
 done
+expect_fail "$CASE_DIR/applicability.stderr" env CASE_DIR="$CASE_DIR" \
+  OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+  OBSERVABILITY_EXPECTED_IMAGE_DIGEST=image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  OOM_RUNTIME_APPLICABILITY_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  PROJECT_ID=test-project REGION=test-region bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence-applicability"; mkdir -p "$evidence"
+    gcloud_read() { cp "$CASE_DIR/good-revision.json" "$1"; }
+    guard_oom_runtime
+  ' _ "$live_helper"
 pass 'OOM runtime guard requires the exact digest, resources, execution environment, and unmounted storage contract'
 
 new_case live-o3-o6-schema
@@ -1951,7 +2058,7 @@ test ! -s "$CASE_DIR/results" || fail 'uptime deadline reported a false pass'
 pass 'uptime deadline expiry still restores health and never reports a pass'
 
 new_case live-phase-scope
-for scope in all o8-o9 o9 log-delivery o9-oom-discovery invalid; do
+for scope in all o8-o9 o9 log-delivery o9-oom-discovery o9-oom invalid; do
   : > "$CASE_DIR/phases"
   if env OBSERVABILITY_SCOPE="$scope" OBSERVABILITY_RUN=123-1 RUNNER_TEMP="$CASE_DIR" \
     GITHUB_STEP_SUMMARY="$CASE_DIR/summary" OBSERVABILITY_WORKFLOW_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -1964,6 +2071,7 @@ for scope in all o8-o9 o9 log-delivery o9-oom-discovery invalid; do
       run_o9() { printf "O9\n" >> "$CASE_DIR/phases"; }
       run_log_delivery() { printf "LOG_DELIVERY\n" >> "$CASE_DIR/phases"; }
       run_o9_oom_discovery() { printf "OOM_DISCOVERY\n" >> "$CASE_DIR/phases"; }
+      run_o9_oom() { printf "OOM_VALIDATION\n" >> "$CASE_DIR/phases"; }
       main
     ' _ "$live_helper" > /dev/null 2> "$CASE_DIR/$scope.stderr"; then
     test "$scope" != invalid || fail 'invalid live scope was accepted'
@@ -1976,6 +2084,7 @@ for scope in all o8-o9 o9 log-delivery o9-oom-discovery invalid; do
     o9) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight O9 ' ;;
     log-delivery) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight LOG_DELIVERY ' ;;
     o9-oom-discovery) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight OOM_DISCOVERY ' ;;
+    o9-oom) test "$(tr '\n' ' ' < "$CASE_DIR/phases")" = 'preflight OOM_VALIDATION ' ;;
     invalid) test ! -s "$CASE_DIR/phases" ;;
   esac || fail "live phase sequence for $scope is wrong"
 done
@@ -2010,6 +2119,132 @@ grep -qx 'OOM-DISCOVERY DISCOVERY ONLY' "$CASE_DIR/results"
 ! grep -Eq 'O9 PASS|OOM PASS|RECEIPT' "$CASE_DIR/results" || fail 'OOM discovery reported validation success'
 jq -e '.entries[0].jsonPayload.providerField == "unknown"' "$CASE_DIR/evidence/system-oom-discovery.json" >/dev/null
 pass 'OOM discovery performs one fault, preserves unknown native payload, checks recovery, and cannot report O9 PASS'
+
+new_case live-o9-oom-native-matcher
+for mode in positive duplicate conflict multiple stale same-second-prefault wrong-project wrong-location wrong-service wrong-revision wrong-family wrong-severity wrong-log wrong-resource; do
+  matcher_case="$CASE_DIR/$mode"
+  mkdir -p "$matcher_case/evidence"
+  status=0
+  env MODE="$mode" CASE_DIR="$matcher_case" PROJECT_ID=test-project REGION=test-region \
+    SERVICE_NAME=vlrgg-query-check OBSERVABILITY_REVISION=vlrgg-query-check-o123-1 \
+    OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      poll_budget() { :; }
+      sleep_for() { :; }
+      system_logs() {
+        local project="$PROJECT_ID" region="$REGION" service="$SERVICE_NAME" revision="$OBSERVABILITY_REVISION"
+        local text log severity=ERROR timestamp=2023-11-14T22:13:21.123Z type=cloud_run_revision
+        text="Memory limit of 768 MiB exceeded with 1225 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits"
+        log="projects/$PROJECT_ID/logs/run.googleapis.com%2Fvarlog%2Fsystem"
+        case "$MODE" in
+          stale) timestamp=2023-11-14T22:13:19Z ;;
+          same-second-prefault) timestamp=2023-11-14T22:13:20.100000Z ;;
+          wrong-project) project=other-project ;;
+          wrong-location) region=other-region ;;
+          wrong-service) service=other-service ;;
+          wrong-revision) revision=vlrgg-query-check-o999-1 ;;
+          wrong-family) text="Memory limit of 768 MiB exceeded with 0 MiB used. Consider increasing the memory limit, see https://cloud.google.com/run/docs/configuring/memory-limits" ;;
+          wrong-severity) severity=WARNING ;;
+          wrong-log) log="projects/$PROJECT_ID/logs/run.googleapis.com%2Fstdout" ;;
+          wrong-resource) type=generic_task ;;
+        esac
+        jq -n --arg project "$project" --arg region "$region" --arg service "$service" \
+          --arg revision "$revision" --arg text "$text" --arg log "$log" --arg severity "$severity" \
+          --arg timestamp "$timestamp" --arg type "$type" \
+          "{entries:[{resource:{type:\$type,labels:{project_id:\$project,location:\$region,service_name:\$service,revision_name:\$revision}},logName:\$log,severity:\$severity,textPayload:\$text,insertId:\"native-1\",timestamp:\$timestamp}]}" > "$2"
+        case "$MODE" in
+          duplicate) jq ".entries += [.entries[0]]" "$2" > "$2.tmp"; mv "$2.tmp" "$2" ;;
+          conflict) jq ".entries += [(.entries[0] | .severity=\"WARNING\")]" "$2" > "$2.tmp"; mv "$2.tmp" "$2" ;;
+          multiple) jq ".entries += [(.entries[0] | .insertId=\"native-2\")]" "$2" > "$2.tmp"; mv "$2.tmp" "$2" ;;
+        esac
+      }
+      poll_oom_native 2023-11-14T22:13:20.500000Z
+    ' _ "$live_helper" > "$matcher_case/stdout" 2> "$matcher_case/stderr" || status=$?
+  case "$mode" in
+    positive|duplicate)
+      test "$status" = 0 && test -s "$matcher_case/evidence/system-oom-validation.json" \
+        || fail "exact native OOM matcher rejected $mode delivery" ;;
+    *)
+      test "$status" != 0 && test ! -e "$matcher_case/evidence/system-oom-validation.json" \
+        || fail "native OOM matcher accepted $mode evidence" ;;
+  esac
+done
+pass 'native OOM matcher deduplicates identical delivery and rejects stale, conflicting, ambiguous, or wrong-identity evidence'
+
+new_case live-o9-oom-order
+env CASE_DIR="$CASE_DIR" PROJECT_ID=test-project OBSERVABILITY_DEADLINE_EPOCH=1700004000 \
+  GITHUB_STEP_SUMMARY="$CASE_DIR/summary" bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    printf "1700000000\n" > "$CASE_DIR/clock"
+    now() { cat "$CASE_DIR/clock"; }
+    sleep_for() { printf "sleep %s\n" "$1" >> "$CASE_DIR/events"; printf "%s\n" "$(( $(now) + $1 ))" > "$CASE_DIR/clock"; }
+    ensure_policy() { test "$SYSTEM_LOG_MODE" = oom; printf "policy\n" >> "$CASE_DIR/events"; printf "projects/test-project/alertPolicies/oom\n"; }
+    verify_single_condition() { printf "readback\n" >> "$CASE_DIR/events"; }
+    require_no_open_alert() { printf "no-open\n" >> "$CASE_DIR/events"; }
+    private_oom() { printf "oom\n" >> "$CASE_DIR/events"; OOM_REQUEST_EPOCH="$(now)"; OOM_REQUEST_TIME_RFC3339=2023-11-14T22:18:20.123456Z; }
+    poll_oom_native() { test "$1" = 2023-11-14T22:18:20.123456Z; printf "native\n" >> "$CASE_DIR/events"; }
+    poll_oom_alert_open() { test "$1 $2 $3" = "projects/test-project/alertPolicies/oom 2023-11-14T22:18:20.123456Z 20"; printf "open\n" >> "$CASE_DIR/events"; }
+    poll_health() { printf "health\n" >> "$CASE_DIR/events"; }
+    result() { printf "%s %s\n" "$1" "$2" >> "$CASE_DIR/results"; }
+    run_o9_oom
+  ' _ "$live_helper"
+test "$(tr '\n' ' ' < "$CASE_DIR/events")" = 'policy readback no-open sleep 300 no-open oom native open health '
+test "$(tr '\n' ' ' < "$CASE_DIR/results")" = 'O9 PASS OOM PASS O9-receipt RECEIPT PENDING '
+pass 'O9 OOM validates policy and no-old-OPEN before and after grace, then performs one fault, native proof, fresh OPEN, and health'
+
+new_case live-o9-oom-alert-boundary
+for mode in prefault equal later; do
+  alert_case="$CASE_DIR/$mode"
+  mkdir -p "$alert_case/evidence"
+  status=0
+  env MODE="$mode" CASE_DIR="$alert_case" OBSERVABILITY_RUN=123-1 \
+    OBSERVABILITY_DEADLINE_EPOCH=1700003000 bash -c '
+      source "$1"; evidence="$CASE_DIR/evidence"
+      poll_budget() { :; }
+      alerts_for_policy() {
+        local open_time
+        case "$MODE" in
+          prefault) open_time=2023-11-14T22:18:20.100000Z ;;
+          equal) open_time=2023-11-14T22:18:20.500000Z ;;
+          later) open_time=2023-11-14T22:18:20.500001Z ;;
+        esac
+        jq -cn --arg at "$open_time" \
+          "[{name:\"projects/test-project/alerts/oom\",state:\"OPEN\",openTime:\$at,policy:{userLabels:{managed_by:\"issue122-validation\",validation_run:\"123_1\",resource_kind:\"log\"}}}]"
+      }
+      poll_oom_alert_open projects/test-project/alertPolicies/oom 2023-11-14T22:18:20.500000Z 1
+    ' _ "$live_helper" > "$alert_case/stdout" 2> "$alert_case/stderr" || status=$?
+  if test "$mode" = prefault; then
+    test "$status" != 0 || fail 'same-second pre-request OOM OPEN passed the precise boundary'
+  else
+    test "$status" = 0 && grep -qx 'projects/test-project/alerts/oom' "$alert_case/stdout" \
+      || fail "OOM OPEN at $mode boundary was rejected"
+  fi
+done
+pass 'OOM OPEN comparison rejects .100000 before a .500000 request and accepts equal or later fractional instants'
+
+new_case live-o9-oom-open-during-grace
+status=0
+env CASE_DIR="$CASE_DIR" PROJECT_ID=test-project OBSERVABILITY_RUN=123-1 \
+  OBSERVABILITY_DEADLINE_EPOCH=1700004000 bash -c '
+    source "$1"; evidence="$CASE_DIR/evidence"; mkdir -p "$evidence"
+    printf "1700000000\n" > "$CASE_DIR/clock"
+    now() { cat "$CASE_DIR/clock"; }
+    sleep_for() { printf "%s\n" "$(( $(now) + $1 ))" > "$CASE_DIR/clock"; }
+    ensure_policy() { printf "projects/test-project/alertPolicies/oom\n"; }
+    verify_single_condition() { :; }
+    alerts_for_policy() {
+      local count=0
+      test ! -f "$CASE_DIR/alert-checks" || count="$(cat "$CASE_DIR/alert-checks")"
+      count=$((count + 1)); printf "%s\n" "$count" > "$CASE_DIR/alert-checks"
+      if test "$count" = 1; then printf "[]\n"
+      else printf "%s\n" "[{\"state\":\"OPEN\"}]"; fi
+    }
+    private_oom() { : > "$CASE_DIR/fault"; }
+    run_o9_oom
+  ' _ "$live_helper" > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || status=$?
+test "$status" != 0 && test "$(cat "$CASE_DIR/alert-checks")" = 2 && test ! -e "$CASE_DIR/fault" \
+  || fail 'an OOM OPEN arising during grace did not block the fault POST'
+pass 'a new OPEN during the 300-second grace fails closed before the OOM request'
 
 new_case live-log-delivery
 env CASE_DIR="$CASE_DIR" PROJECT_ID=test-project OBSERVABILITY_DEADLINE_EPOCH=1700002700 \
@@ -2436,10 +2671,10 @@ pass 'ambiguous O9 discovery fails before policy creation and the second exit'
 if grep -Fq '/__observability/internal/other' "$live_helper"; then
   fail 'live driver includes a non-validation endpoint'
 fi
-if grep -Eq 'result OOM (PASS|RECEIPT)' "$live_helper"; then
-  fail 'live driver includes an OOM success claim'
-fi
-pass 'live driver stays on the validation harness, two Error Reporting groups, and no OOM claim'
+test "$(grep -Fc 'result OOM PASS' "$live_helper")" = 1 \
+  || fail 'live driver must reserve its single OOM PASS for the native OOM validation path'
+! grep -Eq 'result OOM RECEIPT' "$live_helper" || fail 'live driver fabricated an OOM receipt'
+pass 'live driver stays on the validation harness and reserves OOM PASS for native alert validation'
 
 new_case expired-deadline
 service prepare >/dev/null
@@ -2665,10 +2900,11 @@ grep -A7 '^      validation_scope:' "$workflow" | grep -q 'default: all'
 grep -A7 '^      validation_scope:' "$workflow" | grep -q 'o8-o9'
 grep -A8 '^      validation_scope:' "$workflow" | grep -q '^          - o9$'
 grep -A10 '^      validation_scope:' "$workflow" | grep -q '^          - o9-oom-discovery$'
+grep -A11 '^      validation_scope:' "$workflow" | grep -q '^          - o9-oom$'
 grep -Fq 'all|o8-o9|o9)' "$workflow"
 grep -Fq 'env_vars+=",VLRGG_OBSERVABILITY_ALLOW_EXIT=true"' "$workflow"
 grep -Fq 'remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_OOM)' "$workflow"
-grep -Fq 'o9-oom-discovery)' "$workflow"
+grep -Fq 'o9-oom-discovery|o9-oom)' "$workflow"
 grep -Fq 'env_vars+=",VLRGG_OBSERVABILITY_ALLOW_OOM=true"' "$workflow"
 grep -Fq 'remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_EXIT)' "$workflow"
 grep -Fq 'remove_env+=(--remove-env-vars=VLRGG_OBSERVABILITY_ALLOW_EXIT,VLRGG_OBSERVABILITY_ALLOW_OOM)' "$workflow"
@@ -2687,6 +2923,10 @@ grep -A3 'name: Push the image and resolve its immutable digest' "$workflow" \
   | grep -q "if: inputs.operation == 'deploy'"
 grep -A3 'name: Push the validation-only image and record its ownership' "$workflow" \
   | grep -q "if: inputs.operation == 'observability-validate'"
+golden_line="$(grep -n '079b9f3a0b59193cde25369249e1030ea6d9ea3e9097bd5f2a99b0b7c1e1ef64' "$workflow" | cut -d: -f1)"
+auth_line="$(grep -n 'name: Authenticate deployment through Workload Identity Federation' "$workflow" | cut -d: -f1)"
+test "$golden_line" -lt "$auth_line" || fail 'OOM contract/applicability guard moved after cloud authentication'
+grep -Fq '.applicabilitySha256 == $applicability' "$workflow"
 live_step="$(awk '
   /name: Run bounded private observability provider validation/ {step=1; next}
   step && /^      - name:/ {exit}
@@ -2698,6 +2938,7 @@ grep -q 'export OBSERVABILITY_WORKFLOW_STARTED_AT="$started_at"' <<< "$live_step
 grep -q 'attempts/\$GITHUB_RUN_ATTEMPT' <<< "$live_step"
 grep -q 'GCP_OBSERVABILITY_NOTIFICATION_CHANNELS_JSON' <<< "$live_step"
 grep -Fq 'OBSERVABILITY_SCOPE: ${{ inputs.validation_scope }}' <<< "$live_step"
+grep -Fq 'OOM_RUNTIME_APPLICABILITY_SHA256: ${{ env.OOM_RUNTIME_APPLICABILITY_SHA256 }}' <<< "$live_step"
 ! grep -Eq 'GCP_PROJECT_NUMBER|GCP_MONITORING_SERVICE_AGENT' <<< "$live_step" \
   || fail 'workflow still trusts redundant project-number or Google-managed identity secrets'
 ! grep -q '/__observability/internal' <<< "$live_step" \
