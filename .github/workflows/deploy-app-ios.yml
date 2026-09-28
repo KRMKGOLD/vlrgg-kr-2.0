@@ -100,6 +100,11 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
 
+      - name: Recheck iOS CI after environment approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ruby scripts/ci/ci_contract.rb verify ios "$SOURCE_SHA" "$GITHUB_REPOSITORY"
+
       - name: Build and upload to TestFlight
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}

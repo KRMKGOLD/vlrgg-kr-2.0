@@ -356,7 +356,7 @@ class ReleaseContractTest < Minitest::Test
   def test_android_wif_is_scoped_to_the_deployment_job
     workflow_path = File.join(ROOT, ".github/workflows/deploy-app-android.yml")
     jobs = YAML.load_file(workflow_path).fetch("jobs")
-    assert_equal({ "contents" => "read", "id-token" => "write" }, jobs.fetch("deploy").fetch("permissions"))
+    assert_equal({ "contents" => "read", "actions" => "read", "id-token" => "write" }, jobs.fetch("deploy").fetch("permissions"))
     refute jobs.fetch("preflight").fetch("permissions", {}).key?("id-token")
     steps = jobs.fetch("deploy").fetch("steps")
     auth = steps.find { |step| step["uses"].to_s.start_with?("google-github-actions/auth@") }

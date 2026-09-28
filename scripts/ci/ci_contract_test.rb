@@ -185,6 +185,34 @@ class CiContractTest < Minitest::Test
     end
   end
 
+  def test_apps_recheck_after_environment_wait_before_using_deployment_credentials
+    %w[android ios].each do |target|
+      run, jobs = responses(target)
+      api = ->(path) { path.include?("/attempts/") ? jobs : { "total_count" => 1, "workflow_runs" => [run] } }
+      assert CiContract.verify_platform!(target, SHA, "owner/repository", api: api) # Early preflight.
+      run["run_attempt"] += 1
+      jobs["jobs"][0]["run_attempt"] = run["run_attempt"]
+      [["in_progress", nil], ["completed", "failure"]].each do |status, conclusion|
+        jobs["jobs"][0].merge!("status" => status, "conclusion" => conclusion)
+        assert_raises(CiContract::Error) { CiContract.verify_platform!(target, SHA, "owner/repository", api: api) }
+      end
+
+      workflow = YAML.load_file(File.join(ROOT, ".github/workflows/deploy-app-#{target}.yml"))
+      deploy = workflow.fetch("jobs").fetch("deploy")
+      assert_equal "preflight", deploy.fetch("needs")
+      assert_equal(target == "android" ? "android-internal" : "ios-testflight", deploy.fetch("environment"))
+      assert_equal "read", deploy.fetch("permissions", workflow.fetch("permissions")).fetch("actions")
+      steps = deploy.fetch("steps")
+      verification = steps.index { |step| step["run"] == 'ruby scripts/ci/ci_contract.rb verify ' + target + ' "$SOURCE_SHA" "$GITHUB_REPOSITORY"' }
+      refute_nil verification, "#{target} must recheck CI after the protected environment wait"
+      ruby_setup = steps.index { |step| step["uses"].to_s.start_with?("ruby/setup-ruby@") }
+      credentials = steps.index { |step| step["uses"].to_s.start_with?("google-github-actions/auth@") || step["run"].to_s.include?("fastlane ios internal") }
+      assert_operator verification, :>, ruby_setup
+      assert_operator verification, :<, credentials
+      assert_equal "${{ github.token }}", steps[verification].fetch("env").fetch("GH_TOKEN")
+    end
+  end
+
   def test_workflows_use_platform_proof_and_unconditional_final_gate
     %w[android ios server].each do |target|
       path = target == "server" ? "deploy-server.yml" : "deploy-app-#{target}.yml"
