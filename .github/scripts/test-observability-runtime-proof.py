@@ -216,6 +216,40 @@ class RuntimeProofTest(unittest.TestCase):
         self.assertEqual("app/file", records["app/hardlink"]["target"])
         self.assertEqual("app/file", records["app/hardlink"]["resolvedTarget"])
 
+    def test_docker_init_placeholders_are_retained_and_metadata_is_hashed(self) -> None:
+        entries = [
+            {"name": "dev/pts", "type": "dir"},
+            {"name": "dev/shm", "type": "dir"},
+            {"name": "dev/console", "data": b""},
+        ]
+        baseline, manifest = runtime_proof.rootfs_manifest(self._tar("init.tar", entries))
+        self.assertEqual({item["name"] for item in entries}, {item["path"] for item in manifest})
+        self.assertNotEqual(baseline, self.rootfs_hash([]))
+        for index in range(len(entries)):
+            for field, value in (("mode", 0o700), ("uid", 2000), ("gid", 2000)):
+                changed = [dict(item) for item in entries]
+                changed[index][field] = value
+                self.assertNotEqual(baseline, self.rootfs_hash(changed))
+
+    def test_docker_init_allowlist_rejects_other_mount_content(self) -> None:
+        invalid = [
+            {"name": "dev/pts", "data": b""},
+            {"name": "dev/shm", "type": "symlink", "target": "/tmp"},
+            {"name": "dev/console", "type": "dir"},
+            {"name": "dev/console", "data": b"content"},
+            {"name": "dev/console", "type": "char"},
+            {"name": "dev/console", "type": "hardlink", "target": "app/file"},
+            {"name": "dev/pts/child", "data": b""},
+            {"name": "dev/shm/child", "type": "dir"},
+            {"name": "dev/other", "type": "dir"},
+            {"name": "dev/other", "data": b""},
+            {"name": "proc/pts", "type": "dir"},
+            {"name": "sys/console", "data": b""},
+        ]
+        for entry in invalid:
+            with self.subTest(entry=entry), self.assertRaises(runtime_proof.ManifestError):
+                self.rootfs_hash([{"name": "app/file", "data": b"target"}, entry])
+
     def test_duplicate_excluded_path_and_changed_raw_symlink_target_are_detected(self) -> None:
         duplicate = [
             {"name": ".dockerenv", "data": b"one"},

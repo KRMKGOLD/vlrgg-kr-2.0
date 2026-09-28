@@ -144,7 +144,11 @@ def rootfs_manifest(tar_path: Path) -> tuple[str, list[dict[str, Any]]]:
                     continue
                 root = path.split("/", 1)[0]
                 if root in MOUNT_ROOTS:
-                    if path != root or not member.isdir():
+                    # Docker create adds these empty init-layer placeholders before start.
+                    # Keep their full records in the hash; reject all other mount contents.
+                    mount_directory = member.isdir() and path in (root, "dev/pts", "dev/shm")
+                    empty_console = path == "dev/console" and member.isfile() and member.size == 0
+                    if not (mount_directory or empty_console):
                         raise ManifestError(f"populated runtime mount tree: {path}")
                 if path in EXCLUDED_PATHS:
                     continue

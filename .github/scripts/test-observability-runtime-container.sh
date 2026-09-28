@@ -56,6 +56,8 @@ root = Path(sys.argv[1])
 one, two = (json.loads((root / name).read_text()) for name in ('one.json', 'two.json'))
 assert one['applicabilitySha256'] == two['applicabilitySha256'], 'Rebuilt image applicability differs'
 entries = {entry['path']: entry for entry in one['rootfsEntries']}
+assert entries['dev/pts']['type'] == entries['dev/shm']['type'] == 'directory'
+assert entries['dev/console']['type'] == 'file' and entries['dev/console']['size'] == 0
 assert entries['app/validation.jar']['contentKind'] == 'normalizedZip'
 assert any(path.startswith('app/lib/') and entry.get('contentKind') == 'normalizedZip'
            for path, entry in entries.items())
