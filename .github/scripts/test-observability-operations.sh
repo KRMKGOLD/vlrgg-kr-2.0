@@ -373,8 +373,42 @@ printf '%s\n' "$*" >> "$CASE_DIR/gh-calls"
 case "$*" in
   "api repos/test-repository/git/ref/heads/main --jq .object.sha")
     printf '%s\n' test-sha ;;
-  "api repos/test-repository/actions/workflows/ci.yml/runs?event=push&branch=main&head_sha=test-sha&per_page=1")
-    printf '%s\n' '{"workflow_runs":[{"head_sha":"test-sha","head_branch":"main","event":"push","conclusion":"success"}]}' ;;
+  "api repos/test-repository/actions/workflows/ci.yml/runs?event=push&branch=main&head_sha=test-sha&per_page=100")
+    count=0
+    test ! -f "$CASE_DIR/ci-run-read-count" || count="$(cat "$CASE_DIR/ci-run-read-count")"
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$CASE_DIR/ci-run-read-count"
+    attempt=2
+    if test "${CI_CASE:-ios-running}" = reread-attempt-race && test "$count" -gt 1; then attempt=3; fi
+    total_count=2
+    test "${CI_CASE:-ios-running}" != incomplete-runs-inventory || total_count=3
+    printf '%s\n' "{\"total_count\":$total_count,\"workflow_runs\":[{\"id\":111,\"run_number\":10,\"run_attempt\":1,\"head_sha\":\"test-sha\",\"head_branch\":\"main\",\"event\":\"push\",\"path\":\".github/workflows/ci.yml\"},{\"id\":222,\"run_number\":20,\"run_attempt\":$attempt,\"head_sha\":\"test-sha\",\"head_branch\":\"main\",\"event\":\"push\",\"path\":\".github/workflows/ci.yml\"}]}" ;;
+  "api repos/test-repository/actions/runs/222/attempts/2/jobs?per_page=100")
+    verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"success"}'
+    ios='{"name":"ios","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"in_progress","conclusion":null}'
+    case "${CI_CASE:-ios-running}" in
+      ios-running) ;;
+      ios-failing) ios='{"name":"ios","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"failure"}' ;;
+      verify-missing) verify= ;;
+      verify-duplicate) verify="$verify,$verify" ;;
+      verify-pending) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"in_progress","conclusion":null}' ;;
+      verify-failure) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"failure"}' ;;
+      verify-skipped) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"skipped"}' ;;
+      verify-cancelled) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"cancelled"}' ;;
+      wrong-run-id) verify='{"name":"verify","run_id":999,"run_attempt":2,"head_sha":"test-sha","status":"completed","conclusion":"success"}' ;;
+      wrong-attempt) verify='{"name":"verify","run_id":222,"run_attempt":1,"head_sha":"test-sha","status":"completed","conclusion":"success"}' ;;
+      wrong-head-sha) verify='{"name":"verify","run_id":222,"run_attempt":2,"head_sha":"other-sha","status":"completed","conclusion":"success"}' ;;
+      incomplete-inventory) ;;
+      reread-attempt-race) ;;
+      *) echo 'unexpected CI case' >&2; exit 1 ;;
+    esac
+    jobs="$ios"
+    test -z "$verify" || jobs="$verify,$jobs"
+    total_count=2
+    test "${CI_CASE:-ios-running}" != verify-missing || total_count=1
+    test "${CI_CASE:-ios-running}" != verify-duplicate || total_count=3
+    test "${CI_CASE:-ios-running}" != incomplete-inventory || total_count=3
+    printf '%s\n' "{\"total_count\":$total_count,\"jobs\":[$jobs]}" ;;
   *)
     echo 'unexpected gh call' >&2
     exit 1 ;;
@@ -383,7 +417,7 @@ STUB
 chmod +x "$work_dir/bin/gh"
 
 awk '
-  /^      - name: Require enabled deployment and successful CI for this main commit$/ { step = 1; next }
+  /^      - name: Require enabled deployment and successful server CI for this main commit$/ { step = 1; next }
   step && /^      - name:/ { exit }
   step && /^        run: \|$/ { code = 1; next }
   code { sub(/^          /, ""); print }
@@ -480,20 +514,20 @@ prepare_live_case() {
 }
 
 run_preflight_case() {
-  local operation="$1" enabled="$2" expected="$3" scope="${4:-all}" result=0
-  CASE_DIR="$work_dir/preflight-$operation-${enabled:-unset}-$scope"
+  local operation="$1" enabled="$2" expected="$3" scope="${4:-all}" ci_case="${5:-ios-running}" result=0
+  CASE_DIR="$work_dir/preflight-$operation-${enabled:-unset}-$scope-$ci_case"
   export CASE_DIR
   mkdir -p "$CASE_DIR"
   : > "$CASE_DIR/gh-calls"
   if test "$enabled" = unset; then
-    env -u DEPLOY_ENABLED PATH="$work_dir/bin:$PATH" OPERATION="$operation" VALIDATION_SCOPE="$scope" PROJECT_ID=test-project \
+    env -u DEPLOY_ENABLED PATH="$work_dir/bin:$PATH" OPERATION="$operation" VALIDATION_SCOPE="$scope" CI_CASE="$ci_case" PROJECT_ID=test-project \
       WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
       RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=test-sha \
       GITHUB_REPOSITORY=test-repository GH_TOKEN=test-token \
       bash --noprofile --norc -e -o pipefail "$preflight_script" \
       > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || result=$?
   else
-    env PATH="$work_dir/bin:$PATH" OPERATION="$operation" VALIDATION_SCOPE="$scope" DEPLOY_ENABLED="$enabled" PROJECT_ID=test-project \
+    env PATH="$work_dir/bin:$PATH" OPERATION="$operation" VALIDATION_SCOPE="$scope" CI_CASE="$ci_case" DEPLOY_ENABLED="$enabled" PROJECT_ID=test-project \
       WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
       RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=test-sha \
       GITHUB_REPOSITORY=test-repository GH_TOKEN=test-token \
@@ -502,12 +536,15 @@ run_preflight_case() {
   fi
   if test "$expected" = pass; then
     test "$result" = 0 || fail "preflight rejected $operation with enable=$enabled"
-    test "$(wc -l < "$CASE_DIR/gh-calls" | tr -d ' ')" = 2 \
+    test "$(wc -l < "$CASE_DIR/gh-calls" | tr -d ' ')" = 4 \
       || fail "preflight skipped required GitHub checks for $operation with enable=$enabled"
-  else
+  elif test "$expected" = reject; then
     test "$result" != 0 || fail "preflight accepted $operation with enable=$enabled"
     test ! -s "$CASE_DIR/gh-calls" \
       || fail "rejected preflight reached GitHub checks for $operation with enable=$enabled"
+  else
+    test "$result" != 0 || fail "preflight accepted invalid CI case $ci_case"
+    test -s "$CASE_DIR/gh-calls" || fail "CI rejection did not reach GitHub checks for $ci_case"
   fi
 }
 
@@ -530,7 +567,11 @@ run_preflight_case deploy true reject log-delivery
 run_preflight_case observability-restore true reject o8-o9
 run_preflight_case observability-restore true reject o9
 run_preflight_case observability-restore true reject log-delivery
-pass 'workflow preflight validates operation and phase scope before auth while retaining main SHA and CI checks'
+run_preflight_case deploy true pass all ios-failing
+for ci_case in verify-missing verify-duplicate verify-pending verify-failure verify-skipped verify-cancelled wrong-run-id wrong-attempt wrong-head-sha incomplete-inventory incomplete-runs-inventory reread-attempt-race; do
+  run_preflight_case deploy true reject-ci all "$ci_case"
+done
+pass 'workflow preflight accepts server verify with iOS running or failed and rejects incomplete, stale, duplicate, or unsuccessful verify evidence'
 
 new_case journal
 journal="$(service prepare)"

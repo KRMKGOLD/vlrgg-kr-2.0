@@ -20,7 +20,7 @@ PR과 `main` push는 credential-free CI를 실행한다. 서버와 앱 배포는
 
 도구 버전, task 목록과 workflow step은 workflow/build source가 소유한다. 저장소에 ktlint나 Detekt가 추가되기 전에는 존재하지 않는 task를 gate로 만들지 않는다. Stage 1.1의 과거 `app/**` zero-touch 검사는 해당 구현 branch의 증거이며 향후 앱 PR을 막는 규칙이 아니다.
 
-중간 작업에서는 같은 commit의 성공한 iOS CI를 재사용할 수 있지만 최종 완료 판정은 최종 exact commit의 iOS CI 성공을 다시 확인한다.
+앱/iOS 변경의 중간 작업에서는 같은 commit의 성공한 iOS CI를 재사용할 수 있지만, 앱/iOS 최종 완료 판정은 최종 exact commit의 iOS CI 성공을 다시 확인한다. 서버 배포와 private observability 검증은 해당 main push CI attempt의 Linux `verify` 성공만 요구하며 macOS `ios`의 실행·실패를 기다리지 않는다.
 
 ### G0 synthetic benchmark
 
@@ -48,7 +48,7 @@ PROTECTED_ROUTE_LOAD_REPORT_PATH=/tmp/vlrgg-protected-load.properties \
 
 ## Query server deployment
 
-`.github/workflows/deploy-server.yml`은 `workflow_dispatch` 전용이다. exact SHA의 성공한 main CI, protected `production` environment와 `CLOUD_RUN_DEPLOY_ENABLED=true`를 확인하고 frozen source를 checkout해 root Docker image를 credential-free로 먼저 만든다. 그 뒤 GitHub OIDC→GCP WIF 인증을 수행하고 cloud push와 mutation을 시작한다.
+`.github/workflows/deploy-server.yml`은 `workflow_dispatch` 전용이다. exact SHA의 최신 main push CI attempt에서 Linux `verify` job 하나가 완료·성공했는지 확인하고, protected `production` environment와 `CLOUD_RUN_DEPLOY_ENABLED=true`를 확인한 뒤 frozen source를 checkout해 root Docker image를 credential-free로 먼저 만든다. job 목록은 전체 개수와 응답 개수가 일치해야 하며 `run_id`, `run_attempt`, `head_sha`를 고정하고 같은 run을 다시 읽어 attempt 변경도 거부한다. macOS `ios` 상태는 서버 배포 gate가 아니다. 그 뒤 GitHub OIDC→GCP WIF 인증을 수행하고 cloud push와 mutation을 시작한다.
 
 같은 digest를 private validation service에 먼저 배포하고 Ready/digest/IAM/authenticated smoke를 확인한 뒤 production에 승격한다. 후속 revision 실패 시 시작 때 기록한 serving revision으로 rollback한다. URL, JWT, credential, image path와 raw provider output은 public log·summary·artifact에 남기지 않는다. 상세 순서와 비용 중단은 [배포 runbook](architecture/server-container-deployment.md)을 따른다.
 
