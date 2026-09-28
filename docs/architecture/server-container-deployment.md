@@ -1,6 +1,6 @@
 # 서버 컨테이너 배포와 운영
 
-일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 exact `main` SHA, private validation, production 승격, 실제 rollback, 비용 중단 실패 후 drain·복구와 공개 조회를 확인했다. #122는 private O3~O7 provider 전이와 실제 수신, 후속 O8의 3개 지역 정상→장애→정상 지표·동일 incident OPEN/CLOSED·실제 두 이메일 수신, 실패 실행의 독립 복원과 소유 자원 정리를 확인했다. 직접 메모리 discovery D2에서는 같은 revision의 실제 Cloud Run system ERROR로 768 MiB 한도 초과를 확인했고 완전 복원했다. 별도 OOM 알림 검증과 production 영구 정책·정상 배포는 아직 남아 있다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
+일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 배포·rollback·비용 중단과 복구를 확인했다. 2026-09-29 KST 기준 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)의 private 오류·가용성·native OOM 알림, 실제 이메일 수신과 독립 복원을 검증했고, 정상 production 배포와 영구 Monitoring 자원 4개의 적용·정상 상태 확인을 마쳤다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
 
 ## Image and runtime contract
 
@@ -28,7 +28,7 @@ Production은 public, service min/max `1/1`, revision min/max `0/1`이고 valida
 
 월 10만 원 Budget과 1·3·5·8·10만 원 알림 resource를 사용한다. **1만 원에서 비용을 점검하고, 3만 원에서 추세·원인을 점검하며, 5만 원 도달 또는 더 이른 초과 예상 시 수동 공개 차단·중단한다.** 8·10만 원은 중단 실패·지연의 후속 경고다.
 
-Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진행 중 요청, 저장·로그와 늦은 청구가 남을 수 있으며 service minimum 0도 접근 차단이나 비용 0을 뜻하지 않는다. 실제 invoice, Budget/Monitoring 알림 수신과 Spend cap 활성화는 확인하지 않았다.
+Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진행 중 요청, 저장·로그와 늦은 청구가 남을 수 있으며 service minimum 0도 접근 차단이나 비용 0을 뜻하지 않는다. 실제 invoice, Budget 알림 수신과 Spend cap 활성화는 확인하지 않았다. #122의 Monitoring 장애 알림 수신은 Budget 수신 검증과 별개다.
 
 비용 중단 순서:
 
@@ -41,9 +41,20 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 
 ## #122 observability live runbook
 
-2026-09-28 확인 기준, Private O3~O7의 grouping·trace·sampling·incident와 실제 수신, 후속 O8의 provider 전이·동일 incident OPEN/CLOSED·실제 수신을 확인했다. `36410338960-1`의 log-delivery는 고정 canary, exact-policy OPEN, 승인 수신함의 실제 메일과 독립 복원·정리를 확인했다. 이전 exit42 O9와 파일 쓰기 OOM discovery는 실패 후 각각 독립 복원했다. 직접 메모리 D2는 HTTP 500/curl 0과 1 GiB byte-cap 응답 뒤 같은 revision에서 `Memory limit of 768 MiB exceeded with 1225 MiB used` Cloud Run system ERROR를 남겼고, baseline traffic·template·IAM·private 경계·소유 image/revision 정리·production 미변경을 독립 확인했다. D2 workflow 자체는 조기 cap guard 때문에 `FAIL`이며 O9 end-to-end 성공으로 바꾸지 않는다. 실제 record에서 고정한 OOM family와 runtime applicability를 쓰는 별도 `o9-oom` 검증은 구현됐지만 아직 실행하지 않았다. O9는 fresh native OOM, exact-policy OPEN, 승인 수신함의 실제 이메일과 독립 복원이 모두 끝나기 전까지 미완료다.
+2026-09-29 KST 확인 기준이다. 각 단계는 아래 실행과 보호된 원본 증거에 따로 귀속한다. Actions 성공만으로 실제 수신·복원을 대신하지 않으며, 공개 기록에는 workflow 링크와 검증 결과만 남긴다.
 
-전체 live 완료와 production 적용을 완료로 표시하지 않는다. policy·장애·grouping·trace·sampling·receipt·복원·정리의 개별 결과를 확인하고, 미실행은 `NOT RUN`, 실패는 `FAIL`, 실행 중은 `IN PROGRESS`, 증거 미확인은 `UNKNOWN`으로 구분한다. endpoint status나 workflow 착수만으로 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)를 종료하지 않는다.
+| 단계 | 확인한 결과 |
+| --- | --- |
+| O3~O6 | INTERNAL·parsing 오류 그룹과 실제 신규/동일 그룹 재발 이메일, 안전한 frame·revision, request trace 연결, category별 sampling·억제 수 확인 |
+| O7 | native 5xx 5분 창 2건에서는 OPEN 없음, 3건에서 OPEN, 복구 후 동일 incident CLOSED와 실제 두 이메일 확인 |
+| O8 | 서로 다른 3개 checker의 정상→장애→정상 값, 동일 incident OPEN/CLOSED와 실제 두 이메일, 독립 복원·정리 확인 |
+| log-delivery | [run 36410338960](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36410338960/attempts/1), attempt 1: 고정 canary→exact-policy OPEN→실제 이메일→독립 복원. O9와 별도 증거 |
+| OOM discovery D1 | [run 36430026199](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36430026199/attempts/1), attempt 1: 파일 쓰기 discovery는 `FAIL`, 실제 native OOM은 입증하지 못함. 실패 원문을 확보하지 못해 원인은 미확정이며 독립 복원·소유 자원 정리는 확인 |
+| OOM discovery D2 | [run 36446508402](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36446508402/attempts/1), attempt 1: 실제 native 768 MiB 메모리 한도 초과와 독립 복원 확인. 조기 cap guard로 workflow는 `FAIL`이며 이 결과를 성공으로 바꾸지 않음 |
+| O9 OOM 알림 | [run 36464164330](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36464164330/attempts/1), attempt 1: 정책 생성·300초 대기 후 단 한 번의 OOM 요청, 같은 revision의 fresh native OOM→exact-policy OPEN→승인 수신함의 실제 이메일→독립 복원·소유 image/revision/policy 삭제 확인. 독립 감사 `PASS` |
+| Production | [run 36467015465](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36467015465/attempts/1), attempt 1: 검증된 `main`의 정상 이미지 배포, Ready·100% traffic·IAM·공개 health/query·native 정상 요청 로그 확인. 영구 자원 4개 read-back, 생성 이후 3개 지역 정상/HTTP 200, 열린 소유 incident 없음 확인 |
+
+O9와 production은 [main CI 36462345096](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/36462345096/attempts/1), attempt 1의 exact SHA에 연결된다. 실제 project·revision·digest·정책 ID·수신자·원본 로그·메일은 저장소 밖 보호 기록에 보존한다. 이전 exit42와 파일 쓰기 discovery 실패도 복원 결과와 함께 보존한다. 누적 OOM 요청은 discovery 2회와 알림 검증 1회로 총 3회이며 추가 장애 주입은 수행하지 않는다. 이 결과는 검증한 768 MiB native OOM 문구 계열만 입증하며 모든 crash·JVM OOME·종료 코드 탐지를 뜻하지 않는다.
 
 ### Authority and preflight
 
@@ -62,8 +73,8 @@ Observability custom role은 다음 23개 권한으로 고정한다: `serviceusa
 | Signal | Initial policy and evidence |
 | --- | --- |
 | 5xx | exact project/location/service의 `request_count` 5분 증가량 `>=3`; 같은 window 2건은 미충족, 3건은 OPENED, fresh 2xx와 0 뒤 CLOSED·receipt 확인 |
-| uptime | production `/health`, 200과 `status=ok`, 5분 주기·10초 timeout·3 region; 서로 다른 checker 정상값 뒤 장애·복구·receipt 확인 |
-| abnormal exit | 실제 확인한 Cloud Run system log signature만 사용; 정상 exit/SIGTERM 제외, 실제 OOM 증거가 없으면 matcher를 넓히지 않고 미검증으로 유지 |
+| uptime | `/health`의 200과 `status=ok`, 5분 주기·10초 timeout·3 region; 300초 정렬 후 2개 이상 checker 실패가 600초 지속되면 조건 충족. Private에서 장애·복구·receipt, production에서 정상 상태 확인 |
+| native OOM | 실제 검증한 768 MiB 메모리 한도 초과 system ERROR 문구 계열만 사용; 정상 exit/SIGTERM과 일반 JVM OOME는 탐지 증거에 포함하지 않음 |
 | Error Reporting | 안전한 `INTERNAL_ERROR`·`SOURCE_PARSING_FAILURE`; representative event의 revision/frame과 실제 receipt 확인 |
 
 이메일 채널을 기본으로 시작한다. Monitoring과 Error Reporting 연결을 각각 저장하며 채널 생성만으로 receipt를 통과시키지 않는다. empty/multiple/NaN/missing data를 정상으로 취급하지 않고 provider의 incident close 방식과 지연을 기록한다.
@@ -92,15 +103,41 @@ workflow operation은 `deploy`, `observability-validate`, `observability-restore
 - 실제 private exit signature가 ambiguous하거나 정상 종료와 충돌하면 후속 exit를 보내지 않는다. production service에는 validation main, jar와 `__observability/*` route가 없어야 한다.
 - policy helper는 journal 소유 private service와 run-owned policy/check만 변경한다. render는 cloud mutation 없이 수행하고 기존 production/shared policy나 channel을 이름만으로 갱신·삭제하지 않는다.
 
-현재 알림 미발생 원인은 확정하지 못했다. enabled·valid 정책의 정확한 filter로 종료 로그를 조회했고, 로그 bucket 라우팅·결제 활성 상태·제외 규칙 부재·정책 생성 API 성공을 확인했다. 다음 300초 대기는 전파 지연 가설을 확인하기 위한 진단이며 공급자의 활성화 보장이나 검증된 해결책이 아니다. 조회 기간 단위 오류도 incident 미발생 원인으로 확인된 것은 아니다. 내부 notification rule에는 직접 조회하는 준비 상태 API가 없고 공식 LogMatch 예제도 `notificationPrompts`를 생략하므로 field나 filter를 추측으로 변경하지 않는다. [로그 기반 알림](https://cloud.google.com/logging/docs/alerting/log-based-alerts), [정책 변경 전파](https://cloud.google.com/monitoring/alerts/troubleshooting-alerts).
+이전 exit42 검증에서 알림이 발생하지 않은 원인은 확정하지 못했다. enabled·valid 정책의 정확한 filter로 종료 로그를 조회했고, 로그 bucket 라우팅·결제 활성 상태·제외 규칙 부재·정책 생성 API 성공을 확인했다. 300초 대기는 전파 지연 가설을 확인하기 위한 진단이며 공급자의 활성화 보장이 아니다. 후속 log-delivery와 native OOM의 성공으로 이전 실패 원인을 확정하지 않는다. 조회 기간 단위 오류도 incident 미발생 원인으로 확인된 것은 아니다. 내부 notification rule에는 직접 조회하는 준비 상태 API가 없고 공식 LogMatch 예제도 `notificationPrompts`를 생략하므로 field나 filter를 추측으로 변경하지 않는다. [로그 기반 알림](https://cloud.google.com/logging/docs/alerting/log-based-alerts), [정책 변경 전파](https://cloud.google.com/monitoring/alerts/troubleshooting-alerts).
 
-요청 기반 CPU 할당에서 응답 후 작업은 실행이 지연될 수 있어 fixture의 응답 이후 작업을 제거했지만, 이번 로그 부재의 원인으로 확정하지 않았다. CPU 설정은 유지한다. 확인한 Cloud Run 문서에는 모든 비정상 종료의 exit-code 로그 제공 보장이 없으며, 검증한 정확한 문구의 탐지를 다른 종료 코드나 OOM 탐지로 확대하지 않는다. canary 실패 시 종료 장애를 추가하지 않고 복원한다. 반복된 exit42 신호 부재에 따라 문서화된 컨테이너 메모리 초과를 별도 discovery로 확인하며, 실제 OOM 신호도 없으면 복원 후 수집된 증거를 조사한다. 파일 크기가 실제 상주 메모리와 같다는 가정으로 동일 fixture를 반복하지 않는다. 실패한 discovery 1회를 보존하고, 수정된 discovery 최대 1회와 성공 후 별도 알림 검증 최대 1회만 허용한다. 누적 OOM 요청 한도는 3회이며 추가 discovery는 없다. 수정된 discovery가 실패하면 복원 후 원인을 정리한다. 지원 문의를 선행 조건으로 삼지 않는다. [CPU 할당](https://cloud.google.com/run/docs/configuring/billing-settings#cpu_allocation_impact), [system logs](https://cloud.google.com/run/docs/logging#system_logs).
+요청 기반 CPU 할당에서 응답 후 작업은 실행이 지연될 수 있어 fixture의 응답 이후 작업을 제거했지만, 이전 exit42 로그 부재의 원인으로 확정하지 않았다. CPU 설정은 유지한다. 확인한 Cloud Run 문서에는 모든 비정상 종료의 exit-code 로그 제공 보장이 없어 exit42 신호 부재 뒤 실제 native OOM을 별도로 검증했다. 파일 크기가 상주 메모리와 같다는 가정을 버리고 direct buffer discovery로 실제 신호를 확보했다. 실패한 실행과 복원 기록을 보존하며, 이미 사용한 누적 OOM 요청 3회 한도를 초기화하거나 추가 discovery를 실행하지 않는다. 지원 문의는 이번 검증의 선행 조건이 아니었다. [CPU 할당](https://cloud.google.com/run/docs/configuring/billing-settings#cpu_allocation_impact), [system logs](https://cloud.google.com/run/docs/logging#system_logs).
 
 ### Production permanent policies
 
-Private O7~O9의 provider 결과·실제 수신·독립 복원을 모두 확인한 뒤에만 production 정책을 적용한다. 정상 이미지를 배포해 Ready, 단일 revision 100% traffic, immutable digest, template, IAM과 공개 smoke를 먼저 고정하며 production에 장애를 주입하지 않는다.
+Private O7~O9의 provider 결과·실제 수신·독립 복원을 확인한 뒤 정상 production 이미지를 배포했다. Ready, 단일 revision 100% traffic, immutable digest, template, IAM과 공개 smoke를 먼저 고정했으며 production에 장애를 주입하지 않았다.
 
-기존 alert policy·uptime check를 끝 페이지까지 조회해 중복과 소유권을 확인하고, 소유 label이 있는 5xx policy, uptime check와 그 exact ID를 쓰는 uptime policy, 검증된 system-log signature의 log policy만 만든다. 적용 실패 시 이번 작업이 만든 exact 자원만 비활성화·삭제하고 기존 channel, Logging routing, IAM과 serving revision은 보존한다. OOM을 실행하지 않았다면 OOM 감지를 검증했다고 기록하지 않는다.
+기존 정책·check의 전체 목록과 승인 채널을 확인한 뒤 `managed_by=vlrgg-server-observability`, `service=vlrgg-query`, `resource_kind` 소유 label로 다음 자원을 순차 생성하고 exact ID·body hash·read-back과 중복 부재를 보호 기록에 남겼다.
+
+- revision 전체를 합산하는 production 5xx 정책
+- 현재 정상 배포를 대상으로 한 uptime check
+- 생성된 check의 exact ID를 참조하는 uptime 알림 정책
+- 검증한 768 MiB native OOM 문구 계열을 production service 전체에 적용하는 log 정책
+
+최종 검증에서 네 자원의 설정, 생성 이후 서로 다른 3개 지역의 정상 값과 HTTP 200, 열린 소유 incident 없음, 마지막 정책 적용 뒤 native HTTP 200 로그와 기존 traffic/template/IAM 보존을 확인했다. 최초 조회는 한 지역만 보였으나 이후 세 지역의 실제 지표가 모인 뒤 통과시켰다. 실제 read-back은 revision/configuration label이 빈 service-level check였다. 이 uptime 증거는 생성한 check와 현재 정상 배포에 한정한다. 다음 배포 때 check 대상과 새 serving revision의 정상 지표를 다시 확인하고, 이전 revision에 고정돼 있으면 새 check→새 check-ID 정책 검증→기존 소유 정책 비활성화·삭제→기존 check 삭제 순으로 교체한다. 현재 증거를 향후 revision의 자동 감시 보장으로 사용하지 않는다. 메모리 한도나 provider 문구가 바뀌면 OOM contract도 다시 검토한다.
+
+5xx·uptime은 OPEN/CLOSED 통지와 열린 incident의 1시간 재통지 간격을 사용한다. Uptime과 OOM log 정책은 데이터가 없으면 30분 뒤 auto-close되며 이를 정상 복구 증거로 대체하지 않는다. OOM log 정책의 알림은 최대 5분에 한 번이고 실제 수신 증거는 OPEN이다. 이 제한은 5분마다 반복 발송한다는 보장이 아니다. Error Reporting은 새 오류·해결 후 재발 알림이며 열린 그룹의 매 요청마다 메일을 보내는 계약이 아니다. [Monitoring 정책 API](https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.alertPolicies), [Error Reporting 알림](https://cloud.google.com/error-reporting/docs/notifications).
+
+변경을 되돌릴 때는 보호 기록의 exact ID와 label/body hash로 이번 소유 자원을 확인하고 정책부터 비활성화·read-back한 뒤 삭제한다. uptime 정책을 check보다 먼저 제거하며, 소유권이 불명확하면 삭제하지 않는다. 기존 공유 channel, Logging routing/bucket, IAM과 serving revision은 보존한다. 정책 변경의 결과가 불명확하면 실제 목록과 ID를 조회해 조정하고 POST를 맹목적으로 재시도하지 않는다.
+
+### Investigating an error
+
+1. Error Reporting에서 production service의 오류 그룹을 열고 대표 이벤트의 `error_code`, 안전한 frame, `serviceContext.version`과 발생 시각을 확인한다. Logs Explorer에서는 아래 필터로 시작해 해당 revision·시간으로 좁힌다.
+2. 유효한 `logging.googleapis.com/trace`가 있으면 같은 trace의 request log에서 HTTP status를 확인한다. 없는 trace를 추측해서 연결하지 않는다. Production revision 이름은 `vlrgg-query-r<run_id>-<attempt>`이므로 `serviceContext.version`에서 Actions run/attempt를 찾을 수 있다. 해당 실행과 보호된 run/SHA/digest 대응표로 배포 소스를 확인한다.
+3. 수정·배포와 정상 상태를 확인한 뒤 해당 그룹을 해결 상태로 표시한다. 이후 같은 그룹의 재발과 실제 수신을 별도로 확인하며 과거 메일을 새 실행 증거로 재사용하지 않는다.
+4. Monitoring에서 채널을 관리하고, 각 정책과 Error Reporting의 별도 알림 설정에 그 채널이 선택돼 있는지 확인한다. 수신자 변경은 보호 설정에서 수행하고 승인된 수신함의 실제 전달을 확인한다. 채널 생성이나 test 메시지만으로 모든 정책의 전달 성공을 판정하지 않는다.
+
+```text
+resource.type="cloud_run_revision"
+resource.labels.service_name="vlrgg-query"
+severity=ERROR
+```
+
+안전한 이벤트는 총 frame 32개, cause 깊이 3, frame 후보 검사 128개, 개행 포함 UTF-8 16 KiB와 category별 프로세스당 4건/60초로 제한한다. 원본 exception 문구·HTML·query·token을 추가로 출력하지 않는다. Error Reporting occurrence는 수집된 sample 수이며 실제 실패 요청 수가 아니다. native 요청 지표와 emitted/suppressed 요약을 함께 보고, 프로세스 재시작과 무요청 시 요약 flush 한계를 고려한다.
 
 재현 가능한 로컬 검증:
 

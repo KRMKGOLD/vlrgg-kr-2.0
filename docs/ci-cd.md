@@ -110,9 +110,9 @@ Target Secret, registration token과 App Check token은 repository/environment v
 | Area | Current evidence | Remaining gate |
 | --- | --- | --- |
 | Stage 1.1 notification server | Emulator contract/concurrency/security tests, build/installDist, notification-disabled packaged smoke GREEN | App·real Firebase/GCP/Cloud Run은 `NOT RUN — Stage 2` |
-| Query server | private validation, production promotion, rollback, public smoke와 cost-stop recovery PASS | 실제 invoice·Budget/Monitoring receipt·Spend cap 미확인 |
+| Query server | private validation, production promotion, rollback, public smoke와 cost-stop recovery PASS | 실제 invoice·Budget receipt·Spend cap 미확인; Monitoring 장애 수신은 #122에서 별도 검증 |
 | App release process | [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117): Android `0.1.0(2)` Actions 업로드·Play 업데이트·실기기 정상 동작·cleanup 확인 완료 | iOS account/signing/TestFlight는 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 보류 |
 | Crashlytics | Android fatal·ANR, iOS fatal·dSYM 실수신 확인 | store release 안정성은 별도 운영 관측 |
-| #122 observability | private O3~O8 및 log-delivery 실제 수신·독립 복원, 직접 메모리 D2의 실제 native 768 MiB OOM과 독립 복원 확인 | D2 workflow는 조기 guard로 `FAIL`; 별도 `o9-oom` 실제 OPEN·이메일·복원과 production 적용 대기. [현재 검증 상태](architecture/server-container-deployment.md#122-observability-live-runbook) 참조 |
+| #122 observability | 2026-09-29 KST: private O3~O9의 실제 알림 수신·독립 복원, 정상 production 배포와 영구 자원 4개·3개 지역 정상 지표 검증 완료. [단계별 실행 증거](architecture/server-container-deployment.md#122-observability-live-runbook) | D2 workflow `FAIL` 이력 보존. OOM은 검증한 768 MiB native 문구 계열에 한정하며, 다음 배포의 uptime 대상·정상 지표는 [다시 확인](architecture/server-container-deployment.md#production-permanent-policies) |
 
 Branch protection의 required check는 항상 실행되는 `verify`를 권장한다. 이 문서와 workflow는 repository 설정을 변경하지 않으므로 GitHub에서 실제 보호 설정을 별도로 확인해야 한다. 선택적으로 skip되는 플랫폼 job을 개별 필수 check로 등록하는 대신 `verify`가 선택 결과를 검사하게 한다. direct push 제한·PR 요구·최신 branch 상태도 실제 repository 설정으로 적용한다.
