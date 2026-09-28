@@ -6,6 +6,8 @@ import importlib.util
 import io
 import json
 import stat
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -271,6 +273,18 @@ class RuntimeProofTest(unittest.TestCase):
         ):
             with self.assertRaises(runtime_proof.ManifestError):
                 runtime_proof._zip_manifest(data, "app/lib/legacy.jar")
+
+    def test_cli_identifies_rejecting_guard_without_archive_details(self) -> None:
+        rootfs = self._tar("unsafe.tar", [{"name": "../private-value", "data": b"secret"}])
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--rootfs", str(rootfs), "--config", str(self.config),
+             "--dockerfile", str(self.dockerfile), "--output", str(self.root / "manifest.json")],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(1, result.returncode)
+        self.assertEqual("", result.stdout)
+        self.assertRegex(result.stderr, r"\Aruntime proof rejected \(_safe_path:[0-9]+\)\n\Z")
+        self.assertFalse((self.root / "manifest.json").exists())
 
     def _tar(self, name: str, entries: list[dict]) -> Path:
         path = self.root / name

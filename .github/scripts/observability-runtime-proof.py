@@ -286,4 +286,10 @@ if __name__ == "__main__":
     try:
         main()
     except ManifestError as error:
-        raise SystemExit("runtime proof rejected") from error
+        location = error.__traceback__
+        while location.tb_next is not None:
+            location = location.tb_next
+        # Identify the rejecting guard without exposing archive paths or config values.
+        raise SystemExit(
+            f"runtime proof rejected ({location.tb_frame.f_code.co_name}:{location.tb_lineno})"
+        ) from error
