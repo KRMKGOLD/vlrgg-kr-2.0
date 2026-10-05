@@ -26,7 +26,7 @@ Production은 public, service min/max `0/1`, revision min/max `0/1`이고 valida
 
 ## Idle cost and scale to zero
 
-2026-10 비용 점검에서 production service minimum 1이 요청이 없어도 Seoul Tier 2 idle min instance 요금을 계속 만든다는 것을 확인했다. 실제 사용자가 없는 단계의 고정비를 없애기 위해 production service minimum을 0으로 둔다. CPU throttling(request-based billing)을 유지하므로 minimum이 아닌 idle instance는 과금하지 않고, 요청 처리 시간만 free tier와 이후 사용량으로 과금한다. [Cloud Run pricing](https://cloud.google.com/run/pricing)
+2026-10 비용 점검에서 production service minimum 1이 요청이 없어도 Seoul Tier 2 idle min instance 요금을 계속 만든다는 것을 확인했다. 실제 사용자가 없는 단계의 고정비를 없애기 위해 production service minimum을 0으로 둔다. CPU throttling(request-based billing)을 유지하므로 minimum이 아닌 idle instance 시간은 과금하지 않는다. instance 시작, 요청 처리와 정상 종료 중의 CPU·memory는 free tier와 이후 사용량으로 과금하며, startup CPU boost는 시작 중과 직후 짧은 구간에 추가 CPU 과금을 만든다. [Cloud Run pricing](https://cloud.google.com/run/pricing)
 
 - 요청이 없는 기간 뒤 첫 요청은 JVM cold start를 포함할 수 있다. startup CPU boost로 시작 시간을 줄이지만 시작 지연 상한을 보장하지 않는다.
 - 운영 uptime check의 주기 요청이 instance를 유지할 수 있지만 provider가 idle instance 유지를 보장하지 않으므로 warm 상태를 계약으로 사용하지 않는다.
