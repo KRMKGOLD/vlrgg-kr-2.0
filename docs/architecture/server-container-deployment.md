@@ -6,7 +6,7 @@
 
 - root `Dockerfile`은 Java 21 build stage에서 `:server:installDist`를 만들고 runtime에는 server distribution만 복사한다.
 - runtime은 non-root `app` 사용자로 launcher를 PID 1로 실행하며 provider `PORT`와 `0.0.0.0`을 사용한다.
-- Cloud Run은 CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling을 사용한다. `JAVA_OPTS=-Xms128m -Xmx384m -XX:+ExitOnOutOfMemoryError`는 Java heap만 제한하며 전체 RSS 보장이 아니다.
+- Cloud Run은 CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling과 production startup CPU boost를 사용한다. `JAVA_OPTS=-Xms128m -Xmx384m -XX:+ExitOnOutOfMemoryError`는 Java heap만 제한하며 전체 RSS 보장이 아니다.
 - `.dockerignore`는 allowlist다. build에 필요한 root Gradle 설정, `core`, `server` source만 포함하고 VCS/IDE/Gradle state, build output, test/iOS source, local config, Firebase/service-account/signing files와 logs를 제외한다.
 - 파일명 denylist는 임의 secret 탐지를 보장하지 않는다. build input을 늘릴 때 packaging 필요성과 secret/output 배제를 함께 검토한다.
 
@@ -22,7 +22,16 @@ Deploy identity는 project의 Cloud Run developer/invoker, Artifact Registry rep
 4. 첫 production은 private 기본 traffic으로 만들고 후속 production은 tag 없는 no-traffic revision으로 만든다. production URL용 별도 ID token smoke 뒤 명시적으로 100% 승격한다.
 5. 승격 또는 smoke가 실패하면 workflow 시작 때 기록한 serving revision으로 rollback한다. partial traffic이나 불명확한 revision을 정상 상태로 간주하지 않는다.
 
-Production은 public, service min/max `1/1`, revision min/max `0/1`이고 validation은 private, service min/max `0/1`이다. 양 service의 Invoker IAM check와 기존 identity/condition을 보존한다. 실제 URL, host, digest, revision, JWT와 raw provider output은 repository·Issue·Actions summary에 남기지 않는다. stable URL은 repository 밖 보호 파일로만 인계한다.
+Production은 public, service min/max `0/1`, revision min/max `0/1`이고 validation은 private, service min/max `0/1`이다. 양 service의 Invoker IAM check와 기존 identity/condition을 보존한다. 실제 URL, host, digest, revision, JWT와 raw provider output은 repository·Issue·Actions summary에 남기지 않는다. stable URL은 repository 밖 보호 파일로만 인계한다.
+
+## Idle cost and scale to zero
+
+2026-10 비용 점검에서 production service minimum 1이 요청이 없어도 Seoul Tier 2 idle min instance 요금을 계속 만든다는 것을 확인했다. 실제 사용자가 없는 단계의 고정비를 없애기 위해 production service minimum을 0으로 둔다. CPU throttling(request-based billing)을 유지하므로 minimum이 아닌 idle instance 시간은 과금하지 않는다. instance 시작, 요청 처리와 정상 종료 중의 CPU·memory는 free tier와 이후 사용량으로 과금하며, startup CPU boost는 시작 중과 직후 짧은 구간에 추가 CPU 과금을 만든다. [Cloud Run pricing](https://cloud.google.com/run/pricing)
+
+- 요청이 없는 기간 뒤 첫 요청은 JVM cold start를 포함할 수 있다. startup CPU boost로 시작 시간을 줄이지만 시작 지연 상한을 보장하지 않는다.
+- 운영 uptime check의 주기 요청이 instance를 유지할 수 있지만 provider가 idle instance 유지를 보장하지 않으므로 warm 상태를 계약으로 사용하지 않는다.
+- Stage 2 알림은 Cloud Scheduler 요청 기반 설계라 상시 instance를 전제하지 않는다. 실사용자 latency 요구가 생기면 minimum 재상향을 비용과 함께 다시 결정한다.
+- service minimum 변경은 다음 production deploy부터 적용된다. 수동 변경은 workflow 계약과 어긋나므로 배포로 반영한다.
 
 ## Cost stop and recovery
 
@@ -37,7 +46,7 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 3. production public invoker를 제거하고 production·validation service minimum을 0으로 맞춘다. 관련 immutable revision의 minimum도 전수 확인한다.
 4. production과 project IAM의 `allUsers`·`allAuthenticatedUsers` 부재, default/tag URL의 실제 unauthenticated 거절과 drain을 상한 내 재확인한다. 기존 운영 identity는 보존하고 누락 표본은 unknown으로 둔다.
 
-복구는 기록한 production revision/digest 100%, production min/max `1/1`, validation private/minimum 0, production public invoker, 외부 `/health`·대표 query·안전한 400·docs/notification 404 순으로 확인한다. IAM·traffic·resource를 다시 읽은 뒤 enable variable을 마지막에 true로 되돌린다.
+복구는 기록한 production revision/digest 100%, production min/max `0/1`, validation private/minimum 0, production public invoker, 외부 `/health`·대표 query·안전한 400·docs/notification 404 순으로 확인한다. IAM·traffic·resource를 다시 읽은 뒤 enable variable을 마지막에 true로 되돌린다.
 
 ## #122 observability live runbook
 

@@ -164,6 +164,7 @@ run_case() {
       fi
     fi
     grep -qx 'revision=query-test-r123-1' "$case_dir/output"
+    grep -Eq '^run deploy query-test .* --min=0 --max=1 --min-instances=0 --max-instances=1 --cpu-throttling --cpu-boost( |$)' "$case_dir/calls"
   fi
   echo "PASS: $scenario"
 }
