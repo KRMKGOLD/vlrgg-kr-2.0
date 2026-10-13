@@ -42,7 +42,7 @@ import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_search
 import kotlinx.coroutines.delay
 
-internal const val AboutSourceLinkErrorBaseDurationMillis = 4_000L
+internal const val AboutLinkErrorBaseDurationMillis = 4_000L
 
 @Composable
 fun AboutScreen(
@@ -52,27 +52,27 @@ fun AboutScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val sourceOpenCallbackGate = remember(platform) { AboutSourceOpenCallbackGate() }
+    val linkOpenCallbackGate = remember(platform) { AboutLinkOpenCallbackGate() }
     val accessibilityManager = LocalAccessibilityManager.current
 
     LaunchedEffect(platform) {
         viewModel.updateBuildVersion(platform.buildVersion)
     }
-    DisposableEffect(sourceOpenCallbackGate) {
-        onDispose(sourceOpenCallbackGate::dispose)
+    DisposableEffect(linkOpenCallbackGate) {
+        onDispose(linkOpenCallbackGate::dispose)
     }
     DisposableEffect(Unit) {
         onDispose(viewModel::dismissFeedback)
     }
-    LaunchedEffect(uiState.feedback, uiState.sourceLinkErrorId, accessibilityManager) {
-        if (uiState.feedback == AboutFeedback.SourceLinkError) {
+    LaunchedEffect(uiState.failedLink, uiState.linkErrorId, accessibilityManager) {
+        if (uiState.failedLink != null) {
             delay(
                 accessibilityManager?.calculateRecommendedTimeoutMillis(
-                    originalTimeoutMillis = AboutSourceLinkErrorBaseDurationMillis,
+                    originalTimeoutMillis = AboutLinkErrorBaseDurationMillis,
                     containsIcons = false,
                     containsText = true,
                     containsControls = false,
-                ) ?: AboutSourceLinkErrorBaseDurationMillis,
+                ) ?: AboutLinkErrorBaseDurationMillis,
             )
             viewModel.dismissFeedback()
         }
@@ -81,11 +81,11 @@ fun AboutScreen(
     AboutContent(
         uiState = uiState,
         onSearch = onSearch,
-        onSourceClick = {
-            val attemptId = sourceOpenCallbackGate.beginAttempt()
-            platform.openUrl(ABOUT_SOURCE_URL) { opened ->
-                if (sourceOpenCallbackGate.accepts(attemptId)) {
-                    viewModel.onSourceOpenResult(opened)
+        onLinkClick = { link ->
+            val attemptId = linkOpenCallbackGate.beginAttempt()
+            platform.openUrl(link.url) { opened ->
+                if (linkOpenCallbackGate.accepts(attemptId)) {
+                    viewModel.onLinkOpenResult(link, opened)
                 }
             }
         },
@@ -94,7 +94,7 @@ fun AboutScreen(
 }
 
 /** Keeps one About composition from accepting callbacks after navigation away. */
-internal class AboutSourceOpenCallbackGate {
+internal class AboutLinkOpenCallbackGate {
     private var active = true
     private var latestAttemptId = 0L
 
@@ -114,7 +114,7 @@ internal class AboutSourceOpenCallbackGate {
 internal fun AboutContent(
     uiState: AboutUiState,
     onSearch: () -> Unit,
-    onSourceClick: () -> Unit,
+    onLinkClick: (AboutLink) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -136,14 +136,14 @@ internal fun AboutContent(
                 verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space4),
             ) {
                 AppIdentitySection(uiState.versionLabel)
-                SourceCodeSection(onSourceClick)
+                ProjectLinksSection(onLinkClick)
                 ThemeSection()
                 AttributionSection()
             }
 
-            if (uiState.feedback == AboutFeedback.SourceLinkError) {
+            uiState.failedLink?.let { link ->
                 VlrSnackbar(
-                    message = "소스 코드를 열 수 없습니다.",
+                    message = link.openFailureMessage,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = VlrDimensions.Space3),
@@ -194,12 +194,12 @@ private fun AppIdentitySection(versionLabel: String?) {
         verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
     ) {
         Text(
-            text = "VLR.GG Mobile 2.0",
+            text = "VLR.GG Mobile (Unofficial)",
             style = VlrTheme.typography.display,
             color = VlrTheme.colors.textPrimary,
         )
         Text(
-            text = "발로란트 e스포츠의 모든 정보와 경기 결과를 가장 빠르고 정확하게 전달합니다.",
+            text = "VLR.GG에 공개된 발로란트 e스포츠 경기·대회·팀·선수 정보를 모바일에서 보기 편하게 정리한 비공식 앱입니다.",
             style = VlrTheme.typography.body,
             color = VlrTheme.colors.textSecondary,
         )
@@ -222,7 +222,20 @@ private fun AppIdentitySection(versionLabel: String?) {
 }
 
 @Composable
-private fun SourceCodeSection(onSourceClick: () -> Unit) {
+private fun ProjectLinksSection(onLinkClick: (AboutLink) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        AboutLink.entries.forEach { link ->
+            AboutLinkRow(link = link, onClick = { onLinkClick(link) })
+        }
+    }
+}
+
+@Composable
+private fun AboutLinkRow(
+    link: AboutLink,
+    onClick: () -> Unit,
+) {
+    val accessibilityLabel = "${link.title} 외부 링크 열기"
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -230,17 +243,17 @@ private fun SourceCodeSection(onSourceClick: () -> Unit) {
                 .heightIn(min = VlrDimensions.MinimumTouchTarget)
                 .clickable(
                     role = Role.Button,
-                    onClickLabel = "Source Code 외부 링크 열기",
-                    onClick = onSourceClick,
+                    onClickLabel = accessibilityLabel,
+                    onClick = onClick,
                 )
-                .semantics { contentDescription = "Source Code 외부 링크 열기" }
+                .semantics { contentDescription = accessibilityLabel }
                 .padding(vertical = VlrDimensions.Space2),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Source Code", style = VlrTheme.typography.bodyStrong, color = VlrTheme.colors.textPrimary)
+                Text(link.title, style = VlrTheme.typography.bodyStrong, color = VlrTheme.colors.textPrimary)
                 Text(
-                    "github.com/KRMKGOLD/vlrgg-kr-2.0",
+                    link.destinationLabel,
                     style = VlrTheme.typography.labelSmall,
                     color = VlrTheme.colors.textSecondary,
                 )
@@ -260,10 +273,31 @@ private fun SourceCodeSection(onSourceClick: () -> Unit) {
     }
 }
 
+private val AboutLink.title: String
+    get() = when (this) {
+        AboutLink.SourceCode -> "소스 코드"
+        AboutLink.PrivacyPolicy -> "개인정보처리방침"
+        AboutLink.Contact -> "문의"
+    }
+
+private val AboutLink.destinationLabel: String
+    get() = when (this) {
+        AboutLink.SourceCode -> "github.com/KRMKGOLD/vlrgg-kr-2.0"
+        AboutLink.PrivacyPolicy -> "GitHub · docs/privacy-policy.md"
+        AboutLink.Contact -> "GitHub Issues"
+    }
+
+private val AboutLink.openFailureMessage: String
+    get() = when (this) {
+        AboutLink.SourceCode -> "소스 코드를 열 수 없습니다."
+        AboutLink.PrivacyPolicy -> "개인정보처리방침을 열 수 없습니다."
+        AboutLink.Contact -> "문의 페이지를 열 수 없습니다."
+    }
+
 @Composable
 private fun ThemeSection() {
     AboutInfoSection(
-        title = "Current Theme · Light",
+        title = "현재 테마 · 라이트",
         body = "다크 모드는 추후 업데이트될 예정입니다.",
         withDivider = true,
     )
@@ -271,12 +305,36 @@ private fun ThemeSection() {
 
 @Composable
 private fun AttributionSection() {
-    AboutInfoSection(
-        title = "Data Source: VLR.GG",
-        body = "이 앱은 비공식 개인 프로젝트로 운영됩니다.",
-        withDivider = false,
-    )
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space4),
+    ) {
+        AboutInfoSection(
+            title = "데이터 출처: VLR.GG",
+            body = "경기·대회·팀·선수 정보는 VLR.GG에 공개된 데이터를 가져와 정리합니다.",
+            withDivider = false,
+        )
+        AboutInfoSection(
+            title = "비공식 앱 고지",
+            body = ABOUT_UNAFFILIATED_NOTICE,
+            withDivider = false,
+        )
+        AboutInfoSection(
+            title = "상표 고지",
+            body = ABOUT_RIOT_TRADEMARK_NOTICE,
+            withDivider = false,
+        )
+    }
 }
+
+internal const val ABOUT_UNAFFILIATED_NOTICE =
+    "이 앱은 개인이 만든 비공식 앱입니다. VLR.GG 및 Riot Games와 제휴하지 않았으며, " +
+        "VLR.GG 또는 Riot Games의 승인이나 후원을 받지 않았습니다."
+
+internal const val ABOUT_RIOT_TRADEMARK_NOTICE =
+    "VLR.GG Mobile (Unofficial)은 Riot Games의 보증을 받지 않았으며 Riot Games 또는 " +
+        "Riot Games 자산의 제작·관리에 공식적으로 관여하는 누구의 견해나 의견도 반영하지 않습니다. " +
+        "Riot Games, VALORANT(발로란트) 및 모든 관련 자산은 Riot Games, Inc.의 상표 또는 등록 상표입니다."
 
 @Composable
 private fun AboutInfoSection(

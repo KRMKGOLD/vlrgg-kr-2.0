@@ -13,41 +13,55 @@ class AboutUiStateTest {
     }
 
     @Test
-    fun sourceOpenSuccessClearsStaleFeedback() {
-        val state = aboutUiState("2.0.4").afterSourceOpen(opened = false)
-
-        assertNull(state.afterSourceOpen(opened = true).feedback)
+    fun aboutLinksUseExactPublicDestinationsInDisplayOrder() {
+        assertEquals(
+            listOf(
+                "https://github.com/KRMKGOLD/vlrgg-kr-2.0",
+                "https://github.com/KRMKGOLD/vlrgg-kr-2.0/blob/main/docs/privacy-policy.md",
+                "https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues",
+            ),
+            AboutLink.entries.map(AboutLink::url),
+        )
     }
 
     @Test
-    fun sourceOpenFailureKeepsContentWithoutAddingARecoveryAction() {
-        val failed = aboutUiState("2.0.4").afterSourceOpen(opened = false)
+    fun linkOpenSuccessClearsStaleFeedback() {
+        val state = aboutUiState("2.0.4").afterLinkOpen(AboutLink.SourceCode, opened = false)
 
-        assertEquals(AboutFeedback.SourceLinkError, failed.feedback)
-        assertEquals("v2.0.4", failed.versionLabel)
-        assertEquals(1L, failed.sourceLinkErrorId)
+        assertNull(state.afterLinkOpen(AboutLink.Contact, opened = true).failedLink)
     }
 
     @Test
-    fun eachSourceOpenFailureGetsANewFeedbackIdentifier() {
-        val firstFailure = aboutUiState("2.0.4").afterSourceOpen(opened = false)
-        val secondFailure = firstFailure.afterSourceOpen(opened = false)
+    fun linkOpenFailureKeepsContentWithoutAddingARecoveryAction() {
+        AboutLink.entries.forEach { link ->
+            val failed = aboutUiState("2.0.4").afterLinkOpen(link, opened = false)
 
-        assertEquals(2L, secondFailure.sourceLinkErrorId)
-        assertEquals(AboutFeedback.SourceLinkError, secondFailure.feedback)
+            assertEquals(link, failed.failedLink)
+            assertEquals("v2.0.4", failed.versionLabel)
+            assertEquals(1L, failed.linkErrorId)
+        }
+    }
+
+    @Test
+    fun eachLinkOpenFailureGetsANewFeedbackIdentifier() {
+        val firstFailure = aboutUiState("2.0.4").afterLinkOpen(AboutLink.SourceCode, opened = false)
+        val secondFailure = firstFailure.afterLinkOpen(AboutLink.PrivacyPolicy, opened = false)
+
+        assertEquals(2L, secondFailure.linkErrorId)
+        assertEquals(AboutLink.PrivacyPolicy, secondFailure.failedLink)
     }
 
     @Test
     fun dismissIsIdempotentAfterFailureFeedback() {
-        val failed = aboutUiState("2.0.4").afterSourceOpen(opened = false)
+        val failed = aboutUiState("2.0.4").afterLinkOpen(AboutLink.SourceCode, opened = false)
 
-        assertNull(failed.dismissFeedback().feedback)
-        assertNull(failed.dismissFeedback().dismissFeedback().feedback)
+        assertNull(failed.dismissFeedback().failedLink)
+        assertNull(failed.dismissFeedback().dismissFeedback().failedLink)
     }
 
     @Test
-    fun sourceOpenCallbackGateRejectsDisposedAndSupersededAttempts() {
-        val gate = AboutSourceOpenCallbackGate()
+    fun linkOpenCallbackGateRejectsDisposedAndSupersededAttempts() {
+        val gate = AboutLinkOpenCallbackGate()
 
         val firstAttempt = gate.beginAttempt()
         val secondAttempt = gate.beginAttempt()
@@ -59,20 +73,20 @@ class AboutUiStateTest {
     }
 
     @Test
-    fun viewModelOwnsVersionAndSourceOpenFeedbackTransitions() {
+    fun viewModelOwnsVersionAndLinkOpenFeedbackTransitions() {
         val viewModel = AboutViewModel()
 
         viewModel.updateBuildVersion("2.0.4")
-        viewModel.onSourceOpenResult(opened = false)
+        viewModel.onLinkOpenResult(AboutLink.SourceCode, opened = false)
         assertEquals("v2.0.4", viewModel.uiState.value.versionLabel)
-        assertEquals(AboutFeedback.SourceLinkError, viewModel.uiState.value.feedback)
+        assertEquals(AboutLink.SourceCode, viewModel.uiState.value.failedLink)
 
-        viewModel.onSourceOpenResult(opened = true)
-        assertNull(viewModel.uiState.value.feedback)
+        viewModel.onLinkOpenResult(AboutLink.SourceCode, opened = true)
+        assertNull(viewModel.uiState.value.failedLink)
 
-        viewModel.onSourceOpenResult(opened = false)
-        assertEquals(AboutFeedback.SourceLinkError, viewModel.uiState.value.feedback)
+        viewModel.onLinkOpenResult(AboutLink.Contact, opened = false)
+        assertEquals(AboutLink.Contact, viewModel.uiState.value.failedLink)
         viewModel.dismissFeedback()
-        assertNull(viewModel.uiState.value.feedback)
+        assertNull(viewModel.uiState.value.failedLink)
     }
 }
