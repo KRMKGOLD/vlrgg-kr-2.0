@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="300" viewBox="0 0 720 300">
+  <title>App icon candidates</title>
+  <desc>Score window, news folio, and fixture lanes compared in color and at 48 pixels.</desc>
+  <rect width="720" height="300" fill="#F5F5F5"/>
+  <defs>
+    <g id="score">
+      <rect width="108" height="108" rx="24" fill="#FFFFFF"/>
+      <path fill="#111823" d="M59 34H38Q30 34 30 42V68Q30 76 38 76H70Q78 76 78 68V49H72V68Q72 70 70 70H38Q36 70 36 68V42Q36 40 38 40H59ZM42 47H55V53H42ZM61 47H66V53H61ZM42 59H55V65H42ZM61 59H66V65H61Z"/>
+      <circle cx="73" cy="35" r="5" fill="#FF4654"/>
+    </g>
+    <g id="folio">
+      <rect width="108" height="108" rx="24" fill="#FFFFFF"/>
+      <path fill="#111823" d="M31 32H59V40H31ZM31 48H77V55H31ZM31 63H68V70H31ZM31 78H53V85H31Z"/>
+      <circle cx="72" cy="36" r="5" fill="#FF4654"/>
+    </g>
+    <g id="fixture">
+      <rect width="108" height="108" rx="24" fill="#FFFFFF"/>
+      <path fill="#111823" d="M29 31H49V39H29ZM29 69H49V77H29ZM53 31H60V50H72V57H60V77H53Z"/>
+      <circle cx="77" cy="53.5" r="5" fill="#FF4654"/>
+    </g>
+  </defs>
+  <g font-family="sans-serif" fill="#111823" text-anchor="middle">
+    <text x="120" y="32" font-size="16">A · Score window</text>
+    <text x="360" y="32" font-size="16">B · News folio</text>
+    <text x="600" y="32" font-size="16">C · Fixture lanes</text>
+    <use href="#score" x="66" y="52"/>
+    <use href="#folio" x="306" y="52"/>
+    <use href="#fixture" x="546" y="52"/>
+    <g transform="translate(96 184) scale(0.444444)"><use href="#score"/></g>
+    <g transform="translate(336 184) scale(0.444444)"><use href="#folio"/></g>
+    <g transform="translate(576 184) scale(0.444444)"><use href="#fixture"/></g>
+    <text x="120" y="260" font-size="14">Selected · scores + live</text>
+    <text x="360" y="260" font-size="14">Generic list; news only</text>
+    <text x="600" y="260" font-size="14">Bracket; narrower scope</text>
+    <text x="360" y="286" font-size="12" fill="#71717A">108px artboard / 48px preview</text>
+  </g>
+</svg>

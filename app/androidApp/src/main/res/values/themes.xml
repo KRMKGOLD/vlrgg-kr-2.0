@@ -2,9 +2,11 @@
 <resources>
     <style name="Theme.VlrggMobile" parent="android:style/Theme.Material.Light.NoActionBar" />
 
-    <style name="Theme.VlrggMobile.Splash" parent="Theme.SplashScreen">
+    <style name="Theme.VlrggMobile.Splash" parent="Theme.SplashScreen.IconBackground">
+        <!-- DESIGN.md Surface; 240dp icon canvas with a 160dp circular safe area. -->
         <item name="windowSplashScreenBackground">@android:color/white</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="windowSplashScreenIconBackgroundColor">@android:color/white</item>
         <item name="postSplashScreenTheme">@style/Theme.VlrggMobile</item>
     </style>
 </resources>
