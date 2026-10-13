@@ -106,11 +106,69 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 
 ## Agent Workflow
 
-- 작업 전 관련 모듈의 `AGENTS.md`가 있는지 확인한다.
-- 구현 전 현재 코드 구조와 기존 패턴을 먼저 읽는다.
+- 관련 코드·문서 확인 → 구현 → 관련 검증 → 리뷰 → PR 생성·결과 보고 순서로 진행한다.
+- 작업 전 관련 모듈의 `AGENTS.md`를 확인하고, 구현 전 현재 코드 구조와 기존 패턴을 먼저 읽는다.
 - 불필요한 새 abstraction이나 dependency를 추가하지 않는다.
+- 요청 범위의 로컬 수정·검증은 자율적으로 진행하고, 사용자가 만든 변경은 보존하며 되돌리지 않는다.
 - 변경 후 테스트/빌드/정적 검사를 실행하고, 실행하지 못한 경우 이유를 명시한다.
-- 사용자가 만든 변경을 되돌리지 않는다.
+- 여러 에이전트가 작업할 때는 담당 파일·책임을 나누고 최종 통합 담당자를 정한다. 병렬 작업은 작업마다 별도 branch(worktree)를 둔다.
+- 결과 보고에는 변경 내용, 실행한 검증, 미실행 사유, 남은 문제를 간단히 포함한다.
+
+### Agentic Workflow
+
+- 사용자가 별도 실행 방식을 지정하지 않으면 기능 구현·버그 수정·리팩터링 요청은 Orca orchestration으로 아래 흐름을 실행한다. 사용자가 `AGENTS.md`나 Orca를 매번 언급할 필요는 없다.
+- 요청을 받은 에이전트가 Orca의 총괄 에이전트 실행을 연결한다. 작업 배분·진행 추적·결과 회수는 에이전트가 담당하며, 사용자에게 에이전트 사이의 지시·결과 전달을 맡기지 않는다.
+- 필요한 역할만 실행하고 독립적인 작업만 병렬로 진행한다. 작은 구현 작업은 구현 담당 한 명과 통합·검증 담당, Reviewer로 진행한다. `app`·`server`처럼 모듈이 나뉘는 작업은 Worker도 모듈 단위로 나누고, 각 Worker는 해당 모듈의 `AGENTS.md`를 따른다.
+- 질문·설명·조사, 단순 문서나 설정 수정은 직접 처리한다.
+- 모델·추론 수준은 실제 실행에 적용됐는지 확인한다. Orca나 지정 모델을 사용할 수 없으면 원인을 알리고, 다른 방식으로 실행한 것을 이 흐름의 실행으로 보고하지 않는다.
+
+```text
+                 User Query
+                      │
+                      ▼
+        ┌───────────────────────────┐
+        │  Planner / Orchestrator   │
+        │      Opus 5.5 xHigh       │
+        └─────────────┬─────────────┘
+                      │
+      ┌───────────────┼───────────────┐
+      │               │               │
+      ▼               ▼               ▼
+   Complex          Easy         Explorer /
+   Worker          Worker        Researcher
+Opus 5.5 High  Sonnet 5.5 High   Luna 6 Max
+      │               │               │
+      └───────────────┼───────────────┘
+                      │
+                      ▼
+          ┌───────────────────────┐
+          │  Integrate / Verify   │
+          │   GPT-6 Astra xHigh   │
+          └───────────┬───────────┘
+                      │
+                      ├──── FAIL ────► Re-plan / Re-route
+                      │                Opus 5.5 xHigh
+                      │                └──► Executor
+                    PASS
+                      │
+                      ▼
+                 [Reviewer]
+              GPT-6 Astra xHigh
+           Ponytail + Codex Review
+                      │
+                      ▼
+           Commit / Push / Create PR
+                      │
+                      ▼
+                Final Report
+   (CodeRabbit 확인·반영과 merge는 사용자 요청 시)
+```
+
+### Review
+
+- PR 생성 전에 Reviewer 리뷰를 통과한다. Reviewer는 Ponytail Review와 Codex Review로 구성한다.
+- Reviewer는 `docs/app-arch/`·`docs/architecture/`의 아키텍처 규칙, `docs/feature/`의 기능 범위·수용 기준, UI 변경 시 `DESIGN.md`를 기준으로 확인한다.
+- PR을 생성하면 멈춘다. CodeRabbit 리뷰는 사용자가 요청할 때 확인하고, 지적별 타당성을 판단해 사용자 확인 후 반영·push한다.
 
 ## Commit and PR Rules
 
