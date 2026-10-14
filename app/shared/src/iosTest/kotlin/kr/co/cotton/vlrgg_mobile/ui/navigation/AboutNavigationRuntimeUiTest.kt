@@ -42,8 +42,8 @@ class AboutNavigationRuntimeUiTest {
             }
         }
 
-        onNodeWithText("VLR.GG Mobile 2.0").assertExists()
-        onNodeWithContentDescription("Source Code 외부 링크 열기").performClick()
+        onNodeWithText("VLR.GG Mobile (Unofficial)").assertExists()
+        onNodeWithContentDescription("소스 코드 외부 링크 열기").performClick()
         onNodeWithText("소스 코드를 열 수 없습니다.").assertExists()
 
         onNodeWithContentDescription("검색").performClick()

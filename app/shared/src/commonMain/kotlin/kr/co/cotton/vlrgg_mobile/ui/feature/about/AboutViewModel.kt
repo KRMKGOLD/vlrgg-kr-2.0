@@ -23,8 +23,8 @@ class AboutViewModel : ViewModel() {
         _uiState.update { current -> current.copy(versionLabel = versionLabel) }
     }
 
-    fun onSourceOpenResult(opened: Boolean) {
-        _uiState.update { current -> current.afterSourceOpen(opened) }
+    internal fun onLinkOpenResult(link: AboutLink, opened: Boolean) {
+        _uiState.update { current -> current.afterLinkOpen(link, opened) }
     }
 
     fun dismissFeedback() {
