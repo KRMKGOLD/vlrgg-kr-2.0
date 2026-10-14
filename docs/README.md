@@ -16,6 +16,7 @@
 | [CI/CD](ci-cd.md) | 검증 gate와 로컬 benchmark |
 | [앱 배포](app-release.md) | Android internal·iOS TestFlight 절차와 계정·서명 gate |
 | [Crashlytics](app-crashlytics.md) | Firebase 설정, 수집 정책, crash 검증 |
+| [개인정보처리방침](privacy-policy.md) | 앱 공개용 개인정보 처리 항목·위탁·국외 이전·문의처 |
 | [AGENTS.md](../AGENTS.md) | 저장소 작업·Agent Workflow·commit·PR 규칙 |
 | [CLAUDE.md](../CLAUDE.md) | Claude Code가 `AGENTS.md`를 읽도록 연결 |
 
