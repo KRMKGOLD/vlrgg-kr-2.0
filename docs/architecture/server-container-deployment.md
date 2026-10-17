@@ -35,11 +35,13 @@ Production은 public, service min/max `0/1`, revision min/max `0/1`이고 valida
 
 ## Request log storage
 
-Cloud Run 요청 로그에는 이용자 IP, User-Agent, 요청 URL이 남는다. [개인정보처리방침](../privacy-policy.md)의 국외 이전 범위를 줄이기 위해 production `vlrgg-query`의 요청 로그만 Seoul(`asia-northeast3`) user-defined bucket `run-requests-seoul`(보존 30일)에 저장한다. 2026-10-17에 적용하고 새 요청이 이 bucket에만 기록되는 것을 확인했다.
+Cloud Run 요청 로그에는 이용자 IP, User-Agent, 요청 URL이 남고, 서버 오류 로그의 `logging.googleapis.com/trace`로 같은 요청의 요청 로그를 찾을 수 있다. [개인정보처리방침](../privacy-policy.md)의 국외 이전을 없애기 위해 production `vlrgg-query`의 요청 로그와 stdout·stderr 로그를 Seoul(`asia-northeast3`) user-defined bucket `run-requests-seoul`(보존 30일)에 저장한다. 2026-10-17에 적용했고, 요청 로그는 새 요청이 이 bucket에만 기록되는 것을 확인했다. 요청 로그와 오류 로그는 아래 [Investigating an error](#investigating-an-error)에 필요해 끄지 않는다.
 
-- sink `run-requests-seoul`이 `LOG_ID("run.googleapis.com/requests") AND resource.type="cloud_run_revision" AND resource.labels.service_name="vlrgg-query"`를 이 bucket으로 보낸다. `_Default` sink에는 같은 filter의 exclusion을 둔다.
-- stdout·system log, validation `vlrgg-query-check`의 요청 로그와 audit log는 기존 global `_Default`·`_Required`에 남는다. #122 observability 검증은 validation service 로그만 조회하고 그 로그는 `_Default`에 남으므로 custom role(`logging.logEntries.list`)을 바꾸지 않는다. 운영 알림 정책 3개(PromQL, metric threshold, system log OOM)도 요청 로그를 사용하지 않는다.
-- user-defined bucket을 읽으려면 해당 view 접근 권한이 필요하다. production 요청 로그 조회는 프로젝트 소유자가 `--bucket run-requests-seoul --location asia-northeast3 --view _AllLogs`로 한다.
+- sink `run-requests-seoul`이 `resource.type="cloud_run_revision" AND resource.labels.service_name="vlrgg-query" AND (LOG_ID("run.googleapis.com/requests") OR LOG_ID("run.googleapis.com/stdout") OR LOG_ID("run.googleapis.com/stderr"))`를 이 bucket으로 보낸다. `_Default` sink에는 같은 filter의 exclusion을 둔다.
+- production system log(`run.googleapis.com/varlog/system`), validation `vlrgg-query-check`의 모든 로그와 audit log는 기존 global `_Default`·`_Required`에 남는다. 2026-10-17 확인에서 production system log에는 trace·`httpRequest`·이용자 IP가 없었다. OOM log 정책은 system log를 쓰므로 영향이 없다.
+- #122 observability 검증은 validation service 로그만 조회하고 그 로그는 `_Default`에 남으므로 custom role(`logging.logEntries.list`)을 바꾸지 않는다. 운영 알림 정책 3개(PromQL, metric threshold, system log OOM)도 요청·stdout 로그를 사용하지 않는다.
+- Error Reporting은 같은 프로젝트의 regional bucket 로그도 분석하지만 error group을 bucket region별로 나눈다. production 오류 group은 Error Reporting의 `asia-northeast3` region에서 확인한다. 전환 전 global group과 이어지지 않으므로 전환 뒤 첫 오류는 새 group으로 알림될 수 있다. [Error Reporting data regionality](https://cloud.google.com/error-reporting/docs/grouping-errors)
+- user-defined bucket을 읽으려면 해당 view 접근 권한이 필요하다. production 요청·오류 로그 조회는 프로젝트 소유자가 `--bucket run-requests-seoul --location asia-northeast3 --view _AllLogs`로 한다.
 - 이 bucket·sink·exclusion을 바꾸거나 지우면 개인정보처리방침의 국외 이전 항목을 먼저 갱신한다.
 
 ## Cost stop and recovery
@@ -144,7 +146,7 @@ Private O7~O9의 provider 결과·실제 수신·독립 복원을 확인한 뒤 
 
 ### Investigating an error
 
-1. Error Reporting에서 production service의 오류 그룹을 열고 대표 이벤트의 `error_code`, 안전한 frame, `serviceContext.version`과 발생 시각을 확인한다. Logs Explorer에서는 아래 필터로 시작해 해당 revision·시간으로 좁힌다.
+1. Error Reporting의 `asia-northeast3` region에서 production service의 오류 그룹을 열고 대표 이벤트의 `error_code`, 안전한 frame, `serviceContext.version`과 발생 시각을 확인한다. Logs Explorer에서는 `run-requests-seoul` bucket의 `_AllLogs` view를 범위에 넣고([Request log storage](#request-log-storage)) 아래 필터로 시작해 해당 revision·시간으로 좁힌다.
 2. 유효한 `logging.googleapis.com/trace`가 있으면 같은 trace의 request log에서 HTTP status를 확인한다. 없는 trace를 추측해서 연결하지 않는다. Production revision 이름은 `vlrgg-query-r<run_id>-<attempt>`이므로 `serviceContext.version`에서 Actions run/attempt를 찾을 수 있다. 해당 실행과 보호된 run/SHA/digest 대응표로 배포 소스를 확인한다.
 3. 수정·배포와 정상 상태를 확인한 뒤 해당 그룹을 해결 상태로 표시한다. 이후 같은 그룹의 재발과 실제 수신을 별도로 확인하며 과거 메일을 새 실행 증거로 재사용하지 않는다.
 4. Monitoring에서 채널을 관리하고, 각 정책과 Error Reporting의 별도 알림 설정에 그 채널이 선택돼 있는지 확인한다. 수신자 변경은 보호 설정에서 수행하고 승인된 수신함의 실제 전달을 확인한다. 채널 생성이나 test 메시지만으로 모든 정책의 전달 성공을 판정하지 않는다.
