@@ -32,7 +32,7 @@ Cotton(이하 "개발자")은 VLR.GG Mobile 앱(이하 "앱")을 이용하는 �
 | 앱 사용 세션 측정 | 「개인정보 보호법」 제15조 제1항 제4호. 오류가 어느 세션에서 났는지 연결하고 오류 없이 사용된 비율을 확인해야 오류 수정의 우선순위와 수정 결과를 판단할 수 있습니다. |
 | 조회 서버 접속 기록 | 「개인정보 보호법」 제15조 제1항 제4호. 이용자가 요청한 경기·팀·선수·뉴스·검색 정보를 제공하고, 장애가 나면 원인을 확인해 복구하는 데 필요합니다. |
 
-앱에는 회원가입이나 별도 약관이 없지만, 개발자는 이용자가 앱을 설치해 정보를 요청하고 개발자가 이를 제공하는 이용 관계를 위 근거의 계약으로 봅니다.
+앱에는 회원가입이나 별도 약관이 없지만, 개발자는 이용자가 앱을 설치해 정보를 요청하고 개발자가 이를 제공하는 이용 관계를 위 근거의 계약으로 봅니다. 세 범주 모두 이름·연락처·계정 같은 신원 정보를 담지 않으며, 개발자는 이 정보를 위 목적에만 쓰고 특정 이용자를 찾아내는 데 쓰지 않습니다.
 
 ### 기기에만 저장하는 정보
 
@@ -62,11 +62,12 @@ Android 앱이 요청하는 권한은 인터넷 접속과 네트워크 연결 �
 | 항목 | 보유 기간 |
 | --- | --- |
 | 오류 보고 | Firebase Crashlytics가 오류 기록과 관련 식별자를 90일 동안 보관한 뒤 삭제를 시작합니다. |
-| 앱 사용 세션 측정 | 오류 보고에 포함된 식별자는 위 오류 보고 기간을 따릅니다. Firebase는 그 밖의 세션 데이터의 보유 기간을 따로 공개하지 않으며, 이 데이터는 Firebase의 보관·삭제 정책에 따라 처리됩니다. 개발자는 Firebase가 기간을 공개하거나 확인해 주면 이 항목을 갱신합니다. |
-| 조회 서버 접속 기록 | Google Cloud Logging 기본 보존 기간인 30일 동안 보관한 뒤 자동으로 삭제됩니다. |
+| 앱 사용 세션 측정 | Firebase는 세션 식별자를 Crashlytics가 수집하는 정보로 안내하지만, 오류 없이 끝난 세션 기록의 보유 기간은 따로 공개하지 않습니다. 이 기록은 Firebase 설치 식별자에 연결돼 있어 아래 "Firebase 설치 식별자" 기준에 따라 삭제됩니다. |
+| Firebase 설치 식별자 | Firebase가 개발자의 삭제 요청 전까지 보관합니다. 개발자가 삭제를 요청하면 180일 이내에 이 식별자와 여기에 연결된 오류 보고·세션 데이터가 모든 Firebase 서비스의 운영·백업 시스템에서 삭제됩니다. |
+| 조회 서버 접속 기록 | Google Cloud 서울 리전의 로그 저장소에 30일 동안 보관한 뒤 자동으로 삭제됩니다. |
 | 기기에 저장한 즐겨찾기 | 이용자가 즐겨찾기를 해제하거나 앱(또는 앱 데이터)을 삭제할 때까지 |
 
-보유 기간이 지난 정보는 각 서비스의 자동 삭제 기능으로 파기합니다. 개발자는 접속 기록을 다른 저장소로 내보내지 않으며, 장애 분석을 위해 일부를 내려받은 경우에는 분석을 마친 뒤 지체 없이 삭제합니다.
+보유 기간이 지난 정보는 각 서비스의 자동 삭제 기능으로 파기합니다. 앱 서비스를 종료하면 개발자는 Firebase 설치 식별자 삭제나 Firebase 프로젝트 삭제로 남은 오류 보고·세션 데이터를 파기합니다. 개발자는 접속 기록을 다른 저장소로 내보내지 않으며, 장애 분석을 위해 일부를 내려받은 경우에는 분석을 마친 뒤 지체 없이 삭제합니다.
 
 ## 3. 개인정보의 제3자 제공
 
@@ -81,7 +82,7 @@ Android 앱이 요청하는 권한은 인터넷 접속과 네트워크 연결 �
 | Google Asia Pacific Pte. Ltd. (Firebase Crashlytics) | 앱 오류 보고와 세션 데이터의 수집·저장·분석 |
 | Google Cloud Korea LLC (Google Cloud: Cloud Run, Cloud Logging) | 조회 서버 운영과 접속 기록 저장 |
 
-수탁자는 각 서비스 약관상 개발자와 계약을 맺는 회사입니다. Firebase Crashlytics는 개발자의 거주 지역(아시아·태평양)에 따라 Google Asia Pacific Pte. Ltd.가, Google Cloud는 결제 계정의 주소(대한민국)에 따라 Google Cloud Korea LLC가 계약 당사자입니다. 두 회사는 처리 업무의 일부를 Google LLC 등 Google 계열사와 재수탁자([Firebase](https://firebase.google.com/terms/subprocessors), [Google Cloud](https://cloud.google.com/terms/subprocessors))에게 다시 맡길 수 있습니다.
+수탁자는 각 서비스 약관상 개발자와 계약을 맺는 회사입니다. Firebase Crashlytics는 개발자의 거주 지역(아시아·태평양)에 따라 Google Asia Pacific Pte. Ltd.가 계약 당사자입니다. Google Cloud는 결제 계정 주소에 따라 계약 당사자가 정해지며, 대한민국 결제 계정(원화 결제)은 Google Cloud Korea LLC가 재판매자로서 계약 당사자입니다. 실제 처리는 Google LLC와 Firebase, Inc. 등 Google 계열사가 맡으며, 처리 업무의 일부는 재수탁자 목록([Firebase](https://firebase.google.com/terms/subprocessors), [Google Cloud](https://cloud.google.com/terms/subprocessors))에 기재된 회사에 다시 맡겨질 수 있습니다.
 
 ## 5. 개인정보의 국외 이전
 
@@ -91,31 +92,21 @@ Firebase Crashlytics는 Google의 전 세계 인프라에서 동작하며, Googl
 
 | 항목 | 내용 |
 | --- | --- |
-| 이전받는 자 | Google Asia Pacific Pte. Ltd.(계약 당사자)와 실제 처리를 맡는 Google LLC 등 Google 계열사 |
-| 이전받는 자의 연락처 | Google Asia Pacific Pte. Ltd.: 8 Marina View, Asia Square 1 #30-01, Singapore 018960<br>Google LLC: 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA<br>개인정보 문의: [Firebase 개인정보 보호 문의](https://firebase.google.com/support/privacy/dpo) |
-| 이전되는 국가 | 미국 등 Google 또는 그 재수탁자가 시설을 운영하는 국가([Google 데이터센터 위치](https://www.google.com/about/datacenters/locations/)). 2026년 10월 14일 기준 Firebase 데이터 처리·보안 약관에 따릅니다. |
+| 이전받는 자 | Google Asia Pacific Pte. Ltd.(계약 당사자), 실제 처리를 맡는 Google LLC·Firebase, Inc. 등 Google 계열사, 4항의 재수탁자 목록에 기재된 회사 |
+| 이전받는 자의 연락처 | Google Asia Pacific Pte. Ltd.: 8 Marina View, Asia Square 1 #30-01, Singapore 018960<br>Google LLC: 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA<br>개인정보 문의(Firebase, Inc.와 재수탁자 포함): [Firebase 개인정보 보호 문의](https://firebase.google.com/support/privacy/dpo) |
+| 이전되는 국가 | Google 데이터센터가 있는 국가: 미국, 칠레, 우루과이, 아일랜드, 네덜란드, 덴마크, 핀란드, 벨기에, 독일, 영국, 대만, 싱가포르, 일본(2026년 10월 17일 기준 [Google 데이터센터 위치](https://www.google.com/about/datacenters/locations/)). Firebase 데이터 처리·보안 약관은 Google 또는 재수탁자가 시설을 운영하는 국가에서 처리할 수 있다고 정하고 있어, 실제 처리 국가는 이 중 일부이거나 Google·재수탁자가 시설을 운영하는 다른 국가일 수 있습니다. |
 | 이전 근거 | 「개인정보 보호법」 제28조의8 제1항 제3호 가목(이용자와의 계약 이행에 필요한 처리위탁·보관으로, 같은 조 제2항의 사항을 이 처리방침에 공개) |
 | 이전 항목 | 1항의 "오류 보고"와 "앱 사용 세션 측정" 항목 |
 | 이전 시기와 방법 | 오류 보고: 정식 버전에서 비정상 종료·응답 없음이 발생한 뒤 앱이 인터넷으로 전송<br>세션 데이터: 정식 버전에서 앱을 실행하거나 일정 시간이 지난 뒤 다시 화면 앞으로 가져올 때 앱이 인터넷으로 전송 |
 | 이전 목적 | 오류 원인 파악과 수정, 앱 안정성 지표 산출 |
-| 보유·이용 기간 | 오류 보고: 90일 후 삭제 시작<br>세션 데이터: 2항의 "앱 사용 세션 측정" 보유 기간에 따름 |
+| 보유·이용 기간 | 오류 보고: 90일 후 삭제 시작<br>세션 데이터·Firebase 설치 식별자: 2항의 "앱 사용 세션 측정"·"Firebase 설치 식별자" 기준에 따름 |
 | 거부 방법과 효과 | 현재 앱 안에는 오류 보고·세션 데이터 전송을 끄는 설정이 없습니다. 전송을 원하지 않으면 앱을 이용하지 않거나 삭제할 수 있으며, 이 경우 앱을 이용할 수 없습니다. |
 
 ### 조회 서버(Google Cloud)
 
-조회 서버는 Google Cloud의 서울 리전(`asia-northeast3`)에서 실행되지만, 접속 기록을 저장하는 Cloud Logging 기본 로그 저장소의 위치는 `global`입니다. `global` 위치의 로그는 국외 데이터센터에 저장될 수 있으므로 접속 기록도 국외로 이전될 수 있습니다.
+조회 서버(Cloud Run)와 접속 기록 저장소(Cloud Logging)는 모두 Google Cloud 서울 리전(`asia-northeast3`)에 있으므로 접속 기록은 국외로 이전하지 않습니다.
 
-| 항목 | 내용 |
-| --- | --- |
-| 이전받는 자 | Google LLC 등 Google 계열사(Google Cloud Korea LLC의 재수탁자) |
-| 이전받는 자의 연락처 | Google LLC: 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA<br>개인정보 문의: [Google Cloud 개인정보 보호 문의](https://support.google.com/cloud/contact/dpo) |
-| 이전되는 국가 | 미국 등 Google 또는 그 재수탁자가 시설을 운영하는 국가([Google 데이터센터 위치](https://www.google.com/about/datacenters/locations/)) |
-| 이전 근거 | 「개인정보 보호법」 제28조의8 제1항 제3호 가목 |
-| 이전 항목 | 1항의 "조회 서버 접속 기록" 항목 |
-| 이전 시기와 방법 | 앱이 조회 서버에 정보를 요청할 때마다 Google Cloud가 요청 로그를 기록해 로그 저장소에 전송 |
-| 이전 목적 | 서비스 제공, 장애 대응 |
-| 보유·이용 기간 | 30일 |
-| 거부 방법과 효과 | 앱 안에는 접속 기록 저장을 끄는 설정이 없습니다. 기록을 원하지 않으면 앱을 이용하지 않거나 삭제할 수 있으며, 이 경우 앱을 이용할 수 없습니다. |
+다만 2026년 10월 17일 이전에 기록된 접속 기록은 국외 데이터센터에 저장될 수 있는 `global` 위치의 로그 저장소에 남아 있으며, 30일 보존 기간이 지나면 자동으로 삭제됩니다(마지막 기록 기준 2026년 11월 16일). 서버 프로그램이 남기는 운영 기록(1항)은 이용자 정보를 담지 않으며 `global` 위치의 로그 저장소에 저장됩니다.
 
 ## 6. 정보주체의 권리와 행사 방법
 
@@ -149,7 +140,7 @@ Firebase Crashlytics는 Google의 전 세계 인프라에서 동작하며, Googl
 
 | 구분 | 내용 |
 | --- | --- |
-| 개인정보 보호책임자 | Cotton(개발자 본인) |
+| 개인정보 보호책임자 | 홍성하(Cotton, 개발자 본인) |
 | 이메일 | [teamcotton124@gmail.com](mailto:teamcotton124@gmail.com) |
 | 보조 문의처 | [GitHub Issues](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues) (공개 게시판이므로 개인정보를 적지 마세요) |
 
@@ -164,8 +155,8 @@ Firebase Crashlytics는 Google의 전 세계 인프라에서 동작하며, Googl
 
 | 시행일 | 변경 내용 |
 | --- | --- |
-| 2026-10-14 | 최초 시행 |
+| 2026-10-17 | 최초 시행 |
 
 ## 13. 시행일
 
-이 개인정보처리방침은 2026년 10월 14일부터 시행합니다.
+이 개인정보처리방침은 2026년 10월 17일부터 시행합니다.
