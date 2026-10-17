@@ -57,9 +57,22 @@ Dark Mode 선택, 계정·프로필, 앱 내 문의 양식, 원격 About 설정�
 - 데이터 생성(AboutLibraries Gradle plugin):
   - Android: `:app:androidApp`에 `com.mikepenz.aboutlibraries.plugin.android`를 적용해 variant마다 runtime classpath로 `res/raw/aboutlibraries.json`을 생성한다. Firebase Crashlytics, activity-compose, splashscreen 같은 앱 모듈 의존성과 `:app:shared` 의존성이 모두 들어간다. Release resource는 release runtime classpath 기준이다(debug에는 `debugImplementation` ui-tooling만 추가된다). platform owner(`AndroidAboutPlatform.readLicenseDefinitions`)가 이 raw resource를 읽어 `App`에 전달한다.
   - iOS: `:app:shared`의 `exportLibraryDefinitions`가 iosArm64 Kotlin/Native graph(`collect.all` + `filterVariants = iosArm64`; K/N에는 `*Classpath` configuration이 없다)로 JSON을 만들고 iosMain compose resource(`files/aboutlibraries.json`)로 번들한다. `:app:shared`의 Android variant 생성 task는 끈다. AboutLibraries가 attribute 없는 detached configuration으로 POM을 찾을 때 K/N publication의 `kotlin-api`/`kotlin-metadata` variant가 모호해지므로 `:app:shared`에 `kotlin-api` 우선 disambiguation rule을 둔다.
-  - SPM으로 들어오는 Firebase Apple SDK는 Gradle이 수집하지 못하므로 `app/shared/aboutlibraries/libraries/`에 수동 정의한다: firebase-ios-sdk 12.19.2, GoogleDataTransport 10.1.1, GoogleUtilities 8.1.3, nanopb 2.30910.1(Zlib), Promises 2.4.1(그 외 Apache-2.0). **Firebase SPM 버전을 바꾸면 `app/iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`와 이 파일들을 함께 갱신한다.**
-  - 번들된 제3자 asset: `composeResources/drawable`의 아이콘은 Google Material Symbols(Apache-2.0)라 Android·iOS 양쪽 config에 `Material Symbols` 항목을 둔다. 런처·스플래시 아이콘은 자체 제작(`docs/design/app-icon/`)이고 번들 폰트는 없다.
-  - SPDX 라이선스 전문은 plugin이 build 중 네트워크로 받는다. Play services 계열 3개(`ASDKL`, Android Software Development Kit License)는 전문이 비어 있어 dialog가 열리지 않는다.
+  - SPM으로 들어오는 Firebase Apple SDK는 Gradle이 수집하지 못하므로 `app/shared/aboutlibraries/libraries/`에 수동 정의한다: firebase-ios-sdk 12.19.2, GoogleDataTransport 10.1.1, GoogleUtilities 8.1.3, nanopb 2.30910.1(Zlib), Promises 2.4.1(Apache-2.0). firebase-ios-sdk 행은 Crashlytics가 `third_party/libunwind/dwarf.h`를 포함하므로 12.19.2 `Crashlytics/LICENSE` 전문(Apache License 2.0 본문 뒤 Hewlett-Packard libunwind MIT 고지까지)을 쓴다. **Firebase SPM 버전을 바꾸면 `app/iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, 이 파일들, 해당 버전의 `Crashlytics/LICENSE` 정의를 함께 갱신한다.**
+  - 번들된 제3자 asset: `composeResources/drawable`에는 Google Material Symbols(Apache-2.0) 아이콘만 두고, Android·iOS 양쪽 config에 `Material Symbols` 항목을 둔다(쓰지 않던 Compose Multiplatform 템플릿 로고는 삭제했다). 런처·스플래시 아이콘은 자체 제작(`docs/design/app-icon/`)이고 번들 폰트는 없다.
+- 라이선스 전문(로컬 번들):
+  - 두 모듈 모두 `offlineMode = true`라 plugin은 build 중 SPDX 전문을 내려받지 않는다. 전문은 각 모듈의 `aboutlibraries/licenses/*.json`(`hash`가 생성 JSON의 license key와 같으면 plugin이 병합한다)에서만 온다. 정의에는 받은 원문을 그대로 넣고 요약·수정하지 않는다. 생성 JSON에 쓰이는 license만 둔다(이 폴더의 정의는 쓰이지 않아도 출력에 들어간다).
+
+    | 모듈 | 정의 파일 | 원문 출처(2026-10-17 확인) |
+    | --- | --- | --- |
+    | androidApp, shared | `Apache-2.0.json` | https://spdx.org/licenses/Apache-2.0.txt |
+    | androidApp | `BSD-3-Clause.json` | https://spdx.org/licenses/BSD-3-Clause.txt |
+    | androidApp | `MIT.json` | https://spdx.org/licenses/MIT.txt |
+    | androidApp | `ASDKL.json` | https://developer.android.com/studio/terms (본문 `sdk-terms` 블록, 개정일 April 28, 2026) |
+    | shared | `Zlib.json` | https://spdx.org/licenses/Zlib.txt |
+    | shared | `firebase-ios-sdk-12.19.2-crashlytics.json` | https://github.com/firebase/firebase-ios-sdk/blob/12.19.2/Crashlytics/LICENSE |
+
+  - `ASDKL`은 play-services-basement 18.9.0, play-services-tasks 18.4.0, firebase-measurement-connector 20.0.1의 POM이 가리키는 Android Software Development Kit License(`https://developer.android.com/studio/terms.html`)다. 페이지의 약관 본문에서 HTML 태그와 연속 빈 줄만 걷어낸 텍스트로 넣어 이 세 행도 전문 dialog가 열린다.
+  - 누락 차단: Android는 variant마다 `verifyLibraryDefinitions<Variant>`가 생성된 `res/raw/aboutlibraries.json`을, iOS는 `verifyIosLibraryDefinitions`가 `files/aboutlibraries.json`을 읽는다. license가 없는 library나 전문이 빈 license가 하나라도 있으면 실패한다. 각각 `merge<Variant>Resources`(release 포함), `copyNonXmlValueResourcesForIosMain`(iOS framework·test 공통 경로) 전에 실행된다. 새 dependency가 다른 license를 가져오면 build가 멈추므로 원문을 받아 정의를 추가한다.
 - 버전 고정: Gradle plugin은 15.1.1, 런타임(`aboutlibraries-core`, `aboutlibraries-compose-m3`)은 14.2.1이다.
   - 런타임 15.x AAR은 minCompileSdk 37과 androidx.core 1.19(AGP 9.1+)를 요구해 현재 compileSdk 36 / AGP 9.0.1에서 빌드되지 않는다. 14.2.1은 minCompileSdk 36이며 Compose 1.10.3을 요구하지만 CMP 1.11.1로 올라가 해석된다. transitive로 `com.github.skydoves:compose-stability-runtime` 0.7.1과 `androidx.core:core-ktx` 1.18.0이 추가된다.
   - plugin 14.2.1은 KMP artifact의 version을 잘못 기록하고(예: 실제 1.11.0인 kotlinx-coroutines-core-jvm을 1.9.0으로) `-jvm`·`-iosarm64` artifact를 병합하지 않아 15.1.1을 쓴다. 15.1.1이 생성한 JSON을 14.2.1이 parse하는지는 iOS test와 Android device test로 검증한다.
@@ -77,5 +90,6 @@ Dark Mode 선택, 계정·프로필, 앱 내 문의 양식, 원격 About 설정�
 - [x] 각 row의 목적과 외부·내부 이동을 screen reader가 식별하고(click label·content description·button role·48dp), 외부 `↗`와 내부 chevron으로 시각적으로 구분한다.
 - [x] About → 오픈소스 라이선스 → 목록 → 전문 dialog → Back → About 흐름이 동작한다.
 - [x] Android 라이선스 데이터는 앱 모듈 release runtime classpath(Firebase Crashlytics 포함)로, iOS 데이터는 shared K/N graph와 Firebase Apple SDK 수동 항목으로 build 때 생성되고 런타임이 parse한다.
+- [x] 모든 행의 라이선스 전문이 네트워크 없이 저장소의 정의로 채워지고(ASDKL, iOS Firebase의 libunwind 고지 포함), 전문이 빈 항목이 있으면 Android 각 variant와 iOS build가 실패한다.
 - [ ] iOS 배포 전 Firebase Apple SDK 수동 항목의 버전이 `Package.resolved`와 일치하는지 확인한다.
 - [ ] Android/iOS 실기기에서 실제 external-open과 접근성을 확인한다.

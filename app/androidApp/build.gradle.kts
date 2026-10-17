@@ -1,5 +1,7 @@
 import com.android.build.api.variant.BuildConfigField
 import com.google.gms.googleservices.GoogleServicesTask
+import com.mikepenz.aboutlibraries.plugin.AboutLibrariesTask
+import groovy.json.JsonSlurper
 import org.gradle.api.GradleException
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.File
@@ -95,7 +97,9 @@ kotlin {
 }
 
 // Generates res/raw/aboutlibraries.json per variant from this app's runtime classpath.
+// License texts come only from aboutlibraries/licenses, so a build never downloads them.
 aboutLibraries {
+    offlineMode = true
     collect {
         configPath = file("aboutlibraries")
     }
@@ -215,10 +219,53 @@ tasks.matching {
     dependsOn(validateFirebaseConfiguration)
 }
 
+/** Fails when a generated library entry has no license or a license without its full text. */
+abstract class VerifyLicenseDefinitionsTask : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val definitionsFile: RegularFileProperty
+
+    @TaskAction
+    fun verify() {
+        @Suppress("UNCHECKED_CAST")
+        val definitions = JsonSlurper().parse(definitionsFile.get().asFile) as Map<String, Any?>
+        @Suppress("UNCHECKED_CAST")
+        val licenses = definitions["licenses"] as Map<String, Map<String, Any?>>
+        @Suppress("UNCHECKED_CAST")
+        val incomplete = (definitions["libraries"] as List<Map<String, Any?>>).mapNotNull { library ->
+            val licenseIds = library["licenses"] as List<*>? ?: emptyList<Any>()
+            val missingText = licenseIds.filter { (licenses[it]?.get("content") as String?).isNullOrBlank() }
+            when {
+                licenseIds.isEmpty() -> "${library["uniqueId"]}: no license"
+                missingText.isNotEmpty() -> "${library["uniqueId"]}: no text for $missingText"
+                else -> null
+            }
+        }
+        if (incomplete.isNotEmpty()) {
+            throw GradleException(
+                "License definitions are incomplete. Add the license text to aboutlibraries/licenses:\n" +
+                    incomplete.joinToString("\n"),
+            )
+        }
+    }
+}
+
 androidComponents {
     onVariants { variant ->
+        val variantName = variant.name.replaceFirstChar { it.uppercaseChar() }
+        val verifyLicenseDefinitions = tasks.register<VerifyLicenseDefinitionsTask>("verifyLibraryDefinitions$variantName") {
+            group = "verification"
+            description = "Verifies every ${variant.name} license definition carries its full text."
+            definitionsFile.set(
+                tasks.named<AboutLibrariesTask>("prepareLibraryDefinitions$variantName")
+                    .flatMap { it.outputDirectory.file("raw/aboutlibraries.json") },
+            )
+        }
+        tasks.named { it == "merge${variantName}Resources" }.configureEach {
+            dependsOn(verifyLicenseDefinitions)
+        }
+
         if (firebaseConfigPath.isPresent) {
-            val variantName = variant.name.replaceFirstChar { it.uppercaseChar() }
             tasks.named<GoogleServicesTask>("process${variantName}GoogleServices") {
                 googleServicesJsonFiles.set(firebaseConfigPath.map { listOf(File(it)) })
                 outputs.doNotCacheIf("Firebase configuration must not be stored in a shared build cache") { true }
