@@ -1,0 +1,14 @@
+{
+  "uniqueId": "github.com/google/promises",
+  "artifactVersion": "2.4.1",
+  "name": "Promises",
+  "website": "https://github.com/google/promises",
+  "developers": [
+    {
+      "name": "Google"
+    }
+  ],
+  "licenses": [
+    "Apache-2.0"
+  ]
+}

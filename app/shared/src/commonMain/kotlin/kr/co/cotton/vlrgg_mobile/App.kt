@@ -12,12 +12,16 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 fun App(
     graph: AppGraph,
     aboutPlatform: AboutPlatform,
+    readLicenseDefinitions: suspend () -> String,
 ) {
     CompositionLocalProvider(
         LocalMetroViewModelFactory provides graph.metroViewModelFactory,
     ) {
         VlrTheme {
-            AppNavigation(aboutPlatform = aboutPlatform)
+            AppNavigation(
+                aboutPlatform = aboutPlatform,
+                readLicenseDefinitions = readLicenseDefinitions,
+            )
         }
     }
 }

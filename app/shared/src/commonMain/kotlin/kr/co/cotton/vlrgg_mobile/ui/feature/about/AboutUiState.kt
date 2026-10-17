@@ -2,7 +2,7 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.about
 
 const val ABOUT_SOURCE_URL = "https://github.com/KRMKGOLD/vlrgg-kr-2.0"
 const val ABOUT_PRIVACY_POLICY_URL = "https://github.com/KRMKGOLD/vlrgg-kr-2.0/blob/main/docs/privacy-policy.md"
-const val ABOUT_CONTACT_URL = "https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues"
+const val ABOUT_CONTACT_URL = "mailto:teamcotton124@gmail.com"
 
 /** External destinations reachable from About, in display order. */
 internal enum class AboutLink(val url: String) {

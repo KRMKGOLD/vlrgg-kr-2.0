@@ -51,6 +51,11 @@ val AppNavKey.destinationDescriptor: DestinationDescriptor
             title = "Search",
         )
 
+        OpenSourceLicenses -> pushedDescriptor(
+            marker = "open_source_licenses",
+            title = "Open Source Licenses",
+        )
+
         is NewsDetail -> pushedDescriptor(
             marker = "news_detail",
             title = "News Detail",

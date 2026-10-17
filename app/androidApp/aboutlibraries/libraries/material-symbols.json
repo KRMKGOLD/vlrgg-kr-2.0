@@ -1,0 +1,14 @@
+{
+  "uniqueId": "com.google.material-symbols",
+  "name": "Material Symbols",
+  "description": "Icons bundled as Compose resource vector drawables.",
+  "website": "https://github.com/google/material-design-icons",
+  "developers": [
+    {
+      "name": "Google"
+    }
+  ],
+  "licenses": [
+    "Apache-2.0"
+  ]
+}

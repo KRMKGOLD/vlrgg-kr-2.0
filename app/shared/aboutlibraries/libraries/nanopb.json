@@ -1,0 +1,14 @@
+{
+  "uniqueId": "github.com/firebase/nanopb",
+  "artifactVersion": "2.30910.1",
+  "name": "nanopb",
+  "website": "https://github.com/firebase/nanopb",
+  "developers": [
+    {
+      "name": "Petteri Aimonen"
+    }
+  ],
+  "licenses": [
+    "Zlib"
+  ]
+}
