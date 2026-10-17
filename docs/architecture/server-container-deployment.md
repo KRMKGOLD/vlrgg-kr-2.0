@@ -33,6 +33,15 @@ Production은 public, service min/max `0/1`, revision min/max `0/1`이고 valida
 - Stage 2 알림은 Cloud Scheduler 요청 기반 설계라 상시 instance를 전제하지 않는다. 실사용자 latency 요구가 생기면 minimum 재상향을 비용과 함께 다시 결정한다.
 - service minimum 변경은 다음 production deploy부터 적용된다. 수동 변경은 workflow 계약과 어긋나므로 배포로 반영한다.
 
+## Request log storage
+
+Cloud Run 요청 로그에는 이용자 IP, User-Agent, 요청 URL이 남는다. [개인정보처리방침](../privacy-policy.md)의 국외 이전 범위를 줄이기 위해 production `vlrgg-query`의 요청 로그만 Seoul(`asia-northeast3`) user-defined bucket `run-requests-seoul`(보존 30일)에 저장한다. 2026-10-17에 적용하고 새 요청이 이 bucket에만 기록되는 것을 확인했다.
+
+- sink `run-requests-seoul`이 `LOG_ID("run.googleapis.com/requests") AND resource.type="cloud_run_revision" AND resource.labels.service_name="vlrgg-query"`를 이 bucket으로 보낸다. `_Default` sink에는 같은 filter의 exclusion을 둔다.
+- stdout·system log, validation `vlrgg-query-check`의 요청 로그와 audit log는 기존 global `_Default`·`_Required`에 남는다. #122 observability 검증은 validation service 로그만 조회하고 그 로그는 `_Default`에 남으므로 custom role(`logging.logEntries.list`)을 바꾸지 않는다. 운영 알림 정책 3개(PromQL, metric threshold, system log OOM)도 요청 로그를 사용하지 않는다.
+- user-defined bucket을 읽으려면 해당 view 접근 권한이 필요하다. production 요청 로그 조회는 프로젝트 소유자가 `--bucket run-requests-seoul --location asia-northeast3 --view _AllLogs`로 한다.
+- 이 bucket·sink·exclusion을 바꾸거나 지우면 개인정보처리방침의 국외 이전 항목을 먼저 갱신한다.
+
 ## Cost stop and recovery
 
 월 10만 원 Budget과 1·3·5·8·10만 원 알림 resource를 사용한다. **1만 원에서 비용을 점검하고, 3만 원에서 추세·원인을 점검하며, 5만 원 도달 또는 더 이른 초과 예상 시 수동 공개 차단·중단한다.** 8·10만 원은 중단 실패·지연의 후속 경고다.
