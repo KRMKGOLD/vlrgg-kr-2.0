@@ -1,0 +1,14 @@
+{
+  "uniqueId": "github.com/google/GoogleDataTransport",
+  "artifactVersion": "10.1.1",
+  "name": "GoogleDataTransport",
+  "website": "https://github.com/google/GoogleDataTransport",
+  "developers": [
+    {
+      "name": "Google"
+    }
+  ],
+  "licenses": [
+    "Apache-2.0"
+  ]
+}

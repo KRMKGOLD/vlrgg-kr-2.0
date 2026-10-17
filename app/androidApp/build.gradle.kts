@@ -74,6 +74,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.aboutLibrariesAndroid)
     alias(libs.plugins.googleServices) apply false
     alias(libs.plugins.firebaseCrashlytics) apply false
 }
@@ -92,6 +93,14 @@ kotlin {
         jvmTarget = JvmTarget.JVM_11
     }
 }
+
+// Generates res/raw/aboutlibraries.json per variant from this app's runtime classpath.
+aboutLibraries {
+    collect {
+        configPath = file("aboutlibraries")
+    }
+}
+
 dependencies {
     implementation(projects.app.shared)
     implementation(platform(libs.firebase.bom))
@@ -102,6 +111,11 @@ dependencies {
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
+
+    androidTestImplementation(libs.aboutlibraries.core)
+    androidTestImplementation(libs.androidx.testExt.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.kotlin.test)
 }
 
 val apiBaseUrl = providers.gradleProperty("API_BASE_URL")
@@ -141,6 +155,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures {
         buildConfig = true

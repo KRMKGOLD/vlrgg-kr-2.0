@@ -1,0 +1,14 @@
+{
+  "uniqueId": "github.com/google/GoogleUtilities",
+  "artifactVersion": "8.1.3",
+  "name": "GoogleUtilities",
+  "website": "https://github.com/google/GoogleUtilities",
+  "developers": [
+    {
+      "name": "Google"
+    }
+  ],
+  "licenses": [
+    "Apache-2.0"
+  ]
+}

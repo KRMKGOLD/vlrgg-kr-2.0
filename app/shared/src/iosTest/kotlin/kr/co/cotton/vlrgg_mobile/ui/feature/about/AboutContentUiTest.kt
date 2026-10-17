@@ -12,6 +12,10 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -41,6 +45,7 @@ class AboutContentUiTest {
             "소스 코드",
             "개인정보처리방침",
             "문의",
+            "오픈소스 라이선스",
             "현재 테마 · 라이트",
             "데이터 출처: VLR.GG",
             "비공식 앱 고지",
@@ -52,7 +57,8 @@ class AboutContentUiTest {
         onNodeWithText(ABOUT_INTRODUCTION).assertExists()
         onNodeWithText("github.com/KRMKGOLD/vlrgg-kr-2.0").assertExists()
         onNodeWithText("GitHub · docs/privacy-policy.md").assertExists()
-        onNodeWithText("GitHub Issues").assertExists()
+        onNodeWithText("teamcotton124@gmail.com").assertExists()
+        onNodeWithText("앱에 포함된 라이브러리와 라이선스 전문").assertExists()
         onNodeWithText("다크 모드는 추후 업데이트될 예정입니다.").assertExists()
         onNodeWithText("경기·대회·팀·선수 정보는 VLR.GG에 공개된 데이터를 가져와 정리합니다.").assertExists()
         onNodeWithText(ABOUT_UNAFFILIATED_NOTICE).assertExists()
@@ -60,7 +66,7 @@ class AboutContentUiTest {
         onNodeWithText("VLR.GG Mobile 2.0").assertDoesNotExist()
         onNodeWithText("가장 빠르고 정확하게", substring = true).assertDoesNotExist()
         onNodeWithText("Feedback").assertDoesNotExist()
-        onNodeWithText("오픈소스 라이선스").assertDoesNotExist()
+        onNodeWithText("GitHub Issues").assertDoesNotExist()
     }
 
     @Test
@@ -75,13 +81,14 @@ class AboutContentUiTest {
     }
 
     @Test
-    fun everyExternalLinkRowAnnouncesItsDestinationAsAnExternalOpenButton() = runComposeUiTest {
+    fun everyProjectRowAnnouncesItsDestinationAsAButton() = runComposeUiTest {
         setContent { setAboutContent(aboutUiState("2.0.4")) }
 
         listOf(
             "소스 코드 외부 링크 열기",
             "개인정보처리방침 외부 링크 열기",
-            "문의 외부 링크 열기",
+            "메일 앱에서 문의 메일 쓰기",
+            ABOUT_OPEN_SOURCE_LICENSES_LABEL,
         ).forEach { label ->
             onNodeWithContentDescription(label)
                 .performScrollTo()
@@ -115,6 +122,7 @@ class AboutContentUiTest {
                     AboutScreen(
                         platform = platform,
                         onSearch = {},
+                        onOpenSourceLicensesClick = {},
                         viewModel = AboutViewModel(),
                     )
                 }
@@ -160,6 +168,7 @@ class AboutContentUiTest {
                     AboutScreen(
                         platform = platform,
                         onSearch = {},
+                        onOpenSourceLicensesClick = {},
                         viewModel = AboutViewModel(),
                     )
                 }
@@ -168,7 +177,7 @@ class AboutContentUiTest {
 
         val cases = listOf(
             Triple("개인정보처리방침 외부 링크 열기", ABOUT_PRIVACY_POLICY_URL, "개인정보처리방침을 열 수 없습니다."),
-            Triple("문의 외부 링크 열기", ABOUT_CONTACT_URL, "문의 페이지를 열 수 없습니다."),
+            Triple("메일 앱에서 문의 메일 쓰기", ABOUT_CONTACT_URL, "메일 앱을 열 수 없습니다."),
         )
         val allMessages = listOf("소스 코드를 열 수 없습니다.") + cases.map { it.third }
         mainClock.autoAdvance = false
@@ -208,6 +217,7 @@ class AboutContentUiTest {
                     AboutScreen(
                         platform = platform,
                         onSearch = {},
+                        onOpenSourceLicensesClick = {},
                         viewModel = AboutViewModel(),
                     )
                 }
@@ -238,6 +248,7 @@ class AboutContentUiTest {
                 AboutScreen(
                     platform = platform,
                     onSearch = {},
+                    onOpenSourceLicensesClick = {},
                     viewModel = AboutViewModel(),
                 )
             }
@@ -246,7 +257,7 @@ class AboutContentUiTest {
         listOf(
             "소스 코드 외부 링크 열기",
             "개인정보처리방침 외부 링크 열기",
-            "문의 외부 링크 열기",
+            "메일 앱에서 문의 메일 쓰기",
         ).forEach { label ->
             onNodeWithContentDescription(label)
                 .performScrollTo()
@@ -268,6 +279,7 @@ class AboutContentUiTest {
                     AboutScreen(
                         platform = platform,
                         onSearch = {},
+                        onOpenSourceLicensesClick = {},
                         viewModel = viewModel,
                     )
                 }
@@ -298,20 +310,46 @@ class AboutContentUiTest {
                 AboutScreen(
                     platform = platform,
                     onSearch = {},
+                    onOpenSourceLicensesClick = {},
                     viewModel = AboutViewModel(),
                 )
             }
         }
 
         onNodeWithContentDescription("개인정보처리방침 외부 링크 열기").performScrollTo().performClick()
-        onNodeWithContentDescription("문의 외부 링크 열기").performScrollTo().performClick()
+        onNodeWithContentDescription("메일 앱에서 문의 메일 쓰기").performScrollTo().performClick()
         assertEquals(2, platform.pendingCallbackCount)
 
         runOnIdle { platform.completeNext(opened = false) }
         onNodeWithText("개인정보처리방침을 열 수 없습니다.").assertDoesNotExist()
 
         runOnIdle { platform.completeNext(opened = false) }
-        onNodeWithText("문의 페이지를 열 수 없습니다.").assertIsDisplayed()
+        onNodeWithText("메일 앱을 열 수 없습니다.").assertIsDisplayed()
+    }
+
+    @Test
+    fun openSourceLicensesRowNavigatesInsideTheAppWithAChevronInsteadOfTheExternalArrow() = runComposeUiTest {
+        val platform = FakeAboutPlatform(openResult = true)
+        var licenseClicks = 0
+        setContent {
+            VlrTheme {
+                AboutScreen(
+                    platform = platform,
+                    onSearch = {},
+                    onOpenSourceLicensesClick = { licenseClicks += 1 },
+                    viewModel = AboutViewModel(),
+                )
+            }
+        }
+
+        onAllNodesWithText("↗").assertCountEquals(AboutLink.entries.size)
+        onNodeWithContentDescription(ABOUT_OPEN_SOURCE_LICENSES_LABEL)
+            .performScrollTo()
+            .assert(hasAnyDescendant(hasText("↗")).not())
+            .performClick()
+
+        assertEquals(1, licenseClicks)
+        assertEquals(emptyList(), platform.openedUrls)
     }
 
     @Composable
@@ -324,6 +362,7 @@ class AboutContentUiTest {
                 uiState = uiState,
                 onSearch = {},
                 onLinkClick = onLinkClick,
+                onOpenSourceLicensesClick = {},
             )
         }
     }

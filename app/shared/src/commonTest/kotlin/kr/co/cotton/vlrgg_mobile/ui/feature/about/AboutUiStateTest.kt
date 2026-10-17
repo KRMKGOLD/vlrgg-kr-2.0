@@ -18,7 +18,7 @@ class AboutUiStateTest {
             listOf(
                 "https://github.com/KRMKGOLD/vlrgg-kr-2.0",
                 "https://github.com/KRMKGOLD/vlrgg-kr-2.0/blob/main/docs/privacy-policy.md",
-                "https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues",
+                "mailto:teamcotton124@gmail.com",
             ),
             AboutLink.entries.map(AboutLink::url),
         )

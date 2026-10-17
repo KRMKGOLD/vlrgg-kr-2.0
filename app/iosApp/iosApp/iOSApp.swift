@@ -90,7 +90,9 @@ private final class IosAboutPlatform: NSObject, AboutPlatform {
     }
 
     func openUrl(url: String, onResult: @escaping (KotlinBoolean) -> Void) {
-        guard let destination = URL(string: url), UIApplication.shared.canOpenURL(destination) else {
+        // canOpenURL is false for schemes missing from LSApplicationQueriesSchemes (e.g. mailto:),
+        // so rely on open's completion result instead.
+        guard let destination = URL(string: url) else {
             onResult(KotlinBoolean(bool: false))
             return
         }

@@ -1,4 +1,6 @@
 [versions]
+aboutLibraries = "15.1.1"
+aboutLibrariesRuntime = "14.2.1"
 agp = "9.0.1"
 android-compileSdk = "36"
 android-minSdk = "29"
@@ -32,6 +34,8 @@ googleServices = "4.5.0"
 firebaseCrashlyticsPlugin = "3.0.8"
 
 [libraries]
+aboutlibraries-core = { module = "com.mikepenz:aboutlibraries-core", version.ref = "aboutLibrariesRuntime" }
+aboutlibraries-composeM3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutLibrariesRuntime" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -87,6 +91,8 @@ ktor-clientMockKmp = { module = "io.ktor:ktor-client-mock", version.ref = "ktor"
 google-cloud-firestore = { module = "com.google.cloud:google-cloud-firestore", version.ref = "googleCloudFirestore" }
 
 [plugins]
+aboutLibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutLibraries" }
+aboutLibrariesAndroid = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "aboutLibraries" }
 googleServices = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 firebaseCrashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }
 androidApplication = { id = "com.android.application", version.ref = "agp" }
