@@ -4,6 +4,15 @@ Android/iOS 플랫폼 SDK로 자동 fatal crash와 Android ANR을 수집한다. 
 
 Release·내부 배포는 수집 ON, 일반 Debug는 OFF다. 명시적 검증 build에서만 Debug 수집을 허용한다. SDK의 이전 persisted setting이 일반 Debug를 켜지 못하게 초기화를 통제하고, 수집 대상 build는 공개 API로 ON을 다시 적용한다.
 
+## Privacy basis and minimization
+
+[개인정보처리방침](privacy-policy.md)은 오류 보고와 세션 측정을 「개인정보 보호법」 제15조 제1항 제4호(계약 이행)로 처리한다. 2026-10-17 검토에서 정한 필요성과 수집 범위는 다음과 같다.
+
+- 오류 보고: 자동 fatal crash와 Android ANR만 수집한다. stack trace와 기기·OS 정보가 없으면 실제 이용 환경의 crash를 재현하고 고칠 수 없다. custom nonfatal·key·log, user ID, Analytics는 쓰지 않는다.
+- 세션 측정: Crashlytics SDK가 crash-free 사용자·세션 비율을 계산하려고 함께 보내는 Firebase Sessions 데이터다. 이 비율이 없으면 crash가 영향을 준 범위로 수정 우선순위를 정하거나 수정 효과를 확인할 수 없어 유지한다. Firebase는 오류 없이 끝난 세션 기록의 보유 기간은 따로 공개하지 않으며(crash stack trace와 관련 식별자는 90일 후 삭제가 시작된다), 이 기록은 Firebase installation ID 삭제 기준을 따른다. 이 내용은 처리방침 2절에 적었다.
+- 더 적은 처리: Debug 전용 수집이나 수집 OFF로는 실제 사용자 crash를 볼 수 없다. 앱 안에서 수집을 끄는 설정은 아직 없다. 설정을 추가하면 처리방침의 거부 방법을 함께 갱신한다.
+- 재검토 조건: custom nonfatal·key·log, Analytics, user ID나 계정 기능을 추가하면 이 근거와 처리방침을 다시 검토한다.
+
 ## Configuration lifetime
 
 Firebase 설정 원문은 Git에 넣지 않는다. `scripts/firebase/with_config.py`가 environment secret 또는 repository 밖 source를 검증해 0700 temp directory의 0600 file로 전달한다. 자식 process가 끝난 뒤 성공·실패·처리 가능한 signal에서 주입 파일을 삭제한다. ignore는 cleanup의 대체 수단이 아니다.
