@@ -10,7 +10,7 @@ About은 앱의 목적, 실제 build version, 공개 source·개인정보처리�
   - 개인정보처리방침: `https://github.com/KRMKGOLD/vlrgg-kr-2.0/blob/main/docs/privacy-policy.md`
   - 문의: `https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues`
 - 현재 지원 테마 라이트와 다크 모드 후속 안내
-- 데이터 출처 VLR.GG, VLR.GG·Riot Games 비제휴 고지, Riot Games 상표 고지
+- 데이터 출처 VLR.GG, VLR.GG·Riot Games 비제휴·비공식 앱 고지, Riot Games 상표 고지
 - 공통 Top App Bar Search와 root 상태 복원
 
 Dark Mode 선택, 계정·프로필, 앱 내 문의 양식, 원격 About 설정은 제외한다. 문의는 GitHub Issues 외부 링크로만 받는다. 오픈소스 라이선스 고지는 스토어 배포에 필요하지만 표시 방식(라이브러리 자동 생성 또는 수동 목록)과 새 dependency 결정이 남아 있어 이번 범위에서 구현하지 않는다.
@@ -49,7 +49,7 @@ Dark Mode 선택, 계정·프로필, 앱 내 문의 양식, 원격 About 설정�
 
 ## 고지 경계
 
-스토어 공개 배포를 전제로 한다. VLR.GG를 데이터 출처로 쓰지만 공식 앱·제휴·승인·후원을 뜻하지 않으며, 화면에 VLR.GG·Riot Games 비제휴와 Riot Games 상표 고지를 항상 표시한다. 개인정보 처리 내용은 앱 안에 전문을 두지 않고 저장소의 `docs/privacy-policy.md`를 외부 링크로 연다. 오픈소스 라이선스 고지는 배포 전 별도로 완료해야 한다. 데이터 사용 범위나 수집 항목이 바뀌면 고지 문구와 개인정보처리방침을 함께 다시 검토한다.
+Google Play 프로덕션 공개를 목표로 하는 비공식 앱을 전제로 한다(2026-10-13 소유자 결정). VLR.GG에 데이터 사용 허가를 요청하지 않았고 받지 않았다. VLR.GG를 데이터 출처로 쓰지만 공식 앱·제휴·승인·후원을 뜻하지 않으며, 화면에 VLR.GG·Riot Games 비제휴와 Riot Games 상표 고지를 항상 표시한다. 고지 문구는 허가를 받은 것처럼 읽히지 않아야 한다. 스토어 검토 반려나 신고 때 제목·아이콘의 VLR.GG 표기를 빼더라도 데이터 출처와 비제휴 고지는 유지한다. 근거와 리스크는 [외부 제약](../README.md#외부-제약)을 따른다. 개인정보 처리 내용은 앱 안에 전문을 두지 않고 저장소의 `docs/privacy-policy.md`를 외부 링크로 연다. 오픈소스 라이선스 고지는 배포 전 별도로 완료해야 한다. 데이터 사용 범위나 수집 항목이 바뀌면 고지 문구와 개인정보처리방침을 함께 다시 검토한다.
 
 ## 수용 기준
 
