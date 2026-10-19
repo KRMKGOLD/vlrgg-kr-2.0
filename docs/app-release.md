@@ -84,7 +84,7 @@ Fastlane `supply`는 앱의 수동 초기 설정과 최소 한 번의 build uplo
 ### 트랙 흐름
 
 1. internal: 현재 Actions와 Fastlane이 올리는 유일한 track이다. 설치·업데이트 증빙은 [Android completion evidence](#android-completion-evidence)를 따른다.
-2. 비공개 테스트(closed testing): internal에서 검증한 build를 Play Console에서 승격한다. 승격 메뉴와 버튼 이름은 Console 화면에서 확인한다(확인 필요). 테스터 모집과 opt-in 안내는 소유자가 직접 한다.
+2. 비공개 테스트(closed testing): internal에서 검증한 build를 Play Console에서 승격한다. 승격 메뉴와 버튼 이름은 Console 화면에서 확인한다(확인 필요). 테스터 모집과 opt-in 안내는 소유자가 직접 한다. internal에 참여 중인 계정(#117 참가자 등)은 비공개 테스트 버전을 받을 수 없으므로 internal에서 먼저 opt-out한 뒤 비공개 테스트 opt-in 링크로 참여해야 한다([Play 테스트 설정](https://support.google.com/googleplay/android-developer/answer/9845334)). 14일 연속 참여는 비공개 테스트 opt-in을 기준으로 센다.
 3. 프로덕션: 비공개 테스트 요건을 채우고 Console에서 프로덕션 액세스를 신청해 승인받은 뒤 출시한다. 같은 versionCode를 승격하거나 더 큰 미사용 versionCode로 새 release를 만든다. 기기는 자격이 있는 track 중 가장 높은 versionCode를 받는다([Play 테스트 설정](https://support.google.com/googleplay/android-developer/answer/9845334)).
 
 자동 조회는 internal만 보므로([Uncertain upload and cleanup](#uncertain-upload-and-cleanup)) 비공개 테스트·프로덕션의 versionCode와 처리 상태는 Console에서 직접 확인한다.
