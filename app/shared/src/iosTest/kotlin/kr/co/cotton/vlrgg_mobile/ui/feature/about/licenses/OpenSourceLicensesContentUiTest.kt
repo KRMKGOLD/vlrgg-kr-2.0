@@ -48,6 +48,23 @@ class OpenSourceLicensesContentUiTest {
     }
 
     @Test
+    fun loadingKeepsTheBarAndShowsOnlyAProgressIndicator() = runComposeUiTest {
+        setContent {
+            VlrTheme {
+                OpenSourceLicensesContent(
+                    uiState = OpenSourceLicensesUiState(),
+                    onBack = {},
+                )
+            }
+        }
+
+        onNodeWithText(OPEN_SOURCE_LICENSES_TITLE).assertExists()
+        onNodeWithContentDescription("뒤로 가기").assertExists()
+        onNode(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "로딩 중")).assertExists()
+        onNodeWithText("오픈소스 라이선스 정보를 불러올 수 없습니다.").assertDoesNotExist()
+    }
+
+    @Test
     fun loadFailureKeepsTheBarAndShowsOnlyAMessage() = runComposeUiTest {
         setContent {
             VlrTheme {
