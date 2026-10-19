@@ -9,7 +9,7 @@ Release·내부 배포는 수집 ON, 일반 Debug는 OFF다. 명시적 검증 bu
 [개인정보처리방침](privacy-policy.md)은 오류 보고와 세션 측정을 「개인정보 보호법」 제15조 제1항 제4호(계약 이행)로 처리한다. 2026-10-17 검토에서 정한 필요성과 수집 범위는 다음과 같다.
 
 - 오류 보고: 자동 fatal crash와 Android ANR만 수집한다. stack trace와 기기·OS 정보가 없으면 실제 이용 환경의 crash를 재현하고 고칠 수 없다. custom nonfatal·key·log, user ID, Analytics는 쓰지 않는다.
-- 세션 측정: Crashlytics SDK가 crash-free 사용자·세션 비율을 계산하려고 함께 보내는 Firebase Sessions 데이터다. 이 비율이 없으면 crash가 영향을 준 범위로 수정 우선순위를 정하거나 수정 효과를 확인할 수 없어 유지한다. Firebase가 보유 기간을 따로 공개하지 않는 한계와 Firebase installation ID 삭제 기준은 처리방침에 적었다.
+- 세션 측정: Crashlytics SDK가 crash-free 사용자·세션 비율을 계산하려고 함께 보내는 Firebase Sessions 데이터다. 이 비율이 없으면 crash가 영향을 준 범위로 수정 우선순위를 정하거나 수정 효과를 확인할 수 없어 유지한다. Firebase는 오류 없이 끝난 세션 기록의 보유 기간은 따로 공개하지 않으며(crash stack trace와 관련 식별자는 90일 후 삭제가 시작된다), 이 기록은 Firebase installation ID 삭제 기준을 따른다. 이 내용은 처리방침 2절에 적었다.
 - 더 적은 처리: Debug 전용 수집이나 수집 OFF로는 실제 사용자 crash를 볼 수 없다. 앱 안에서 수집을 끄는 설정은 아직 없다. 설정을 추가하면 처리방침의 거부 방법을 함께 갱신한다.
 - 재검토 조건: custom nonfatal·key·log, Analytics, user ID나 계정 기능을 추가하면 이 근거와 처리방침을 다시 검토한다.
 
