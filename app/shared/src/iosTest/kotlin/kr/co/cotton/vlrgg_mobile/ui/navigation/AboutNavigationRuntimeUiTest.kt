@@ -14,6 +14,7 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.about.ABOUT_SOURCE_URL
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutPlatform
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutViewModel
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.LICENSE_DIALOG_CONFIRM_TEXT
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.OPEN_SOURCE_LICENSES_TITLE
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.OpenSourceLicensesScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.OpenSourceLicensesViewModel
@@ -103,8 +104,8 @@ class AboutNavigationRuntimeUiTest {
         }
         onNodeWithText("AboutLibraries Core Library").performClick()
         onNodeWithText("TERMS AND CONDITIONS FOR USE", substring = true, useUnmergedTree = true).assertExists()
-        onNodeWithText("OK").performClick()
-        onNodeWithText("OK").assertDoesNotExist()
+        onNodeWithText(LICENSE_DIALOG_CONFIRM_TEXT).performClick()
+        onNodeWithText(LICENSE_DIALOG_CONFIRM_TEXT).assertDoesNotExist()
 
         onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithContentDescription("뒤로 가기").assertDoesNotExist()

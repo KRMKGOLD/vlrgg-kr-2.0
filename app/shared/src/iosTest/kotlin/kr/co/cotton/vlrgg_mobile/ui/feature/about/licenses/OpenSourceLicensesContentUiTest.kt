@@ -40,7 +40,7 @@ class OpenSourceLicensesContentUiTest {
 
         onNodeWithText("Ktor Client Core").performClick()
         onNodeWithText("Version 2.0, January 2004", substring = true).assertExists()
-        onNodeWithText("OK").performClick()
+        onNodeWithText(LICENSE_DIALOG_CONFIRM_TEXT).performClick()
         onNodeWithText("Version 2.0, January 2004", substring = true).assertDoesNotExist()
 
         onNodeWithContentDescription("뒤로 가기").performClick()

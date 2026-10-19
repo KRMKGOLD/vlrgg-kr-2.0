@@ -52,7 +52,7 @@ Dark Mode 선택, 계정·프로필, 앱 내 문의 양식, 원격 About 설정�
 
 ## 오픈소스 라이선스
 
-- 화면: Top App Bar는 Back과 제목 `오픈소스 라이선스`. 본문은 AboutLibraries의 기본 Compose UI(`aboutlibraries-compose-m3`의 `LibrariesContainer`, 기본 설정)를 그대로 쓴다. 목록 row는 라이브러리 이름·버전·작성자·라이선스 badge를 보이고, row를 누르면 라이브러리 기본 license dialog에 전문을 띄운다(`OK` 또는 Back으로 닫음). 이 화면은 DESIGN.md 컴포넌트 계약 대상이 아니다.
+- 화면: Top App Bar는 Back과 제목 `오픈소스 라이선스`. 본문은 AboutLibraries의 기본 Compose UI(`aboutlibraries-compose-m3`의 `LibrariesContainer`, 기본 설정)를 그대로 쓴다. 목록 row는 라이브러리 이름·버전·작성자·라이선스 badge를 보이고, row를 누르면 라이브러리 기본 license dialog에 전문을 띄운다(`확인` 또는 Back으로 닫음). 이 화면은 DESIGN.md 컴포넌트 계약 대상이 아니다.
 - 상태: `OpenSourceLicensesViewModel`이 build 시 생성된 JSON을 한 번 읽어 `Libs`로 parse해 단일 `OpenSourceLicensesUiState`에 둔다. 읽기·parse 실패나 빈 목록은 `오픈소스 라이선스 정보를 불러올 수 없습니다.`만 표시한다(재시도 없음: 번들 파일이라 재시도가 의미 없다).
 - 데이터 생성(AboutLibraries Gradle plugin):
   - Android: `:app:androidApp`에 `com.mikepenz.aboutlibraries.plugin.android`를 적용해 variant마다 runtime classpath로 `res/raw/aboutlibraries.json`을 생성한다. Firebase Crashlytics, activity-compose, splashscreen 같은 앱 모듈 의존성과 `:app:shared` 의존성이 모두 들어간다. Release resource는 release runtime classpath 기준이다(debug에는 `debugImplementation` ui-tooling만 추가된다). platform owner(`AndroidAboutPlatform.readLicenseDefinitions`)가 이 raw resource를 읽어 `App`에 전달한다.

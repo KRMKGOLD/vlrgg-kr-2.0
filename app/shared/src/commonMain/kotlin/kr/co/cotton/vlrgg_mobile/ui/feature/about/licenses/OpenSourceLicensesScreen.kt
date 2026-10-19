@@ -30,6 +30,7 @@ import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 
 internal const val OPEN_SOURCE_LICENSES_TITLE = "오픈소스 라이선스"
+internal const val LICENSE_DIALOG_CONFIRM_TEXT = "확인"
 
 @Composable
 fun OpenSourceLicensesScreen(
@@ -83,6 +84,7 @@ internal fun OpenSourceLicensesContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(contentPadding),
+                licenseDialogConfirmText = LICENSE_DIALOG_CONFIRM_TEXT,
             )
         }
     }
