@@ -39,6 +39,7 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
+import vlrggmobile.app.shared.generated.resources.ic_chevron_right
 import vlrggmobile.app.shared.generated.resources.ic_search
 import kotlinx.coroutines.delay
 
@@ -48,6 +49,7 @@ internal const val AboutLinkErrorBaseDurationMillis = 4_000L
 fun AboutScreen(
     platform: AboutPlatform,
     onSearch: () -> Unit,
+    onOpenSourceLicensesClick: () -> Unit,
     viewModel: AboutViewModel = metroViewModel(),
     modifier: Modifier = Modifier,
 ) {
@@ -81,6 +83,7 @@ fun AboutScreen(
     AboutContent(
         uiState = uiState,
         onSearch = onSearch,
+        onOpenSourceLicensesClick = onOpenSourceLicensesClick,
         onLinkClick = { link ->
             val attemptId = linkOpenCallbackGate.beginAttempt()
             platform.openUrl(link.url) { opened ->
@@ -115,6 +118,7 @@ internal fun AboutContent(
     uiState: AboutUiState,
     onSearch: () -> Unit,
     onLinkClick: (AboutLink) -> Unit,
+    onOpenSourceLicensesClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -136,7 +140,7 @@ internal fun AboutContent(
                 verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space4),
             ) {
                 AppIdentitySection(uiState.versionLabel)
-                ProjectLinksSection(onLinkClick)
+                ProjectLinksSection(onLinkClick, onOpenSourceLicensesClick)
                 ThemeSection()
                 AttributionSection()
             }
@@ -222,20 +226,51 @@ private fun AppIdentitySection(versionLabel: String?) {
 }
 
 @Composable
-private fun ProjectLinksSection(onLinkClick: (AboutLink) -> Unit) {
+private fun ProjectLinksSection(
+    onLinkClick: (AboutLink) -> Unit,
+    onOpenSourceLicensesClick: () -> Unit,
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         AboutLink.entries.forEach { link ->
-            AboutLinkRow(link = link, onClick = { onLinkClick(link) })
+            AboutProjectRow(
+                title = link.title,
+                detail = link.destinationLabel,
+                accessibilityLabel = link.accessibilityLabel,
+                onClick = { onLinkClick(link) },
+            ) {
+                Text(
+                    text = "↗",
+                    style = VlrTheme.typography.sectionTitle,
+                    color = VlrTheme.colors.textSecondary,
+                )
+            }
+        }
+        // In-app destination: a chevron instead of the external-open arrow.
+        AboutProjectRow(
+            title = "오픈소스 라이선스",
+            detail = "앱에 포함된 라이브러리와 라이선스 전문",
+            accessibilityLabel = ABOUT_OPEN_SOURCE_LICENSES_LABEL,
+            onClick = onOpenSourceLicensesClick,
+        ) {
+            Icon(
+                imageVector = vectorResource(Res.drawable.ic_chevron_right),
+                contentDescription = null,
+                tint = VlrTheme.colors.textSecondary,
+            )
         }
     }
 }
 
+internal const val ABOUT_OPEN_SOURCE_LICENSES_LABEL = "오픈소스 라이선스 화면 열기"
+
 @Composable
-private fun AboutLinkRow(
-    link: AboutLink,
+private fun AboutProjectRow(
+    title: String,
+    detail: String,
+    accessibilityLabel: String,
     onClick: () -> Unit,
+    trailing: @Composable () -> Unit,
 ) {
-    val accessibilityLabel = "${link.title} 외부 링크 열기"
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -251,9 +286,9 @@ private fun AboutLinkRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(link.title, style = VlrTheme.typography.bodyStrong, color = VlrTheme.colors.textPrimary)
+                Text(title, style = VlrTheme.typography.bodyStrong, color = VlrTheme.colors.textPrimary)
                 Text(
-                    link.destinationLabel,
+                    detail,
                     style = VlrTheme.typography.labelSmall,
                     color = VlrTheme.colors.textSecondary,
                 )
@@ -262,11 +297,7 @@ private fun AboutLinkRow(
                 modifier = Modifier.size(VlrDimensions.MinimumTouchTarget),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "↗",
-                    style = VlrTheme.typography.sectionTitle,
-                    color = VlrTheme.colors.textSecondary,
-                )
+                trailing()
             }
         }
         HorizontalDivider(color = VlrTheme.colors.outline)
@@ -284,14 +315,20 @@ private val AboutLink.destinationLabel: String
     get() = when (this) {
         AboutLink.SourceCode -> "github.com/KRMKGOLD/vlrgg-kr-2.0"
         AboutLink.PrivacyPolicy -> "GitHub · docs/privacy-policy.md"
-        AboutLink.Contact -> "GitHub Issues"
+        AboutLink.Contact -> "teamcotton124@gmail.com"
+    }
+
+private val AboutLink.accessibilityLabel: String
+    get() = when (this) {
+        AboutLink.SourceCode, AboutLink.PrivacyPolicy -> "$title 외부 링크 열기"
+        AboutLink.Contact -> "메일 앱에서 문의 메일 쓰기"
     }
 
 private val AboutLink.openFailureMessage: String
     get() = when (this) {
         AboutLink.SourceCode -> "소스 코드를 열 수 없습니다."
         AboutLink.PrivacyPolicy -> "개인정보처리방침을 열 수 없습니다."
-        AboutLink.Contact -> "문의 페이지를 열 수 없습니다."
+        AboutLink.Contact -> "메일 앱을 열 수 없습니다."
     }
 
 @Composable

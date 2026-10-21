@@ -40,6 +40,7 @@ import vlrggmobile.app.shared.generated.resources.ic_person
 @Composable
 fun AppNavigation(
     aboutPlatform: AboutPlatform,
+    readLicenseDefinitions: suspend () -> String,
     modifier: Modifier = Modifier,
 ) {
     AppNavigationRuntime(
@@ -51,6 +52,7 @@ fun AppNavigation(
                 onPush = onPush,
                 onBack = onBack,
                 aboutPlatform = aboutPlatform,
+                readLicenseDefinitions = readLicenseDefinitions,
             )
         },
     )
@@ -192,6 +194,9 @@ private fun appNavigationEntryProvider(
         entry(Search) { destination ->
             entryContent(destination, onSearch, onPush, onBack)
         }
+        entry(OpenSourceLicenses) { destination ->
+            entryContent(destination, onSearch, onPush, onBack)
+        }
         entry<NewsDetail> { destination ->
             entryContent(destination, onSearch, onPush, onBack)
         }
@@ -251,6 +256,7 @@ private fun NavigationEntryContent(
     onPush: (AppNavKey) -> Unit,
     onBack: () -> Unit,
     aboutPlatform: AboutPlatform,
+    readLicenseDefinitions: suspend () -> String,
 ) {
     NavigationContent(
         destination = destination,
@@ -258,6 +264,7 @@ private fun NavigationEntryContent(
         onPush = onPush,
         onBack = onBack,
         aboutPlatform = aboutPlatform,
+        readLicenseDefinitions = readLicenseDefinitions,
     )
 }
 

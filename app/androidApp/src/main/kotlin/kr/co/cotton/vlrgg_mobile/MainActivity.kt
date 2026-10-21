@@ -21,6 +21,7 @@ class MainActivity : ComponentActivity() {
             App(
                 graph = graph,
                 aboutPlatform = aboutPlatform,
+                readLicenseDefinitions = aboutPlatform::readLicenseDefinitions,
             )
         }
     }

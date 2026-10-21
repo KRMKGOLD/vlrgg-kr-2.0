@@ -32,6 +32,9 @@ data object AboutRoot : RootNavKey
 data object Search : AppNavKey
 
 @Serializable
+data object OpenSourceLicenses : AppNavKey
+
+@Serializable
 data class NewsDetail(
     val articleId: String,
     val slug: String,
@@ -100,6 +103,7 @@ internal val appNavKeySavedStateConfiguration = SavedStateConfiguration {
             subclass(EventsRoot.serializer())
             subclass(AboutRoot.serializer())
             subclass(Search.serializer())
+            subclass(OpenSourceLicenses.serializer())
             subclass(NewsDetail.serializer())
             subclass(MatchDetail.serializer())
             subclass(EventDetail.serializer())

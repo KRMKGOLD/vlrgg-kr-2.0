@@ -23,7 +23,7 @@ class AppNavKeySerializationTest {
 
     @Test
     fun singletonRootsAndSearchRoundTripWithTheirConcreteTypes() {
-        val keys = rootNavKeys + Search
+        val keys = rootNavKeys + Search + OpenSourceLicenses
 
         keys.forEach { key ->
             val decoded = roundTrip(key)
@@ -65,6 +65,7 @@ class AppNavKeySerializationTest {
             EventsRoot to emptySet(),
             AboutRoot to emptySet(),
             Search to emptySet(),
+            OpenSourceLicenses to emptySet(),
             NewsDetail("12345", "champions-seoul-grand-final") to setOf("articleId", "slug"),
             MatchDetail("67890") to setOf("matchId"),
             EventDetail("1189") to setOf("eventId"),
@@ -92,6 +93,7 @@ class AppNavKeySerializationTest {
             EventsRoot,
             AboutRoot,
             Search,
+            OpenSourceLicenses,
             NewsDetail("1", "news"),
             MatchDetail("1"),
             EventDetail("1"),

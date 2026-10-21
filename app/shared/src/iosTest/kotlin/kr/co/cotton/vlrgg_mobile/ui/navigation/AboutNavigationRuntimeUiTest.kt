@@ -3,14 +3,22 @@ package kr.co.cotton.vlrgg_mobile.ui.navigation
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.ABOUT_OPEN_SOURCE_LICENSES_LABEL
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.ABOUT_SOURCE_URL
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutPlatform
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutViewModel
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.LICENSE_DIALOG_CONFIRM_TEXT
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.OPEN_SOURCE_LICENSES_TITLE
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.OpenSourceLicensesScreen
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.OpenSourceLicensesViewModel
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.readIosLicenseDefinitions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,6 +39,7 @@ class AboutNavigationRuntimeUiTest {
                             AboutRoot -> AboutScreen(
                                 platform = platform,
                                 onSearch = onSearch,
+                                onOpenSourceLicensesClick = {},
                                 viewModel = aboutViewModel,
                             )
                             Search -> Button(onClick = onBack) { Text("search overlay") }
@@ -55,6 +64,54 @@ class AboutNavigationRuntimeUiTest {
         onNodeWithText("About").performClick()
         onNodeWithText("소스 코드를 열 수 없습니다.").assertDoesNotExist()
         assertEquals(listOf(ABOUT_SOURCE_URL), platform.openedUrls)
+    }
+
+    @Test
+    fun openSourceLicensesIsPushedFromAboutAndBackReturnsToAbout() = runComposeUiTest {
+        val platform = FailingAboutPlatform()
+
+        setContent {
+            VlrTheme {
+                AppNavigationRuntime(
+                    initialSelectedRoot = AboutRoot,
+                    entryContent = { destination, onSearch, onPush, onBack ->
+                        when (destination) {
+                            AboutRoot -> AboutScreen(
+                                platform = platform,
+                                onSearch = onSearch,
+                                onOpenSourceLicensesClick = { onPush(OpenSourceLicenses) },
+                                viewModel = AboutViewModel(),
+                            )
+                            OpenSourceLicenses -> OpenSourceLicensesScreen(
+                                readLicenseDefinitions = ::readIosLicenseDefinitions,
+                                onBack = onBack,
+                                viewModel = OpenSourceLicensesViewModel(),
+                            )
+                            is RootNavKey -> Text("root:${destination.destinationDescriptor.title}")
+                            else -> error("Unexpected destination: $destination")
+                        }
+                    },
+                )
+            }
+        }
+
+        onNodeWithContentDescription(ABOUT_OPEN_SOURCE_LICENSES_LABEL).performScrollTo().performClick()
+        onNodeWithText(OPEN_SOURCE_LICENSES_TITLE).assertExists()
+        onNodeWithText("About").assertDoesNotExist()
+        // Rows are sorted by name, so the AboutLibraries artifacts lead the generated list.
+        waitUntil(timeoutMillis = 5_000) {
+            onAllNodesWithText("AboutLibraries Core Library").fetchSemanticsNodes().isNotEmpty()
+        }
+        onNodeWithText("AboutLibraries Core Library").performClick()
+        onNodeWithText("TERMS AND CONDITIONS FOR USE", substring = true, useUnmergedTree = true).assertExists()
+        onNodeWithText(LICENSE_DIALOG_CONFIRM_TEXT).performClick()
+        onNodeWithText(LICENSE_DIALOG_CONFIRM_TEXT).assertDoesNotExist()
+
+        onNodeWithContentDescription("뒤로 가기").performClick()
+        onNodeWithContentDescription("뒤로 가기").assertDoesNotExist()
+        onNodeWithContentDescription(ABOUT_OPEN_SOURCE_LICENSES_LABEL).assertExists()
+        onNodeWithText("VLR.GG Mobile (Unofficial)").assertExists()
+        assertEquals(emptyList(), platform.openedUrls)
     }
 
     private class FailingAboutPlatform : AboutPlatform {

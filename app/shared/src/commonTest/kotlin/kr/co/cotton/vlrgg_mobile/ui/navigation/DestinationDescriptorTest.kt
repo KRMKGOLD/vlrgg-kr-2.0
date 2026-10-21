@@ -55,7 +55,7 @@ class DestinationDescriptorTest {
             destination.destinationDescriptor
         }
 
-        assertEquals(12, descriptors.size)
+        assertEquals(13, descriptors.size)
         assertTrue(descriptors.all { it.marker.isNotBlank() && it.title.isNotBlank() })
         assertEquals(descriptors.size, descriptors.map { it.marker }.toSet().size)
     }
@@ -69,6 +69,7 @@ class DestinationDescriptorTest {
         MyPageRoot -> ContentPolicy.MY_PAGE
         EventsRoot -> ContentPolicy.EVENTS
         Search -> ContentPolicy.SEARCH
+        OpenSourceLicenses,
         is NewsDetail,
         is MatchDetail,
         is EventDetail,
@@ -91,6 +92,7 @@ class DestinationDescriptorTest {
     private companion object {
         val pushedKeys = listOf<AppNavKey>(
             Search,
+            OpenSourceLicenses,
             NewsDetail(articleId = "1", slug = "news"),
             MatchDetail(matchId = "1"),
             EventDetail(eventId = "1"),

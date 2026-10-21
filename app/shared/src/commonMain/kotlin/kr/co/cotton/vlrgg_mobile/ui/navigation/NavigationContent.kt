@@ -22,6 +22,7 @@ import org.jetbrains.compose.resources.vectorResource
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.EventsScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutPlatform
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutScreen
+import kr.co.cotton.vlrgg_mobile.ui.feature.about.licenses.OpenSourceLicensesScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.events.detail.EventDetailScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MatchesScreen
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.MatchDetailScreen
@@ -50,6 +51,7 @@ fun NavigationContent(
     onPush: (AppNavKey) -> Unit,
     onBack: () -> Unit,
     aboutPlatform: AboutPlatform = UnavailableAboutPlatform,
+    readLicenseDefinitions: suspend () -> String = ::unavailableLicenseDefinitions,
     modifier: Modifier = Modifier,
 ) {
     when (destination) {
@@ -88,6 +90,13 @@ fun NavigationContent(
         AboutRoot -> AboutScreen(
             platform = aboutPlatform,
             onSearch = onSearch,
+            onOpenSourceLicensesClick = { onPush(OpenSourceLicenses) },
+            modifier = modifier,
+        )
+
+        OpenSourceLicenses -> OpenSourceLicensesScreen(
+            readLicenseDefinitions = readLicenseDefinitions,
+            onBack = onBack,
             modifier = modifier,
         )
 
@@ -155,6 +164,8 @@ private object UnavailableAboutPlatform : AboutPlatform {
 
     override fun openUrl(url: String, onResult: (Boolean) -> Unit) = onResult(false)
 }
+
+private fun unavailableLicenseDefinitions(): String = error("License definitions are unavailable.")
 
 internal fun destinationForSearchResult(result: SearchResult): AppNavKey = when (result) {
     is SeriesSearchResult -> SeriesDetail(result.id)
