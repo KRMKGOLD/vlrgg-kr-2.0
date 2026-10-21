@@ -14,7 +14,7 @@
 | [공개 조회 보호](architecture/server-public-api-protection.md) | 요청 제한과 앱 Busy 처리 |
 | [서버 배포·복구](architecture/server-container-deployment.md) | Cloud Run 배포, rollback, 비용 중단, 운영 알림 검증·복구 |
 | [CI/CD](ci-cd.md) | 검증 gate와 로컬 benchmark |
-| [앱 배포](app-release.md) | Android internal·iOS TestFlight 절차와 계정·서명 gate |
+| [앱 배포](app-release.md) | Android internal·비공개 테스트·프로덕션 절차, iOS TestFlight와 계정·서명 gate |
 | [Crashlytics](app-crashlytics.md) | Firebase 설정, 수집 정책, crash 검증 |
 | [개인정보처리방침](privacy-policy.md) | 앱 공개용 개인정보 처리 항목·위탁·국외 이전·문의처 |
 | [AGENTS.md](../AGENTS.md) | 저장소 작업·Agent Workflow·commit·PR 규칙 |
