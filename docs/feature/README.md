@@ -83,4 +83,13 @@ Team·Player 즐겨찾기는 계정이나 서버 사용자 DB 없이 기기 로�
 
 ## 외부 제약
 
-VLR.GG의 현재 이용약관은 자동 scraping과 체계적 data extraction을 제한한다. 개인 사용과 포트폴리오 범위도 upstream permission이 확보되었다는 뜻은 아니다. 공개 서비스나 운영 범위가 바뀌면 데이터 사용 정책과 허용된 획득 방법을 다시 검토한다.
+VLR.GG의 현재 이용약관은 자동 scraping과 체계적 data extraction, 재게시를 제한한다. upstream permission은 확보되지 않았다. 개인 프로젝트이거나 앱에 비공식 표기를 하는 것이 허가를 뜻하지 않는다.
+
+2026-10-13 소유자 결정(2026-10-19 확인)에 따라 Android 앱은 Google Play 프로덕션 공개를 목표로 한다. VLR.GG에 데이터 사용 허가를 요청하지 않고 비공식(unofficial) 앱임을 명시해 배포한다.
+
+- 리스크: VLR.GG 이용약관 위반 주장과 데이터 접근 차단이 있을 수 있다. Play [지식재산권 정책](https://support.google.com/googleplay/android-developer/answer/9888072)과 [사칭 정책](https://support.google.com/googleplay/android-developer/answer/9888374)상 "unofficial" 표기만으로 제3자 상표 사용이 허용되지 않을 수 있다.
+- 대응: Play 검토에서 반려되거나 신고가 들어오면 앱 제목과 아이콘에서 VLR.GG 표기를 빼는 방안을 먼저 검토한다. 이 경우에도 About의 데이터 출처 표기와 비제휴 고지는 유지한다.
+- 데이터 사용 범위나 획득 방법이 바뀌면 About 고지와 개인정보처리방침을 함께 다시 검토한다.
+- Play 앱 콘텐츠의 "뉴스 앱" 선언은 해당 없음으로 한다(소유자 결정, 2026-10-19). 앱 제목·아이콘·설명에서 뉴스 앱으로 소개하지 않는다.
+
+Play 트랙과 Console 절차는 [앱 배포](../app-release.md#android-비공개-테스트와-프로덕션)가 소유한다.
