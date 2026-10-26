@@ -24,6 +24,7 @@ internal class MatchesMapper {
             timeLabel = summary.timeLabel,
             relativeTimeLabel = summary.relativeTimeLabel,
             scheduledAt = source.scheduledAt,
+            scheduledAtUtc = source.scheduledAt,
             homeTeam = summary.homeTeam.toResponse(),
             awayTeam = summary.awayTeam.toResponse(),
             homeScore = summary.homeScore,

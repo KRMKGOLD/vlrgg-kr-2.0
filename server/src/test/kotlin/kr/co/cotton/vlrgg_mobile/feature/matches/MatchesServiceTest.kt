@@ -69,4 +69,36 @@ class MatchesServiceTest {
         assertEquals("Event", response.event.name)
         assertEquals("3", response.event.id)
     }
+
+    @Test
+    fun `mapper exposes the corrected instant as scheduledAtUtc and keeps it null without one`() {
+        fun detail(scheduledAt: String?) = MatchDetailSource(
+            summary = MatchSummarySource(
+                id = "709685",
+                status = MatchStatusSource.UPCOMING,
+                timeLabel = "5:00 PM",
+                time = null,
+                relativeTimeLabel = null,
+                homeTeam = MatchTeamSource("Alpha", id = "1"),
+                awayTeam = MatchTeamSource("Beta", id = "2"),
+                homeScore = null,
+                awayScore = null,
+                event = MatchEventSource("Event", null, id = "3"),
+            ),
+            scheduledAt = scheduledAt,
+            description = null,
+            seriesFormat = null,
+            maps = emptyList(),
+            headToHead = emptyList(),
+            pastMatches = emptyList(),
+        )
+
+        val present = mapper.toDetailResponse(detail("2026-10-26T18:00:00Z"))
+        assertEquals("2026-10-26T18:00:00Z", present.scheduledAt)
+        assertEquals("2026-10-26T18:00:00Z", present.scheduledAtUtc)
+
+        val absent = mapper.toDetailResponse(detail(null))
+        assertNull(absent.scheduledAt)
+        assertNull(absent.scheduledAtUtc)
+    }
 }

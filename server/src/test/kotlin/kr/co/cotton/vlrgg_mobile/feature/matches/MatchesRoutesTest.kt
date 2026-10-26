@@ -42,6 +42,7 @@ class MatchesRoutesTest {
         val detailBody = Json.parseToJsonElement(detail.bodyAsText()).jsonObject
         assertEquals("709685", detailBody["id"]?.jsonPrimitive?.content)
         assertEquals("2026-07-13T08:00:00Z", detailBody["scheduledAt"]?.jsonPrimitive?.content)
+        assertEquals("2026-07-13T08:00:00Z", detailBody["scheduledAtUtc"]?.jsonPrimitive?.content)
         assertEquals(
             "https://owcdn.net/img/alpha.png",
             detailBody["homeTeam"]?.jsonObject?.get("imageUrl")?.jsonPrimitive?.content,
@@ -147,6 +148,7 @@ class MatchesRoutesTest {
                 timeLabel = "5:00 PM",
                 relativeTimeLabel = null,
                 scheduledAt = "2026-07-13T08:00:00Z",
+                scheduledAtUtc = "2026-07-13T08:00:00Z",
                 homeTeam = MatchTeamResponse("Alpha", imageUrl = "https://owcdn.net/img/alpha.png"),
                 awayTeam = MatchTeamResponse("Beta"),
                 homeScore = null,

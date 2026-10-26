@@ -123,6 +123,26 @@ class VlrMatchesParserTest {
     }
 
     @Test
+    fun `resolves daylight saving transitions of the upstream timestamp`() {
+        val completed = fixtureHtml("detail-completed.html")
+        fun parsed(timestamp: String) = parser.parseDetail(
+            completed.replace(UPSTREAM_TIMESTAMP_ATTRIBUTE, "data-utc-ts=\"$timestamp\""),
+            detailUrl,
+            "709685",
+        ).scheduledAt
+
+        // Spring gap: 02:30 on 2026-03-08 never happened in New York, so no instant is invented.
+        assertNull(parsed("2026-03-08 02:30:00"))
+        // Just before and after the gap: 01:59:59 EST, 03:00:00 EDT.
+        assertEquals("2026-03-08T06:59:59Z", parsed("2026-03-08 01:59:59"))
+        assertEquals("2026-03-08T07:00:00Z", parsed("2026-03-08 03:00:00"))
+        // Fall overlap: 01:30 on 2026-11-01 happened twice, the earlier EDT offset wins.
+        assertEquals("2026-11-01T05:30:00Z", parsed("2026-11-01 01:30:00"))
+        // Just after the overlap: 02:00:00 EST.
+        assertEquals("2026-11-01T07:00:00Z", parsed("2026-11-01 02:00:00"))
+    }
+
+    @Test
     fun `normalizes only supported detail team image URLs and preserves missing or unsafe values as null`() {
         val sources = mapOf(
             "//owcdn.net/img/home.png" to "https://owcdn.net/img/home.png",

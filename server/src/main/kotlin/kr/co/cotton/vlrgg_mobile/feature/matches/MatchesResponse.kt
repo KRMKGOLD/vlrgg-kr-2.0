@@ -43,6 +43,11 @@ data class MatchDetailResponse(
     val relativeTimeLabel: String? = null,
     /** Scheduled start as an ISO-8601 UTC instant, e.g. `2026-10-26T18:00:00Z`. */
     val scheduledAt: String? = null,
+    /**
+     * Same instant as [scheduledAt]. Servers before the US Eastern fix send a valid but 4-5 hour early
+     * [scheduledAt] and no `scheduledAtUtc`, so clients that need a trustworthy instant must read this field.
+     */
+    val scheduledAtUtc: String? = null,
     val homeTeam: MatchTeamResponse,
     val awayTeam: MatchTeamResponse,
     val homeScore: Int? = null,

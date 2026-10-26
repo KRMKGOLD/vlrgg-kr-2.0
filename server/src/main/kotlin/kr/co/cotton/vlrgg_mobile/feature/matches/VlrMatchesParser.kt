@@ -322,14 +322,14 @@ internal class VlrMatchesParser(
     }
 
     /**
-     * Despite its name, VLR.GG's `data-utc-ts` holds US Eastern wall-clock time (EDT/EST). An
-     * ambiguous fall-back hour resolves to the earlier offset.
+     * Despite its name, VLR.GG's `data-utc-ts` holds US Eastern wall-clock time (EDT/EST). A local time
+     * skipped by the spring-forward gap does not exist and yields null; an ambiguous fall-back hour
+     * resolves to the earlier offset.
      */
     private fun String.toUtcIsoInstantFromUpstreamTimestampOrNull(): String? = runCatching {
-        LocalDateTime.parse(this, UPSTREAM_TIMESTAMP_FORMAT)
-            .atZone(UPSTREAM_TIMESTAMP_ZONE)
-            .toInstant()
-            .toString()
+        val local = LocalDateTime.parse(this, UPSTREAM_TIMESTAMP_FORMAT)
+        val offsets = UPSTREAM_TIMESTAMP_ZONE.rules.getValidOffsets(local)
+        offsets.firstOrNull()?.let { local.toInstant(it).toString() }
     }.getOrNull()
 
     // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and require a valid host.
