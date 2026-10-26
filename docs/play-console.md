@@ -13,6 +13,8 @@
 
 Console 답변은 아래 사실을 기준으로 한다. 앱 코드나 의존성이 바뀌면 이 표부터 다시 확인한다.
 
+2026-10-26 `main` 7ed3dc1(#169 포함)에서 merged manifest(debug·release)와 `releaseRuntimeClasspath`를 다시 확인했다. 권한은 아래 "권한" 절의 3개 그대로이고 release에 평문 HTTP 허용이 없다. 광고·분석·결제 의존성도 없다. #169로 AboutLibraries(`com.mikepenz:aboutlibraries-core`, `aboutlibraries-compose-m3`)가 추가됐지만, 앱에 묶인 라이선스 데이터(`R.raw.aboutlibraries`)만 읽고 기기 밖으로 데이터를 보내지 않는다. 문의 링크의 `mailto:`는 사용자가 누를 때 메일 앱을 여는 것뿐이다. 그래서 2·3절 답은 바뀌지 않는다. 출시 후보 SHA가 이 커밋과 다르면 다시 확인한다.
+
 | 항목 | 확인 결과 | 근거 |
 | --- | --- | --- |
 | 계정·로그인 | 없음. 모든 화면이 로그인 없이 열린다. | [feature/README.md](feature/README.md)의 MVP 제외 범위(로그인·계정), [privacy-policy.md:9](privacy-policy.md) |
