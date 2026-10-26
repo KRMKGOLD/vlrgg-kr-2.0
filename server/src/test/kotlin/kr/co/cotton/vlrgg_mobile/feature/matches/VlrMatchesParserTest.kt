@@ -16,12 +16,14 @@ class VlrMatchesParserTest {
 
         assertEquals(1, page.groups.size)
         assertEquals("Mon, July 13, 2026 Today", page.groups.single().dateLabel)
+        assertEquals("2026-07-13", page.groups.single().date)
         assertEquals(1, page.groups.single().matches.size)
 
         val match = page.groups.single().matches.single()
         assertEquals("709685", match.id)
         assertEquals(MatchStatusSource.UPCOMING, match.status)
         assertEquals("5:00 PM", match.timeLabel)
+        assertEquals("17:00", match.time)
         assertEquals("22m", match.relativeTimeLabel)
         assertEquals("ONSIDE GAMING", match.homeTeam.name)
         assertEquals("Dplus Esports", match.awayTeam.name)
@@ -41,6 +43,9 @@ class VlrMatchesParserTest {
         val result = parser.parseList(fixtureHtml("results-with-missing-optionals.html"), listUrl)
         val match = result.groups.single().matches.single()
 
+        assertEquals("2026-07-13", result.groups.single().date)
+        assertEquals("05:00", match.time)
+
         assertEquals(MatchStatusSource.COMPLETED, match.status)
         assertEquals(2, match.homeScore)
         assertEquals(3, match.awayScore)
@@ -55,7 +60,8 @@ class VlrMatchesParserTest {
         assertEquals("709685", detail.summary.id)
         assertEquals(MatchStatusSource.COMPLETED, detail.summary.status)
         assertEquals("Saturday, May 30", detail.summary.timeLabel)
-        assertEquals("2026-05-30T04:00:00Z", detail.scheduledAt)
+        // `data-utc-ts` is US Eastern wall-clock time: 04:00 EDT is 08:00 UTC.
+        assertEquals("2026-05-30T08:00:00Z", detail.scheduledAt)
         assertEquals("Esports World Cup 2026: Pacific Qualifier", detail.summary.event.name)
         assertEquals("Stage 2: Lower Round 2", detail.summary.event.series)
         assertEquals("Nongshim RedForce", detail.summary.homeTeam.name)
@@ -79,6 +85,41 @@ class VlrMatchesParserTest {
         assertTrue(limited.maps.isEmpty())
         assertNull(limited.summary.homeScore)
         assertNull(limited.summary.awayScore)
+    }
+
+    @Test
+    fun `structures list date and time labels and leaves unparseable values null`() {
+        val page = parser.parseList(fixtureHtml("list-datetime-variants.html"), listUrl)
+
+        val (today, mismatchedWeekday, tagOnly) = page.groups
+        assertEquals("Tue, October 27, 2026 Today", today.dateLabel)
+        assertEquals("2026-10-27", today.date)
+        assertEquals(listOf("3:00 AM", "7:05 pm"), today.matches.map { it.timeLabel })
+        assertEquals(listOf("03:00", "19:05"), today.matches.map { it.time })
+
+        // October 28, 2026 is a Wednesday, so the label is not trusted as a date.
+        assertEquals("Tue, October 28, 2026", mismatchedWeekday.dateLabel)
+        assertNull(mismatchedWeekday.date)
+        assertEquals(listOf("TBD", "13:00 PM"), mismatchedWeekday.matches.map { it.timeLabel })
+        assertEquals(listOf(null, null), mismatchedWeekday.matches.map { it.time })
+
+        assertEquals("Today", tagOnly.dateLabel)
+        assertNull(tagOnly.date)
+    }
+
+    @Test
+    fun `reads the detail upstream timestamp as US Eastern time across daylight saving changes`() {
+        val completed = fixtureHtml("detail-completed.html")
+        val standardTime = completed.replace(UPSTREAM_TIMESTAMP_ATTRIBUTE, "data-utc-ts=\"2025-01-09 04:20:00\"")
+        val unixSeconds = completed.replace(UPSTREAM_TIMESTAMP_ATTRIBUTE, "data-utc-ts=\"1778140800\"")
+        val missing = completed.replace(" $UPSTREAM_TIMESTAMP_ATTRIBUTE", "")
+        assertNotEquals(completed, standardTime)
+        assertNotEquals(completed, missing)
+
+        // 04:20 EST is 09:20 UTC, verified against VLR.GG's own `6:20 PM KST` rendering.
+        assertEquals("2025-01-09T09:20:00Z", parser.parseDetail(standardTime, detailUrl, "709685").scheduledAt)
+        assertNull(parser.parseDetail(unixSeconds, detailUrl, "709685").scheduledAt)
+        assertNull(parser.parseDetail(missing, detailUrl, "709685").scheduledAt)
     }
 
     @Test
@@ -250,4 +291,8 @@ class VlrMatchesParserTest {
         val homeScore: Int?,
         val awayScore: Int?,
     )
+
+    private companion object {
+        const val UPSTREAM_TIMESTAMP_ATTRIBUTE = "data-utc-ts=\"2026-05-30 04:00:00\""
+    }
 }

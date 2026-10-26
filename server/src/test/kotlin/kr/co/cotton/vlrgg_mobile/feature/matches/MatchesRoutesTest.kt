@@ -28,8 +28,12 @@ class MatchesRoutesTest {
         val listBody = Json.parseToJsonElement(list.bodyAsText()).jsonObject
         assertEquals(2, listBody["page"]?.jsonPrimitive?.int)
         assertEquals("upcoming", listBody["category"]?.jsonPrimitive?.content)
-        val listMatch = listBody["groups"]?.jsonArray?.single()?.jsonObject
-            ?.get("matches")?.jsonArray?.single()?.jsonObject
+        val listGroup = listBody["groups"]?.jsonArray?.single()?.jsonObject
+        assertEquals("Today", listGroup?.get("dateLabel")?.jsonPrimitive?.content)
+        assertEquals("2026-07-13", listGroup?.get("date")?.jsonPrimitive?.content)
+        val listMatch = listGroup?.get("matches")?.jsonArray?.single()?.jsonObject
+        assertEquals("5:00 PM", listMatch?.get("timeLabel")?.jsonPrimitive?.content)
+        assertEquals("17:00", listMatch?.get("time")?.jsonPrimitive?.content)
         assertEquals(JsonNull, listMatch?.get("homeTeam")?.jsonObject?.get("imageUrl"))
         assertEquals(JsonNull, listMatch?.get("awayTeam")?.jsonObject?.get("imageUrl"))
 
@@ -37,6 +41,7 @@ class MatchesRoutesTest {
         assertEquals(HttpStatusCode.OK, detail.status)
         val detailBody = Json.parseToJsonElement(detail.bodyAsText()).jsonObject
         assertEquals("709685", detailBody["id"]?.jsonPrimitive?.content)
+        assertEquals("2026-07-13T08:00:00Z", detailBody["scheduledAt"]?.jsonPrimitive?.content)
         assertEquals(
             "https://owcdn.net/img/alpha.png",
             detailBody["homeTeam"]?.jsonObject?.get("imageUrl")?.jsonPrimitive?.content,
@@ -117,11 +122,13 @@ class MatchesRoutesTest {
                 groups = listOf(
                     MatchDateGroupResponse(
                         dateLabel = "Today",
+                        date = "2026-07-13",
                         matches = listOf(
                             MatchSummaryResponse(
                                 id = "709685",
                                 status = MatchStatus.UPCOMING,
                                 timeLabel = "5:00 PM",
+                                time = "17:00",
                                 homeTeam = MatchTeamResponse("Alpha"),
                                 awayTeam = MatchTeamResponse("Beta"),
                                 event = MatchEventResponse("Event"),
@@ -139,7 +146,7 @@ class MatchesRoutesTest {
                 status = MatchStatus.UPCOMING,
                 timeLabel = "5:00 PM",
                 relativeTimeLabel = null,
-                scheduledAt = null,
+                scheduledAt = "2026-07-13T08:00:00Z",
                 homeTeam = MatchTeamResponse("Alpha", imageUrl = "https://owcdn.net/img/alpha.png"),
                 awayTeam = MatchTeamResponse("Beta"),
                 homeScore = null,

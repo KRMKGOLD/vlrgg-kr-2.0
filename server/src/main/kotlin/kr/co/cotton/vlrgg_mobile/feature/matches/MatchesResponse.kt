@@ -14,6 +14,8 @@ data class MatchesPageResponse(
 @Serializable
 data class MatchDateGroupResponse(
     val dateLabel: String,
+    /** ISO-8601 local date of [dateLabel] in VLR.GG's display time zone; not an instant. */
+    val date: String? = null,
     val matches: List<MatchSummaryResponse>,
 )
 
@@ -22,6 +24,8 @@ data class MatchSummaryResponse(
     val id: String,
     val status: MatchStatus,
     val timeLabel: String,
+    /** ISO-8601 local time (`HH:mm`) of [timeLabel] in VLR.GG's display time zone; not an instant. */
+    val time: String? = null,
     val relativeTimeLabel: String? = null,
     val homeTeam: MatchTeamResponse,
     val awayTeam: MatchTeamResponse,
@@ -37,6 +41,7 @@ data class MatchDetailResponse(
     val status: MatchStatus,
     val timeLabel: String,
     val relativeTimeLabel: String? = null,
+    /** Scheduled start as an ISO-8601 UTC instant, e.g. `2026-10-26T18:00:00Z`. */
     val scheduledAt: String? = null,
     val homeTeam: MatchTeamResponse,
     val awayTeam: MatchTeamResponse,

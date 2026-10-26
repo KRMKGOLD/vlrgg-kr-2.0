@@ -11,6 +11,7 @@ internal class MatchesMapper {
         groups = source.groups.map { group ->
             MatchDateGroupResponse(
                 dateLabel = group.dateLabel,
+                date = group.date,
                 matches = group.matches.map(::toSummaryResponse),
             )
         },
@@ -46,6 +47,7 @@ internal class MatchesMapper {
         id = source.id,
         status = source.status.toResponse(),
         timeLabel = source.timeLabel,
+        time = source.time,
         relativeTimeLabel = source.relativeTimeLabel,
         homeTeam = source.homeTeam.toResponse(),
         awayTeam = source.awayTeam.toResponse(),

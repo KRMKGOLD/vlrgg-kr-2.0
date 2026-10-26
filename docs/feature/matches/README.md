@@ -286,20 +286,78 @@ GET /api/v1/matches/{matchId}
 
 - `page`는 생략하면 `1`이며, 단 하나의 10진 정수 `1..1000`만 허용한다. 알려지지 않은 query parameter, 중복 `page`, 선행 0, 범위 밖 값은 `400 INVALID_REQUEST`다.
 - `matchId`는 선행 0이 없는 1~10자리 10진수만 허용한다. slug, upstream path, URL은 client 입력이나 API identity로 사용하지 않는다.
-- 성공 목록 response는 `{ category, page, groups }`이고, group은 `{ dateLabel, matches }`다. `category`는 `upcoming` 또는 `results`다.
-- summary는 `{ id, status, timeLabel, relativeTimeLabel?, homeTeam, awayTeam, homeScore?, awayScore?, event }`를 사용한다. team은 `{ name, id?, imageUrl? }`, event는 `{ name, series?, id? }`다. ID가 있으면 Team/Event Detail navigation에 사용하며, 없으면 해당 이동 action을 노출하지 않는다.
+- 성공 목록 response는 `{ category, page, groups }`이고, group은 `{ dateLabel, date?, matches }`다. `category`는 `upcoming` 또는 `results`다.
+- summary는 `{ id, status, timeLabel, time?, relativeTimeLabel?, homeTeam, awayTeam, homeScore?, awayScore?, event }`를 사용한다. team은 `{ name, id?, imageUrl? }`, event는 `{ name, series?, id? }`다. ID가 있으면 Team/Event Detail navigation에 사용하며, 없으면 해당 이동 action을 노출하지 않는다.
 - detail은 summary의 핵심 필드와 `scheduledAt?`, `description?`, `seriesFormat?`, `maps`, `headToHead`, `pastMatches`를 flat하게 제공한다. map은 `{ name, homeScore?, awayScore? }`이며 관련 경기는 `{ id, homeTeamName, awayTeamName, homeScore?, awayScore? }` 형태를 사용한다.
 - `status`는 `upcoming`, `live`, `completed`, `postponed`, `cancelled`, `unavailable` 중 하나다. 상태상 없는 score/map은 오류가 아니라 optional field 또는 빈 list로 표현한다.
 
 ### 현재 source 한계와 확장 지점
 
-- VLR.GG 목록 markup은 team/event의 안정적인 식별자와 절대 시각을 제공하지 않는다. 따라서 목록에서는 이름과 source 표시 문자열(`dateLabel`, `timeLabel`, `relativeTimeLabel`)만 제공하고 `team.imageUrl`은 null이다. 목록의 `.match-item-icon img`는 event icon이므로 team image로 사용하지 않는다. Detail markup의 검증된 team header link 안 `img[src]`는 `//`·`/`·`https` source만 HTTPS public URL로 정규화해 KMP가 표시한다. source에 없는 ID·image URL·추정 timestamp를 만들지 않으며, HTTP·blank·data·javascript·bare-relative image source는 null이다.
-- Detail의 `scheduledAt`은 upstream `data-utc-ts`를 안전하게 ISO-8601 UTC로 바꿀 수 있을 때만 포함한다. `timeLabel`은 source에서 읽은 사람이 읽을 수 있는 날짜/시간 label이며 UI가 locale/timezone 표시를 결정한다.
+- VLR.GG 목록 markup은 team/event의 안정적인 식별자와 절대 시각을 제공하지 않는다. 따라서 목록에서는 이름, source 표시 문자열(`dateLabel`, `timeLabel`, `relativeTimeLabel`)과 그 문자열을 구조화한 `date`·`time`만 제공하고 `team.imageUrl`은 null이다. 목록의 `.match-item-icon img`는 event icon이므로 team image로 사용하지 않는다. Detail markup의 검증된 team header link 안 `img[src]`는 `//`·`/`·`https` source만 HTTPS public URL로 정규화해 KMP가 표시한다. source에 없는 ID·image URL·추정 timestamp를 만들지 않으며, HTTP·blank·data·javascript·bare-relative image source는 null이다.
+- Detail의 `scheduledAt`은 upstream `data-utc-ts`를 안전하게 ISO-8601 UTC로 바꿀 수 있을 때만 포함한다. `data-utc-ts`는 이름과 달리 미국 동부 현지 시각이므로 `America/New_York`로 해석한다([날짜·시간 계약](#날짜시간-계약)). `timeLabel`은 source에서 읽은 사람이 읽을 수 있는 날짜/시간 label이며 UI가 locale/timezone 표시를 결정한다.
 - Detail의 `pastMatches`는 각 team history block 안에서 canonical numeric match link를 가진 `.match-histories-item`만 source 순서대로 전달한다. link가 없거나 상대 팀명이 빠진 item은 match identity를 합성하지 않고 제외하며, detail header의 team 순서와 item의 상대 팀/score만 사용한다.
 - `headToHead`는 `.match-h2h-matches`의 row가 canonical numeric match link를 직접 제공할 때만 source 순서대로 전달한다. canonical row reference가 없는 H2H row는 안정 식별자가 없다는 좁은 source limit 때문에 제외하며, event·team·score로 ID를 만들지 않는다; 유효한 row가 없으면 list는 빈 배열이다.
 - 10분 상태 추적, anonymous subscription persistence, delivery marker, scheduler, push provider와 구독 endpoint는 별도의 Match notification Stage 1 slice로 구현되어 있으며 이 콘텐츠 조회 API 계약에는 포함되지 않는다. 알림 저장소와 scheduler는 일반 콘텐츠 조회의 request-time freshness, cache 부재, stale fallback 부재를 바꾸지 않는다.
 
 실패는 서버 공통 error envelope를 그대로 사용한다. transport failure는 `502 UPSTREAM_NETWORK_FAILURE`, 필수 DOM structure failure는 `502 SOURCE_PARSING_FAILURE`이며, 안전한 message 외의 내부 원인은 public response에 포함하지 않는다.
+
+### 날짜·시간 계약
+
+2026-10-26 날짜·시간 표시 수정(서버 1/2)에서 정한 계약이다. 앱이 사용자 시간대와 언어에 맞춰 날짜·시간을 포맷할 수 있도록, 기존 표시 문자열은 그대로 두고 기계 판독 가능한 값을 nullable field로 추가했다. Matches 외 화면의 값도 이 절에서 함께 정의한다.
+
+#### Upstream 조사 (2026-10-26)
+
+서울에서 vlr.gg를 직접 요청해 실제 HTML을 비교했다. 서버의 production 리전(`asia-northeast3`)과 로컬 개발 환경 모두 서울이다.
+
+| 화면 (endpoint) | vlr.gg가 주는 기계 판독 값 | 표시 문자열과 시간대 | 서버 결정 |
+|---|---|---|---|
+| Matches 목록 날짜 그룹 (`/matches/{upcoming\|results}`) | 없음 | `.wf-label` `Tue, October 27, 2026` + 선택적 `Today`/`Yesterday` 태그. 요청자 위치 기준 시간대(서울=KST) | `dateLabel` 유지, `date` 추가 (local date) |
+| Matches 목록 행 | 없음. `data-utc-ts`도, 시간대 표기도 없다 | `.match-item-time` `3:00 AM`, 같은 시간대 | `timeLabel` 유지, `time` 추가 (local time). 행 instant는 근거가 없어 추가하지 않음 |
+| Matches 목록 행 ETA | 없음 | `.ml-eta` `22m`, `10h 32m`, `1d 1h`. 예정 경기는 남은 시간, 종료 경기(`ml-eta mod-completed`)는 **시작 후 지난 시간**이다. 실측: 05:45 KST 경기가 16:27 KST에 `10h 43m`. Live 행 ETA는 이번 조사에서 관측하지 못했다 | `relativeTimeLabel` 원문 유지. 구조화 값 없음 (아래 참고) |
+| Match Detail (`/matches/{id}`) | `.match-header-date [data-utc-ts]` `2026-10-26 14:00:00`. **이름과 달리 UTC가 아니라 미국 동부 현지 시각(EDT/EST)** | `.moment-tz-convert` `Tuesday, October 27` + `3:00 AM KST`. 요청자 위치 기준 시간대 | `scheduledAt` 값 버그 수정 (`America/New_York`로 해석) |
+| Event Matches (`/events/{id}/matches`) | 없음 | `.match-item-time` `5:00 PM`, Matches 목록과 같은 시간대. 날짜 그룹은 응답에 없음 | `MatchSummaryResponse` 재사용이라 `time` 추가 |
+| Event Detail bracket | `.bracket-item-status[data-utc-ts]`에 unix seconds (`1778140800`) | `5:00 pm KST, May 7` | 서버가 bracket을 파싱하지 않으므로 변경 없음 |
+| News 기사 (`/news/{articleId}/{slug}`) | header `time.js-date-toggle[datetime]` `2026-10-26T00:09:14+09:00` (offset 포함 ISO-8601) | `time` 텍스트 `16 hours ago`, title `Oct 26, 2026 at 00:09 KST` | `publishedAt` 원문 유지, `publishedAtUtc` 추가 |
+| News 목록 (`/news`) | 없음 | `October 26, 2026` 날짜만 | 변경 없음 |
+| Event News, Team news | 없음 | 날짜 텍스트만 | 변경 없음 |
+| Team Detail 경기 행 (`scheduledAtText`) | 없음 | `.m-item-date` `2026/08/28` + `7:05 pm`, 요청자 위치 기준 시간대 | 변경 없음 |
+| Events 목록·Event Detail·Series의 `dateLabel` | 없음 | `May 1—20`, `May 1 – May 20, 2026` 같은 자유 형식 기간 | 변경 없음 |
+
+**4시간 차이의 원인**: vlr.gg의 `data-utc-ts`는 이름과 달리 미국 동부 현지 시각이다. 실측 두 건으로 확인했다.
+
+- 서머타임: `2026-10-26 14:00:00`인 경기를 vlr.gg가 `3:00 AM KST`(Oct 27)로 표시한다. 실제 시각은 `2026-10-26T18:00:00Z`이고, 차이는 EDT(UTC−4)다.
+- 표준시: `2025-01-09 04:20:00`인 경기를 `6:20 PM KST`로 표시한다. 실제 시각은 `2025-01-09T09:20:00Z`이고, 차이는 EST(UTC−5)다.
+
+기존 parser는 이 값을 UTC로 읽어서, `scheduledAt`이 서머타임 기간에는 4시간, 표준시 기간에는 5시간 일렀다. 그래서 같은 화면의 `timeLabel`과 맞지 않았다.
+
+**목록 표시 시간대**: 목록·Team 화면의 표시 문자열은 vlr.gg가 요청 IP 위치로 고른 시간대로 서버에서 렌더된다. 목록 HTML에는 그 시간대 표기가 없다. Detail의 `KST` 표기로 서울 요청이 KST로 렌더됨을 확인했다. 서버를 다른 리전에서 실행하면 같은 field의 시간대가 바뀔 수 있다.
+
+#### 새 field
+
+| Endpoint | Field | 형식 | 의미 | null 조건 |
+|---|---|---|---|---|
+| `GET /api/v1/matches/{upcoming\|results}` group | `date` | ISO-8601 local date `2026-10-27` | `dateLabel`의 달력 날짜. vlr.gg 표시 시간대(요청 위치 기준, 서울 리전·로컬은 KST) 기준이며 **instant가 아니다** | label에 `EEE, MMMM d, yyyy` 영어 날짜가 없거나, 요일과 날짜가 맞지 않음 |
+| `GET /api/v1/matches/{upcoming\|results}` summary, `GET /api/v1/events/{id}/matches` item | `time` | ISO-8601 local time `HH:mm` (`03:00`, `19:05`) | `timeLabel`의 시각. `date`와 같은 표시 시간대 기준이며 **instant가 아니다** | `timeLabel`이 `h:mm AM/PM` 형식이 아님 (`TBD` 등) |
+| `GET /api/v1/matches/{id}` | `scheduledAt` (기존) | ISO-8601 UTC instant `2026-10-26T18:00:00Z` | 경기 예정 시작 시각. 이번에 값만 고쳤고 형식·의미는 그대로다 | `data-utc-ts` 속성이 없거나 `yyyy-MM-dd HH:mm:ss` 형식이 아님 |
+| `GET /api/v1/news/{articleId}/{slug}` | `publishedAtUtc` | ISO-8601 UTC instant `2026-10-25T15:09:14Z` | 기사 게시 시각 | header `time[datetime]`이 없거나 offset 포함 ISO-8601이 아님 |
+
+- 모든 instant는 `Z`로 끝나는 UTC ISO-8601이며 초까지 표기한다(`Instant.toString()`). 서버 JSON은 null field도 명시적으로 내보낸다.
+- 시각 파싱 실패는 해당 field만 null로 둔다. 필수 field가 아니므로 응답 전체를 실패시키지 않는다.
+- `America/New_York`의 서머타임 종료일 01:00~02:00처럼 두 번 나타나는 현지 시각은 앞쪽 offset(EDT)으로 해석한다.
+
+#### 기존 label field와의 관계
+
+- `dateLabel`, `timeLabel`, `relativeTimeLabel`, `publishedAt`, `scheduledAtText`, `publishedDateText`는 삭제하지 않고 의미도 바꾸지 않는다. 배포된 앱 `0.1.0(2)`가 이 field를 사용한다.
+- `date`·`time`은 같은 표시 시간대의 label을 구조화한 값이라, 앱이 언어에 맞게 포맷할 수 있다(`10월 27일 (화)`, `오전 3:00`). 시간대 변환에는 쓸 수 없다. 사용자 시간대로 바꾸려면 instant가 필요한데, 목록에는 instant가 없다.
+- `Today`/`Yesterday` 태그는 `dateLabel`에만 남고 `date`에는 없다. 앱이 오늘·어제 표시를 원하면 `date`를 기기 날짜와 비교해야 하는데, 표시 시간대(KST)와 기기 시간대가 다르면 결과가 vlr.gg 태그와 다를 수 있다.
+- `relativeTimeLabel`은 원문 그대로다. 예정 경기는 남은 시간, 종료 경기는 시작 후 지난 시간이며 단위는 `m`, `h m`, `d h`로 정밀도가 다르다. 서버 조회 시각 기준이라 구조화하지 않았다. 앱은 `status`로 의미를 구분하거나(예: 종료 경기에 `전` 표기 또는 숨김) 표시하지 않을 수 있다.
+- Detail의 `timeLabel`(`Tuesday, October 27 3:00 AM KST`)은 원문 그대로다. 앱은 `scheduledAt`이 있으면 그것으로 사용자 시간대에 맞게 포맷하고, 없을 때만 `timeLabel`을 표시한다.
+
+#### 앱 호환성
+
+- 앱은 새 field가 없거나 null인 응답에서도 동작해야 한다. 현재 production 서버는 이 field를 내려주지 않는다. 새 field가 없으면 기존 label을 그대로 표시한다.
+- 앱 JSON 설정은 `ignoreUnknownKeys = true`라서 `0.1.0(2)`는 추가 field를 무시한다.
+- 새 서버를 배포하면 `0.1.0(2)`가 원문으로 표시하는 Match Detail `scheduledAt`이 서머타임 기간 4시간 늦어진다. 이것은 실제 시작 시각으로 바로잡히는 변화다.
 
 ## Upstream 및 parser 메모
 

@@ -14,6 +14,7 @@ class NewsMapperTest {
                 title = "Link kinds",
                 author = "author",
                 publishedAt = "July 14, 2026",
+                publishedAtUtc = "2026-07-14T03:00:00Z",
                 blocks = listOf(
                     NewsParagraphSourceBlock(
                         sourceKinds.map { kind ->
@@ -31,6 +32,8 @@ class NewsMapperTest {
         val links = ((response.blocks.single() as NewsParagraphBlockResponse).content)
             .filterIsInstance<NewsLinkInlineResponse>()
 
+        assertEquals("July 14, 2026", response.publishedAt)
+        assertEquals("2026-07-14T03:00:00Z", response.publishedAtUtc)
         assertEquals(NewsLinkKind.entries, links.map(NewsLinkInlineResponse::kind))
         assertEquals(
             listOf("1/team", "1/player", null, null, null, null),

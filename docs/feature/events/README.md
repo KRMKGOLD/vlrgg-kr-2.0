@@ -188,7 +188,8 @@ GET /api/v1/events/{eventId}/stats
 ```
 
 - `matches`는 upstream Event Matches의 `series_id=all` 결과를 사용한다.
-- `matches.items`는 Matches 목록의 `MatchSummaryResponse` 계약을 재사용한다. `event`는 현재 Event의 `id`와 이름을 담고, Event 내부 단계 표시는 `event.series`에 둔다.
+- `matches.items`는 Matches 목록의 `MatchSummaryResponse` 계약을 재사용한다. `event`는 현재 Event의 `id`와 이름을 담고, Event 내부 단계 표시는 `event.series`에 둔다. `time`(`timeLabel`의 ISO local time)도 같은 의미로 채우지만, 응답에 날짜 그룹이 없어 날짜는 제공하지 않는다. [Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)을 따른다.
+- Events 목록·Event Detail의 `dateLabel`은 자유 형식 기간 문자열이고, vlr.gg가 기계 판독 가능한 값을 주지 않아 구조화하지 않는다. Event Detail bracket의 unix timestamp는 서버가 bracket을 파싱하지 않아 사용하지 않는다.
 - Event Detail 원본에는 상태가 항상 존재하지 않으므로 상세 응답의 `status`는 선택 값이다. 목록 응답의 상태 그룹은 필수다.
 - Event News 원본에는 작성자가 항상 존재하지 않으므로 Event News 요약의 `author`는 선택 값이다. 제목, canonical News reference, 작성 시각은 필수다.
 - 섹션 하나의 network 또는 parsing 실패가 다른 섹션의 성공 응답을 대체하지 않는다. 각 실패는 공통 오류 envelope로 독립 반환한다.

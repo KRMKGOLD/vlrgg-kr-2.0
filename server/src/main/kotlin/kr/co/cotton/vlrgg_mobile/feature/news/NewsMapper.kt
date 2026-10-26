@@ -15,6 +15,7 @@ internal class NewsMapper {
         title = source.title,
         author = source.author,
         publishedAt = source.publishedAt,
+        publishedAtUtc = source.publishedAtUtc,
         blocks = source.blocks.map(::toBlockResponse),
     )
 

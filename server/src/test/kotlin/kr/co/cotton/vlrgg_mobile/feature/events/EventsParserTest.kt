@@ -78,6 +78,8 @@ class EventsParserTest {
         assertNull(result.matches.last().homeScore)
         assertNull(result.matches.last().awayScore)
         assertEquals("1d 3h", result.matches.last().relativeTimeLabel)
+        assertEquals(listOf("5:00 PM", "8:00 PM"), result.matches.map { it.timeLabel })
+        assertEquals(listOf("17:00", "20:00"), result.matches.map { it.time })
         assertEquals("Masters Seoul", result.matches.first().event.name)
         assertEquals("100", result.matches.first().event.id)
         assertEquals("Playoffs Upper Final", result.matches.first().event.series)
@@ -100,6 +102,7 @@ class EventsParserTest {
             ),
             result.matches.map { it.status },
         )
+        assertEquals(listOf("17:00", "20:00", null), result.matches.map { it.time })
     }
 
     @Test
