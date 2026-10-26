@@ -53,7 +53,7 @@ internal fun fixtureMatchDetail(matchId: String): MatchDetailModel = MatchDetail
     status = MatchStatus.COMPLETED,
     timeLabel = "18:00",
     relativeTimeLabel = null,
-    scheduledAt = null,
+    scheduledAtUtc = null,
     homeTeam = MatchTeam(name = "Home $matchId", id = "home-$matchId"),
     awayTeam = MatchTeam(name = "Away $matchId", id = "away-$matchId"),
     homeScore = 2,

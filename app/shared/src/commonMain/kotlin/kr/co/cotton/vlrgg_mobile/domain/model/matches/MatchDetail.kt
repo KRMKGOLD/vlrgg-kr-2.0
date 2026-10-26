@@ -7,7 +7,7 @@ data class MatchDetail(
     val status: MatchStatus,
     val timeLabel: String,
     val relativeTimeLabel: String?,
-    val scheduledAt: Instant?,
+    val scheduledAtUtc: Instant?,
     val homeTeam: MatchTeam,
     val awayTeam: MatchTeam,
     val homeScore: Int?,

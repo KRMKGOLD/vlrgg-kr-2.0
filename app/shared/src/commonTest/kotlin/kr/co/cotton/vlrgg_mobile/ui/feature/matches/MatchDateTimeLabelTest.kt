@@ -60,18 +60,18 @@ class MatchDateTimeLabelTest {
     }
 
     @Test
-    fun detailScheduleUsesDeviceTimeZoneWhenScheduledAtExists() {
-        val match = detail(scheduledAt = Instant.parse("2026-10-26T18:00:00Z"))
+    fun detailScheduleUsesDeviceTimeZoneWhenScheduledAtUtcExists() {
+        val match = detail(scheduledAtUtc = Instant.parse("2026-10-26T18:00:00Z"))
 
         assertEquals("2026년 10월 27일 (화) 오전 3:00", match.scheduleLabel(TimeZone.of("Asia/Seoul")))
         assertEquals("2026년 10월 26일 (월) 오후 2:00", match.scheduleLabel(TimeZone.of("America/New_York")))
     }
 
     @Test
-    fun detailScheduleFallsBackToSourceTimeLabelWithoutScheduledAt() {
+    fun detailScheduleFallsBackToSourceTimeLabelWithoutScheduledAtUtc() {
         assertEquals(
             "Tuesday, October 27 3:00 AM KST",
-            detail(scheduledAt = null).scheduleLabel(TimeZone.of("Asia/Seoul")),
+            detail(scheduledAtUtc = null).scheduleLabel(TimeZone.of("Asia/Seoul")),
         )
     }
 
@@ -107,13 +107,13 @@ class MatchDateTimeLabelTest {
     private fun detail(
         status: MatchStatus = MatchStatus.UPCOMING,
         relativeTimeLabel: String? = null,
-        scheduledAt: Instant? = null,
+        scheduledAtUtc: Instant? = null,
     ) = MatchDetail(
         id = "match-1",
         status = status,
         timeLabel = "Tuesday, October 27 3:00 AM KST",
         relativeTimeLabel = relativeTimeLabel,
-        scheduledAt = scheduledAt,
+        scheduledAtUtc = scheduledAtUtc,
         homeTeam = MatchTeam(name = "Home", id = null),
         awayTeam = MatchTeam(name = "Away", id = null),
         homeScore = null,

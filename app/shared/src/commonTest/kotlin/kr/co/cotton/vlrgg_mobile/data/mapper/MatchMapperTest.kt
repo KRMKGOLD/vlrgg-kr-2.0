@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile.data.mapper
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
+import kotlinx.datetime.TimeZone
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDateGroupDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchEventDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDetailResponseDto
@@ -15,8 +16,10 @@ import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchTeamDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchesPageResponseDto
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchListCategory
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.scheduleLabel
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class MatchMapperTest {
@@ -68,22 +71,39 @@ class MatchMapperTest {
     }
 
     @Test
-    fun invalidDetailScheduledAtBecomesNullInsteadOfFailing() {
-        val detail = MatchDetailResponseDto(
-            id = "7001",
-            status = MatchStatusDto.UPCOMING,
-            timeLabel = "Tuesday, October 27 3:00 AM KST",
-            scheduledAt = "2026-10-26 14:00:00",
-            homeTeam = MatchTeamDto(name = "Alpha"),
-            awayTeam = MatchTeamDto(name = "Beta"),
-            event = MatchEventDto(name = "Champions"),
-            maps = emptyList(),
-            headToHead = emptyList(),
-            pastMatches = emptyList(),
+    fun oldServerDetailIgnoresWrongScheduledAtAndShowsTimeLabel() {
+        val detail = detailDto(
+            scheduledAt = "2026-10-26T14:00:00Z",
+            scheduledAtUtc = null,
         ).toDomain()
 
-        assertNull(detail.scheduledAt)
+        assertNull(detail.scheduledAtUtc)
+        val label = detail.scheduleLabel(SEOUL)
+        assertEquals("Tuesday, October 27 3:00 AM KST", label)
+        assertFalse(label.contains("2026년 10월 26일 (월) 오후 11:00"))
+    }
+
+    @Test
+    fun newServerDetailFormatsScheduledAtUtcInDeviceTimeZone() {
+        val detail = detailDto(
+            scheduledAt = "2026-10-26T18:00:00Z",
+            scheduledAtUtc = "2026-10-26T18:00:00Z",
+        ).toDomain()
+
+        assertEquals(Instant.parse("2026-10-26T18:00:00Z"), detail.scheduledAtUtc)
+        assertEquals("2026년 10월 27일 (화) 오전 3:00", detail.scheduleLabel(SEOUL))
+    }
+
+    @Test
+    fun invalidDetailScheduledAtUtcFallsBackToTimeLabelInsteadOfFailing() {
+        val detail = detailDto(
+            scheduledAt = "2026-10-26T18:00:00Z",
+            scheduledAtUtc = "2026-10-26 14:00:00",
+        ).toDomain()
+
+        assertNull(detail.scheduledAtUtc)
         assertEquals("Tuesday, October 27 3:00 AM KST", detail.timeLabel)
+        assertEquals("Tuesday, October 27 3:00 AM KST", detail.scheduleLabel(SEOUL))
     }
 
     @Test
@@ -160,7 +180,8 @@ class MatchMapperTest {
             status = MatchStatusDto.COMPLETED,
             timeLabel = "2026-08-29 17:00",
             relativeTimeLabel = "1h ago",
-            scheduledAt = "2026-08-29T08:00:00Z",
+            scheduledAt = "2026-08-29T06:00:00Z",
+            scheduledAtUtc = "2026-08-29T08:00:00Z",
             homeTeam = MatchTeamDto(
                 name = "Alpha",
                 id = "alpha",
@@ -196,7 +217,7 @@ class MatchMapperTest {
         assertEquals(MatchStatus.COMPLETED, actual.status)
         assertEquals("2026-08-29 17:00", actual.timeLabel)
         assertEquals("1h ago", actual.relativeTimeLabel)
-        assertEquals(Instant.parse("2026-08-29T08:00:00Z"), actual.scheduledAt)
+        assertEquals(Instant.parse("2026-08-29T08:00:00Z"), actual.scheduledAtUtc)
         assertEquals("alpha", actual.homeTeam.id)
         assertEquals(null, actual.awayTeam.id)
         assertEquals("https://owcdn.net/img/alpha.png", actual.homeTeam.imageUrl)
@@ -233,6 +254,23 @@ class MatchMapperTest {
 
         assertEquals(MatchStatus.entries, actualStatuses)
     }
+
+    private fun detailDto(
+        scheduledAt: String?,
+        scheduledAtUtc: String?,
+    ) = MatchDetailResponseDto(
+        id = "7001",
+        status = MatchStatusDto.UPCOMING,
+        timeLabel = "Tuesday, October 27 3:00 AM KST",
+        scheduledAt = scheduledAt,
+        scheduledAtUtc = scheduledAtUtc,
+        homeTeam = MatchTeamDto(name = "Alpha"),
+        awayTeam = MatchTeamDto(name = "Beta"),
+        event = MatchEventDto(name = "Champions"),
+        maps = emptyList(),
+        headToHead = emptyList(),
+        pastMatches = emptyList(),
+    )
 
     private fun group(
         dateLabel: String,
@@ -271,4 +309,8 @@ class MatchMapperTest {
             id = eventId,
         ),
     )
+
+    private companion object {
+        val SEOUL = TimeZone.of("Asia/Seoul")
+    }
 }

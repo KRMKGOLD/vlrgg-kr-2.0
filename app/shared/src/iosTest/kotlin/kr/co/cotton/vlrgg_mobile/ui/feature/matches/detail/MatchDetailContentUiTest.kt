@@ -126,12 +126,12 @@ class MatchDetailContentUiTest {
     }
 
     @Test
-    fun heroFormatsScheduledAtInDeviceTimeZoneAndNeverShowsIsoText() = runComposeUiTest {
+    fun heroFormatsScheduledAtUtcInDeviceTimeZoneAndNeverShowsIsoText() = runComposeUiTest {
         val match = completedMatch.copy(
             status = MatchStatus.UPCOMING,
             timeLabel = "Tuesday, October 27 3:00 AM KST",
             relativeTimeLabel = "1d 1h",
-            scheduledAt = Instant.parse("2026-10-26T18:00:00Z"),
+            scheduledAtUtc = Instant.parse("2026-10-26T18:00:00Z"),
             homeScore = null,
             awayScore = null,
         )
@@ -146,11 +146,11 @@ class MatchDetailContentUiTest {
     }
 
     @Test
-    fun heroFallsBackToSourceTimeLabelWithoutScheduledAtAndHidesCompletedRelativeTime() = runComposeUiTest {
+    fun heroFallsBackToSourceTimeLabelWithoutScheduledAtUtcAndHidesCompletedRelativeTime() = runComposeUiTest {
         val match = completedMatch.copy(
             timeLabel = "Tuesday, October 27 3:00 AM KST",
             relativeTimeLabel = "10h 43m",
-            scheduledAt = null,
+            scheduledAtUtc = null,
         )
         setContent {
             Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match)))
@@ -447,7 +447,7 @@ private val completedMatch = MatchDetail(
     status = MatchStatus.COMPLETED,
     timeLabel = "종료",
     relativeTimeLabel = null,
-    scheduledAt = Instant.parse("2026-08-29T08:00:00Z"),
+    scheduledAtUtc = Instant.parse("2026-08-29T08:00:00Z"),
     homeTeam = HOME_TEAM,
     awayTeam = AWAY_TEAM,
     homeScore = 0,

@@ -373,15 +373,15 @@ GET /api/v1/matches/{matchId}
 | Matches 목록 날짜 헤더 | group `date` | `10월 27일 (화)` | `dateLabel` 원문 (`Tue, October 27, 2026`) |
 | Matches 목록·Event Matches 예정 경기 시각 | summary `time` | `오전 3:00`, `오후 7:05` | `timeLabel` 원문 (`3:00 AM`, `TBD`) |
 | Matches 목록·Event Matches 예정 경기 남은 시간 | `relativeTimeLabel` | `22m` → `22분 후`, `10h 32m` → `10시간 32분 후`, `1d 1h` → `1일 1시간 후` | 표시하지 않음 |
-| Match Detail hero 시각 | `scheduledAt` | 기기 시간대 기준 `2026년 10월 27일 (화) 오전 3:00` | `timeLabel` 원문 |
+| Match Detail hero 시각 | `scheduledAtUtc` | 기기 시간대 기준 `2026년 10월 27일 (화) 오전 3:00` | `timeLabel` 원문 (`scheduledAtUtc`가 없거나 null이거나 파싱 실패) |
 | Match Detail hero 보조 정보 | `relativeTimeLabel`, `seriesFormat` | 예정 경기만 `22분 후 · Bo3`, 그 외 `Bo3` | 값이 있는 항목만 표시 |
 | News 기사 게시 시각 | `publishedAtUtc` | 기기 시간대 기준 `2026년 10월 26일 오전 12:09` | `publishedAt` 원문 (`16 hours ago`) |
 
-- 시간대 변환은 instant(`scheduledAt`, `publishedAtUtc`)에만 적용하고 기기 시스템 시간대를 쓴다. 목록의 `date`·`time`은 이미 vlr.gg 표시 시간대(KST) 값이라 변환하지 않는다.
+- 시간대 변환은 instant(`scheduledAtUtc`, `publishedAtUtc`)에만 적용하고 기기 시스템 시간대를 쓴다. 목록의 `date`·`time`은 이미 vlr.gg 표시 시간대(KST) 값이라 변환하지 않는다.
 - 요일(`월`~`일`)과 `오전`/`오후`는 플랫폼 locale을 쓰지 않고 직접 만든다. Android와 iOS의 결과가 같다. 12시간제이며 00시는 `오전 12:00`, 12시는 `오후 12:00`이다.
 - 남은 시간은 `status = upcoming`인 경기에만 표시한다. 종료 경기 ETA는 시작 후 지난 시간이라 표시하지 않고 스코어를 보여준다. Live·연기·취소·정보 없음 경기는 상태 chip만 표시한다.
 - 남은 시간 원문은 `d`→`h`→`m` 순서의 1~3개 토큰(`22m`, `3h`, `2d`, `10h 32m`, `1d 1h`, `1d 2h 3m`)만 인식한다. 대문자, 순서가 다른 단위, `ago`·`LIVE` 같은 문구, 이미 번역된 문자열처럼 형식을 알 수 없는 원문은 표시하지 않는다.
-- Match Detail은 `scheduledAt` ISO 원문을 어떤 경우에도 표시하지 않는다.
+- Match Detail은 `scheduledAt`을 표시 로직에 쓰지 않는다. 구서버가 형식만 정상이고 값이 4~5시간 틀린 `scheduledAt`을 보내기 때문이다. ISO 원문(`scheduledAt`·`scheduledAtUtc`)은 어떤 경우에도 표시하지 않는다.
 - instant를 기기 시간대로 바꾸려면 stdlib에 없는 시간대 정보가 필요해 `kotlinx-datetime`을 사용한다. iOS에는 Material3 `1.11.0-alpha07`이 이미 전이 의존성으로 가져오는 `kotlinx-datetime` 0.7.1에 버전을 맞춘 직접 선언이고, Android에는 `kotlinx-datetime-jvm` 0.7.1 artifact가 새로 추가된다. 버전 상승은 없다.
 
 ## Upstream 및 parser 메모

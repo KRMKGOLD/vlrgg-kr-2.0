@@ -192,7 +192,7 @@ class MatchDetailNavigationRuntimeUiTest {
             status = MatchStatus.COMPLETED,
             timeLabel = "18:00",
             relativeTimeLabel = null,
-            scheduledAt = null,
+            scheduledAtUtc = null,
             homeTeam = MatchTeam("Alpha", HOME_TEAM_ID),
             awayTeam = MatchTeam("Beta", AWAY_TEAM_ID),
             homeScore = 2,

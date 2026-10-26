@@ -85,6 +85,7 @@ class RemoteMatchDataSourceImplTest {
             assertEquals("7000", response.id)
             assertEquals(MatchStatusDto.COMPLETED, response.status)
             assertEquals("2026-08-29T08:00:00Z", response.scheduledAt)
+            assertEquals("2026-08-29T08:00:00Z", response.scheduledAtUtc)
             assertEquals("https://owcdn.net/img/alpha.png", response.homeTeam.imageUrl)
             assertEquals("https://owcdn.net/img/beta.png", response.awayTeam.imageUrl)
             assertEquals(0, response.homeScore)
@@ -112,6 +113,7 @@ class RemoteMatchDataSourceImplTest {
 
             assertEquals(null, response.relativeTimeLabel)
             assertEquals(null, response.scheduledAt)
+            assertEquals(null, response.scheduledAtUtc)
             assertEquals(null, response.homeTeam.imageUrl)
             assertEquals(null, response.awayTeam.imageUrl)
             assertEquals(null, response.homeScore)
@@ -230,6 +232,7 @@ class RemoteMatchDataSourceImplTest {
             {
               "id": "7000", "status": "completed", "timeLabel": "2026-08-29 17:00",
               "relativeTimeLabel": "1h ago", "scheduledAt": "2026-08-29T08:00:00Z",
+              "scheduledAtUtc": "2026-08-29T08:00:00Z",
               "homeTeam": { "name": "Alpha", "id": "alpha", "imageUrl": "https://owcdn.net/img/alpha.png" },
               "awayTeam": { "name": "Beta", "id": null, "imageUrl": "https://owcdn.net/img/beta.png" },
               "homeScore": 0, "awayScore": null,

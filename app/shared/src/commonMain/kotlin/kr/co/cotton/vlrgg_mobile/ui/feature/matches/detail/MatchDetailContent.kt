@@ -333,9 +333,12 @@ private fun MatchHero(
     }
 }
 
-/** `scheduledAt`이 있으면 [timeZone] 기준으로 포맷하고, 없을 때만 source label을 쓴다. ISO 원문은 표시하지 않는다. */
+/**
+ * `scheduledAtUtc`가 있으면 [timeZone] 기준으로 포맷하고, 없을 때만 source label을 쓴다. ISO 원문은 표시하지 않는다.
+ * 구서버의 `scheduledAt`은 형식만 정상이고 값이 틀려서 사용하지 않는다.
+ */
 internal fun MatchDetail.scheduleLabel(timeZone: TimeZone): String =
-    scheduledAt?.let { scheduledAt -> KoreanDateTimeFormat.dateTimeWithWeekday(scheduledAt, timeZone) } ?: timeLabel
+    scheduledAtUtc?.let { scheduledAtUtc -> KoreanDateTimeFormat.dateTimeWithWeekday(scheduledAtUtc, timeZone) } ?: timeLabel
 
 /** 남은 시간은 예정 경기에만 표시한다. */
 internal fun MatchDetail.remainingTimeLabel(): String? =
