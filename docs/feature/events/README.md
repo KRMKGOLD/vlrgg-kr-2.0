@@ -108,7 +108,7 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 - 스코어 또는 예정 상태
 - Match를 선택하는 데 필요한 설명 정보
 
-Match 표시에 관한 세부 규칙은 Match 기능 문서가 소유하며 Event Detail은 같은 요약 표현을 재사용한다.
+Match 표시에 관한 세부 규칙은 Match 기능 문서가 소유하며 Event Detail은 같은 요약 표현을 재사용한다. 경기 시각(`time`)과 남은 시간 표시는 [Matches 앱 표시 규칙](../matches/README.md#앱-표시-규칙)을 따르며, 응답에 날짜 그룹이 없어 날짜 헤더는 표시하지 않는다.
 Event 문맥의 `stage`는 wire field가 아닌 UI 문맥명이며 `matches.items[].event.series`를 표시한다. `event.series`가 `null`이면 이 보조 문맥은 생략한다. 현재 API 응답의 Team ID가 없으므로 Team cell은 비클릭 콘텐츠이며 card 전체만 Match Detail을 연다.
 
 ### News tab

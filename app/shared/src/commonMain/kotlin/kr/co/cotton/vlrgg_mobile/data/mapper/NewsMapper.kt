@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.data.mapper
 
+import kotlin.time.Instant
 import kr.co.cotton.vlrgg_mobile.data.remote.model.news.NewsArticleBlockDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.news.NewsArticleInlineDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.news.NewsArticleResponseDto
@@ -28,6 +29,7 @@ internal fun NewsArticleResponseDto.toDomain(): NewsArticle {
         title = title,
         author = author,
         publishedAt = publishedAt,
+        publishedAtUtc = publishedAtUtc?.let(Instant::parseOrNull),
         blocks = blocks.map(NewsArticleBlockDto::toDomain),
     )
 }

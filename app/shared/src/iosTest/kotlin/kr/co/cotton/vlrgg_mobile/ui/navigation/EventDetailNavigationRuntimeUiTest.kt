@@ -204,6 +204,7 @@ class EventDetailNavigationRuntimeUiTest {
                         homeScore = null,
                         awayScore = null,
                         event = MatchEvent("Masters Seoul", "Playoffs", eventId),
+                        time = null,
                     ),
                 ),
             )

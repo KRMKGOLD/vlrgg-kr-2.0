@@ -40,6 +40,8 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Instant
+import kotlinx.datetime.TimeZone
 
 @OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class MatchDetailContentUiTest {
@@ -121,6 +123,42 @@ class MatchDetailContentUiTest {
         onNodeWithText(EVENT.name).assertDoesNotExist()
         onNodeWithText("Maps").assertExists()
         onNodeWithText("Head to Head").assertExists()
+    }
+
+    @Test
+    fun heroFormatsScheduledAtInDeviceTimeZoneAndNeverShowsIsoText() = runComposeUiTest {
+        val match = completedMatch.copy(
+            status = MatchStatus.UPCOMING,
+            timeLabel = "Tuesday, October 27 3:00 AM KST",
+            relativeTimeLabel = "1d 1h",
+            scheduledAt = Instant.parse("2026-10-26T18:00:00Z"),
+            homeScore = null,
+            awayScore = null,
+        )
+        setContent {
+            Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match)))
+        }
+
+        onNodeWithText(match.scheduleLabel(TimeZone.currentSystemDefault())).assertIsDisplayed()
+        onNodeWithText("1일 1시간 후 · Bo3").assertIsDisplayed()
+        onAllNodesWithText("2026-10-26T", substring = true).assertCountEquals(0)
+        onAllNodesWithText("Tuesday, October 27", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun heroFallsBackToSourceTimeLabelWithoutScheduledAtAndHidesCompletedRelativeTime() = runComposeUiTest {
+        val match = completedMatch.copy(
+            timeLabel = "Tuesday, October 27 3:00 AM KST",
+            relativeTimeLabel = "10h 43m",
+            scheduledAt = null,
+        )
+        setContent {
+            Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match)))
+        }
+
+        onNodeWithText("Tuesday, October 27 3:00 AM KST").assertIsDisplayed()
+        onNodeWithText("Bo3").assertIsDisplayed()
+        onAllNodesWithText("10h 43m", substring = true).assertCountEquals(0)
     }
 
     @Test
@@ -409,7 +447,7 @@ private val completedMatch = MatchDetail(
     status = MatchStatus.COMPLETED,
     timeLabel = "종료",
     relativeTimeLabel = null,
-    scheduledAt = "2026-08-29 17:00",
+    scheduledAt = Instant.parse("2026-08-29T08:00:00Z"),
     homeTeam = HOME_TEAM,
     awayTeam = AWAY_TEAM,
     homeScore = 0,

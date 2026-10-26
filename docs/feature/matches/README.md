@@ -99,7 +99,7 @@ Match Detail과 관련 상세 화면은 bottom-navigation 목적지가 아니다
 3. 날짜 구분
 4. Match row/card
    - Live 또는 예정/완료 상태
-   - 경기 시각 또는 완료 시각
+   - 경기 시각 또는 완료 시각 (형식과 fallback은 [앱 표시 규칙](#앱-표시-규칙))
    - 양 팀 이름 (목록 응답의 `team.imageUrl`은 source에 없어 null이며 목록 card는 팀 이름만 표시)
    - 예정 경기의 남은 시간 또는 완료 경기의 스코어
    - Event 이름
@@ -358,6 +358,26 @@ GET /api/v1/matches/{matchId}
 - 앱은 새 field가 없거나 null인 응답에서도 동작해야 한다. 현재 production 서버는 이 field를 내려주지 않는다. 새 field가 없으면 기존 label을 그대로 표시한다.
 - 앱 JSON 설정은 `ignoreUnknownKeys = true`라서 `0.1.0(2)`는 추가 field를 무시한다.
 - 새 서버를 배포하면 `0.1.0(2)`가 원문으로 표시하는 Match Detail `scheduledAt`이 서머타임 기간 4시간 늦어진다. 이것은 실제 시작 시각으로 바로잡히는 변화다.
+
+#### 앱 표시 규칙
+
+2026-10-26 날짜·시간 표시 수정(앱 2/2)에서 정한 규칙이다. 표시 문자열은 UI layer의 `ui/format/KoreanDateTimeFormat`에서만 만든다. Domain Model에는 파싱한 값(`LocalDate`, `LocalTime`, `Instant`)만 두고, 파싱에 실패한 값은 null로 둔다.
+
+| 화면 | 사용 값 | 표시 형식 | 값이 없을 때 |
+|---|---|---|---|
+| Matches 목록 날짜 헤더 | group `date` | `10월 27일 (화)` | `dateLabel` 원문 (`Tue, October 27, 2026`) |
+| Matches 목록·Event Matches 예정 경기 시각 | summary `time` | `오전 3:00`, `오후 7:05` | `timeLabel` 원문 (`3:00 AM`, `TBD`) |
+| Matches 목록·Event Matches 예정 경기 남은 시간 | `relativeTimeLabel` | `22m` → `22분 후`, `10h 32m` → `10시간 32분 후`, `1d 1h` → `1일 1시간 후` | 표시하지 않음 |
+| Match Detail hero 시각 | `scheduledAt` | 기기 시간대 기준 `2026년 10월 27일 (화) 오전 3:00` | `timeLabel` 원문 |
+| Match Detail hero 보조 정보 | `relativeTimeLabel`, `seriesFormat` | 예정 경기만 `22분 후 · Bo3`, 그 외 `Bo3` | 값이 있는 항목만 표시 |
+| News 기사 게시 시각 | `publishedAtUtc` | 기기 시간대 기준 `2026년 10월 26일 오전 12:09` | `publishedAt` 원문 (`16 hours ago`) |
+
+- 시간대 변환은 instant(`scheduledAt`, `publishedAtUtc`)에만 적용하고 기기 시스템 시간대를 쓴다. 목록의 `date`·`time`은 이미 vlr.gg 표시 시간대(KST) 값이라 변환하지 않는다.
+- 요일(`월`~`일`)과 `오전`/`오후`는 플랫폼 locale을 쓰지 않고 직접 만든다. Android와 iOS의 결과가 같다. 12시간제이며 00시는 `오전 12:00`, 12시는 `오후 12:00`이다.
+- 남은 시간은 `status = upcoming`인 경기에만 표시한다. 종료 경기 ETA는 시작 후 지난 시간이라 표시하지 않고 스코어를 보여준다. Live·연기·취소·정보 없음 경기는 상태 chip만 표시한다.
+- 남은 시간 원문은 `d`→`h`→`m` 순서의 1~3개 토큰(`22m`, `3h`, `2d`, `10h 32m`, `1d 1h`, `1d 2h 3m`)만 인식한다. 대문자, 순서가 다른 단위, `ago`·`LIVE` 같은 문구, 이미 번역된 문자열처럼 형식을 알 수 없는 원문은 표시하지 않는다.
+- Match Detail은 `scheduledAt` ISO 원문을 어떤 경우에도 표시하지 않는다.
+- instant를 기기 시간대로 바꾸려면 stdlib에 없는 시간대 정보가 필요해 `kotlinx-datetime`을 사용한다. 버전은 Material3 `1.11.0-alpha07`이 이미 전이 의존성으로 가져오는 `0.7.1`에 맞춰, 새 artifact나 버전 상승 없이 직접 선언만 추가했다.
 
 ## Upstream 및 parser 메모
 

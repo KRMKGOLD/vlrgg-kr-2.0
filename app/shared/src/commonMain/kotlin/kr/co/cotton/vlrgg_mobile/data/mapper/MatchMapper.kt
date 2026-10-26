@@ -1,5 +1,8 @@
 package kr.co.cotton.vlrgg_mobile.data.mapper
 
+import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDateGroupDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDetailResponseDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchEventDto
@@ -30,12 +33,14 @@ internal fun MatchesPageResponseDto.toDomain(): MatchPage = MatchPage(
 private fun MatchDateGroupDto.toDomain(): MatchDateGroup = MatchDateGroup(
     dateLabel = dateLabel,
     matches = matches.map(MatchSummaryDto::toDomain),
+    date = date?.let(LocalDate.Formats.ISO::parseOrNull),
 )
 
 internal fun MatchSummaryDto.toDomain(): MatchSummary = MatchSummary(
     id = id,
     status = status.toDomain(),
     timeLabel = timeLabel,
+    time = time?.let(LocalTime.Formats.ISO::parseOrNull),
     relativeTimeLabel = relativeTimeLabel,
     homeTeam = homeTeam.toDomain(),
     awayTeam = awayTeam.toDomain(),
@@ -49,7 +54,7 @@ internal fun MatchDetailResponseDto.toDomain(): MatchDetail = MatchDetail(
     status = status.toDomain(),
     timeLabel = timeLabel,
     relativeTimeLabel = relativeTimeLabel,
-    scheduledAt = scheduledAt,
+    scheduledAt = scheduledAt?.let(Instant::parseOrNull),
     homeTeam = homeTeam.toDomain(),
     awayTeam = awayTeam.toDomain(),
     homeScore = homeScore,

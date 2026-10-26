@@ -265,6 +265,7 @@ class NewsDetailViewModelTest {
         author = "Author",
         publishedAt = "2026-08-10",
         blocks = blocks,
+        publishedAtUtc = null,
     )
 
     private data class ArticleRequest(

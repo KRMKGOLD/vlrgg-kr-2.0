@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail
 
+import kotlin.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -194,7 +195,7 @@ class MatchDetailViewModelTest {
 
     private fun matchDetail(
         relativeTimeLabel: String? = "IN 2 HOURS",
-        scheduledAt: String? = "2026-08-30T10:00:00Z",
+        scheduledAt: Instant? = Instant.parse("2026-08-30T10:00:00Z"),
         homeScore: Int? = 2,
         awayScore: Int? = 1,
         description: String? = "Upper final",

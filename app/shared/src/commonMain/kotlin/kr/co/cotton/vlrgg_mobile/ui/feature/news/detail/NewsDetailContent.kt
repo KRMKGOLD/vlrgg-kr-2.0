@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import kotlinx.datetime.TimeZone
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticle
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleBlock
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleInline
@@ -47,6 +50,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsLinkKind
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -175,11 +179,16 @@ private fun NewsArticleContent(
     }
 }
 
+/** `publishedAtUtc`가 있으면 [timeZone] 기준으로 포맷하고, 없을 때만 source text를 쓴다. */
+internal fun NewsArticle.publishedLabel(timeZone: TimeZone): String =
+    publishedAtUtc?.let { publishedAt -> KoreanDateTimeFormat.dateTime(publishedAt, timeZone) } ?: publishedAt
+
 @Composable
 private fun NewsArticleHeader(
     article: NewsArticle,
     showDivider: Boolean = true,
 ) {
+    val timeZone = remember { TimeZone.currentSystemDefault() }
     Column(
         modifier = Modifier.padding(
             start = VlrDimensions.Space4,
@@ -193,8 +202,9 @@ private fun NewsArticleHeader(
             color = VlrTheme.colors.textPrimary,
         )
         Spacer(Modifier.height(VlrDimensions.Space3))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        // 게시 시각이 길어지거나 font scale이 커지면 다음 줄로 넘겨 잘리지 않게 한다.
+        FlowRow(
+            itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = "작성자: ${article.author}",
@@ -207,7 +217,7 @@ private fun NewsArticleHeader(
                 color = VlrTheme.colors.outline,
             )
             Text(
-                text = article.publishedAt,
+                text = article.publishedLabel(timeZone),
                 style = VlrTheme.typography.labelSmall,
                 color = VlrTheme.colors.textSecondary,
             )
@@ -654,6 +664,7 @@ private val previewArticle = NewsArticle(
     title = "Sentinels, TenZ의 맹활약에 힘입어 마스터스 결승 진출 확정",
     author = "이스포츠 에디터",
     publishedAt = "3시간 전",
+    publishedAtUtc = null,
     blocks = listOf(
         NewsArticleBlock.Paragraph(
             content = listOf(

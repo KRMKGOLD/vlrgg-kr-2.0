@@ -13,6 +13,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.time.Instant
 
 class NewsMapperTest {
 
@@ -162,6 +164,17 @@ class NewsMapperTest {
     }
 
     @Test
+    fun articlePublishedAtUtcIsParsedAndInvalidOrMissingValuesBecomeNull() {
+        assertEquals(
+            Instant.parse("2026-10-25T15:09:14Z"),
+            articleResponse(publishedAtUtc = "2026-10-25T15:09:14Z").toDomain().publishedAtUtc,
+        )
+        assertNull(articleResponse(publishedAtUtc = "16 hours ago").toDomain().publishedAtUtc)
+        assertNull(articleResponse(publishedAtUtc = null).toDomain().publishedAtUtc)
+        assertEquals("16 hours ago", articleResponse(publishedAt = "16 hours ago").toDomain().publishedAt)
+    }
+
+    @Test
     fun malformedArticleReferenceIsRejected() {
         assertFailsWith<IllegalArgumentException> {
             articleResponse(reference = "/champions-run").toDomain()
@@ -171,11 +184,14 @@ class NewsMapperTest {
     private fun articleResponse(
         reference: String = "101/champions-run",
         blocks: List<NewsArticleBlockDto> = emptyList(),
+        publishedAt: String = "2026-08-09T12:00:00Z",
+        publishedAtUtc: String? = null,
     ) = NewsArticleResponseDto(
         reference = reference,
         title = "Champions run",
         author = "Reporter",
-        publishedAt = "2026-08-09T12:00:00Z",
+        publishedAt = publishedAt,
+        publishedAtUtc = publishedAtUtc,
         blocks = blocks,
     )
 }

@@ -55,7 +55,6 @@ internal sealed interface MatchContentItemLeading {
     data class Status(
         val status: StatusChipStatus,
         val label: String,
-        val relativeTimeLabel: String?,
     ) : MatchContentItemLeading
 }
 
@@ -129,12 +128,7 @@ private fun MatchContentItemMetadata(item: MatchContentItemModel) {
                     }
                 }
 
-                is MatchContentItemLeading.Status -> {
-                    StatusChip(status = leading.status, label = leading.label)
-                    leading.relativeTimeLabel?.let { relativeTimeLabel ->
-                        Text(relativeTimeLabel, style = VlrTheme.typography.labelSmall, color = VlrTheme.colors.textSecondary)
-                    }
-                }
+                is MatchContentItemLeading.Status -> StatusChip(status = leading.status, label = leading.label)
 
                 null -> Unit
             }

@@ -44,6 +44,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchesSkeleton
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -180,13 +181,16 @@ fun MatchesContent(
     }
 }
 
+/** 구조화한 날짜가 있으면 한국어로 표시하고, 없으면 source label을 그대로 쓴다. */
+internal fun MatchDateGroup.displayDateLabel(): String = date?.let(KoreanDateTimeFormat::monthDay) ?: dateLabel
+
 private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
     group: MatchDateGroup,
     onMatchClick: (String) -> Unit,
 ) {
     item(key = "date-${group.dateLabel}") {
         Text(
-            text = group.dateLabel,
+            text = group.displayDateLabel(),
             modifier = Modifier.padding(
                 start = VlrDimensions.Space4,
                 end = VlrDimensions.Space4,

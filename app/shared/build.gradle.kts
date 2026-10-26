@@ -64,6 +64,7 @@ kotlin {
             implementation(libs.navigation3.ui)
             implementation(libs.lifecycle.viewmodel.navigation3)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
             implementation(libs.aboutlibraries.core)
             implementation(libs.aboutlibraries.composeM3)
             api(libs.androidx.datastore.core)

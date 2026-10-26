@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import kotlinx.datetime.TimeZone
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchMap
@@ -55,6 +56,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItem
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemModel
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemScoreStyle
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -255,6 +257,7 @@ private fun MatchHero(
     onEventClick: (String) -> Unit,
     onTeamClick: (String) -> Unit,
 ) {
+    val timeZone = remember { TimeZone.currentSystemDefault() }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -268,13 +271,11 @@ private fun MatchHero(
         )
         EventIdentity(match.event, onEventClick)
         Text(
-            text = match.timeLabel,
+            text = match.scheduleLabel(timeZone),
             style = VlrTheme.typography.bodyStrong,
             color = VlrTheme.colors.textPrimary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
         )
-        listOfNotNull(match.relativeTimeLabel, match.scheduledAt, match.seriesFormat)
+        listOfNotNull(match.remainingTimeLabel(), match.seriesFormat)
             .filter(String::isNotBlank)
             .takeIf { it.isNotEmpty() }
             ?.let { metadata ->
@@ -331,6 +332,14 @@ private fun MatchHero(
         }
     }
 }
+
+/** `scheduledAt`이 있으면 [timeZone] 기준으로 포맷하고, 없을 때만 source label을 쓴다. ISO 원문은 표시하지 않는다. */
+internal fun MatchDetail.scheduleLabel(timeZone: TimeZone): String =
+    scheduledAt?.let { scheduledAt -> KoreanDateTimeFormat.dateTimeWithWeekday(scheduledAt, timeZone) } ?: timeLabel
+
+/** 남은 시간은 예정 경기에만 표시한다. */
+internal fun MatchDetail.remainingTimeLabel(): String? =
+    relativeTimeLabel?.takeIf { status == MatchStatus.UPCOMING }?.let(KoreanDateTimeFormat::remainingTime)
 
 @Composable
 private fun EventIdentity(event: MatchEvent, onEventClick: (String) -> Unit) {

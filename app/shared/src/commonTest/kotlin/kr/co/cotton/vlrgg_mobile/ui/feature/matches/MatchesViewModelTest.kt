@@ -183,8 +183,8 @@ class MatchesViewModelTest {
                 successPage(
                     page = 2,
                     groups = listOf(
-                        MatchDateGroup("TODAY", listOf(duplicate, second)),
-                        MatchDateGroup("TOMORROW", listOf(first, third)),
+                        MatchDateGroup("TODAY", listOf(duplicate, second), date = null),
+                        MatchDateGroup("TOMORROW", listOf(first, third), date = null),
                     ),
                 ),
             ),
@@ -199,8 +199,8 @@ class MatchesViewModelTest {
         assertEquals(listOf(1, 2), repository.requestedUpcomingPages)
         assertEquals(
             listOf(
-                MatchDateGroup("TODAY", listOf(first, second)),
-                MatchDateGroup("TOMORROW", listOf(third)),
+                MatchDateGroup("TODAY", listOf(first, second), date = null),
+                MatchDateGroup("TOMORROW", listOf(third), date = null),
             ),
             viewModel.uiState.value.upcomingLive.contentGroups(),
         )
@@ -756,6 +756,7 @@ class MatchesViewModelTest {
     ) = MatchDateGroup(
         dateLabel = dateLabel,
         matches = matches.toList(),
+        date = null,
     )
 
     private fun matchSummary(
@@ -770,6 +771,7 @@ class MatchesViewModelTest {
         homeScore = null,
         awayScore = null,
         event = MatchEvent(name = "VCT", series = "Regular Season", id = null),
+        time = null,
     )
 
     private fun MatchesFeedUiState.contentGroups(): List<MatchDateGroup> =

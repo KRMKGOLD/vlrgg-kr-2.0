@@ -457,6 +457,7 @@ class TeamDetailNavigationRuntimeUiTest {
                             ),
                         ),
                     ),
+                    publishedAtUtc = null,
                 ),
             )
     }

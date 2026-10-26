@@ -39,6 +39,8 @@ class RemoteMatchDataSourceImplTest {
             assertEquals(MatchStatusDto.LIVE, response.groups.single().matches.single().status)
             assertEquals(null, response.groups.single().matches.single().homeTeam.imageUrl)
             assertEquals(null, response.groups.single().matches.single().awayTeam.imageUrl)
+            assertEquals(null, response.groups.single().date)
+            assertEquals(null, response.groups.single().matches.single().time)
         } finally {
             client.close()
         }
@@ -58,6 +60,8 @@ class RemoteMatchDataSourceImplTest {
             val response = RemoteMatchDataSourceImpl(client).getResults(page = 3)
 
             assertEquals(MatchListCategoryDto.RESULTS, response.category)
+            assertEquals("2026-08-19", response.groups.single().date)
+            assertEquals("10:00", response.groups.single().matches.single().time)
             assertEquals(3, response.page)
             assertEquals(13, response.groups.single().matches.single().homeScore)
         } finally {
@@ -202,11 +206,13 @@ class RemoteMatchDataSourceImplTest {
               "groups": [
                 {
                   "dateLabel": "WED, AUGUST 19, 2026",
+                  "date": "2026-08-19",
                   "matches": [
                     {
                       "id": "3901",
                       "status": "completed",
                       "timeLabel": "10:00 AM",
+                      "time": "10:00",
                       "homeTeam": { "name": "Alpha", "id": "alpha" },
                       "awayTeam": { "name": "Beta", "id": "beta" },
                       "homeScore": 13,

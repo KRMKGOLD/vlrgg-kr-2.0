@@ -1,5 +1,8 @@
 package kr.co.cotton.vlrgg_mobile.data.mapper
 
+import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDateGroupDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchEventDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.matches.MatchDetailResponseDto
@@ -14,6 +17,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchListCategory
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class MatchMapperTest {
 
@@ -35,6 +39,51 @@ class MatchMapperTest {
         assertEquals(listOf("TODAY", "TOMORROW"), page.groups.map { it.dateLabel })
         assertEquals(listOf("4001", "4002"), page.groups[0].matches.map { it.id })
         assertEquals(listOf("4003"), page.groups[1].matches.map { it.id })
+    }
+
+    @Test
+    fun structuredDateAndTimeAreParsedAndInvalidOrMissingValuesBecomeNull() {
+        val page = MatchesPageResponseDto(
+            category = MatchListCategoryDto.UPCOMING,
+            page = 1,
+            groups = listOf(
+                group(
+                    dateLabel = "Tue, October 27, 2026",
+                    matchIds = listOf("4001"),
+                    date = "2026-10-27",
+                    time = "03:00",
+                ),
+                group(dateLabel = "Wed, October 28, 2026", matchIds = listOf("4002"), date = "October 28", time = "TBD"),
+                group(dateLabel = "TBD", matchIds = listOf("4003")),
+            ),
+        ).toDomain()
+
+        assertEquals(LocalDate(2026, 10, 27), page.groups[0].date)
+        assertEquals(LocalTime(3, 0), page.groups[0].matches.single().time)
+        assertEquals("10:00 AM", page.groups[0].matches.single().timeLabel)
+        assertNull(page.groups[1].date)
+        assertNull(page.groups[1].matches.single().time)
+        assertNull(page.groups[2].date)
+        assertNull(page.groups[2].matches.single().time)
+    }
+
+    @Test
+    fun invalidDetailScheduledAtBecomesNullInsteadOfFailing() {
+        val detail = MatchDetailResponseDto(
+            id = "7001",
+            status = MatchStatusDto.UPCOMING,
+            timeLabel = "Tuesday, October 27 3:00 AM KST",
+            scheduledAt = "2026-10-26 14:00:00",
+            homeTeam = MatchTeamDto(name = "Alpha"),
+            awayTeam = MatchTeamDto(name = "Beta"),
+            event = MatchEventDto(name = "Champions"),
+            maps = emptyList(),
+            headToHead = emptyList(),
+            pastMatches = emptyList(),
+        ).toDomain()
+
+        assertNull(detail.scheduledAt)
+        assertEquals("Tuesday, October 27 3:00 AM KST", detail.timeLabel)
     }
 
     @Test
@@ -147,7 +196,7 @@ class MatchMapperTest {
         assertEquals(MatchStatus.COMPLETED, actual.status)
         assertEquals("2026-08-29 17:00", actual.timeLabel)
         assertEquals("1h ago", actual.relativeTimeLabel)
-        assertEquals("2026-08-29T08:00:00Z", actual.scheduledAt)
+        assertEquals(Instant.parse("2026-08-29T08:00:00Z"), actual.scheduledAt)
         assertEquals("alpha", actual.homeTeam.id)
         assertEquals(null, actual.awayTeam.id)
         assertEquals("https://owcdn.net/img/alpha.png", actual.homeTeam.imageUrl)
@@ -188,9 +237,12 @@ class MatchMapperTest {
     private fun group(
         dateLabel: String,
         matchIds: List<String>,
+        date: String? = null,
+        time: String? = null,
     ) = MatchDateGroupDto(
         dateLabel = dateLabel,
-        matches = matchIds.map { id -> match(id = id) },
+        matches = matchIds.map { id -> match(id = id, time = time) },
+        date = date,
     )
 
     private fun match(
@@ -202,10 +254,12 @@ class MatchMapperTest {
         awayScore: Int? = 9,
         eventSeries: String? = "Playoffs",
         eventId: String? = "champions",
+        time: String? = null,
     ) = MatchSummaryDto(
         id = id,
         status = status,
         timeLabel = "10:00 AM",
+        time = time,
         relativeTimeLabel = relativeTimeLabel,
         homeTeam = MatchTeamDto(name = "Alpha", id = "alpha"),
         awayTeam = MatchTeamDto(name = "Beta", id = awayTeamId),

@@ -38,6 +38,8 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.matchScoreTag
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.toMatchContentItem
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlin.test.assertEquals
 
 @OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
@@ -93,7 +95,7 @@ class MatchesContentUiTest {
                             selectedTab = MatchesTab.RESULTS,
                             results = MatchesFeedUiState(
                                 contentState = MatchesFeedContentState.Content(
-                                    listOf(MatchDateGroup("YESTERDAY", listOf(completedMatch))),
+                                    listOf(MatchDateGroup("YESTERDAY", listOf(completedMatch), date = null)),
                                 ),
                             ),
                         ),
@@ -174,7 +176,7 @@ class MatchesContentUiTest {
 
         onNodeWithText("TODAY, AUG 23").assertIsDisplayed()
         onNodeWithText("LIVE").assertIsDisplayed()
-        onNodeWithText("IN 2 HOURS").assertIsDisplayed()
+        onNodeWithText("IN 2 HOURS").assertDoesNotExist()
         onNodeWithText("Paper Rex").assertIsDisplayed()
         onNodeWithText("Gen.G").assertIsDisplayed()
         onNodeWithText("Valorant Champions 2026").assertIsDisplayed()
@@ -197,6 +199,9 @@ class MatchesContentUiTest {
             val longAwayName = "Pacific Championship 공식 초장문 어웨이 팀 이름"
             val longEventName = "2026 발로란트 챔피언스 투어 퍼시픽 공식 국제 대회 결승전"
             val longMatch = upcomingMatch.copy(
+                status = MatchStatus.UPCOMING,
+                time = LocalTime(15, 0),
+                relativeTimeLabel = "1d 23h",
                 homeTeam = upcomingMatch.homeTeam.copy(name = longHomeName),
                 awayTeam = upcomingMatch.awayTeam.copy(name = longAwayName),
                 event = upcomingMatch.event.copy(name = longEventName),
@@ -211,11 +216,75 @@ class MatchesContentUiTest {
             onNodeWithText(longHomeName).assertExists()
             onNodeWithText(longAwayName).assertExists()
             onNodeWithText(longEventName).assertExists()
-            onNodeWithText("LIVE").assertExists()
-            onNodeWithText(longMatch.relativeTimeLabel!!).assertExists()
+            onNodeWithText("오후 3:00").assertExists()
+            onNodeWithText("1일 23시간 후").assertExists()
             onNodeWithContentDescription("경기 상세: $longHomeName 대 $longAwayName")
                 .assertIsDisplayed()
         }
+
+    @Test
+    fun structuredDateAndTimeAreShownInKoreanAndRelativeTimeOnlyForUpcomingMatches() = runComposeUiTest {
+        val scheduledMatch = upcomingMatch.copy(
+            id = "match-scheduled-606",
+            status = MatchStatus.UPCOMING,
+            timeLabel = "3:00 AM",
+            time = LocalTime(3, 0),
+            relativeTimeLabel = "10h 32m",
+        )
+        val finishedMatch = completedMatch.copy(relativeTimeLabel = "10h 43m")
+        setContent {
+            MatchesContentFixture(
+                uiState = MatchesUiState(
+                    upcomingLive = MatchesFeedUiState(
+                        contentState = MatchesFeedContentState.Content(
+                            listOf(
+                                MatchDateGroup(
+                                    dateLabel = "Tue, October 27, 2026",
+                                    matches = listOf(scheduledMatch, finishedMatch),
+                                    date = LocalDate(2026, 10, 27),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithText("10월 27일 (화)").assertIsDisplayed()
+        onNodeWithText("Tue, October 27, 2026").assertDoesNotExist()
+        onNodeWithText("오전 3:00").assertIsDisplayed()
+        onNodeWithText("3:00 AM").assertDoesNotExist()
+        onNodeWithText("10시간 32분 후").assertIsDisplayed()
+        onNodeWithText("10h 32m").assertDoesNotExist()
+        onNodeWithText("종료").assertIsDisplayed()
+        onNodeWithText("10h 43m").assertDoesNotExist()
+        onNodeWithText("10시간 43분 후").assertDoesNotExist()
+    }
+
+    @Test
+    fun sourceDateAndTimeLabelsRemainWhenStructuredValuesAreMissing() = runComposeUiTest {
+        val scheduledMatch = upcomingMatch.copy(
+            status = MatchStatus.UPCOMING,
+            timeLabel = "3:00 AM",
+            time = null,
+            relativeTimeLabel = "IN 2 HOURS",
+        )
+        setContent {
+            MatchesContentFixture(
+                uiState = MatchesUiState(
+                    upcomingLive = MatchesFeedUiState(
+                        contentState = MatchesFeedContentState.Content(
+                            listOf(MatchDateGroup("Tue, October 27, 2026", listOf(scheduledMatch), date = null)),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithText("Tue, October 27, 2026").assertIsDisplayed()
+        onNodeWithText("3:00 AM").assertIsDisplayed()
+        onNodeWithText("IN 2 HOURS").assertDoesNotExist()
+    }
 
     @Test
     fun completedCardShowsScoreInsteadOfScheduledMarker() = runComposeUiTest {
@@ -228,7 +297,7 @@ class MatchesContentUiTest {
                     ),
                     results = MatchesFeedUiState(
                         contentState = MatchesFeedContentState.Content(
-                            listOf(MatchDateGroup("YESTERDAY", listOf(completedMatch))),
+                            listOf(MatchDateGroup("YESTERDAY", listOf(completedMatch), date = null)),
                         ),
                     ),
                 ),
@@ -250,7 +319,7 @@ class MatchesContentUiTest {
                     selectedTab = MatchesTab.RESULTS,
                     results = MatchesFeedUiState(
                         contentState = MatchesFeedContentState.Content(
-                            listOf(MatchDateGroup("YESTERDAY", listOf(completedMatch.copy(homeScore = null, awayScore = null)))),
+                            listOf(MatchDateGroup("YESTERDAY", listOf(completedMatch.copy(homeScore = null, awayScore = null)), date = null)),
                         ),
                     ),
                 ),
@@ -311,7 +380,7 @@ class MatchesContentUiTest {
                 uiState = contentState(upcomingMatch).copy(
                     upcomingLive = MatchesFeedUiState(
                         contentState = MatchesFeedContentState.Content(
-                            listOf(MatchDateGroup("TODAY, AUG 23", listOf(upcomingMatch))),
+                            listOf(MatchDateGroup("TODAY, AUG 23", listOf(upcomingMatch), date = null)),
                         ),
                         isLoadingMore = true,
                     ),
@@ -331,7 +400,7 @@ class MatchesContentUiTest {
                 uiState = contentState(upcomingMatch).copy(
                     upcomingLive = MatchesFeedUiState(
                         contentState = MatchesFeedContentState.Content(
-                            listOf(MatchDateGroup("TODAY, AUG 23", listOf(upcomingMatch))),
+                            listOf(MatchDateGroup("TODAY, AUG 23", listOf(upcomingMatch), date = null)),
                         ),
                         hasPaginationError = true,
                     ),
@@ -352,12 +421,12 @@ class MatchesContentUiTest {
         val state = MatchesUiState(
             upcomingLive = MatchesFeedUiState(
                 contentState = MatchesFeedContentState.Content(
-                    listOf(MatchDateGroup("TODAY", listOf(upcomingMatch))),
+                    listOf(MatchDateGroup("TODAY", listOf(upcomingMatch), date = null)),
                 ),
             ),
             results = MatchesFeedUiState(
                 contentState = MatchesFeedContentState.Content(
-                    listOf(MatchDateGroup("YESTERDAY", listOf(completedMatch))),
+                    listOf(MatchDateGroup("YESTERDAY", listOf(completedMatch), date = null)),
                 ),
             ),
         )
@@ -402,6 +471,7 @@ class MatchesContentUiTest {
                                 MatchDateGroup(
                                     "TODAY",
                                     listOf(postponedMatch, cancelledMatch, unavailableMatch),
+                                    date = null,
                                 ),
                             ),
                         ),
@@ -413,7 +483,7 @@ class MatchesContentUiTest {
         onNodeWithText("연기").assertIsDisplayed()
         onNodeWithText("취소").assertIsDisplayed()
         onNodeWithText("정보 없음").assertIsDisplayed()
-        onNodeWithText("2시간 후").assertIsDisplayed()
+        onNodeWithText("2시간 후").assertDoesNotExist()
         onNodeWithTag(matchCardTag(postponedMatch.id)).assert(
             SemanticsMatcher.expectValue(
                 SemanticsProperties.StateDescription,
@@ -478,7 +548,7 @@ class MatchesContentUiTest {
     private fun contentState(match: MatchSummary) = MatchesUiState(
         upcomingLive = MatchesFeedUiState(
             contentState = MatchesFeedContentState.Content(
-                listOf(MatchDateGroup("TODAY, AUG 23", listOf(match))),
+                listOf(MatchDateGroup("TODAY, AUG 23", listOf(match), date = null)),
             ),
         ),
     )
@@ -506,6 +576,7 @@ class MatchesContentUiTest {
                 series = "Playoffs · Upper Final",
                 id = "event-champions-2026",
             ),
+            time = null,
         )
 
         val completedMatch = MatchSummary(
@@ -530,6 +601,7 @@ class MatchesContentUiTest {
                 series = "Group Stage",
                 id = "event-champions-2026",
             ),
+            time = null,
         )
     }
 }

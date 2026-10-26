@@ -188,8 +188,10 @@ class MatchesNavigationRuntimeUiTest {
                                 homeScore = if (status == MatchStatus.COMPLETED) 13 else null,
                                 awayScore = if (status == MatchStatus.COMPLETED) index % 13 else null,
                                 event = MatchEvent(name = "$prefix-event", series = "series-$index", id = null),
+                                time = null,
                             )
                         },
+                        date = null,
                     ),
                 ),
             ),

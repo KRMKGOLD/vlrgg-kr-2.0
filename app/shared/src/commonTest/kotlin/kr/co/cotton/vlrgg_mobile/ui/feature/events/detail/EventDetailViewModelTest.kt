@@ -572,6 +572,7 @@ class EventDetailViewModelTest {
             homeScore = null,
             awayScore = null,
             event = MatchEvent("Masters Seoul", series = "Playoffs", id = null),
+            time = null,
         )
         val news = NewsSummary(
             articleId = "101",

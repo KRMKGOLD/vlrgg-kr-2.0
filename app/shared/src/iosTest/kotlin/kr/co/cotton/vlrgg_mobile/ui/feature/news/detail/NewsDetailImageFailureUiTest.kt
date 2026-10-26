@@ -119,6 +119,7 @@ class NewsDetailImageFailureUiTest {
                 items = listOf(listOf(NewsArticleInline.Text(AFTER_IMAGE_LIST_ITEM))),
             ),
         ),
+        publishedAtUtc = null,
     )
 
     private companion object {
