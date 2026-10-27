@@ -47,6 +47,9 @@ internal class TeamDetailParser {
             sourceStructureError("Team news container is malformed.")
         }
 
+        // A Team without news renders a text-only placeholder card, so a card with no link at all is empty.
+        if (container.select("a").isEmpty()) return@parseSafely emptyList()
+
         container.children()
             .mapNotNull(::parseNewsChild)
             .distinctBy { it.reference.value }

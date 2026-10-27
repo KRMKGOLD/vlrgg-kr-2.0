@@ -36,7 +36,7 @@ GET /api/v1/teams/{teamId}
 - `scheduledAtText`(`2026/08/28 7:05 pm`)와 `publishedDateText`는 source text 그대로다. vlr.gg가 기계 판독 가능한 시각을 주지 않고, 표시 시간대도 요청 위치에 따라 달라서 instant를 제공하지 않는다([Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)).
 - 존재하는 Team의 `name`, Match team names, roster handle, News title은 필수다. 나머지 source 미제공 field만 nullable이다.
 - overview와 news를 요청 시점에 각각 조회한다. 하나의 fetch 실패도 `UPSTREAM_NETWORK_FAILURE`이며 stale-success fallback이 없다.
-- Team-news page에서 header card의 인접 `wf-card`만 검증된 news container다. 직접 child 중 알려진 Match 구조는 제외하고 `a.wf-module-item`만 News로 파싱한다. 다른 관찰 child나 malformed VLR news link는 `SOURCE_PARSING_FAILURE`, untrusted external link는 제외한다.
+- Team-news page에서 header card의 인접 `wf-card`만 검증된 news container다. 직접 child 중 알려진 Match 구조는 제외하고 `a.wf-module-item`만 News로 파싱한다. 다른 관찰 child나 malformed VLR news link는 `SOURCE_PARSING_FAILURE`, untrusted external link는 제외한다. 뉴스가 없는 Team은 이 card 안에 링크 없이 안내 문구만 두므로, card 안에 `a`가 하나도 없으면 문구에 의존하지 않고 빈 array로 처리한다(2026-10-27 production 502 수정).
 - optional section/container가 없거나 검증된 빈 상태면 빈 array다. 관찰한 container/candidate가 malformed이면 false partial로 숨기지 않고 fail closed 한다.
 
 대표 fixture는 활동 Team과 정보가 적은 일회성 Team을 포함한다. selector, raw HTML, canonical upstream URL과 내부 오류는 public response나 client log에 노출하지 않는다.
