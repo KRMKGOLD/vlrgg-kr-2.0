@@ -2,34 +2,41 @@
 
 2026-10-19 기준 [#164](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/164)의 Play Console 앱 콘텐츠 선언, 스토어 등록정보, 비공개 테스트 입력값 초안이다. Console 입력과 테스터 모집은 소유자가 한다. 이 문서는 입력값과 근거만 담으며, Console 원본 응답·테스터 신원·배포 증거는 [앱 배포](app-release.md)의 공개 저장소 규칙에 따라 여기에 남기지 않는다.
 
-- 대상 패키지: `kr.co.cotton.vlrgg_mobile`([app-release.md:46](app-release.md))
+- 대상 패키지: `kr.co.cotton.vlrgg_mobile`([app-release.md:48](app-release.md))
 - 스토어 문구와 이미지 원본: [`fastlane/metadata/android/ko-KR/`](../fastlane/metadata/android/ko-KR/). 현재 lane은 `skip_upload_metadata`·`skip_upload_images`가 `true`라([Fastfile:56-60](../fastlane/Fastfile)) 자동 업로드에 쓰이지 않으며, Console에 복사해 붙이는 원본이다.
 - 그래픽 이미지(`images/featureGraphic.png`)도 같은 경로에 있다. 1024×500 규격이다.
-- 근거 표기의 `파일:줄`은 이 문서 작성 시점의 `main`(52bf0b0) 기준이다. merged manifest와 의존성은 같은 커밋을 로컬에서 빌드해 확인했다.
-- 이 문서의 선언 근거와 스크린샷은 출시 후보가 아니라 52bf0b0 기준이다. Console에 입력하기 전에 실제 출시 후보 SHA로 merged manifest·의존성·데이터 전송 경로를 다시 확인한다. 화면이 바뀌었으면 스크린샷을 다시 찍는다(5절 "스크린샷 상태").
+- 근거 표기의 `파일:줄`은 출시 후보 `main` cc4f92d(`0.2.0(3)` 빌드) 기준이다. merged manifest와 의존성은 같은 커밋을 로컬에서 빌드해 확인했다. 임시 스크린샷을 찍은 52bf0b0 화면을 설명하는 근거만 52bf0b0 고정 링크로 둔다.
+- 선언 근거(merged manifest·의존성·데이터 전송 경로)는 출시 후보 cc4f92d로 다시 확인했다(1절). 출시 후보가 바뀌면 다시 확인한다. 임시 스크린샷은 52bf0b0 화면이라 출시 후보와 날짜·시간 표시가 다르다. 비공개 테스트에는 임시본 3장을 쓰고, 프로덕션 신청 전에 재촬영을 다시 판단한다(5절 "스크린샷 상태", 7절 12·13).
 - `확인 필요` 표시는 공식 자료로 확인하지 못한 항목이다. Console 화면 문구가 다르면 화면을 따른다.
 
 ## 1. 확인한 앱 사실
 
 Console 답변은 아래 사실을 기준으로 한다. 앱 코드나 의존성이 바뀌면 이 표부터 다시 확인한다.
 
+2026-10-27 출시 후보 `main` cc4f92d(`0.2.0(3)` 빌드)에서 merged manifest(debug·release)와 `releaseRuntimeClasspath`를 다시 확인했다. 권한은 아래 "권한" 절의 3개 그대로이고 release에 평문 HTTP 허용이 없다. 광고·분석·결제 의존성도 없다. 52bf0b0 이후 추가된 런타임 의존성은 아래 두 가지이며, 둘 다 기기 밖으로 데이터를 보내지 않는다.
+
+- #169 AboutLibraries(`com.mikepenz:aboutlibraries-core`, `aboutlibraries-compose-m3`): 앱에 묶인 라이선스 데이터(`R.raw.aboutlibraries`)만 읽어 앱 안 화면에 보여 준다.
+- #173 `org.jetbrains.kotlinx:kotlinx-datetime` 0.7.1과 Android 전이 의존성 `kotlinx-datetime-jvm` 0.7.1: 서버가 준 시각을 기기 시간대로 바꿔 표시하는 데만 쓴다. 기기 시간대는 서버로 보내지 않는다.
+
+#173은 조회 서버 응답에 시각 필드(`date`, `time`, `scheduledAtUtc`, `publishedAtUtc`)를 추가했지만 앱이 보내는 요청(요청 주소·검색어)은 바꾸지 않았다. #169의 문의 `mailto:`는 사용자가 누를 때 메일 앱을 여는 것뿐이다. 그래서 데이터 전송 경로와 2·3절 답은 바뀌지 않는다. 출시 후보 SHA가 이 커밋과 다르면 다시 확인한다.
+
 | 항목 | 확인 결과 | 근거 |
 | --- | --- | --- |
 | 계정·로그인 | 없음. 모든 화면이 로그인 없이 열린다. | [feature/README.md](feature/README.md)의 MVP 제외 범위(로그인·계정), [privacy-policy.md:9](privacy-policy.md) |
-| 광고 SDK | 없음. `releaseRuntimeClasspath`에 `play-services-ads`, `firebase-analytics`, `play-services-measurement`, 기타 광고 네트워크가 없다. Firebase는 `firebase-crashlytics`(BoM 34.19.0)와 그 전이 의존성(`firebase-sessions`, `firebase-installations`, datatransport, 인터페이스 모듈 `firebase-measurement-connector`)뿐이다. | [libs.versions.toml](../gradle/libs.versions.toml)의 `firebaseBom`·`firebase-crashlytics`, [androidApp/build.gradle.kts:97-98](../app/androidApp/build.gradle.kts), `./gradlew :app:androidApp:dependencies --configuration releaseRuntimeClasspath` |
+| 광고 SDK | 없음. `releaseRuntimeClasspath`에 `play-services-ads`, `firebase-analytics`, `play-services-measurement`, 기타 광고 네트워크가 없다. Firebase는 `firebase-crashlytics`(BoM 34.19.0)와 그 전이 의존성(`firebase-sessions`, `firebase-installations`, datatransport, 인터페이스 모듈 `firebase-measurement-connector`)뿐이다. | [libs.versions.toml](../gradle/libs.versions.toml)의 `firebaseBom`·`firebase-crashlytics`, [androidApp/build.gradle.kts:110-111](../app/androidApp/build.gradle.kts), `./gradlew :app:androidApp:dependencies --configuration releaseRuntimeClasspath` |
 | 광고 ID 권한 | merged manifest(debug·release)에 `com.google.android.gms.permission.AD_ID`가 없다. | 아래 "권한" 절 |
 | 권한 | `INTERNET`, `ACCESS_NETWORK_STATE`, 앱 전용 `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`만 있다. | 아래 "권한" 절 |
 | 사용자 생성 콘텐츠·사용자 간 상호작용 | 없음. 댓글·포럼·Pick'em·채팅·업로드·공유 기능이 없다. | [feature/README.md](feature/README.md)의 MVP 제외 범위(포럼·댓글·Pick'em), [news/README.md](feature/news/README.md)의 제외 범위(댓글·포럼) |
 | 위치 | 수집·공유하지 않는다. 코드의 `location`은 대회 개최지 문자열이다. | [EventDetail.kt:8](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/domain/model/events/EventDetail.kt), [privacy-policy.md:54](privacy-policy.md) |
 | 디지털 구매·결제 | 없음. Billing 라이브러리와 결제 화면이 없다. | `releaseRuntimeClasspath`(billing 없음) |
 | 도박·베팅 | 없음. 배당·베팅·Pick'em 화면이 없다. | [feature/README.md](feature/README.md)의 MVP 제외 범위 |
-| 외부 링크 | About의 고정 링크 3개(소스 코드, 개인정보처리방침, 문의)를 기본 브라우저로 연다. 앱 안 웹 브라우저(WebView)는 없다. | [AboutUiState.kt:3-12](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutUiState.kt), [AndroidAboutPlatform.kt:14-17](../app/androidApp/src/main/kotlin/kr/co/cotton/vlrgg_mobile/AndroidAboutPlatform.kt) |
-| 전송 암호화 | Release 서버 주소는 HTTPS만 허용한다. 평문 HTTP는 debug manifest에서만 허용한다. Firebase는 HTTPS로 전송한다. | [androidApp/build.gradle.kts:43](../app/androidApp/build.gradle.kts), [debug/AndroidManifest.xml:4](../app/androidApp/src/debug/AndroidManifest.xml), [privacy-policy.md:122](privacy-policy.md), [Firebase Play 데이터 공개](https://firebase.google.com/docs/android/play-data-disclosure) |
-| 오류 보고 수집 | Release는 Crashlytics 수집 ON, 일반 Debug는 OFF. 앱 안에 끄는 설정은 없다. | [androidApp/build.gradle.kts:165-175](../app/androidApp/build.gradle.kts), [VlrggApplication.kt:17-18](../app/androidApp/src/main/kotlin/kr/co/cotton/vlrgg_mobile/VlrggApplication.kt), [privacy-policy.md:103](privacy-policy.md) |
+| 외부 링크 | About의 고정 링크 3개 중 소스 코드와 개인정보처리방침은 기본 브라우저로 열고, 문의는 `mailto:`로 메일 앱을 연다. 오픈소스 라이선스는 외부 링크가 아니라 앱 안 화면이다. 앱 안 웹 브라우저(WebView)는 없다. | [AboutUiState.kt:3-12](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutUiState.kt), [AndroidAboutPlatform.kt:16-31](../app/androidApp/src/main/kotlin/kr/co/cotton/vlrgg_mobile/AndroidAboutPlatform.kt), [AboutScreen.kt:248-254](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutScreen.kt) |
+| 전송 암호화 | Release 서버 주소는 HTTPS만 허용한다. 평문 HTTP는 debug manifest에서만 허용한다. Firebase는 HTTPS로 전송한다. | [androidApp/build.gradle.kts:45](../app/androidApp/build.gradle.kts), [debug/AndroidManifest.xml:4](../app/androidApp/src/debug/AndroidManifest.xml), [privacy-policy.md:122](privacy-policy.md), [Firebase Play 데이터 공개](https://firebase.google.com/docs/android/play-data-disclosure) |
+| 오류 보고 수집 | Release는 Crashlytics 수집 ON, 일반 Debug는 OFF. 앱 안에 끄는 설정은 없다. | [androidApp/build.gradle.kts:184-194](../app/androidApp/build.gradle.kts), [VlrggApplication.kt:17-18](../app/androidApp/src/main/kotlin/kr/co/cotton/vlrgg_mobile/VlrggApplication.kt), [privacy-policy.md:103](privacy-policy.md) |
 | 즐겨찾기 | 기기 안에만 저장하고 서버로 보내지 않는다. | [privacy-policy.md:39](privacy-policy.md) |
 | 검색어 전송 | 입력 중에는 보내지 않는다. 사용자가 유효한 검색어를 명시적으로 제출할 때만 조회 서버로 보낸다. 검색을 쓰지 않아도 다른 기능을 모두 쓸 수 있다. | [SearchViewModel.kt:33-45](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/search/SearchViewModel.kt), [SearchViewModel.kt:76-87](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/search/SearchViewModel.kt) |
-| 외부 이미지 | 팀 로고·선수 사진·기사 이미지를 기기가 VLR.GG가 게시한 이미지 주소에서 직접 불러온다. 이때 해당 호스트가 기기 IP 주소 등을 받을 수 있다. | [privacy-policy.md:50](privacy-policy.md), [TeamDetailContent.kt:368](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/team/detail/TeamDetailContent.kt), [NewsDetailContent.kt:243](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/news/detail/NewsDetailContent.kt) |
-| 비공식·상표 고지 | About에 비공식 앱 고지와 Riot Games 상표 고지가 있다. | [AboutScreen.kt:330-337](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutScreen.kt) |
+| 외부 이미지 | 팀 로고·선수 사진·기사 이미지를 기기가 VLR.GG가 게시한 이미지 주소에서 직접 불러온다. 이때 해당 호스트가 기기 IP 주소 등을 받을 수 있다. | [privacy-policy.md:50](privacy-policy.md), [TeamDetailContent.kt:368](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/team/detail/TeamDetailContent.kt), [NewsDetailContent.kt:253](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/news/detail/NewsDetailContent.kt) |
+| 비공식·상표 고지 | About에 비공식 앱 고지와 Riot Games 상표 고지가 있다. | [AboutScreen.kt:367-374](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutScreen.kt) |
 
 ## 2. 앱 콘텐츠
 
@@ -77,7 +84,7 @@ Console 답변은 아래 사실을 기준으로 한다. 앱 코드나 의존성�
 
 | 주제 | 답변 | 근거 |
 | --- | --- | --- |
-| 폭력(게임·비사실적 폭력 묘사 포함) | 소유자 결정(권장 답 없음) | 앱이 만든 화면은 경기 점수·통계·텍스트·팀 로고·선수 사진이다. 기사 이미지는 VLR.GG 원문을 그대로 보여 준다. 아래 "폭력 문항 결정" 참고 |
+| 폭력(게임·비사실적 폭력 묘사 포함) | 게임·비사실적 폭력: 예. 사실적·잔인한 폭력: 아니요(2026-10-26 소유자 결정) | 앱이 만든 화면은 경기 점수·통계·텍스트·팀 로고·선수 사진이다. 기사 이미지는 VLR.GG 원문을 그대로 보여 준다. 아래 "폭력 문항 결정" 참고 |
 | 성적 콘텐츠·노출 | 아니요 | 같은 근거 |
 | 비속어·저속한 표현 | 아니요 | 기사는 VLR.GG 편집 기사다. 사용자 댓글을 보여 주지 않는다. |
 | 약물·술·담배 | 아니요 | 관련 콘텐츠가 없다. |
@@ -87,12 +94,14 @@ Console 답변은 아래 사실을 기준으로 한다. 앱 코드나 의존성�
 | 사용자 생성 콘텐츠 공유 | 아니요 | 같은 근거 |
 | 사용자 위치 공유 | 아니요 | 1절 "위치" 행 |
 | 디지털 상품 구매 | 아니요 | 1절 "디지털 구매" 행 |
-| 제한 없는 인터넷 접근(웹 브라우저·검색 엔진 기능) | 아니요 | 앱 안 브라우저가 없고 고정 외부 링크 3개만 기본 브라우저로 연다. 앱 검색은 VLR.GG의 시리즈·대회·팀·선수 결과로 제한된다([search/README.md](feature/search/README.md)). |
+| 제한 없는 인터넷 접근(웹 브라우저·검색 엔진 기능) | 아니요 | 앱 안 브라우저가 없고 고정 외부 링크 3개(브라우저 2개, 메일 앱 1개)만 연다. 앱 검색은 VLR.GG의 시리즈·대회·팀·선수 결과로 제한된다([search/README.md](feature/search/README.md)). |
 | 뉴스 콘텐츠 포함 여부(질문이 나오는 경우) | 예 | e스포츠 기사 목록과 본문을 보여 준다. 뉴스 앱 선언과는 별개의 질문이다. |
 
-- 폭력 문항 결정(소유자 결정 필요)
-  - 기사 본문 이미지는 서버 parser가 VLR.GG 원문에서 그대로 가져오고 앱이 선별 없이 표시한다([NewsParser.kt:139-175](../server/src/main/kotlin/kr/co/cotton/vlrgg_mobile/feature/news/NewsParser.kt), [NewsDetailContent.kt:242-256](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/news/detail/NewsDetailContent.kt)). 발로란트 경기 화면처럼 무기·전투가 보이는 이미지가 들어갈 수 있다.
-  - 이 문서는 권장 답을 두지 않는다. 소유자가 Console 질문지의 실제 문항과 현재 기사 이미지 예시를 확인한 뒤, 해당하는 게임·비사실적 폭력 문항에 사실대로 답한다. Play는 질문지에 정확하게 답하도록 요구한다([콘텐츠 등급](https://support.google.com/googleplay/android-developer/answer/9859655)).
+- 폭력 문항 결정(2026-10-26 소유자 결정)
+  - 기사 본문 이미지는 서버 parser가 VLR.GG 원문에서 그대로 가져오고 앱이 선별 없이 표시한다([NewsParser.kt:155-191](../server/src/main/kotlin/kr/co/cotton/vlrgg_mobile/feature/news/NewsParser.kt), [NewsDetailContent.kt:252-266](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/news/detail/NewsDetailContent.kt)). 발로란트 경기 화면처럼 무기·전투가 보이는 이미지가 들어갈 수 있다.
+  - 게임 화면·비사실적·혈흔 없는 폭력 묘사를 묻는 문항은 **예**로 답한다. 타깃 연령이 16세 이상(아래 "타깃층 및 콘텐츠")이라 등급이 올라가도 타깃층과 충돌하지 않고, 기사 이미지에 게임 속 교전 장면이 들어갈 수 있어 "아니요"는 부정확한 답이 될 수 있다. 원작 게임 VALORANT도 국내 15세 이용가다.
+  - 사실적·잔인한 폭력, 혈흔·신체 훼손을 묻는 문항은 **아니요**로 답한다. 경기 기사 이미지는 게임 화면과 선수 사진이 대부분이라 해당하지 않는다.
+  - Console 질문지의 실제 문항 문구는 확인하지 못했다(`확인 필요`). 입력 시 위 원칙으로 문항별로 사실대로 답한다. Play는 질문지에 정확하게 답하도록 요구한다([콘텐츠 등급](https://support.google.com/googleplay/android-developer/answer/9859655)).
   - 기사 이미지는 VLR.GG 원문에 따라 계속 바뀐다. 제출 뒤에도 기사 이미지의 성격이 달라지면 질문지를 다시 평가하고 제출한다.
 
 ### 타깃층 및 콘텐츠
@@ -131,8 +140,8 @@ Play는 앱과 앱에 포함된 라이브러리가 기기 밖으로 보내는 �
 외부 이미지 호스트 경로의 분류:
 
 - 데이터 유형: 기기 IP 주소는 서버 로그 IP와 같은 기준으로 "기기 또는 기타 ID"에 포함한다. 이 유형은 Firebase 설치 ID 때문에 이미 신고한다. 요청한 이미지 주소로 어떤 팀·선수·기사를 봤는지 추정될 수 있으므로 "앱 상호작용" 신고 범위에도 포함해 본다.
-- 공유 예외 해당 여부: 이 호스트는 개발자와 계약해 개발자를 대신해 처리하는 서비스 제공업체가 아니다. 그래서 서비스 제공업체 예외는 적용되지 않는다. 사용자가 화면을 열어 생긴 요청이라 "사용자가 공유를 합리적으로 예상하는 사용자 시작 전송" 예외에 해당할 수 있지만, 이 문서에서는 확정하지 않는다.
-- 결론: 이 경로를 공유로 볼지 정하는 근거가 기록될 때까지 데이터 보안의 최종 "공유 없음" 답은 소유자 결정 대기로 둔다(아래 "판단이 갈리는 항목" 5).
+- 공유 예외 해당 여부: 이 호스트는 개발자와 계약해 개발자를 대신해 처리하는 서비스 제공업체가 아니다. 그래서 서비스 제공업체 예외는 적용되지 않는다. 이미지는 화면을 열면 자동으로 불러오고 사용자는 보통 제3자 호스트에서 온다는 것을 알지 못하므로, "사용자 시작 전송" 예외의 근거도 약하다.
+- 결론(2026-10-26 소유자 결정): 이 경로를 **공유**로 신고한다. Play는 앱에 포함된 라이브러리가 제3자에게 직접 보내는 데이터도 공유로 본다([데이터 보안 섹션 안내](https://support.google.com/googleplay/android-developer/answer/10787469)). 이미지 로딩 라이브러리가 이 호스트로 직접 요청을 보낸다(아래 "판단이 갈리는 항목" 5).
 
 수집으로 보지 않는 것:
 
@@ -143,10 +152,10 @@ Play는 앱과 앱에 포함된 라이브러리가 기기 밖으로 보내는 �
 
 | 질문 | 답변 | 근거 |
 | --- | --- | --- |
-| 필수 사용자 데이터 유형을 수집하거나 공유하나요? | 예(수집함) | 위 데이터 전송 경로 표 |
+| 필수 사용자 데이터 유형을 수집하거나 공유하나요? | 예(수집함, 외부 이미지 호스트 경로는 공유함) | 위 데이터 전송 경로 표 |
 | 수집한 모든 사용자 데이터가 전송 중 암호화되나요? | 예 | 1절 "전송 암호화" 행. Firebase는 HTTPS로 전송하고, Release 앱은 HTTPS 서버 주소만 허용한다. Release manifest는 평문 HTTP를 허용하지 않으므로([AndroidManifest.xml](../app/androidApp/src/main/AndroidManifest.xml)에 `usesCleartextTraffic` 없음, Android 9 이상 기본값) 외부 이미지 요청도 HTTPS로만 성공한다([네트워크 보안 구성](https://developer.android.com/privacy-and-security/security-config#CleartextTrafficOptIn)). |
-| 사용자가 데이터 삭제를 요청할 방법을 제공하나요? | 예(공개 이메일로 요청 접수) | 개인정보처리방침이 문의처 이메일로 삭제 요청을 받는다([privacy-policy.md:113-116](privacy-policy.md)). 계정이 없어 특정 이용자의 데이터를 찾지 못할 수 있다. 아래 "판단이 갈리는 항목" 4 참고 |
-| 공유 | 소유자 결정 대기 | Google(Firebase, Google Cloud)은 개발자를 대신해 처리하는 서비스 제공업체이며, 서비스 제공업체 전송은 공유가 아니다([privacy-policy.md:72-85](privacy-policy.md)). 외부 이미지 호스트 경로는 서비스 제공업체가 아니므로, 공유 예외 근거를 기록하기 전까지 "공유 없음"으로 확정하지 않는다. |
+| 사용자가 데이터 삭제를 요청할 방법을 제공하나요? | 예(공개 이메일로 요청 접수, 2026-10-26 소유자 결정) | 개인정보처리방침이 문의처 이메일로 삭제 요청을 받는다([privacy-policy.md:113-116](privacy-policy.md)). 계정이 없어 특정 이용자의 데이터를 찾지 못할 수 있다. 아래 "판단이 갈리는 항목" 4 참고 |
+| 공유 | 예(외부 이미지 호스트 경로, 2026-10-26 소유자 결정) | Google(Firebase, Google Cloud)은 개발자를 대신해 처리하는 서비스 제공업체이며, 서비스 제공업체 전송은 공유가 아니다([privacy-policy.md:72-85](privacy-policy.md)). 외부 이미지 호스트 경로는 서비스 제공업체가 아니고 예외 근거도 약해 공유로 신고한다(아래 판단 항목 5). |
 | 선택 가능 여부 | 앱 내 검색 기록만 선택, 나머지는 필수 | Crashlytics·Sessions 자동 수집은 앱 안에서 끌 수 없고, 서버 요청 로그와 이미지 요청은 조회마다 생긴다([privacy-policy.md:103](privacy-policy.md)). 검색어는 사용자가 검색을 명시적으로 제출할 때만 보내며, 검색 없이도 앱을 쓸 수 있다(1절 "검색어 전송" 행). Play는 사용자가 수집을 통제하고 그 데이터 없이 앱을 쓸 수 있으면 선택으로 본다([데이터 보안 섹션 안내](https://support.google.com/googleplay/android-developer/answer/10787469)). |
 | 계정 삭제 URL | 해당 없음 | 계정을 만들 수 없는 앱은 계정 삭제 요구가 없다([계정 삭제 요구사항](https://support.google.com/googleplay/android-developer/answer/13327111)). |
 
@@ -157,10 +166,12 @@ Play는 앱과 앱에 포함된 라이브러리가 기기 밖으로 보내는 �
 | 앱 정보 및 성능 › 비정상 종료 로그 | 예 | 아니요 | 일시적 아님 | 필수 | 분석, 앱 기능 | Crashlytics stack trace·ANR |
 | 앱 정보 및 성능 › 진단 | 예 | 아니요 | 일시적 아님 | 필수 | 분석, 앱 기능 | Crashlytics 기기·OS·앱 상태, Sessions 앱·기기 정보 |
 | 앱 정보 및 성능 › 기타 앱 성능 데이터 | 예 | 아니요 | 일시적 아님 | 필수 | 분석 | Sessions 세션 시작·순번(crash-free 비율 산출) |
-| 기기 또는 기타 ID | 예 | 소유자 결정 대기 | 일시적 아님 | 필수 | 분석, 앱 기능 | Crashlytics 설치 UUID, Firebase 설치 ID, 세션 ID. 서버 로그와 외부 이미지 요청의 IP 주소(아래 판단 항목 1·5) |
-| 앱 활동 › 앱 내 검색 기록 | 예(권장, 소유자 결정 필요) | 아니요 | 일시적 아님 | 선택 | 앱 기능 | 사용자가 제출한 검색어. 서버 로그의 요청 주소에 남는다. |
-| 앱 활동 › 앱 상호작용 | 예(권장, 소유자 결정 필요) | 소유자 결정 대기 | 일시적 아님 | 필수 | 앱 기능, 분석 | 서버 로그의 요청 주소(조회한 팀·선수·경기 식별 번호), Sessions 포그라운드 시각, 외부 이미지 요청의 이미지 주소 |
-| 위치 › 대략적인 위치 | 아니요(권장, 소유자 결정 필요) | - | - | - | - | 아래 판단 항목 |
+| 기기 또는 기타 ID | 예 | 예(외부 이미지 호스트의 IP 주소) | 일시적 아님 | 필수 | 분석, 앱 기능 | Crashlytics 설치 UUID, Firebase 설치 ID, 세션 ID. 서버 로그와 외부 이미지 요청의 IP 주소(아래 판단 항목 1·5) |
+| 앱 활동 › 앱 내 검색 기록 | 예(2026-10-26 소유자 결정) | 아니요 | 일시적 아님 | 선택 | 앱 기능 | 사용자가 제출한 검색어. 서버 로그의 요청 주소에 남는다. |
+| 앱 활동 › 앱 상호작용 | 예(2026-10-26 소유자 결정) | 예(외부 이미지 호스트의 이미지 주소) | 일시적 아님 | 필수 | 앱 기능, 분석 | 서버 로그의 요청 주소(조회한 팀·선수·경기 식별 번호), Sessions 포그라운드 시각, 외부 이미지 요청의 이미지 주소 |
+| 위치 › 대략적인 위치 | 아니요(2026-10-26 소유자 결정) | - | - | - | - | 아래 판단 항목 1 |
+
+공유 칸이 "예"인 유형은 Console이 공유 목적을 따로 묻는다. 두 유형 모두 공유 목적은 **앱 기능**만 고른다. 이미지를 표시하려고 생기는 요청이다.
 
 목적 선택 이유:
 
@@ -178,28 +189,30 @@ Play는 앱과 앱에 포함된 라이브러리가 기기 밖으로 보내는 �
    - Play는 IP 주소 신고를 실제 사용 방식에 따라 정하라고 하고, IP로 위치를 추론하면 "대략적인 위치"로 신고하라고 안내한다([데이터 보안 섹션 안내](https://support.google.com/googleplay/android-developer/answer/10787469)).
    - 서버와 Cloud Run 요청 로그는 IP로 위치를 추론하지 않는다([privacy-policy.md:19-21](privacy-policy.md)). 그래서 대략적인 위치는 "아니요"를 권장한다.
    - IP 주소는 기기 단위로 연결될 수 있는 값이므로 "기기 또는 기타 ID"에 포함해 신고하는 것을 권장한다. Firebase 설치 ID 때문에 이 유형은 어차피 신고한다.
-   - 소유자 결정: 위치 분석이나 국가별 집계를 도입하면 "대략적인 위치"를 추가한다.
+   - 소유자 결정(2026-10-26): IP 주소는 "기기 또는 기타 ID"에 포함하고, 대략적인 위치는 "아니요"로 답한다. 위치 분석이나 국가별 집계를 도입하면 "대략적인 위치"를 추가한다.
 2. 요청 주소의 검색어
    - "앱 내 검색 기록"은 사용자가 앱에서 검색한 내용이다. 검색어가 요청 주소에 담겨 30일 보관되므로, 요청 처리 중 메모리에서만 쓰고 버리는 일시적 처리에 해당하지 않는다.
-   - 권장안은 "수집: 예, 선택, 목적: 앱 기능"이다. 검색어는 사용자가 검색을 제출할 때만 보내므로 선택으로 표시한다. 제출된 뒤에는 요청 로그에 남으므로 일시적 처리가 아니다. 개인정보처리방침도 검색어를 접속 기록 항목으로 적는다([privacy-policy.md:15](privacy-policy.md)).
+   - 소유자 결정(2026-10-26): "수집: 예, 공유: 아니요, 선택, 목적: 앱 기능"으로 신고한다. 검색어는 사용자가 검색을 제출할 때만 보내므로 선택으로 표시한다. 제출된 뒤에는 요청 로그에 남으므로 일시적 처리가 아니다. 개인정보처리방침도 검색어를 접속 기록 항목으로 적는다([privacy-policy.md:15](privacy-policy.md)).
    - 신고하지 않으려면 서버 로그에서 검색어를 남기지 않는 변경이 먼저 필요하다. 이는 운영 GCP 변경이라 이 작업 범위 밖이다.
 3. 요청 주소의 팀·선수·경기 식별 번호
-   - 어떤 화면을 조회했는지 30일 동안 남으므로 "앱 상호작용(페이지 조회 등)"으로 신고하는 것을 권장한다.
+   - 어떤 화면을 조회했는지 30일 동안 남으므로 "앱 상호작용(페이지 조회 등)"으로 신고한다. 소유자 결정(2026-10-26): 수집 예, 필수, 목적 앱 기능·분석. 외부 이미지 요청의 이미지 주소 때문에 공유 예(판단 항목 5).
    - 개발자는 이 기록을 사용 행태 분석에 쓰지 않지만, 보관한다는 사실 때문에 넓게 신고한다.
 4. 삭제 요청
    - 개인정보처리방침은 문의처 이메일로 삭제 요청을 받는다([privacy-policy.md:113-116](privacy-policy.md)). Play의 이 질문은 삭제 요청을 받는 방법이 있는지를 묻는다([데이터 보안 섹션 안내](https://support.google.com/googleplay/android-developer/answer/10787469)). 그래서 처리방침과 같게 "예"로 답한다.
    - 한계: 계정이 없어 특정 이용자의 오류 보고·세션 데이터나 접속 기록을 찾지 못할 수 있다. 이 경우 처리방침대로 그 사유를 알린다([privacy-policy.md:116](privacy-policy.md)). 요청을 처리하지 못하는 경우가 있다고 요청 경로가 없어지지는 않는다.
    - 자동 삭제만으로는 답하지 않는다. 서버 로그는 30일, Crashlytics 오류 기록은 90일 뒤 삭제가 시작되지만([privacy-policy.md:64-67](privacy-policy.md)), Firebase 설치 ID와 오류 없이 끝난 세션 기록은 개발자가 삭제를 요청하기 전까지 남을 수 있다([privacy-policy.md:65-66](privacy-policy.md)).
-   - 이메일 요청 경로를 실제로 운영하지 않기로 하면 데이터 보안 답보다 처리방침을 먼저 고친다.
+   - 소유자 결정(2026-10-26): "예"로 답하고, 소유자가 문의처 메일함을 확인해 요청에 답한다. 이메일 요청 경로를 실제로 운영하지 않기로 하면 데이터 보안 답보다 처리방침을 먼저 고친다.
 5. 외부 이미지 호스트 전송
    - 기기가 이미지 호스트에 직접 보내는 요청도 Play 정의상 수집이다. "개발자가 받지 않는다"는 이유로 신고 범위에서 빼지 않는다.
-   - 공유 여부는 정해지지 않았다. 서비스 제공업체 예외는 해당하지 않고, 사용자 시작 전송 예외에 해당하는지는 소유자가 근거를 정리해 판단한다. 근거를 기록하기 전까지 "기기 또는 기타 ID"와 "앱 상호작용"의 공유 칸과 최종 "공유 없음" 답은 확정하지 않는다.
+   - 소유자 결정(2026-10-26): **공유로 신고한다.** "기기 또는 기타 ID"(IP 주소)와 "앱 상호작용"(이미지 주소)의 공유 칸을 "예", 공유 목적을 "앱 기능"으로 답한다. 서비스 제공업체 예외는 해당하지 않고, 이미지는 화면을 열면 자동으로 불러오므로 사용자 시작 전송 예외의 근거도 약하다. Play는 앱에 포함된 라이브러리가 제3자에게 직접 보내는 데이터도 공유로 본다([데이터 보안 섹션 안내](https://support.google.com/googleplay/android-developer/answer/10787469)).
+   - 개인정보처리방침 3항의 "제3자에게 제공하지 않습니다"는 「개인정보 보호법」상 개발자의 제공을 말한다. 이 경로는 개발자가 넘기는 것이 아니라 기기가 직접 요청하는 것이며 처리방침 "이미지 표시" 항목에 따로 적혀 있다([privacy-policy.md:50](privacy-policy.md)). Play의 공유 정의와 범위가 달라 처리방침은 고치지 않는다.
+   - 이미지를 조회 서버를 거쳐 받도록 바꾸면 이 공유를 없앨 수 있지만, 서버 트래픽·비용이 늘어 이번 출시 범위에서 제외한다.
    - 호스트의 보존 기간과 IP 사용 목적은 확인하지 못했다. 이 문서와 Console 답에 추정해 쓰지 않는다.
 
-### 스토어에 보일 요약(권장안 기준)
+### 스토어에 보일 요약(결정 기준)
 
 - 수집 데이터: 앱 정보 및 성능, 기기 또는 기타 ID, 앱 활동
-- 공유 데이터: 소유자 결정 대기(외부 이미지 호스트 경로 판단 후 확정)
+- 공유 데이터: 기기 또는 기타 ID, 앱 활동(외부 이미지 호스트 경로)
 - 전송 중 데이터 암호화
 - 데이터 삭제 요청 가능(공개 이메일 접수, 계정이 없어 식별이 제한될 수 있음)
 
@@ -209,10 +222,10 @@ Play는 앱과 앱에 포함된 라이브러리가 기기 밖으로 보내는 �
 | --- | --- | --- |
 | 앱 또는 게임 | 앱 | 게임이 아니다. |
 | 카테고리 | 스포츠 | Play는 스포츠 카테고리를 "스포츠 뉴스와 해설, 점수 추적, 판타지 팀 관리, 경기 중계"로 설명한다([카테고리 및 태그](https://support.google.com/googleplay/android-developer/answer/9859673)). 앱의 핵심이 e스포츠 경기 결과·대회·통계 추적이다. "뉴스 및 잡지"는 뉴스 앱 정책 대상이 되므로 고르지 않는다. |
-| 태그 | 선택 사항. 소유자 결정 | Console이 제시하는 목록에서 고른다. |
+| 태그 | `스포츠` 하나(2026-10-26 소유자 결정) | Console 태그 목록에 e스포츠·경기 결과 태그가 없다. 스포츠 아래 태그는 경마·야구·테니스처럼 특정 종목이라 고르지 않는다. `뉴스/잡지`·`뉴스 통합 서비스`는 2절 "뉴스 앱"의 해당 없음 결정과 맞지 않아 고르지 않는다. Play는 태그가 등록정보나 첫 화면만 봐도 분명히 관련 있어 보여야 한다고 요구한다([카테고리 및 태그](https://support.google.com/googleplay/android-developer/answer/9859673)). |
 | 연락처 이메일 | `teamcotton124@gmail.com` | 필수 항목([스토어 등록정보](https://support.google.com/googleplay/android-developer/answer/9859152)). 개인정보처리방침 문의처와 같다([privacy-policy.md:144](privacy-policy.md)). |
 | 전화번호 | 비움 | 공개 연락처는 이메일 하나만 쓴다. |
-| 웹사이트 | 소유자 결정. 권장: `https://github.com/KRMKGOLD/vlrgg-kr-2.0` | 선택 항목이지만 권장된다([스토어 등록정보](https://support.google.com/googleplay/android-developer/answer/9859152)). About의 "소스 코드" 링크와 같다([AboutUiState.kt:3](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutUiState.kt)). 개발 저장소가 스토어에서 바로 보인다는 점을 받아들일 수 있는지 소유자가 정한다. |
+| 웹사이트 | `https://github.com/KRMKGOLD/vlrgg-kr-2.0`(2026-10-26 소유자 결정) | 선택 항목이지만 권장된다([스토어 등록정보](https://support.google.com/googleplay/android-developer/answer/9859152)). About의 "소스 코드" 링크와 같다([AboutUiState.kt:3](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutUiState.kt)). 소유자는 개발 저장소가 스토어에서 바로 보이는 점을 받아들였다. 저장소를 비공개로 바꾸면 이 링크도 끊긴다. |
 | 기본 언어 | 한국어(ko-KR) | 앱 화면과 등록정보가 한국어다. Fastlane 경로도 `ko-KR`이다. |
 
 ## 5. 스토어 등록정보
@@ -233,16 +246,16 @@ ruby -e 'Dir["fastlane/metadata/android/ko-KR/*.txt"].sort.each { |f| puts "#{Fi
 
 | 후보 | 글자 수 | 판단 |
 | --- | --- | --- |
-| `VLR.GG Mobile (Unofficial)` | 26 | **권장. 파일에 넣은 값.** About의 앱 이름([AboutScreen.kt:197](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutScreen.kt))과 #166의 Play 제목 결정([design/app-icon/README.md](design/app-icon/README.md))이 같다. 런처 이름 `VLR.GG Mobile`과도 이어진다. |
+| `VLR.GG Mobile (Unofficial)` | 26 | **결정(2026-10-26). 파일에 넣은 값.** About의 앱 이름([AboutScreen.kt:201](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutScreen.kt))과 #166의 Play 제목 결정([design/app-icon/README.md](design/app-icon/README.md))이 같다. 런처 이름 `VLR.GG Mobile`과도 이어진다. |
 | `VLR.GG Mobile 비공식 앱` | 19 | 한국어 사용자에게 비공식임이 더 바로 읽힌다. About·상표 고지의 이름과 달라진다. |
 | `발로란트 e스포츠 정보 (비공식)` | 18 | 제3자 사이트 이름을 제목에서 뺀다. 대신 `VALORANT` 상표 이름이 들어가고, About의 앱 이름과 달라진다. |
 
-제목의 `VLR.GG`는 데이터 출처 사이트 이름이다. 제목·설명 첫 문장·About에서 비공식임과 제휴·승인이 없음을 밝히지만, 사칭·지식재산권 심사에서 문제가 되면 세 번째 후보처럼 사이트 이름을 뺀 제목으로 바꾼다. 이 판단은 소유자 결정 항목이다.
+제목의 `VLR.GG`는 데이터 출처 사이트 이름이다. 제목·설명 첫 문장·About에서 비공식임과 제휴·승인이 없음을 밝히지만, 소유자가 2026-10-26 이 제목으로 확정했다. 사칭·지식재산권 심사에서 반려되면 그때 세 번째 후보처럼 사이트 이름을 뺀 제목을 다시 정한다.
 
 ### 간단한 설명·자세한 설명
 
 - 간단한 설명은 이모지·특수 기호·줄바꿈 없이 쉼표로 나열했다([스토어 등록정보](https://support.google.com/googleplay/android-developer/answer/9859152)).
-- 자세한 설명은 주요 기능, 데이터 출처(VLR.GG), 비공식 앱 고지, Riot Games 상표 고지, 개인정보처리방침 링크, 문의 이메일을 담는다. 비공식·상표 고지는 About 문구([AboutScreen.kt:330-337](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutScreen.kt))를 그대로 썼다.
+- 자세한 설명은 주요 기능, 데이터 출처(VLR.GG), 비공식 앱 고지, Riot Games 상표 고지, 개인정보처리방침 링크, 문의 이메일을 담는다. 비공식·상표 고지는 About 문구([AboutScreen.kt:367-374](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/about/AboutScreen.kt))를 그대로 썼다.
 - [메타데이터 정책](https://support.google.com/googleplay/android-developer/answer/9898842)에 맞춰 "공식"을 암시하는 표현, 순위·최고·인기 표현, 가격·할인 표현, 키워드 나열, 출처 없는 추천사, 이모지, 대문자 강조를 쓰지 않았다. 제목의 `VLR.GG`·`(Unofficial)` 대문자는 고유 이름 표기다.
 
 ### 그래픽 자산
@@ -251,28 +264,32 @@ ruby -e 'Dir["fastlane/metadata/android/ko-KR/*.txt"].sort.each { |f| puts "#{Fi
 | --- | --- | --- | --- |
 | 앱 아이콘 | `images/icon.png` | 512×512, RGBA 32-bit PNG, 11,381 bytes | #166의 [`play-icon-512.png`](design/app-icon/play-icon-512.png)를 그대로 복사했다. Play 규격은 512×512, 32-bit PNG(알파 포함), 1,024KB 이하다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)). |
 | 그래픽 이미지 | `images/featureGraphic.png` | 1024×500, RGB 24-bit PNG, 알파 없음, 371,266 bytes | 완료. GPT image 2.5(`gpt-image-2.5-sunburst`)로 생성했다(a1f6893). Riot Games·VALORANT·팀 로고와 게임 화면 없이 앱 이름과 추상적인 경기 목록만 담았다. Play 규격은 1024×500, JPEG 또는 24-bit PNG(알파 없음)다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)). |
-| 휴대전화 스크린샷 | `images/phoneScreenshots/1~6_*.png` | 6장 모두 1080×1920, RGB 24-bit PNG, 알파 없음 | **임시본. Console 제출용이 아니다**(아래 "스크린샷 상태"). Play 규격은 JPEG 또는 24-bit PNG(알파 없음), 각 변 320~3,840px, 긴 변이 짧은 변의 2배 이하, 2~8장이다. 1080×1920(9:16) 4장 이상이면 추천 노출 조건도 맞는다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)). |
+| 휴대전화 스크린샷 | `images/phoneScreenshots/1~6_*.png` | 6장 모두 1080×1920, RGB 24-bit PNG, 알파 없음 | **임시본.** 비공개 테스트에는 팀 로고가 없는 1·3·4번만 올린다(아래 "스크린샷 상태"). Play 규격은 JPEG 또는 24-bit PNG(알파 없음), 각 변 320~3,840px, 긴 변이 짧은 변의 2배 이하, 2~8장이다. 1080×1920(9:16) 4장 이상이면 추천 노출 조건도 맞는다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)). |
 
 ### 스크린샷 상태
 
-현재 스크린샷 6장은 규격 확인과 화면 구성 검토를 위한 **임시본**이다. 아래 조건을 모두 채우기 전에는 Console에 올리지 않는다. Play는 스크린샷이 실제 앱 사용 경험을 보여 주도록 요구한다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)).
+현재 스크린샷 6장은 규격 확인과 화면 구성 검토를 위한 **임시본**이다. 소유자는 2026-10-26 다음과 같이 정했다.
 
-| 파일 | 화면 | 제출 전 문제 |
+- 비공개 테스트: 재촬영하지 않고 임시본 중 팀 로고가 없는 `1_matches.png`, `3_news.png`, `4_event_stats.png` 3장만 올린다. 로고가 보이는 2·5·6번은 올리지 않는다(아래 "팀 로고 권리 확인"). 임시본은 날짜·시간 표시 수정(#173) 전 화면이라, 1번의 날짜 머리글과 상대 시간이 테스트 빌드 `0.2.0(3)`과 다르다. 재촬영 보류 결정에 따라 비공개 테스트에서는 그대로 쓴다.
+- 프로덕션: 신청 전에 아래 재촬영 조건으로 다시 판단한다. 4장 미만이면 Play 추천 노출 조건(1080×1920 4장 이상)은 채우지 못한다.
+- AI로 화면 안 내용(로고 등)을 지우거나 바꾼 이미지는 실제 앱 화면과 달라지므로 쓰지 않는다. 꾸밈은 프레임·배경·설명 문구 같은 화면 바깥에만 한다. Play는 스크린샷이 실제 앱 사용 경험을 보여 주도록 요구한다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)).
+
+| 파일 | 화면 | 촬영 당시(52bf0b0) 문제와 출시 후보(cc4f92d) 상태 |
 | --- | --- | --- |
-| `1_matches.png` | 경기 목록(결과 탭) | 날짜 머리글이 영어(`Sun, October 18, 2026 Yesterday`)이고, 완료 경기의 상대 시간(`1d 1h`)이 무엇을 뜻하는지 분명하지 않다. |
-| `2_match_detail.png` | 경기 상세(맵별 점수, 맵 선택·제외 순서) | ISO 원문 `2026-10-18T02:00:00Z`가 그대로 보인다. 이 시각은 KST 11:00인데 같은 화면의 `Sunday, October 18 3:00 PM KST`와 4시간 어긋난다([MatchDetailContent.kt:277](../app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/matches/detail/MatchDetailContent.kt), [matches/README.md:134](feature/matches/README.md)). 실제 팀 로고가 보인다. |
+| `1_matches.png` | 경기 목록(결과 탭) | 날짜 머리글이 영어(`Sun, October 18, 2026 Yesterday`)이고, 완료 경기에 상대 시간(`1d 1h`)이 남은 시간처럼 보였다. #173에서 머리글을 한국어(`10월 27일 (화)` 형식)로 바꾸고 종료 경기의 상대 시간을 숨겼다. 그래서 테스트 빌드 화면과 다르다. |
+| `2_match_detail.png` | 경기 상세(맵별 점수, 맵 선택·제외 순서) | ISO 원문 `2026-10-18T02:00:00Z`가 그대로 보였고, 같은 화면의 `Sunday, October 18 3:00 PM KST`와 4시간 어긋났다([MatchDetailContent.kt:277](https://github.com/KRMKGOLD/vlrgg-kr-2.0/blob/52bf0b0/app/shared/src/commonMain/kotlin/kr/co/cotton/vlrgg_mobile/ui/feature/matches/detail/MatchDetailContent.kt#L277), [matches/README.md:134](https://github.com/KRMKGOLD/vlrgg-kr-2.0/blob/52bf0b0/docs/feature/matches/README.md#L134)). #173에서 서버 시각 해석을 고치고 ISO 원문 없이 기기 시간대 기준 한국어 시각 하나만 표시한다. 실제 팀 로고가 보인다. |
 | `3_news.png` | 뉴스 목록 | - |
 | `4_event_stats.png` | 대회 상세의 선수 통계 탭 | - |
-| `5_team_detail.png` | 팀 상세(예정·최근 경기) | 최근 경기 시각 표시가 재촬영 조건의 영향을 받는다. 실제 팀 로고가 보인다. |
+| `5_team_detail.png` | 팀 상세(예정·최근 경기) | 팀 경기 일시는 vlr.gg가 기계가 읽을 값을 주지 않아 #173 범위 밖이었다. 실제 팀 로고가 보인다. |
 | `6_mypage.png` | 마이페이지 즐겨찾기 팀 | 실제 팀 로고가 보인다. |
 
-재촬영 조건:
+재촬영 조건(프로덕션 신청 전 판단):
 
-1. 앱의 날짜·시간 표시 수정(별도 작업)을 끝낸다.
-2. 경기 시각을 하나의 현지화된 시각으로만 표시한다. ISO 원문과 KST 표시가 4시간 어긋나는 문제를 없앤다.
-3. 완료 경기의 상대 시간 표시를 사용자가 바로 이해할 수 있게 고친다.
+1. 앱의 날짜·시간 표시 수정(별도 작업)을 끝낸다. **충족**: #173(cc4f92d).
+2. 경기 시각을 하나의 현지화된 시각으로만 표시한다. ISO 원문과 KST 표시가 4시간 어긋나는 문제를 없앤다. **충족**: #173.
+3. 완료 경기의 상대 시간 표시를 사용자가 바로 이해할 수 있게 고친다. **충족**: #173(종료 경기는 숨김).
 4. 위 수정이 들어간 실제 출시 후보 SHA로 화면을 다시 찍고, 출시 후보의 화면이 다시 바뀌면 다시 찍는다.
-5. 데이터 보안·권한 선언의 근거(merged manifest, 의존성, 데이터 전송 경로)와 스크린샷 검토도 같은 출시 후보 SHA 기준으로 다시 한다.
+5. 데이터 보안·권한 선언의 근거(merged manifest, 의존성, 데이터 전송 경로)와 스크린샷 검토도 같은 출시 후보 SHA 기준으로 다시 한다. 선언 근거는 cc4f92d로 확인했다(1절). 재촬영할 SHA가 다르면 다시 한다.
 6. 아래 "팀 로고 권리 확인" 게이트를 통과한다.
 
 ### 팀 로고 권리 확인(제출 전 게이트)
@@ -281,7 +298,8 @@ ruby -e 'Dir["fastlane/metadata/android/ko-KR/*.txt"].sort.each { |f| puts "#{Fi
 - Play 지식재산권 정책은 무단 사용 예로 "대학 및 프로 스포츠팀 로고"를 들고, 개발자에게 권리 증빙을 요구할 수 있다고 적는다([지식재산권](https://support.google.com/googleplay/android-developer/answer/9888072)). 비공식 고지나 공개된 출처라는 사실은 사용 허락이 아니다.
 - 제출 전에 다음 중 하나를 한다.
   - 남겨 둘 로고마다 사용 권리 근거를 확인해 기록한다.
-  - 권리가 확인된 이미지만 보이는 실제 앱 화면으로 바꿔 찍는다.
+  - 권리가 확인된 이미지만 보이거나 로고 이미지가 없는 실제 앱 화면만 쓴다.
+- 소유자 결정(2026-10-26): 로고마다 권리를 확보하는 것은 현실적이지 않아, 로고 이미지가 없는 화면만 쓴다. 비공개 테스트에는 1·3·4번만 올린다. 심사에서 반려되면 비공개 테스트 시작이 늦어져 14일 기간도 밀린다.
 - 이 게이트는 소유자가 이미 수용한 `VLR.GG` 이름 사용·scraping 리스크와 별개로 판단한다.
 
 ### 임시본 촬영 기록(2026-10-19)
@@ -292,18 +310,18 @@ ruby -e 'Dir["fastlane/metadata/android/ko-KR/*.txt"].sort.each { |f| puts "#{Fi
 - 상태 표시줄은 SystemUI demo mode(12:00, Wi-Fi, 배터리 가득 참, 알림 아이콘 없음)로 정리하고 촬영 후 껐다. 남아 있던 시스템 알림 2개는 1시간 snooze했다.
 - 원본 캡처의 알파 채널은 macOS CoreGraphics로 흰 배경 위에 합성해 제거했다. 화면 내용은 바꾸지 않았다.
 - 선수 상세 화면은 실제 인물 사진과 실명이 크게 나와 스크린샷에서 뺐다. 팀 상세에는 실제 팀 로고가 나온다(위 "팀 로고 권리 확인").
-- About 화면은 찍지 않았다. 미병합 PR #169(오픈소스 라이선스 행)가 반영되면 About 화면이 바뀌기 때문이다.
+- About 화면은 찍지 않았다. 촬영 당시 #169(오픈소스 라이선스 행)가 merge 전이라 About 화면이 바뀔 예정이었다. #169는 2026-10-21 merge됐다.
 
 ## 6. 비공개 테스트 트랙
 
 ### 국가·지역
 
-- 권장: **대한민국만 선택**
+- 결정(2026-10-26 소유자): **대한민국만 선택**. 해외 테스터는 받지 않는다.
 - 근거:
   - 앱 화면과 등록정보가 한국어뿐이다.
   - 테스터의 Play 국가가 트랙 국가에 포함돼야 설치할 수 있다. 테스트 트랙은 기본적으로 프로덕션 국가 설정을 따르며, "국가/지역 동기화 해제" 후 따로 고를 수 있다([테스트 트랙 국가 설정](https://support.google.com/googleplay/android-developer/answer/7550024)).
   - 개인정보처리방침이 「개인정보 보호법」을 기준으로 쓰였다. 다른 나라 이용자를 받으면 그 나라의 고지 요건을 따로 검토해야 한다.
-- 소유자 결정: 해외에 있는 테스터가 있으면 그 국가를 추가한다. 추가 비공개 트랙은 국가 타깃팅을 지원하지 않으므로 기본 비공개 테스트 트랙을 쓴다([트랙 관리](https://support.google.com/googleplay/android-developer/answer/9845334)).
+- 나중에 해외 테스터를 받기로 하면 그 국가를 추가한다. 추가 비공개 트랙은 국가 타깃팅을 지원하지 않으므로 기본 비공개 테스트 트랙을 쓴다([트랙 관리](https://support.google.com/googleplay/android-developer/answer/9845334)).
 
 ### 테스터
 
@@ -312,7 +330,7 @@ ruby -e 'Dir["fastlane/metadata/android/ko-KR/*.txt"].sort.each { |f| puts "#{Fi
 
 ### 출시 노트 초안
 
-`<ko-KR>` 태그 안에 넣는다. 500자 이하([출시 노트](https://support.google.com/googleplay/android-developer/answer/9859348)). 아래 태그 안 본문은 줄바꿈 포함 253자다.
+`<ko-KR>` 태그 안에 넣는다. 500자 이하([출시 노트](https://support.google.com/googleplay/android-developer/answer/9859348)). 아래 태그 안 본문은 줄바꿈 포함 336자다.
 
 ```text
 <ko-KR>
@@ -321,47 +339,49 @@ ruby -e 'Dir["fastlane/metadata/android/ko-KR/*.txt"].sort.each { |f| puts "#{Fi
 - VLR.GG 뉴스 목록과 본문을 읽을 수 있습니다.
 - 대회별 경기, 뉴스, 선수 통계를 확인할 수 있습니다.
 - 팀·선수 상세와 검색, 기기 안에 저장되는 즐겨찾기를 지원합니다.
+- 경기 일정과 뉴스 기사의 날짜·시간을 한국어로 표시합니다.
 - 앱 이름과 아이콘을 바꾸고 About에 비공식 앱 고지와 개인정보처리방침 링크를 추가했습니다.
+- About에서 오픈소스 라이선스를 확인하고, 문의 메일을 바로 보낼 수 있습니다.
 문제나 의견은 teamcotton124@gmail.com으로 보내 주세요.
 </ko-KR>
 ```
 
 ### 다음 버전
 
-- 권장: **versionName `0.2.0`, versionCode `3`**
+- 결정(2026-10-26 소유자): 비공개 테스트에 올릴 버전은 **versionName `0.2.0`, versionCode `3`**
 - 근거:
   - 마지막 internal 기록은 `0.1.0(2)`다([app-release.md:3](app-release.md)).
   - versionCode는 이전에 올린 값보다 커야 하고, 한 번 쓴 값은 다시 쓸 수 없다([버전 관리](https://developer.android.com/studio/publish/versioning)).
   - 이후 브랜딩(#166), About 고지·링크(#165), 개인정보처리방침(#167·#168)이 기능 단위로 추가돼 minor 버전을 올린다.
-- 입력 방법: Actions의 `APP_VERSION=0.2.0`, `APP_BUILD_NUMBER=3`. Release build는 이 값을 versionName·versionCode로 쓴다([androidApp/build.gradle.kts:219-223](../app/androidApp/build.gradle.kts)).
-- 주의: Fastlane lane은 internal track의 versionCode만 조회한다([Fastfile:39-45](../fastlane/Fastfile), [app-release.md:79](app-release.md)). 실행 전 Console의 App bundle 탐색기에서 3 이상이 이미 쓰였는지 확인한다. 쓰였다면 그보다 큰 값을 쓴다.
+- 입력 방법: Actions의 `APP_VERSION=0.2.0`, `APP_BUILD_NUMBER=3`. Release build는 이 값을 versionName·versionCode로 쓴다([androidApp/build.gradle.kts:282-285](../app/androidApp/build.gradle.kts)).
+- 주의: Fastlane lane은 internal track의 versionCode만 조회한다([Fastfile:39-45](../fastlane/Fastfile), [app-release.md:146](app-release.md)). 실행 전 Console의 App bundle 탐색기에서 3 이상이 이미 쓰였는지 확인한다. 쓰였다면 그보다 큰 값을 쓴다.
 - 흐름: Actions로 internal에 올린 뒤 같은 빌드를 비공개 테스트로 승격하고 검토를 제출한다([#164](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/164) 과정 3).
 
-## 7. 소유자 결정 필요 목록
+## 7. 소유자 결정 목록
 
-| # | 항목 | 권장안 | 관련 절 |
+| # | 항목 | 결정 | 관련 절 |
 | --- | --- | --- | --- |
-| 1 | 제목 | `VLR.GG Mobile (Unofficial)`. 사칭 심사 대응 시 사이트 이름을 뺀 후보로 변경 | 5 |
-| 2 | 웹사이트에 저장소 URL 사용 | 사용 | 4 |
-| 3 | 태그 | 선택 사항 | 4 |
-| 4 | 서버 로그 IP 주소 | "기기 또는 기타 ID"에 포함, 대략적인 위치는 "아니요" | 3 |
-| 5 | 검색어를 "앱 내 검색 기록"으로 신고 | 신고 | 3 |
-| 6 | 요청 주소의 조회 대상을 "앱 상호작용"으로 신고 | 신고 | 3 |
-| 7 | 데이터 삭제 요청 방법 제공 | "예". 처리방침의 공개 이메일 요청 경로와 맞춘다. 계정이 없어 식별이 제한될 수 있다. 요청 경로를 운영하지 않기로 하면 처리방침을 먼저 고친다. | 3 |
-| 8 | IARC 폭력 질문(기사 이미지의 게임 화면) | 권장 답 없음. Console의 실제 문항과 현재 기사 이미지 예시를 보고 사실대로 답하고, 기사 이미지가 바뀌면 다시 평가한다. | 2 |
-| 9 | 비공개 테스트 국가 | 대한민국만 | 6 |
-| 10 | 다음 버전 | `0.2.0(3)`, Console 사용 이력 확인 후 | 6 |
-| 11 | 외부 이미지 호스트 전송의 공유 여부 | 공유 예외 근거를 기록한 뒤 "기기 또는 기타 ID"·"앱 상호작용"의 공유 칸과 최종 "공유 없음" 답을 확정한다. | 3 |
-| 12 | 팀 로고 권리 확인 | 로고마다 권리 근거를 확인하거나, 권리가 확인된 화면으로 바꿔 찍는다. | 5 |
-| 13 | 스크린샷 재촬영 | 날짜·시간 표시 수정 뒤 실제 출시 후보 SHA로 다시 찍고, 선언 근거도 같은 SHA로 다시 확인한다. | 5 |
+| 1 | 제목 | **결정(2026-10-26)**: `VLR.GG Mobile (Unofficial)`. 사칭·지식재산권 심사에서 반려되면 사이트 이름을 뺀 대안 제목을 그때 정한다. | 5 |
+| 2 | 웹사이트에 저장소 URL 사용 | **결정(2026-10-26)**: 사용. `https://github.com/KRMKGOLD/vlrgg-kr-2.0`을 입력한다. | 4 |
+| 3 | 태그 | **결정(2026-10-26)**: `스포츠` 하나만 고른다. | 4 |
+| 4 | 서버 로그 IP 주소 | **결정(2026-10-26)**: "기기 또는 기타 ID"에 포함, 대략적인 위치는 "아니요" | 3 |
+| 5 | 검색어를 "앱 내 검색 기록"으로 신고 | **결정(2026-10-26)**: 신고. 수집 예, 공유 아니요, 선택, 목적 앱 기능 | 3 |
+| 6 | 요청 주소의 조회 대상을 "앱 상호작용"으로 신고 | **결정(2026-10-26)**: 신고. 수집 예, 필수, 목적 앱 기능·분석. 공유는 11번 결정에 따라 예. | 3 |
+| 7 | 데이터 삭제 요청 방법 제공 | **결정(2026-10-26)**: "예". 처리방침의 공개 이메일 요청 경로와 맞추고, 소유자가 메일함을 확인해 답한다. 계정이 없어 식별이 제한될 수 있다. 요청 경로를 운영하지 않기로 하면 처리방침을 먼저 고친다. | 3 |
+| 8 | IARC 폭력 질문(기사 이미지의 게임 화면) | **결정(2026-10-26)**: 게임·비사실적 폭력 문항은 "예", 사실적·잔인한 폭력 문항은 "아니요". 타깃이 16세 이상이라 등급 상승과 충돌하지 않는다. 기사 이미지 성격이 바뀌면 다시 평가한다. | 2 |
+| 9 | 비공개 테스트 국가 | **결정(2026-10-26)**: 대한민국만. 해외 테스터는 받지 않는다. | 6 |
+| 10 | 다음 버전 | **결정(2026-10-26)**: 비공개 테스트는 `0.2.0(3)`. 배포 전에 Console App bundle 탐색기에서 3 이상 미사용을 확인한다. 테스트 중 업데이트 번호는 그때 정한다. | 6 |
+| 11 | 외부 이미지 호스트 전송의 공유 여부 | **결정(2026-10-26)**: 공유로 신고. "기기 또는 기타 ID"·"앱 상호작용"의 공유 칸 예, 공유 목적 앱 기능. 처리방침은 고치지 않는다. | 3 |
+| 12 | 팀 로고 권리 확인 | **결정(2026-10-26)**: 로고 권리는 확보하지 않고 로고 이미지가 없는 화면만 쓴다. 비공개 테스트에는 `1_matches`·`3_news`·`4_event_stats` 3장만 올린다. | 5 |
+| 13 | 스크린샷 재촬영 | **결정(2026-10-26)**: 지금은 하지 않는다. 비공개 테스트에는 임시본을 쓰고, 프로덕션 신청 전에 5절 재촬영 조건으로 다시 판단한다. 선언 근거는 출시 후보 cc4f92d로 다시 확인했다(1절). | 5 |
 
 ## 8. 남은 리스크
 
 - `VLR.GG` 이름 사용: 제목·설명의 `VLR.GG`는 제3자 사이트 이름이다. 비공식 고지와 제휴 없음 문구를 넣었고 소유자가 이 리스크를 수용했지만, Play가 사칭 심사에서 문제 삼을 수 있다.
 - 그래픽 이미지: 이미지 안의 제목이 `VLR.GG Mobile`이라 비공식 표기가 없다. 스토어 제목과 설명에는 비공식 표기가 있다.
-- 팀 로고: 현재 스크린샷 2, 5, 6의 실제 팀 로고는 권리 근거를 확인하지 않았다. 5절 "팀 로고 권리 확인" 게이트를 통과하기 전에는 올리지 않는다.
-- 스크린샷: 현재 6장은 임시본이며 날짜·시간 표시 문제가 있다. 5절 재촬영 조건을 채운 뒤 교체한다.
-- 데이터 보안의 공유 답: 외부 이미지 호스트 경로의 공유 여부가 정해지지 않았다. 호스트의 보존 기간과 IP 사용 목적도 확인하지 못했다.
+- 팀 로고: 현재 스크린샷 2, 5, 6의 실제 팀 로고는 권리 근거를 확인하지 않았다. 그래서 이 3장은 올리지 않는다(5절 "팀 로고 권리 확인"). 앱 화면 안의 로고 표시는 이미 수용한 데이터 출처 리스크에 포함된다.
+- 스크린샷: 비공개 테스트에 올리는 1·3·4번은 #173 수정 전(52bf0b0) 화면이라 테스트 빌드와 다르다. 특히 1번의 날짜 머리글과 상대 시간 표시가 다르다. Play는 스크린샷이 실제 앱 경험을 보여 주도록 요구하므로, 프로덕션 신청 전에 5절 재촬영 조건 4~6으로 다시 판단한다.
+- 데이터 보안의 공유 답: 외부 이미지 호스트 경로를 공유로 신고해 스토어에 "제3자와 데이터 공유"가 표시된다. 호스트의 보존 기간과 IP 사용 목적은 확인하지 못했다.
 - IARC: 기사 이미지가 VLR.GG 원문에 따라 바뀌므로, 제출한 등급 답을 나중에 다시 평가해야 할 수 있다.
 - 데이터 출처 이용 조건: VLR.GG 이용약관은 자동 scraping을 제한한다([feature/README.md](feature/README.md)의 "외부 제약"). 스토어 공개 범위가 넓어질수록 이 리스크도 커진다.
 - 개인정보처리방침 URL이 GitHub 저장소에 의존한다. 저장소를 비공개로 바꾸면 URL이 끊긴다.
