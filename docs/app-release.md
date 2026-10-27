@@ -104,7 +104,7 @@ Fastlane `supply`는 앱의 수동 초기 설정과 최소 한 번의 build uplo
 
 ### Console 앱 콘텐츠 선언
 
-Console의 앱 콘텐츠에서 다음 항목을 완료해야 한다. 실제 답변 초안은 [#164](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/164)에서 관리하며 이 문서에 복사하지 않는다.
+Console의 앱 콘텐츠에서 다음 항목을 완료해야 한다. 실제 답변 초안은 [`play-console.md`](play-console.md)에서 관리하며 이 문서에 복사하지 않는다.
 
 | 항목 | 이 문서의 기준 |
 | --- | --- |
@@ -115,7 +115,7 @@ Console의 앱 콘텐츠에서 다음 항목을 완료해야 한다. 실제 답�
 | 타겟층과 콘텐츠 | 대상 연령대 선언 |
 | 데이터 보안(Data safety) | 수집 데이터가 없어도 양식과 개인정보처리방침 링크가 필요하다([Play 안내](https://support.google.com/googleplay/android-developer/answer/10787469)) |
 | 뉴스 앱 | 해당 없음(소유자 결정, 2026-10-19) |
-| 기타 앱 유형별 선언 | 해당 여부 확인. 해당하면 #164에서 추가 |
+| 기타 앱 유형별 선언 | 해당 여부 확인. 해당하면 `play-console.md`에 추가 |
 
 항목 목록은 [Play 앱 콘텐츠 안내](https://support.google.com/googleplay/android-developer/answer/9859455)와 Console 화면을 기준으로 하며, 항목이 바뀌면 Console 화면이 우선한다. 선언은 store listing, About 고지와 [개인정보처리방침](privacy-policy.md)과 일치해야 한다.
 
