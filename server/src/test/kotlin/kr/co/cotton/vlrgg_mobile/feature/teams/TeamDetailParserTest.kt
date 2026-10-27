@@ -122,6 +122,17 @@ class TeamDetailParserTest {
     }
 
     @Test
+    fun `parser fails closed when every Team news candidate is a non-anchor`() {
+        val content = activeContent().copy(
+            newsHtml = fixture("active-team-news.html")
+                .replace("<a class=\"wf-module-item\"", "<div class=\"wf-module-item\"")
+                .replace("</a>", "</div>"),
+        )
+
+        assertFailsWith<SourceParsingFailure> { parser.parse(content) }
+    }
+
+    @Test
     fun `parser accepts sparse team and missing news section as empty optional content`() {
         val source = parser.parse(sparseContent())
 
