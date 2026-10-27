@@ -65,6 +65,20 @@ class TeamDetailRoutesTest {
     }
 
     @Test
+    fun `route returns 200 with empty news for a Team whose news card is a no-news placeholder`() = withTeamApplication(
+        FixtureTransport(newsHtml = fixture("no-news-team-news.html")),
+    ) {
+        val response = client.get("/api/v1/teams/21699")
+        val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals("KIWOOM DRX", body["name"]?.jsonPrimitive?.content)
+        assertEquals(1, body["upcomingMatches"]!!.jsonArray.size)
+        assertEquals(1, body["players"]!!.jsonArray.size)
+        assertTrue(body["news"]!!.jsonArray.isEmpty())
+    }
+
+    @Test
     fun `route serializes missing optional Team images as null`() = withTeamApplication(
         FixtureTransport(
             overviewHtml = fixture("sparse-team-overview.html"),

@@ -122,6 +122,17 @@ class TeamDetailParserTest {
     }
 
     @Test
+    fun `parser fails closed when every Team news candidate is a non-anchor`() {
+        val content = activeContent().copy(
+            newsHtml = fixture("active-team-news.html")
+                .replace("<a class=\"wf-module-item\"", "<div class=\"wf-module-item\"")
+                .replace("</a>", "</div>"),
+        )
+
+        assertFailsWith<SourceParsingFailure> { parser.parse(content) }
+    }
+
+    @Test
     fun `parser accepts sparse team and missing news section as empty optional content`() {
         val source = parser.parse(sparseContent())
 
@@ -201,6 +212,36 @@ class TeamDetailParserTest {
         )
 
         assertTrue(parser.parse(content).news.isEmpty())
+    }
+
+    @Test
+    fun `parser returns empty news for a text-only no-news placeholder card and keeps other fields`() {
+        val active = activeContent()
+        val source = parser.parse(active.copy(newsHtml = fixture("no-news-team-news.html")))
+
+        assertTrue(source.news.isEmpty())
+        assertEquals(parser.parse(active).copy(news = emptyList()), source)
+    }
+
+    @Test
+    fun `parser does not depend on the no-news placeholder wording`() {
+        val content = activeContent().copy(
+            newsHtml = fixture("no-news-team-news.html").replace("No related news posts", "관련 뉴스 없음"),
+        )
+
+        assertTrue(parser.parse(content).news.isEmpty())
+    }
+
+    @Test
+    fun `parser fails closed when a placeholder card contains a drifted link`() {
+        val content = activeContent().copy(
+            newsHtml = fixture("no-news-team-news.html").replace(
+                "No related news posts",
+                """<a href="/700700/drifted-news" class="news-link">Drifted news</a>""",
+            ),
+        )
+
+        assertFailsWith<SourceParsingFailure> { parser.parse(content) }
     }
 
     @Test
