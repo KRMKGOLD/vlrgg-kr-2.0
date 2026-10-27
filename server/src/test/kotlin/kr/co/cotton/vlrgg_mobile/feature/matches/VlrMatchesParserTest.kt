@@ -143,6 +143,31 @@ class VlrMatchesParserTest {
     }
 
     @Test
+    fun `rejects upstream timestamps that are not on the calendar instead of adjusting them`() {
+        val completed = fixtureHtml("detail-completed.html")
+        fun parsed(timestamp: String) = parser.parseDetail(
+            completed.replace(UPSTREAM_TIMESTAMP_ATTRIBUTE, "data-utc-ts=\"$timestamp\""),
+            detailUrl,
+            "709685",
+        ).scheduledAt
+
+        listOf(
+            "2026-02-30 04:00:00",
+            "2026-02-29 04:00:00",
+            "2026-04-31 04:00:00",
+            "2026-13-01 04:00:00",
+            "2026-05-30 24:00:00",
+            "2026-05-30 04:60:00",
+            "2026-05-30 04:00:60",
+        ).forEach { invalid -> assertNull(parsed(invalid), invalid) }
+
+        // A real leap day and the last valid second of a day still convert.
+        assertEquals("2028-02-29T09:00:00Z", parsed("2028-02-29 04:00:00"))
+        assertEquals("2026-05-31T03:59:59Z", parsed("2026-05-30 23:59:59"))
+        assertEquals("2026-05-30T08:00:00Z", parsed("2026-05-30 04:00:00"))
+    }
+
+    @Test
     fun `normalizes only supported detail team image URLs and preserves missing or unsafe values as null`() {
         val sources = mapOf(
             "//owcdn.net/img/home.png" to "https://owcdn.net/img/home.png",

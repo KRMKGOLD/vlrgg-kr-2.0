@@ -338,13 +338,14 @@ GET /api/v1/matches/{matchId}
 |---|---|---|---|---|
 | `GET /api/v1/matches/{upcoming\|results}` group | `date` | ISO-8601 local date `2026-10-27` | `dateLabel`의 달력 날짜. vlr.gg 표시 시간대(요청 위치 기준, 서울 리전·로컬은 KST) 기준이며 **instant가 아니다** | label에 `EEE, MMMM d, yyyy` 영어 날짜가 없거나, 요일과 날짜가 맞지 않음 |
 | `GET /api/v1/matches/{upcoming\|results}` summary, `GET /api/v1/events/{id}/matches` item | `time` | ISO-8601 local time `HH:mm` (`03:00`, `19:05`) | `timeLabel`의 시각. `date`와 같은 표시 시간대 기준이며 **instant가 아니다** | `timeLabel`이 `h:mm AM/PM` 형식이 아님 (`TBD` 등) |
-| `GET /api/v1/matches/{id}` | `scheduledAt` (기존) | ISO-8601 UTC instant `2026-10-26T18:00:00Z` | 경기 예정 시작 시각. 이번에 값만 고쳤고 형식·의미는 그대로다. `0.1.0(2)`가 원문으로 표시한다 | `data-utc-ts` 속성이 없거나 `yyyy-MM-dd HH:mm:ss` 형식이 아님, 또는 봄 DST gap에 있는 현지 시각 |
+| `GET /api/v1/matches/{id}` | `scheduledAt` (기존) | ISO-8601 UTC instant `2026-10-26T18:00:00Z` | 경기 예정 시작 시각. 이번에 값만 고쳤고 형식·의미는 그대로다. `0.1.0(2)`가 원문으로 표시한다 | `data-utc-ts` 속성이 없거나 `yyyy-MM-dd HH:mm:ss` 형식이 아님, 달력에 없는 날짜·시각(`2026-02-30` 등), 또는 봄 DST gap에 있는 현지 시각 |
 | `GET /api/v1/matches/{id}` | `scheduledAtUtc` | ISO-8601 UTC instant `2026-10-26T18:00:00Z` | 고친 `scheduledAt`과 항상 같은 값. 앱이 시간대 변환에 쓰는 field다 | `scheduledAt`과 같은 조건 |
 | `GET /api/v1/news/{articleId}/{slug}` | `publishedAtUtc` | ISO-8601 UTC instant `2026-10-25T15:09:14Z` | 기사 게시 시각 | header `time[datetime]`이 없거나 offset 포함 ISO-8601이 아님 |
 
 - 모든 instant는 `Z`로 끝나는 UTC ISO-8601이며 초까지 표기한다(`Instant.toString()`). 서버 JSON은 null field도 명시적으로 내보낸다.
 - 시각 파싱 실패는 해당 field만 null로 둔다. 필수 field가 아니므로 응답 전체를 실패시키지 않는다.
 - `America/New_York`의 서머타임 종료일 01:00~02:00처럼 두 번 나타나는 현지 시각(overlap)은 앞쪽 offset(EDT)으로 해석한다. `2026-11-01 01:30:00` → `2026-11-01T05:30:00Z`.
+- 달력에 없는 날짜·시각(`2026-02-30 04:00:00` 등)은 가까운 날짜로 보정하지 않고 null로 둔다. 파서는 strict 해석을 쓰며, null로 바꾸는 예외는 날짜·시각 형식 오류(`DateTimeException`)로 한정한다.
 - 서머타임 시작일 02:00~03:00처럼 존재하지 않는 현지 시각(gap)은 다음 유효 시각으로 보정하지 않고 null로 둔다. `2026-03-08 02:30:00` → null. `scheduledAt`과 `scheduledAtUtc` 모두 같은 규칙을 따른다.
 
 **앱은 `scheduledAt`이 아니라 `scheduledAtUtc`를 써야 한다.** `scheduledAt`은 새 field가 아니라 구 production 서버도 내려주는 field이고, 구서버 값은 형식상 정상 ISO-8601이면서 4~5시간 틀리다. 앱은 값만 보고 맞는 값인지 구분할 수 없다. 구서버는 `scheduledAtUtc`를 보내지 않으므로, 이 field가 있다는 사실이 "고친 값"임을 알려 주는 표지가 된다. 앱은 `scheduledAtUtc`만 신뢰하고, 없거나 null이면 `timeLabel`로 돌아간다. `scheduledAt`은 `0.1.0(2)`의 원문 표시를 위해 계속 내려준다.

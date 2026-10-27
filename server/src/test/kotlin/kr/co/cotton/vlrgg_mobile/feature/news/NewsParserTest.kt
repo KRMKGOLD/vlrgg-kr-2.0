@@ -288,7 +288,14 @@ class NewsParserTest {
         assertEquals("16 hours ago", article.publishedAt)
         assertEquals("2026-10-25T15:09:14Z", article.publishedAtUtc)
 
-        listOf("2026-10-26 00:09:14", "2026-10-26T00:09:14", "").forEach { invalid ->
+        listOf(
+            "2026-10-26 00:09:14",
+            "2026-10-26T00:09:14",
+            "2026-10-26T00:09:14+25:00",
+            "2026-10-26T00:09:14+0900x",
+            "2026-02-30T00:09:14+09:00",
+            "",
+        ).forEach { invalid ->
             val invalidHtml = html.replace("2026-10-26T00:09:14+09:00", invalid)
             assertNotEquals(html, invalidHtml)
             val invalidArticle = parser.parseArticle(invalidHtml, reference)

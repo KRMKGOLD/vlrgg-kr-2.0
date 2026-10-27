@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
+import java.time.DateTimeException
 import java.time.OffsetDateTime
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import org.jsoup.Jsoup
@@ -105,9 +106,11 @@ internal class NewsParser {
     }
 
     /** VLR.GG writes article `datetime` values with an explicit offset, e.g. `2026-10-26T00:09:14+09:00`. */
-    private fun String.toUtcIsoInstantOrNull(): String? = runCatching {
+    private fun String.toUtcIsoInstantOrNull(): String? = try {
         OffsetDateTime.parse(trim()).toInstant().toString()
-    }.getOrNull()
+    } catch (_: DateTimeException) {
+        null
+    }
 
     private fun findArticleHeader(body: Element): Element {
         var child = body
