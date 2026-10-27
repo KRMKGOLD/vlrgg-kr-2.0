@@ -2,11 +2,15 @@ package kr.co.cotton.vlrgg_mobile.feature.matches
 
 import io.ktor.http.*
 import java.net.URI
+import java.time.DateTimeException
 import java.time.LocalDateTime
-import java.time.ZoneOffset
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.toVlrDisplayDateOrNull
+import kr.co.cotton.vlrgg_mobile.common.scraping.toVlrDisplayTimeOrNull
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -29,6 +33,8 @@ internal class VlrMatchesParser(
                 }
                 MatchDateGroupSource(
                     dateLabel = dateLabel.requiredText(),
+                    // The label's own text excludes tags such as `Today`.
+                    date = dateLabel.ownText().toVlrDisplayDateOrNull(),
                     matches = matches,
                 )
             },
@@ -64,6 +70,7 @@ internal class VlrMatchesParser(
             status = status,
             timeLabel = header.detailTimeLabel()
                 ?: status.defaultTimeLabel(),
+            time = null,
             relativeTimeLabel = null,
             homeTeam = MatchTeamSource(
                 name = teams[HOME_TEAM_INDEX].requiredText(".wf-title-med"),
@@ -88,7 +95,7 @@ internal class VlrMatchesParser(
             summary = summary,
             scheduledAt = header.selectFirst(".match-header-date [data-utc-ts]")
                 ?.attr("data-utc-ts")
-                ?.toUtcIsoInstantOrNull(),
+                ?.toUtcIsoInstantFromUpstreamTimestampOrNull(),
             description = header.selectFirst(".match-header-note")?.normalizedText().orNullIfBlank(),
             seriesFormat = notes.drop(1).firstOrNull()?.orNullIfBlank(),
             maps = document.select(".vm-stats-game[data-game-id]")
@@ -111,10 +118,13 @@ internal class VlrMatchesParser(
         val event = row.selectFirst(".match-item-event")
             ?: sourceStructureError("Match event is missing.")
 
+        val timeLabel = row.requiredText(".match-item-time")
+
         return MatchSummarySource(
             id = matchId,
             status = row.requiredText(".ml-status").toMatchStatus(),
-            timeLabel = row.requiredText(".match-item-time"),
+            timeLabel = timeLabel,
+            time = timeLabel.toVlrDisplayTimeOrNull(),
             relativeTimeLabel = row.selectFirst(".ml-eta")?.normalizedText().orNullIfBlank(),
             homeTeam = MatchTeamSource(teams[HOME_TEAM_INDEX].requiredText(".match-item-vs-team-name")),
             awayTeam = MatchTeamSource(teams[AWAY_TEAM_INDEX].requiredText(".match-item-vs-team-name")),
@@ -313,11 +323,19 @@ internal class VlrMatchesParser(
         MatchStatusSource.UNAVAILABLE -> "Unavailable"
     }
 
-    private fun String.toUtcIsoInstantOrNull(): String? = runCatching {
-        LocalDateTime.parse(this, UPSTREAM_UTC_TIMESTAMP_FORMAT)
-            .toInstant(ZoneOffset.UTC)
-            .toString()
-    }.getOrNull()
+    /**
+     * Despite its name, VLR.GG's `data-utc-ts` holds US Eastern wall-clock time (EDT/EST). A local time
+     * skipped by the spring-forward gap does not exist and yields null; an ambiguous fall-back hour
+     * resolves to the earlier offset. A date or time that is not on the calendar, such as `2026-02-30`,
+     * is rejected rather than adjusted. Only format errors become null; other failures propagate.
+     */
+    private fun String.toUtcIsoInstantFromUpstreamTimestampOrNull(): String? = try {
+        val local = LocalDateTime.parse(this, UPSTREAM_TIMESTAMP_FORMAT)
+        val offsets = UPSTREAM_TIMESTAMP_ZONE.rules.getValidOffsets(local)
+        offsets.firstOrNull()?.let { local.toInstant(it).toString() }
+    } catch (_: DateTimeException) {
+        null
+    }
 
     // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and require a valid host.
     private fun String?.toPublicImageUrl(): String? = this?.trim()?.takeIf { it.isNotEmpty() }?.let { source ->
@@ -373,7 +391,10 @@ internal class VlrMatchesParser(
         val TEAM_PATH_REGEX = Regex("/team/([1-9]\\d{0,9})(?:/[^?#]*)?(?:[?#].*)?")
         val EVENT_PATH_REGEX = Regex("/event/([1-9]\\d{0,9})(?:/[^?#]*)?(?:[?#].*)?")
         val CANONICAL_VLR_ORIGINS = listOf("https://www.vlr.gg", "https://vlr.gg")
-        val UPSTREAM_UTC_TIMESTAMP_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        val UPSTREAM_TIMESTAMP_FORMAT: DateTimeFormatter = DateTimeFormatter
+            .ofPattern("uuuu-MM-dd HH:mm:ss")
+            .withResolverStyle(ResolverStyle.STRICT)
+        val UPSTREAM_TIMESTAMP_ZONE: ZoneId = ZoneId.of("America/New_York")
         const val REQUIRED_TEAM_COUNT = 2
         const val HOME_TEAM_INDEX = 0
         const val AWAY_TEAM_INDEX = 1

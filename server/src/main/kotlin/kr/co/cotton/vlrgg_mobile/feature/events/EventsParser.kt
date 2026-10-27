@@ -2,6 +2,7 @@ package kr.co.cotton.vlrgg_mobile.feature.events
 
 import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.toVlrDisplayTimeOrNull
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -109,11 +110,14 @@ internal class EventsParser {
             sourceStructureError("Event match must contain exactly two teams.")
         }
 
+        val timeLabel = card.requiredText(MATCH_TIME_SELECTOR, "Match time is missing.")
+
         return EventMatchSource(
             id = card.attr("href").extractId(MATCH_PATH_PATTERN)
                 ?: sourceStructureError("Match identifier is missing."),
             status = card.requiredText(MATCH_STATUS_SELECTOR, "Match status is missing.").toMatchStatus(),
-            timeLabel = card.requiredText(MATCH_TIME_SELECTOR, "Match time is missing."),
+            timeLabel = timeLabel,
+            time = timeLabel.toVlrDisplayTimeOrNull(),
             relativeTimeLabel = card.selectFirst(MATCH_RELATIVE_TIME_SELECTOR)?.normalizedText().orNullIfBlank(),
             homeTeam = parseMatchTeam(teams[HOME_TEAM_INDEX]),
             awayTeam = parseMatchTeam(teams[AWAY_TEAM_INDEX]),

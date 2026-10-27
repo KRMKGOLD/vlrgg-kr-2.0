@@ -7,6 +7,7 @@ internal data class MatchesPageSource(
 
 internal data class MatchDateGroupSource(
     val dateLabel: String,
+    val date: String?,
     val matches: List<MatchSummarySource>,
 )
 
@@ -14,6 +15,7 @@ internal data class MatchSummarySource(
     val id: String,
     val status: MatchStatusSource,
     val timeLabel: String,
+    val time: String?,
     val relativeTimeLabel: String?,
     val homeTeam: MatchTeamSource,
     val awayTeam: MatchTeamSource,

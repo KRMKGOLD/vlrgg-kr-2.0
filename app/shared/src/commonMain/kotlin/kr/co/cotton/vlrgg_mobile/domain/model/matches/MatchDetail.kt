@@ -1,11 +1,13 @@
 package kr.co.cotton.vlrgg_mobile.domain.model.matches
 
+import kotlin.time.Instant
+
 data class MatchDetail(
     val id: String,
     val status: MatchStatus,
     val timeLabel: String,
     val relativeTimeLabel: String?,
-    val scheduledAt: String?,
+    val scheduledAtUtc: Instant?,
     val homeTeam: MatchTeam,
     val awayTeam: MatchTeam,
     val homeScore: Int?,

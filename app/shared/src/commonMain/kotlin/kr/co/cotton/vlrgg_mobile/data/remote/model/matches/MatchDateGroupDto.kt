@@ -6,4 +6,5 @@ import kotlinx.serialization.Serializable
 internal data class MatchDateGroupDto(
     val dateLabel: String,
     val matches: List<MatchSummaryDto>,
+    val date: String? = null,
 )

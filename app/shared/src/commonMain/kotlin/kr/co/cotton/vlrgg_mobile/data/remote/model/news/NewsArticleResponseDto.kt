@@ -8,5 +8,6 @@ internal data class NewsArticleResponseDto(
     val title: String,
     val author: String,
     val publishedAt: String,
+    val publishedAtUtc: String? = null,
     val blocks: List<NewsArticleBlockDto>,
 )

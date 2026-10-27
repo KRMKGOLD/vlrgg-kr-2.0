@@ -64,6 +64,7 @@ class NewsRepositoryImplTest {
                     author = "Reporter",
                     publishedAt = "2026-08-09T12:00:00Z",
                     blocks = emptyList(),
+                    publishedAtUtc = null,
                 ),
             ),
             result,

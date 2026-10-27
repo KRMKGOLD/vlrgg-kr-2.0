@@ -9,6 +9,7 @@ internal data class MatchDetailResponseDto(
     val timeLabel: String,
     val relativeTimeLabel: String? = null,
     val scheduledAt: String? = null,
+    val scheduledAtUtc: String? = null,
     val homeTeam: MatchTeamDto,
     val awayTeam: MatchTeamDto,
     val homeScore: Int? = null,

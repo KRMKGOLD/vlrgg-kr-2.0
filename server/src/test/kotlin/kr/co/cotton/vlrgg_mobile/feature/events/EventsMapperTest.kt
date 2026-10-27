@@ -54,13 +54,14 @@ class EventsMapperTest {
 
     @Test
     fun `mapper reuses match summary status and event identity contract`() {
-        val response = mapper.toEventMatchesResponse(
+        val responses = mapper.toEventMatchesResponse(
             EventMatchesSource(
                 matches = listOf(
                     EventMatchSource(
                         id = "501",
                         status = EventMatchStatusSource.POSTPONED,
                         timeLabel = "TBD",
+                        time = null,
                         relativeTimeLabel = null,
                         homeTeam = EventMatchTeamSource("Alpha"),
                         awayTeam = EventMatchTeamSource("Bravo"),
@@ -68,11 +69,28 @@ class EventsMapperTest {
                         awayScore = null,
                         event = EventMatchEventSource("Masters Seoul", null, "100"),
                     ),
+                    EventMatchSource(
+                        id = "502",
+                        status = EventMatchStatusSource.UPCOMING,
+                        timeLabel = "8:00 PM",
+                        time = "20:00",
+                        relativeTimeLabel = "1d 3h",
+                        homeTeam = EventMatchTeamSource("Charlie"),
+                        awayTeam = EventMatchTeamSource("Delta"),
+                        homeScore = null,
+                        awayScore = null,
+                        event = EventMatchEventSource("Masters Seoul", null, "100"),
+                    ),
                 ),
             ),
-        ).items.single()
+        ).items
+        val response = responses.first()
 
         assertEquals(MatchStatus.POSTPONED, response.status)
+        assertEquals("TBD", response.timeLabel)
+        assertNull(response.time)
+        assertEquals("8:00 PM", responses.last().timeLabel)
+        assertEquals("20:00", responses.last().time)
         assertEquals("Masters Seoul", response.event.name)
         assertEquals("100", response.event.id)
         assertNull(response.event.series)

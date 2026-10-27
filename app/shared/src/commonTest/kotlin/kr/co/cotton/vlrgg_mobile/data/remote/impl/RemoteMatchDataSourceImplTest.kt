@@ -39,6 +39,8 @@ class RemoteMatchDataSourceImplTest {
             assertEquals(MatchStatusDto.LIVE, response.groups.single().matches.single().status)
             assertEquals(null, response.groups.single().matches.single().homeTeam.imageUrl)
             assertEquals(null, response.groups.single().matches.single().awayTeam.imageUrl)
+            assertEquals(null, response.groups.single().date)
+            assertEquals(null, response.groups.single().matches.single().time)
         } finally {
             client.close()
         }
@@ -58,6 +60,8 @@ class RemoteMatchDataSourceImplTest {
             val response = RemoteMatchDataSourceImpl(client).getResults(page = 3)
 
             assertEquals(MatchListCategoryDto.RESULTS, response.category)
+            assertEquals("2026-08-19", response.groups.single().date)
+            assertEquals("10:00", response.groups.single().matches.single().time)
             assertEquals(3, response.page)
             assertEquals(13, response.groups.single().matches.single().homeScore)
         } finally {
@@ -81,6 +85,7 @@ class RemoteMatchDataSourceImplTest {
             assertEquals("7000", response.id)
             assertEquals(MatchStatusDto.COMPLETED, response.status)
             assertEquals("2026-08-29T08:00:00Z", response.scheduledAt)
+            assertEquals("2026-08-29T08:00:00Z", response.scheduledAtUtc)
             assertEquals("https://owcdn.net/img/alpha.png", response.homeTeam.imageUrl)
             assertEquals("https://owcdn.net/img/beta.png", response.awayTeam.imageUrl)
             assertEquals(0, response.homeScore)
@@ -108,6 +113,7 @@ class RemoteMatchDataSourceImplTest {
 
             assertEquals(null, response.relativeTimeLabel)
             assertEquals(null, response.scheduledAt)
+            assertEquals(null, response.scheduledAtUtc)
             assertEquals(null, response.homeTeam.imageUrl)
             assertEquals(null, response.awayTeam.imageUrl)
             assertEquals(null, response.homeScore)
@@ -202,11 +208,13 @@ class RemoteMatchDataSourceImplTest {
               "groups": [
                 {
                   "dateLabel": "WED, AUGUST 19, 2026",
+                  "date": "2026-08-19",
                   "matches": [
                     {
                       "id": "3901",
                       "status": "completed",
                       "timeLabel": "10:00 AM",
+                      "time": "10:00",
                       "homeTeam": { "name": "Alpha", "id": "alpha" },
                       "awayTeam": { "name": "Beta", "id": "beta" },
                       "homeScore": 13,
@@ -224,6 +232,7 @@ class RemoteMatchDataSourceImplTest {
             {
               "id": "7000", "status": "completed", "timeLabel": "2026-08-29 17:00",
               "relativeTimeLabel": "1h ago", "scheduledAt": "2026-08-29T08:00:00Z",
+              "scheduledAtUtc": "2026-08-29T08:00:00Z",
               "homeTeam": { "name": "Alpha", "id": "alpha", "imageUrl": "https://owcdn.net/img/alpha.png" },
               "awayTeam": { "name": "Beta", "id": null, "imageUrl": "https://owcdn.net/img/beta.png" },
               "homeScore": 0, "awayScore": null,

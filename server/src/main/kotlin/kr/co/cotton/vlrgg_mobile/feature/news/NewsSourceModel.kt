@@ -23,6 +23,7 @@ internal data class NewsArticleSource(
     val title: String,
     val author: String,
     val publishedAt: String,
+    val publishedAtUtc: String?,
     val blocks: List<NewsSourceBlock>,
 )
 

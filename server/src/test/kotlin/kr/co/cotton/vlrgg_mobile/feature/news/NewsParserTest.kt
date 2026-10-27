@@ -132,6 +132,7 @@ class NewsParserTest {
         assertEquals("Champions run", article.title)
         assertEquals("raezeri", article.author)
         assertEquals("July 13, 2026", article.publishedAt)
+        assertNull(article.publishedAtUtc)
         assertEquals(
             listOf(
                 NewsParagraphSourceBlock(
@@ -275,6 +276,36 @@ class NewsParserTest {
         assertEquals("Actual article title", article.title)
         assertEquals("actual-author", article.author)
         assertEquals("July 13, 2026", article.publishedAt)
+    }
+
+    @Test
+    fun `article parser exposes the header datetime as a UTC instant without changing the source label`() {
+        val html = readFixture("news-article-operational-metadata.html")
+        val reference = newsReference("780118", "wendler-to-leave-paper-rex-after-nearly-one-year")
+
+        val article = parser.parseArticle(html, reference)
+        assertEquals("4kanders0ny", article.author)
+        assertEquals("16 hours ago", article.publishedAt)
+        assertEquals("2026-10-25T15:09:14Z", article.publishedAtUtc)
+
+        listOf(
+            "2026-10-26 00:09:14",
+            "2026-10-26T00:09:14",
+            "2026-10-26T00:09:14+25:00",
+            "2026-10-26T00:09:14+0900x",
+            "2026-02-30T00:09:14+09:00",
+            "",
+        ).forEach { invalid ->
+            val invalidHtml = html.replace("2026-10-26T00:09:14+09:00", invalid)
+            assertNotEquals(html, invalidHtml)
+            val invalidArticle = parser.parseArticle(invalidHtml, reference)
+            assertEquals("16 hours ago", invalidArticle.publishedAt)
+            assertNull(invalidArticle.publishedAtUtc)
+        }
+
+        val withoutDatetime = parser.parseArticle(html.replace(" datetime=\"2026-10-26T00:09:14+09:00\"", ""), reference)
+        assertEquals("16 hours ago", withoutDatetime.publishedAt)
+        assertNull(withoutDatetime.publishedAtUtc)
     }
 
     @Test

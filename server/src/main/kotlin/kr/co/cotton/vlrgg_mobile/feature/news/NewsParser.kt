@@ -1,5 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.feature.news
 
+import java.time.DateTimeException
+import java.time.OffsetDateTime
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -73,6 +75,7 @@ internal class NewsParser {
             title = title,
             author = metadata.author,
             publishedAt = metadata.publishedAt,
+            publishedAtUtc = metadata.publishedAtUtc,
             blocks = blocks,
         )
     }
@@ -84,16 +87,29 @@ internal class NewsParser {
             ?: throw NewsParsingException("Article metadata is missing.")
         val explicitAuthor = metadata.selectFirst(".article-meta-author, [data-news-author]")?.cleanText()
         val explicitPublishedAt = metadata.selectFirst(".article-meta-time, [data-news-published-at], time")?.cleanText()
+        val publishedAtUtc = metadata.selectFirst("time[datetime]")?.attr("datetime")?.toUtcIsoInstantOrNull()
 
         if (explicitAuthor != null && explicitPublishedAt != null) {
-            return ArticleMetadata(author = explicitAuthor, publishedAt = explicitPublishedAt)
+            return ArticleMetadata(
+                author = explicitAuthor,
+                publishedAt = explicitPublishedAt,
+                publishedAtUtc = publishedAtUtc,
+            )
         }
 
         val (publishedAt, author) = parsePublicationMetadata(requiredText(metadata, "Article metadata is missing."))
         return ArticleMetadata(
             author = explicitAuthor ?: author,
             publishedAt = explicitPublishedAt ?: publishedAt,
+            publishedAtUtc = publishedAtUtc,
         )
+    }
+
+    /** VLR.GG writes article `datetime` values with an explicit offset, e.g. `2026-10-26T00:09:14+09:00`. */
+    private fun String.toUtcIsoInstantOrNull(): String? = try {
+        OffsetDateTime.parse(trim()).toInstant().toString()
+    } catch (_: DateTimeException) {
+        null
     }
 
     private fun findArticleHeader(body: Element): Element {
@@ -312,5 +328,6 @@ internal class NewsParser {
     private data class ArticleMetadata(
         val author: String,
         val publishedAt: String,
+        val publishedAtUtc: String?,
     )
 }

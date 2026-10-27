@@ -28,6 +28,8 @@ data class NewsArticleResponse(
     val title: String,
     val author: String,
     val publishedAt: String,
+    /** Publication time as an ISO-8601 UTC instant, e.g. `2026-10-25T15:09:14Z`. */
+    val publishedAtUtc: String? = null,
     val blocks: List<NewsArticleBlockResponse>,
 )
 

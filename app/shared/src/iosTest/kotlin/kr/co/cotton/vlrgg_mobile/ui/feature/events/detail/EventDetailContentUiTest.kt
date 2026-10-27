@@ -251,6 +251,7 @@ class EventDetailContentUiTest {
             homeScore = null,
             awayScore = null,
             event = MatchEvent("Masters Seoul", "Playoffs", "100"),
+            time = null,
         )
         val news = NewsSummary("101", "masters-seoul", "Masters begins", null, "2026-08-25")
         val player = EventPlayerStats(

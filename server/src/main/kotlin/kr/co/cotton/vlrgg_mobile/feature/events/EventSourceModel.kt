@@ -41,6 +41,7 @@ internal data class EventMatchSource(
     val id: String,
     val status: EventMatchStatusSource,
     val timeLabel: String,
+    val time: String?,
     val relativeTimeLabel: String?,
     val homeTeam: EventMatchTeamSource,
     val awayTeam: EventMatchTeamSource,

@@ -62,6 +62,7 @@ class RemoteNewsDataSourceImplTest {
             )
 
             assertEquals("101/champions-run", response.reference)
+            assertEquals("2026-08-09T12:00:00Z", response.publishedAtUtc)
             val paragraph = assertIs<NewsArticleBlockDto.Paragraph>(response.blocks.single())
             assertIs<NewsArticleInlineDto.Text>(paragraph.content.single())
         } finally {
@@ -140,6 +141,7 @@ class RemoteNewsDataSourceImplTest {
               "title": "Champions run",
               "author": "Reporter",
               "publishedAt": "2026-08-09T12:00:00Z",
+              "publishedAtUtc": "2026-08-09T12:00:00Z",
               "blocks": [
                 {
                   "type": "paragraph",

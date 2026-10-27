@@ -1,5 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail
 
+import kotlin.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -61,7 +62,7 @@ class MatchDetailViewModelTest {
     fun optionalFieldsAndEmptySectionsRemainContent() = runViewModelTest {
         val sparseMatch = matchDetail(
             relativeTimeLabel = null,
-            scheduledAt = null,
+            scheduledAtUtc = null,
             homeScore = null,
             awayScore = null,
             description = null,
@@ -194,7 +195,7 @@ class MatchDetailViewModelTest {
 
     private fun matchDetail(
         relativeTimeLabel: String? = "IN 2 HOURS",
-        scheduledAt: String? = "2026-08-30T10:00:00Z",
+        scheduledAtUtc: Instant? = Instant.parse("2026-08-30T10:00:00Z"),
         homeScore: Int? = 2,
         awayScore: Int? = 1,
         description: String? = "Upper final",
@@ -211,7 +212,7 @@ class MatchDetailViewModelTest {
         status = MatchStatus.COMPLETED,
         timeLabel = "final",
         relativeTimeLabel = relativeTimeLabel,
-        scheduledAt = scheduledAt,
+        scheduledAtUtc = scheduledAtUtc,
         homeTeam = MatchTeam("Alpha", id = "team-alpha"),
         awayTeam = MatchTeam("Beta", id = "team-beta"),
         homeScore = homeScore,

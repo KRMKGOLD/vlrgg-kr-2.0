@@ -30,7 +30,9 @@ GET /api/v1/news/{articleId}/{slug}
 
 - `page`는 기본 1, 범위 `1..10000`의 leading-zero 없는 단일 정수다. 다른·중복 query는 `400 INVALID_REQUEST`다.
 - 목록 응답은 `{ page, nextPage, items }`, item은 canonical `{articleId}/{slug}` `reference`, `title`, `author`, `publishedAt`을 가진다. `nextPage=null`은 마지막 페이지다. `publishedAt`은 source text이며 상대 시간 formatting은 UI가 담당한다.
-- Detail은 목록 reference의 두 segment를 그대로 사용하고 `{ reference, title, author, publishedAt, blocks }`를 반환한다. noncanonical reference는 `400 INVALID_REQUEST`다.
+- Detail은 목록 reference의 두 segment를 그대로 사용하고 `{ reference, title, author, publishedAt, publishedAtUtc?, blocks }`를 반환한다. noncanonical reference는 `400 INVALID_REQUEST`다.
+- `publishedAtUtc`는 기사 header의 `time[datetime]`(offset 포함 ISO-8601)을 바꾼 UTC instant(`2026-10-25T15:09:14Z`)다. 속성이 없거나 형식이 맞지 않으면 null이다. `publishedAt`은 기존 source text 그대로다. 실제 기사 페이지에서는 `16 hours ago` 같은 상대 시간이다. 목록 item은 날짜 텍스트만 있어 instant를 제공하지 않는다. 형식·null 조건·앱 호환성은 [Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)을 따른다.
+- 앱 기사 화면은 `publishedAtUtc`가 있으면 기기 시간대 기준 `2026년 10월 26일 오전 12:09`로 표시하고, 없거나 파싱할 수 없으면 `publishedAt` 원문을 표시한다. 목록 item의 `publishedAt`은 원문 그대로 표시한다. 상세 규칙은 [앱 표시 규칙](../matches/README.md#앱-표시-규칙)을 따른다.
 - block은 원순서의 `paragraph.content`, `image.imageUrl`/optional `caption`, `list.ordered`/`items` tagged object다. text content는 `text` 또는 `link`이고 link kind는 `TEAM`, `PLAYER`, `EVENT`, `MATCH`, `INTERNAL_UNSUPPORTED`, `EXTERNAL`이다. Team·Player만 routable reference를 가진다.
 - `.article-body`만 본문으로 사용하고 script/style, hover/reference card, sidebar, comments를 제외한다. DOM 전체 `text()` 병합으로 구조를 평탄화하지 않는다.
 - 제목과 본문은 필수다. image/caption은 선택이고 필수 구조 실패는 `SOURCE_PARSING_FAILURE`다.

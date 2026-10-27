@@ -6,6 +6,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.matchCardTag
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 
 @Composable
 fun MatchCard(
@@ -34,12 +35,15 @@ internal fun MatchSummary.toMatchContentItem(showEventName: Boolean): MatchConte
         },
         scoreTestTag = matchScoreTag(id),
         leadingContent = if (status == MatchStatus.UPCOMING) {
-            MatchContentItemLeading.Time(timeLabel, relativeTimeLabel)
+            MatchContentItemLeading.Time(
+                timeLabel = time?.let(KoreanDateTimeFormat::time) ?: timeLabel,
+                relativeTimeLabel = relativeTimeLabel?.let(KoreanDateTimeFormat::remainingTime),
+            )
         } else {
+            // 예정 경기가 아니면 ETA를 표시하지 않는다. 종료 경기 ETA는 남은 시간이 아니라 시작 후 지난 시간이다.
             MatchContentItemLeading.Status(
                 status = status.toChipStatus(),
                 label = status.displayLabel(),
-                relativeTimeLabel = relativeTimeLabel,
             )
         },
         eventName = event.name.takeIf { showEventName },

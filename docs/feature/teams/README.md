@@ -33,6 +33,7 @@ GET /api/v1/teams/{teamId}
 
 응답은 `id`, `name`, nullable `tag`/`country`/`logoUrl`, `upcomingMatches`, `recentMatches`, `players`, `staff`, `news`다. Match는 `id`, `eventName`, `eventStage`, `teamName`, `opponentName`, `statusText`, `scheduledAtText`, roster는 `id`, `handle`, `realName`, `roleLabels`, `imageUrl`, News는 `reference`, `title`, `publishedDateText`를 사용한다. Team news `reference`는 News Detail이 그대로 사용하는 canonical `articleId/slug`다. Team image는 기존 `https://`, protocol-relative, root-relative VLR URL만 HTTPS로 정규화하고 `http`, `data`, `javascript`, bare-relative는 `null`이다.
 
+- `scheduledAtText`(`2026/08/28 7:05 pm`)와 `publishedDateText`는 source text 그대로다. vlr.gg가 기계 판독 가능한 시각을 주지 않고, 표시 시간대도 요청 위치에 따라 달라서 instant를 제공하지 않는다([Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)).
 - 존재하는 Team의 `name`, Match team names, roster handle, News title은 필수다. 나머지 source 미제공 field만 nullable이다.
 - overview와 news를 요청 시점에 각각 조회한다. 하나의 fetch 실패도 `UPSTREAM_NETWORK_FAILURE`이며 stale-success fallback이 없다.
 - Team-news page에서 header card의 인접 `wf-card`만 검증된 news container다. 직접 child 중 알려진 Match 구조는 제외하고 `a.wf-module-item`만 News로 파싱한다. 다른 관찰 child나 malformed VLR news link는 `SOURCE_PARSING_FAILURE`, untrusted external link는 제외한다.

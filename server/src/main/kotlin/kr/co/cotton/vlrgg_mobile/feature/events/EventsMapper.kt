@@ -31,6 +31,7 @@ internal class EventsMapper {
                 id = match.id,
                 status = match.status.toResponse(),
                 timeLabel = match.timeLabel,
+                time = match.time,
                 relativeTimeLabel = match.relativeTimeLabel,
                 homeTeam = MatchTeamResponse(name = match.homeTeam.name),
                 awayTeam = MatchTeamResponse(name = match.awayTeam.name),

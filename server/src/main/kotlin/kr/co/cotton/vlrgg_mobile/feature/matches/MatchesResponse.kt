@@ -14,6 +14,8 @@ data class MatchesPageResponse(
 @Serializable
 data class MatchDateGroupResponse(
     val dateLabel: String,
+    /** ISO-8601 local date of [dateLabel] in VLR.GG's display time zone; not an instant. */
+    val date: String? = null,
     val matches: List<MatchSummaryResponse>,
 )
 
@@ -22,6 +24,8 @@ data class MatchSummaryResponse(
     val id: String,
     val status: MatchStatus,
     val timeLabel: String,
+    /** ISO-8601 local time (`HH:mm`) of [timeLabel] in VLR.GG's display time zone; not an instant. */
+    val time: String? = null,
     val relativeTimeLabel: String? = null,
     val homeTeam: MatchTeamResponse,
     val awayTeam: MatchTeamResponse,
@@ -37,7 +41,13 @@ data class MatchDetailResponse(
     val status: MatchStatus,
     val timeLabel: String,
     val relativeTimeLabel: String? = null,
+    /** Scheduled start as an ISO-8601 UTC instant, e.g. `2026-10-26T18:00:00Z`. */
     val scheduledAt: String? = null,
+    /**
+     * Same instant as [scheduledAt]. Servers before the US Eastern fix send a valid but 4-5 hour early
+     * [scheduledAt] and no `scheduledAtUtc`, so clients that need a trustworthy instant must read this field.
+     */
+    val scheduledAtUtc: String? = null,
     val homeTeam: MatchTeamResponse,
     val awayTeam: MatchTeamResponse,
     val homeScore: Int? = null,
