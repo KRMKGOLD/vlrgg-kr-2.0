@@ -4,7 +4,7 @@ VLR.GG의 Valorant e-sports 정보를 Android와 iOS에서 탐색하는 Compose 
 
 [![CI](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/workflows/ci.yml/badge.svg)](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/workflows/ci.yml)
 
-[기능 기획과 구현 범위](docs/feature/README.md) · [문서 지도](docs/README.md) · [Stitch 디자인](https://stitch.withgoogle.com/projects/8765150675340843101)
+[기능 기획과 구현 범위](docs/feature/README.md) · [문서 지도](docs/README.md) · [디자인 시스템](DESIGN.md) · [Pencil v3 디자인](docs/design/pen/vlrgg-mobile-v3.pen)
 
 ## 현재 범위
 
