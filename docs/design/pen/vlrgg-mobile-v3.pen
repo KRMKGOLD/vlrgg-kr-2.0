@@ -2710,7 +2710,7 @@
                   "gap": 8,
                   "padding": [
                     0,
-                    4,
+                    0,
                     0,
                     12
                   ],
@@ -2742,9 +2742,9 @@
                     {
                       "type": "frame",
                       "id": "OfEQJ",
-                      "name": "Clear · 40",
-                      "width": 40,
-                      "height": 40,
+                      "name": "Clear · 48",
+                      "width": 48,
+                      "height": 48,
                       "justifyContent": "center",
                       "alignItems": "center",
                       "children": [
