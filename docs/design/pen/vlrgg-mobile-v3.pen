@@ -84,8 +84,9 @@
                           "name": "Signal",
                           "width": 14,
                           "height": 14,
-                          "icon": "cell-signal-full",
-                          "library": "phosphor",
+                          "icon": "signal_cellular_alt",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         },
                         {
@@ -94,8 +95,9 @@
                           "name": "Wifi",
                           "width": 14,
                           "height": 14,
-                          "icon": "wifi-high",
-                          "library": "phosphor",
+                          "icon": "wifi",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         },
                         {
@@ -104,8 +106,9 @@
                           "name": "Battery",
                           "width": 16,
                           "height": 16,
-                          "icon": "battery-full",
-                          "library": "phosphor",
+                          "icon": "battery_full",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -155,8 +158,9 @@
                           "name": "Search icon",
                           "width": 24,
                           "height": 24,
-                          "icon": "magnifying-glass",
-                          "library": "phosphor",
+                          "icon": "search",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -193,8 +197,9 @@
                           "name": "Back icon",
                           "width": 24,
                           "height": 24,
-                          "icon": "arrow-left",
-                          "library": "phosphor",
+                          "icon": "arrow_back",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -227,7 +232,8 @@
                           "width": 24,
                           "height": 24,
                           "icon": "star",
-                          "library": "phosphor",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -414,7 +420,8 @@
                               "width": 24,
                               "height": 24,
                               "icon": "newspaper",
-                              "library": "phosphor",
+                              "library": "Material Symbols Outlined",
+                              "weight": 400,
                               "fill": "$muted"
                             },
                             {
@@ -458,8 +465,9 @@
                               "name": "Icon",
                               "width": 24,
                               "height": 24,
-                              "icon": "crosshair-fill",
-                              "library": "phosphor",
+                              "icon": "scoreboard",
+                              "library": "Material Symbols Outlined",
+                              "weight": 400,
                               "fill": "$ink"
                             },
                             {
@@ -503,8 +511,9 @@
                               "name": "Icon",
                               "width": 24,
                               "height": 24,
-                              "icon": "user",
-                              "library": "phosphor",
+                              "icon": "person",
+                              "library": "Material Symbols Outlined",
+                              "weight": 400,
                               "fill": "$muted"
                             },
                             {
@@ -549,7 +558,8 @@
                               "width": 24,
                               "height": 24,
                               "icon": "trophy",
-                              "library": "phosphor",
+                              "library": "Material Symbols Outlined",
+                              "weight": 400,
                               "fill": "$muted"
                             },
                             {
@@ -594,7 +604,8 @@
                               "width": 24,
                               "height": 24,
                               "icon": "info",
-                              "library": "phosphor",
+                              "library": "Material Symbols Outlined",
+                              "weight": 400,
                               "fill": "$muted"
                             },
                             {
@@ -992,8 +1003,9 @@
                           "name": "Trailing icon",
                           "width": 20,
                           "height": 20,
-                          "icon": "caret-right",
-                          "library": "phosphor",
+                          "icon": "chevron_right",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$muted"
                         }
                       ]
@@ -1027,7 +1039,8 @@
                       "width": 22,
                       "height": 22,
                       "icon": "code",
-                      "library": "phosphor",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$ink-2"
                     },
                     {
@@ -1079,8 +1092,9 @@
                           "name": "Trailing icon",
                           "width": 20,
                           "height": 20,
-                          "icon": "arrow-up-right",
-                          "library": "phosphor",
+                          "icon": "arrow_outward",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$muted"
                         }
                       ]
@@ -1168,8 +1182,9 @@
                           "name": "Trailing icon",
                           "width": 20,
                           "height": 20,
-                          "icon": "caret-right",
-                          "library": "phosphor",
+                          "icon": "chevron_right",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$muted"
                         }
                       ]
@@ -1325,13 +1340,12 @@
                           "alignItems": "center",
                           "children": [
                             {
-                              "type": "icon",
-                              "id": "h53QtB",
+                              "id": "x1qXWd",
+                              "type": "ref",
+                              "ref": "bJfaH",
                               "name": "Star icon",
                               "width": 22,
                               "height": 22,
-                              "icon": "star-fill",
-                              "library": "phosphor",
                               "fill": "$accent"
                             }
                           ]
@@ -1443,8 +1457,9 @@
                           "name": "Event caret",
                           "width": 14,
                           "height": 14,
-                          "icon": "caret-right",
-                          "library": "phosphor",
+                          "icon": "chevron_right",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$on-panel-muted"
                         }
                       ]
@@ -1937,8 +1952,9 @@
                           "name": "Trailing icon",
                           "width": 18,
                           "height": 18,
-                          "icon": "caret-right",
-                          "library": "phosphor",
+                          "icon": "chevron_right",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$muted"
                         }
                       ]
@@ -2023,8 +2039,9 @@
                           "enabled": false,
                           "width": 12,
                           "height": 12,
-                          "icon": "caret-down",
-                          "library": "phosphor",
+                          "icon": "arrow_downward",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -2064,8 +2081,9 @@
                           "enabled": false,
                           "width": 12,
                           "height": 12,
-                          "icon": "caret-down",
-                          "library": "phosphor",
+                          "icon": "arrow_downward",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -2105,8 +2123,9 @@
                           "enabled": false,
                           "width": 12,
                           "height": 12,
-                          "icon": "caret-down",
-                          "library": "phosphor",
+                          "icon": "arrow_downward",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -2146,8 +2165,9 @@
                           "enabled": false,
                           "width": 12,
                           "height": 12,
-                          "icon": "caret-down",
-                          "library": "phosphor",
+                          "icon": "arrow_downward",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -2187,8 +2207,9 @@
                           "enabled": false,
                           "width": 12,
                           "height": 12,
-                          "icon": "caret-down",
-                          "library": "phosphor",
+                          "icon": "arrow_downward",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -2228,8 +2249,9 @@
                           "enabled": false,
                           "width": 12,
                           "height": 12,
-                          "icon": "caret-down",
-                          "library": "phosphor",
+                          "icon": "arrow_downward",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -2269,8 +2291,9 @@
                           "enabled": false,
                           "width": 12,
                           "height": 12,
-                          "icon": "caret-down",
-                          "library": "phosphor",
+                          "icon": "arrow_downward",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$ink"
                         }
                       ]
@@ -2584,7 +2607,8 @@
                       "width": 20,
                       "height": 20,
                       "icon": "trophy",
-                      "library": "phosphor",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$muted"
                     }
                   ]
@@ -2698,8 +2722,9 @@
                       "name": "Search icon",
                       "width": 20,
                       "height": 20,
-                      "icon": "magnifying-glass",
-                      "library": "phosphor",
+                      "icon": "search",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$muted"
                     },
                     {
@@ -2729,13 +2754,30 @@
                           "name": "Clear icon",
                           "width": 20,
                           "height": 20,
-                          "icon": "x-circle-fill",
-                          "library": "phosphor",
+                          "icon": "cancel",
+                          "library": "Material Symbols Outlined",
+                          "weight": 400,
                           "fill": "$muted"
                         }
                       ]
                     }
                   ]
+                },
+                {
+                  "type": "path",
+                  "id": "bJfaH",
+                  "name": "C / Icon star · Material Symbols Outlined FILL 1",
+                  "reusable": true,
+                  "geometry": "M233-120l65-281-218-189 288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149z",
+                  "viewBox": [
+                    0,
+                    -960,
+                    960,
+                    960
+                  ],
+                  "fill": "$accent",
+                  "width": 24,
+                  "height": 24
                 }
               ]
             },
@@ -2971,8 +3013,9 @@
                       "name": "State icon",
                       "width": 40,
                       "height": 40,
-                      "icon": "warning-circle",
-                      "library": "phosphor",
+                      "icon": "error",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$disabled"
                     },
                     {
@@ -3065,8 +3108,9 @@
                       "name": "Retry icon",
                       "width": 18,
                       "height": 18,
-                      "icon": "warning-circle",
-                      "library": "phosphor",
+                      "icon": "error",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$muted"
                     },
                     {
@@ -3129,8 +3173,9 @@
                       "name": "Message icon",
                       "width": 16,
                       "height": 16,
-                      "icon": "minus-circle",
-                      "library": "phosphor",
+                      "icon": "do_not_disturb_on",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$disabled"
                     },
                     {
@@ -3474,7 +3519,7 @@
               "fill": "$accent"
             },
             "VQ6fU": {
-              "icon": "newspaper-fill",
+              "icon": "newspaper",
               "fill": "$ink"
             },
             "f1wYaY": {
@@ -3485,7 +3530,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -3496,7 +3541,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -3827,7 +3872,7 @@
               "fill": "$accent"
             },
             "ivBR5": {
-              "icon": "crosshair-fill",
+              "icon": "scoreboard",
               "fill": "$ink"
             },
             "Z7d5CC": {
@@ -3838,7 +3883,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -4042,11 +4087,18 @@
                     "oI6eG": {
                       "content": "Kim Myeong-gwan · 대한민국"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "b4d6cx",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 },
@@ -4069,11 +4121,18 @@
                     "oI6eG": {
                       "content": "Ilya Petrov · 러시아"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "q6rZIn",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 }
@@ -4098,7 +4157,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -4137,7 +4197,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -4148,7 +4208,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -4435,7 +4495,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -4446,7 +4506,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -4457,7 +4517,7 @@
               "fill": "$accent"
             },
             "X0ujey": {
-              "icon": "trophy-fill",
+              "icon": "trophy",
               "fill": "$ink"
             },
             "Z61OEC": {
@@ -4655,7 +4715,7 @@
                       "content": "GitHub에서 보기"
                     },
                     "f12wzF": {
-                      "icon": "arrow-up-right"
+                      "icon": "arrow_outward"
                     }
                   }
                 },
@@ -4667,7 +4727,7 @@
                   "width": "fill_container",
                   "descendants": {
                     "RY7Nd": {
-                      "icon": "shield-check"
+                      "icon": "privacy_tip"
                     },
                     "rXhYC": {
                       "content": "개인정보처리방침"
@@ -4676,7 +4736,7 @@
                       "content": "GitHub에서 보기"
                     },
                     "f12wzF": {
-                      "icon": "arrow-up-right"
+                      "icon": "arrow_outward"
                     }
                   }
                 },
@@ -4688,7 +4748,7 @@
                   "width": "fill_container",
                   "descendants": {
                     "RY7Nd": {
-                      "icon": "envelope-simple"
+                      "icon": "mail"
                     },
                     "rXhYC": {
                       "content": "문의"
@@ -4697,7 +4757,7 @@
                       "content": "teamcotton124@gmail.com"
                     },
                     "f12wzF": {
-                      "icon": "arrow-up-right"
+                      "icon": "arrow_outward"
                     }
                   }
                 },
@@ -4709,7 +4769,7 @@
                   "width": "fill_container",
                   "descendants": {
                     "RY7Nd": {
-                      "icon": "file-text"
+                      "icon": "description"
                     },
                     "rXhYC": {
                       "content": "오픈소스 라이선스"
@@ -4718,7 +4778,7 @@
                       "content": "앱에 포함된 라이브러리"
                     },
                     "f12wzF": {
-                      "icon": "caret-right"
+                      "icon": "chevron_right"
                     }
                   }
                 }
@@ -4978,7 +5038,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -4989,7 +5049,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -5011,7 +5071,7 @@
               "fill": "$accent"
             },
             "Eac5e": {
-              "icon": "info-fill",
+              "icon": "info",
               "fill": "$ink"
             },
             "an65A": {
@@ -5460,8 +5520,9 @@
                   "name": "Back icon",
                   "width": 24,
                   "height": 24,
-                  "icon": "arrow-left",
-                  "library": "phosphor",
+                  "icon": "arrow_back",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$ink"
                 }
               ]
@@ -5773,7 +5834,8 @@
                       "width": 32,
                       "height": 32,
                       "icon": "image",
-                      "library": "phosphor",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$disabled"
                     }
                   ]
@@ -6968,8 +7030,9 @@
                       "name": "Scroll icon",
                       "width": 14,
                       "height": 14,
-                      "icon": "arrows-left-right",
-                      "library": "phosphor",
+                      "icon": "swap_horiz",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$muted"
                     },
                     {
@@ -8730,7 +8793,7 @@
                   "fill": "$ink-2",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "아이콘 phosphor regular / fill 짝",
+                  "content": "아이콘 Google Material Symbols Outlined 400 · 즐겨찾기 ON만 공식 FILL 별",
                   "fontFamily": "$font-text",
                   "fontSize": 14,
                   "fontWeight": "normal"
@@ -9253,7 +9316,7 @@
               "fill": "$accent"
             },
             "VQ6fU": {
-              "icon": "newspaper-fill",
+              "icon": "newspaper",
               "fill": "$ink"
             },
             "f1wYaY": {
@@ -9264,7 +9327,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -9275,7 +9338,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -9385,7 +9448,7 @@
               "fill": "$accent"
             },
             "VQ6fU": {
-              "icon": "newspaper-fill",
+              "icon": "newspaper",
               "fill": "$ink"
             },
             "f1wYaY": {
@@ -9396,7 +9459,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -9407,7 +9470,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -9491,7 +9554,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "뉴스를 불러오지 못했습니다."
@@ -9517,7 +9580,7 @@
               "fill": "$accent"
             },
             "VQ6fU": {
-              "icon": "newspaper-fill",
+              "icon": "newspaper",
               "fill": "$ink"
             },
             "f1wYaY": {
@@ -9528,7 +9591,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -9539,7 +9602,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -9703,7 +9766,7 @@
               "fill": "$accent"
             },
             "VQ6fU": {
-              "icon": "newspaper-fill",
+              "icon": "newspaper",
               "fill": "$ink"
             },
             "f1wYaY": {
@@ -9714,7 +9777,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -9725,7 +9788,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -9979,7 +10042,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "file-text"
+                  "icon": "description"
                 },
                 "i3rpP": {
                   "content": "기사 내용을 불러올 수 없습니다."
@@ -10054,7 +10117,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "기사 내용을 불러올 수 없습니다."
@@ -10646,7 +10709,7 @@
               "fill": "$accent"
             },
             "ivBR5": {
-              "icon": "crosshair-fill",
+              "icon": "scoreboard",
               "fill": "$ink"
             },
             "Z7d5CC": {
@@ -10657,7 +10720,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -10824,7 +10887,7 @@
               "fill": "$accent"
             },
             "ivBR5": {
-              "icon": "crosshair-fill",
+              "icon": "scoreboard",
               "fill": "$ink"
             },
             "Z7d5CC": {
@@ -10835,7 +10898,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -10938,7 +11001,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "crosshair"
+                  "icon": "scoreboard"
                 },
                 "i3rpP": {
                   "content": "표시할 예정 또는 라이브 경기가 없어요."
@@ -10975,7 +11038,7 @@
               "fill": "$accent"
             },
             "ivBR5": {
-              "icon": "crosshair-fill",
+              "icon": "scoreboard",
               "fill": "$ink"
             },
             "Z7d5CC": {
@@ -10986,7 +11049,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -11099,7 +11162,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "경기 목록을 불러오지 못했습니다."
@@ -11136,7 +11199,7 @@
               "fill": "$accent"
             },
             "ivBR5": {
-              "icon": "crosshair-fill",
+              "icon": "scoreboard",
               "fill": "$ink"
             },
             "Z7d5CC": {
@@ -11147,7 +11210,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -11460,7 +11523,7 @@
               "fill": "$accent"
             },
             "ivBR5": {
-              "icon": "crosshair-fill",
+              "icon": "scoreboard",
               "fill": "$ink"
             },
             "Z7d5CC": {
@@ -11471,7 +11534,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -12802,7 +12865,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "경기 정보를 불러오지 못했습니다"
@@ -13217,7 +13280,8 @@
                   "width": 18,
                   "height": 18,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -13649,7 +13713,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -13688,7 +13753,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -13699,7 +13764,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -13880,7 +13945,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -13919,7 +13985,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -13930,7 +13996,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -14096,11 +14162,18 @@
                     "oI6eG": {
                       "content": "Kim Myeong-gwan · 대한민국"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "DMvNV",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 },
@@ -14123,11 +14196,18 @@
                     "oI6eG": {
                       "content": "Ilya Petrov · 러시아"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "p3yTnE",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 }
@@ -14152,7 +14232,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -14191,7 +14272,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -14202,7 +14283,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -14421,7 +14502,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -14460,7 +14542,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -14471,7 +14553,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -14638,11 +14720,18 @@
                     "oI6eG": {
                       "content": "Kim Myeong-gwan · 대한민국"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "MvgzV",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 },
@@ -14665,11 +14754,18 @@
                     "oI6eG": {
                       "content": "Ilya Petrov · 러시아"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "UfghX",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 }
@@ -14694,7 +14790,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -14733,7 +14830,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -14744,7 +14841,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -14964,7 +15061,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -15003,7 +15101,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -15014,7 +15112,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -15136,7 +15234,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -15147,7 +15245,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -15340,11 +15438,18 @@
                     "oI6eG": {
                       "content": "Kim Myeong-gwan · 대한민국"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "TGLBn",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 },
@@ -15367,11 +15472,18 @@
                     "oI6eG": {
                       "content": "Ilya Petrov · 러시아"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "B0Qa7X",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 }
@@ -15396,7 +15508,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -15435,7 +15548,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -15446,7 +15559,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -15650,11 +15763,18 @@
                     "oI6eG": {
                       "content": "Kim Myeong-gwan · 대한민국"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "L5OjPh",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 },
@@ -15677,11 +15797,18 @@
                     "oI6eG": {
                       "content": "Ilya Petrov · 러시아"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "Y6uZ9",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 }
@@ -15706,7 +15833,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -15745,7 +15873,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -15756,7 +15884,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -16021,11 +16149,18 @@
                     "oI6eG": {
                       "content": "Kim Myeong-gwan · 대한민국"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "L7HzT",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 },
@@ -16048,11 +16183,18 @@
                     "oI6eG": {
                       "content": "Ilya Petrov · 러시아"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "N6xdFe",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 }
@@ -16077,7 +16219,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -16116,7 +16259,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -16127,7 +16270,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -16283,7 +16426,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -16294,7 +16437,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -16305,7 +16448,7 @@
               "fill": "$accent"
             },
             "X0ujey": {
-              "icon": "trophy-fill",
+              "icon": "trophy",
               "fill": "$ink"
             },
             "Z61OEC": {
@@ -16416,7 +16559,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -16427,7 +16570,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -16438,7 +16581,7 @@
               "fill": "$accent"
             },
             "X0ujey": {
-              "icon": "trophy-fill",
+              "icon": "trophy",
               "fill": "$ink"
             },
             "Z61OEC": {
@@ -16512,7 +16655,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "이벤트를 불러오지 못했습니다."
@@ -16549,7 +16692,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -16560,7 +16703,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -16571,7 +16714,7 @@
               "fill": "$accent"
             },
             "X0ujey": {
-              "icon": "trophy-fill",
+              "icon": "trophy",
               "fill": "$ink"
             },
             "Z61OEC": {
@@ -16818,7 +16961,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -16829,7 +16972,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -16840,7 +16983,7 @@
               "fill": "$accent"
             },
             "X0ujey": {
-              "icon": "trophy-fill",
+              "icon": "trophy",
               "fill": "$ink"
             },
             "Z61OEC": {
@@ -17051,7 +17194,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "이벤트 정보를 불러오지 못했습니다."
@@ -17382,7 +17525,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "crosshair"
+                  "icon": "scoreboard"
                 },
                 "i3rpP": {
                   "content": "표시할 경기가 없어요."
@@ -17540,7 +17683,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "경기를 불러오지 못했습니다."
@@ -18219,7 +18362,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "뉴스를 불러오지 못했습니다."
@@ -18626,8 +18769,9 @@
                       "name": "Scroll icon",
                       "width": 14,
                       "height": 14,
-                      "icon": "arrows-left-right",
-                      "library": "phosphor",
+                      "icon": "swap_horiz",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$muted"
                     },
                     {
@@ -18962,7 +19106,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "list-numbers"
+                  "icon": "bar_chart"
                 },
                 "i3rpP": {
                   "content": "아직 제공되는 통계가 없어요."
@@ -19120,7 +19264,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "통계를 불러오지 못했습니다."
@@ -19434,7 +19578,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "시리즈 정보를 불러오지 못했습니다"
@@ -19893,9 +20037,18 @@
             "b5WYXc": {
               "content": ""
             },
-            "MD8Qn": {
-              "fill": "$on-panel-accent",
-              "icon": "star-fill"
+            "X6QLQs": {
+              "children": [
+                {
+                  "id": "wWlGz",
+                  "type": "ref",
+                  "ref": "bJfaH",
+                  "name": "Star icon",
+                  "width": 24,
+                  "height": 24,
+                  "fill": "$on-panel-accent"
+                }
+              ]
             }
           }
         },
@@ -21418,9 +21571,18 @@
             "b5WYXc": {
               "content": ""
             },
-            "MD8Qn": {
-              "fill": "$on-panel-accent",
-              "icon": "star-fill"
+            "X6QLQs": {
+              "children": [
+                {
+                  "id": "Mk9Tj",
+                  "type": "ref",
+                  "ref": "bJfaH",
+                  "name": "Star icon",
+                  "width": 24,
+                  "height": 24,
+                  "fill": "$on-panel-accent"
+                }
+              ]
             }
           }
         },
@@ -21895,9 +22057,18 @@
             "b5WYXc": {
               "content": ""
             },
-            "MD8Qn": {
-              "fill": "$on-panel-accent",
-              "icon": "star-fill"
+            "X6QLQs": {
+              "children": [
+                {
+                  "id": "LLgoi",
+                  "type": "ref",
+                  "ref": "bJfaH",
+                  "name": "Star icon",
+                  "width": 24,
+                  "height": 24,
+                  "fill": "$on-panel-accent"
+                }
+              ]
             }
           }
         },
@@ -22189,8 +22360,9 @@
                       "name": "Scroll icon",
                       "width": 14,
                       "height": 14,
-                      "icon": "arrows-left-right",
-                      "library": "phosphor",
+                      "icon": "swap_horiz",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$muted"
                     },
                     {
@@ -23174,8 +23346,9 @@
                       "name": "Scroll icon",
                       "width": 14,
                       "height": 14,
-                      "icon": "arrows-left-right",
-                      "library": "phosphor",
+                      "icon": "swap_horiz",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$muted"
                     },
                     {
@@ -23365,9 +23538,18 @@
             "b5WYXc": {
               "content": ""
             },
-            "MD8Qn": {
-              "fill": "$on-panel-accent",
-              "icon": "star-fill"
+            "X6QLQs": {
+              "children": [
+                {
+                  "id": "ssPuS",
+                  "type": "ref",
+                  "ref": "bJfaH",
+                  "name": "Star icon",
+                  "width": 24,
+                  "height": 24,
+                  "fill": "$on-panel-accent"
+                }
+              ]
             }
           }
         },
@@ -23659,8 +23841,9 @@
                       "name": "Scroll icon",
                       "width": 14,
                       "height": 14,
-                      "icon": "arrows-left-right",
-                      "library": "phosphor",
+                      "icon": "swap_horiz",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$muted"
                     },
                     {
@@ -23855,8 +24038,9 @@
                   "name": "Back icon",
                   "width": 24,
                   "height": 24,
-                  "icon": "arrow-left",
-                  "library": "phosphor",
+                  "icon": "arrow_back",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$ink"
                 }
               ]
@@ -23900,7 +24084,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "magnifying-glass"
+                  "icon": "search"
                 },
                 "i3rpP": {
                   "content": "검색어를 입력해 주세요"
@@ -23970,8 +24154,9 @@
                   "name": "Back icon",
                   "width": 24,
                   "height": 24,
-                  "icon": "arrow-left",
-                  "library": "phosphor",
+                  "icon": "arrow_back",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$ink"
                 }
               ]
@@ -24006,7 +24191,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "circle-notch"
+                  "icon": "progress_activity"
                 },
                 "i3rpP": {
                   "content": "DRX 검색 중…"
@@ -24076,8 +24261,9 @@
                   "name": "Back icon",
                   "width": 24,
                   "height": 24,
-                  "icon": "arrow-left",
-                  "library": "phosphor",
+                  "icon": "arrow_back",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$ink"
                 }
               ]
@@ -24112,7 +24298,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "magnifying-glass"
+                  "icon": "search"
                 },
                 "i3rpP": {
                   "content": "DRX에 대한 검색 결과가 없어요."
@@ -24182,8 +24368,9 @@
                   "name": "Back icon",
                   "width": 24,
                   "height": 24,
-                  "icon": "arrow-left",
-                  "library": "phosphor",
+                  "icon": "arrow_back",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$ink"
                 }
               ]
@@ -24218,7 +24405,7 @@
               "justifyContent": "center",
               "descendants": {
                 "d8c9zB": {
-                  "icon": "warning-circle"
+                  "icon": "error"
                 },
                 "i3rpP": {
                   "content": "검색 결과를 불러오지 못했습니다."
@@ -24414,7 +24601,7 @@
                       "content": "GitHub에서 보기"
                     },
                     "f12wzF": {
-                      "icon": "arrow-up-right"
+                      "icon": "arrow_outward"
                     }
                   }
                 },
@@ -24426,7 +24613,7 @@
                   "width": "fill_container",
                   "descendants": {
                     "RY7Nd": {
-                      "icon": "shield-check"
+                      "icon": "privacy_tip"
                     },
                     "rXhYC": {
                       "content": "개인정보처리방침"
@@ -24435,7 +24622,7 @@
                       "content": "GitHub에서 보기"
                     },
                     "f12wzF": {
-                      "icon": "arrow-up-right"
+                      "icon": "arrow_outward"
                     }
                   }
                 },
@@ -24447,7 +24634,7 @@
                   "width": "fill_container",
                   "descendants": {
                     "RY7Nd": {
-                      "icon": "envelope-simple"
+                      "icon": "mail"
                     },
                     "rXhYC": {
                       "content": "문의"
@@ -24456,7 +24643,7 @@
                       "content": "teamcotton124@gmail.com"
                     },
                     "f12wzF": {
-                      "icon": "arrow-up-right"
+                      "icon": "arrow_outward"
                     }
                   }
                 },
@@ -24468,7 +24655,7 @@
                   "width": "fill_container",
                   "descendants": {
                     "RY7Nd": {
-                      "icon": "file-text"
+                      "icon": "description"
                     },
                     "rXhYC": {
                       "content": "오픈소스 라이선스"
@@ -24477,7 +24664,7 @@
                       "content": "앱에 포함된 라이브러리"
                     },
                     "f12wzF": {
-                      "icon": "caret-right"
+                      "icon": "chevron_right"
                     }
                   }
                 }
@@ -24737,7 +24924,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -24748,7 +24935,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -24770,7 +24957,7 @@
               "fill": "$accent"
             },
             "Eac5e": {
-              "icon": "info-fill",
+              "icon": "info",
               "fill": "$ink"
             },
             "an65A": {
@@ -25100,7 +25287,7 @@
               "fill": "$accent"
             },
             "ivBR5": {
-              "icon": "crosshair-fill",
+              "icon": "scoreboard",
               "fill": "$ink"
             },
             "Z7d5CC": {
@@ -25111,7 +25298,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -25315,11 +25502,18 @@
                     "oI6eG": {
                       "content": "Kim Myeong-gwan · 대한민국"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "e4KTZ",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 },
@@ -25342,11 +25536,18 @@
                     "oI6eG": {
                       "content": "Ilya Petrov · 러시아"
                     },
-                    "m8oeA": {
-                      "icon": "star-fill",
-                      "fill": "$accent",
-                      "width": 22,
-                      "height": 22
+                    "VpJHT": {
+                      "children": [
+                        {
+                          "id": "uv4fr",
+                          "type": "ref",
+                          "ref": "bJfaH",
+                          "name": "Star icon",
+                          "width": 22,
+                          "height": 22,
+                          "fill": "$accent"
+                        }
+                      ]
                     }
                   }
                 }
@@ -25371,7 +25572,8 @@
                   "width": 16,
                   "height": 16,
                   "icon": "info",
-                  "library": "phosphor",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
                   "fill": "$muted"
                 },
                 {
@@ -25410,7 +25612,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -25421,7 +25623,7 @@
               "fill": "$accent"
             },
             "PEZcn": {
-              "icon": "user-fill",
+              "icon": "person",
               "fill": "$ink"
             },
             "K0Xcpd": {
@@ -25844,8 +26046,9 @@
                       "name": "Scroll icon",
                       "width": 14,
                       "height": 14,
-                      "icon": "arrows-left-right",
-                      "library": "phosphor",
+                      "icon": "swap_horiz",
+                      "library": "Material Symbols Outlined",
+                      "weight": 400,
                       "fill": "$muted"
                     },
                     {
@@ -26020,7 +26223,7 @@
               "fill": "$accent"
             },
             "VQ6fU": {
-              "icon": "newspaper-fill",
+              "icon": "newspaper",
               "fill": "$ink"
             },
             "f1wYaY": {
@@ -26032,7 +26235,7 @@
               "fill": "#00000000"
             },
             "ivBR5": {
-              "icon": "crosshair",
+              "icon": "scoreboard",
               "fill": "$muted"
             },
             "Z7d5CC": {
@@ -26044,7 +26247,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {
@@ -26378,7 +26581,7 @@
               "fill": "$accent"
             },
             "ivBR5": {
-              "icon": "crosshair-fill",
+              "icon": "scoreboard",
               "fill": "$ink"
             },
             "Z7d5CC": {
@@ -26389,7 +26592,7 @@
               "fill": "#00000000"
             },
             "PEZcn": {
-              "icon": "user",
+              "icon": "person",
               "fill": "$muted"
             },
             "K0Xcpd": {

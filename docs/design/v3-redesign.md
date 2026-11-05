@@ -53,18 +53,21 @@
 
 - 모서리는 2dp(`radius`)다. 버튼은 10dp(`radius-button`)로 둥글게 하고, Snackbar·다이얼로그(4dp), 앱 아이콘(12dp), 선수 사진 slot(원형)도 예외로 둔다.
 - 간격은 4·8·12·16·20·24·32, 화면 좌우 여백은 16dp, 섹션 사이는 8dp다. 터치 영역은 최소 48dp다.
-- 아이콘은 phosphor(MIT)다. 기본은 regular이고, 선택·ON 상태는 `-fill` 짝을 쓴다(하단 탭, 즐겨찾기 별). 경기 탭 아이콘은 Riot 자산이 아닌 `crosshair`다.
+- 아이콘은 [Google Material Symbols Outlined](https://fonts.google.com/icons) 원본을 굵기 400으로 쓴다. 패스 재작성, 라이브러리 혼용, 자체 제작 아이콘은 쓰지 않는다.
+- 하단 탭은 `newspaper`, `scoreboard`, `person`, `trophy`, `info`다. 선택 상태는 ink 아이콘, 빨간 2dp 막대, 굵은 라벨로 표시한다.
+- Pencil의 Material Symbols 라이브러리는 FILL 축을 지원하지 않는다. 그래서 즐겨찾기 ON 별만 Google Fonts가 배포하는 공식 `star` FILL 1 SVG를 수정 없이 컴포넌트(`C / Icon star · Material Symbols Outlined FILL 1`)로 넣었다.
+- 외부 링크는 `arrow_outward`(↗), 앱 안 이동은 `chevron_right`다.
 
 ## 컴포넌트
 
-보드 `01 · Components`에 재사용 컴포넌트 32개가 있다. 화면의 반복 요소는 모두 인스턴스이며, 원본을 고치면 모든 화면에 반영된다.
+보드 `01 · Components`에 재사용 컴포넌트 33개가 있다. 화면의 반복 요소는 모두 인스턴스이며, 원본을 고치면 모든 화면에 반영된다.
 
 | 묶음 | 컴포넌트 | 규칙 |
 | --- | --- | --- |
-| 내비게이션 | Status bar, Root header, Detail header, Tabs, Bottom navigation | 루트는 제목 24/900과 검색 48dp. 상세 헤더는 Back과 기능 action만 둔다. 탭 선택은 ink 2dp 밑줄, 하단 탭 선택은 빨간 2dp 막대와 fill 아이콘 |
+| 내비게이션 | Status bar, Root header, Detail header, Tabs, Bottom navigation | 루트는 제목 24/900과 검색 48dp. 상세 헤더는 Back과 기능 action만 둔다. 탭 선택은 ink 2dp 밑줄, 하단 탭 선택은 빨간 2dp 막대, ink 아이콘, 굵은 라벨 |
 | 목록 | Section header, Match row, News row, Identity row, Link row, Search result row, Team match row, Favorite tile | Match row는 72dp 시간 열과 팀 열을 세로선으로 나눈다. 승자는 ink 700, 패자는 muted 500. 긴 팀 이름은 줄바꿈된다 |
 | 상세 | Scoreboard, Entity hero, Map row, Head to head row, Stat header, Stat row | Scoreboard는 로고 위·이름 아래 대칭 구조이며 점수는 중앙. Map row는 hero와 같은 좌우 위치에 점수를 두고 승자 아래에 빨간 막대를 둔다 |
-| 컨트롤 | Logo slot, Status chip, Primary button, Secondary button, Search field | Logo slot은 이미지가 없으면 팀 tag나 선수 이니셜, 대회는 trophy 아이콘을 표시한다. 버튼은 높이 48dp, 좌우 여백 24dp, 모서리 10dp다 |
+| 컨트롤 | Logo slot, Status chip, Primary button, Secondary button, Search field, Icon star(FILL 1) | Logo slot은 이미지가 없으면 팀 tag나 선수 이니셜, 대회는 trophy 아이콘을 표시한다. 버튼은 높이 48dp, 좌우 여백 24dp, 모서리 10dp다 |
 | 상태 | Skeleton row, Skeleton match row, Skeleton hero, State panel, Inline retry, Section message, Snackbar, Error dialog | 아래 상태 규칙을 따른다 |
 
 ## 상태 규칙
@@ -137,7 +140,7 @@
 | `warn`, `warn-soft` | `statusPostponed`, `statusPostponedContainer` | 예정·종료 상태 색은 v3에서 텍스트로 대체 |
 
 - Saira Condensed는 숫자용 Latin 서체만 번들하면 된다. 한글은 시스템 서체를 쓴다.
-- phosphor 아이콘은 사용하는 글리프만 vector asset으로 가져온다.
+- 아이콘은 Material Symbols Outlined 400(즐겨찾기 ON은 FILL 1)에서 사용하는 글리프만 vector asset으로 가져온다.
 
 ## 검증
 
