@@ -37,7 +37,7 @@
 | `live` | `#FF3B4B` | LIVE 점 | panel 5.03 |
 | `panel` / `panel-2` | `#15191E` / `#232930` | 상세 hero·Snackbar / hero 안 chip·스켈레톤 | — |
 | `on-panel` / `on-panel-muted` | `#FFFFFF` / `#A4ABB6` | hero 글자 / hero 보조·패자 | panel 17.65 / 7.63 |
-| `on-panel-accent` | `#FF7A86` | Snackbar 액션, 어두운 헤더의 즐겨찾기 ON | panel 7.04 |
+| `on-panel-accent` | `#FF7A86` | Snackbar 액션(현재 `inversePrimary` 역할), 어두운 헤더의 즐겨찾기 ON | panel 7.04 |
 | `warn` / `warn-soft` | `#9A5800` / `#FFF4E0` | 연기됨 | 5.11 |
 | `scrim` | `#0B0D1066` | 모달 뒤 배경 | — |
 | `focus` | `#2F6FED` | 포커스 링 | 비텍스트 |
@@ -74,7 +74,7 @@
 
 | 상황 | 표현 | 예 |
 | --- | --- | --- |
-| 최초 로딩 | 실제 레이아웃과 같은 자리의 스켈레톤. 상세는 어두운 hero 스켈레톤 | 뉴스·경기·대회 목록, 모든 상세 |
+| 최초 로딩 | 실제 레이아웃과 같은 자리의 스켈레톤. hero가 있는 상세는 어두운 hero 스켈레톤, 뉴스 상세는 밝은 헤더와 본문 스켈레톤 | 뉴스·경기·대회 목록, 모든 상세 |
 | 최초 오류 | State panel: 아이콘, 제목, 안내, `재시도` 버튼 | `뉴스를 불러오지 못했습니다.` |
 | 정상 빈 목록 | State panel: 기능 아이콘과 제목만. 버튼 없음 | `표시할 뉴스가 없어요.` |
 | 추가 로드 오류 | 기존 목록 끝의 Inline retry | `경기를 더 불러오지 못했습니다.` |
@@ -112,11 +112,11 @@
 
 제품 화면 82개는 v2.1의 case 목록과 같다. 기본 화면이 반영한 주요 계약은 다음과 같다.
 
-- 뉴스 목록: 이미지 없는 구분선 행, 첫 기사는 큰 제목. 게시 시각은 `2026년 9월 19일 오후 2:40` 형식이다.
+- 뉴스 목록: 이미지 없는 구분선 행, 첫 기사는 큰 제목. 게시일은 목록 API `publishedAt` 원문(`September 19, 2026`)이다. 한국어 날짜·시각(`2026년 9월 19일 오전 11:05`)은 뉴스 상세에만 쓴다.
 - 경기 목록: 날짜 헤더 `9월 22일 (화)`와 `한국 시간`을 쓴다. 시간 열에는 예정이면 `오후 8:00`·`1시간 32분 후`를, LIVE와 종료면 상태만 표시한다. 목록에는 팀 로고가 없다.
 - 경기 상세: Event 링크, 대칭 hero, `2026년 9월 21일 (월) 오후 6:00 · Bo3`, 경기 설명 원문, 맵, 상대 전적을 둔다. 예정 경기는 `2일 2시간 후 · Bo3`을 추가하고, 알림 벨은 두지 않는다(Stage 2).
 - 대회 상세: 응답에 날짜 그룹이 없어 날짜 헤더 없이 표시하고, 문맥은 `event.series` 원문이다. 통계는 `Rounds`, `Rating`, `ACS`, `K-D`, `ADR`, `KAST` 순서이며 선수 셀만 고정한다.
-- 팀·선수 상세: 팀 경기는 `statusText`·`scheduledAtText` 원문을 쓰고, 스태프 행은 이동하지 않는다. 선수 요원 기록은 Rating 내림차순, 결측 마지막 규칙을 따르고, 최근 경기는 `승리`/`패배`/`결과 미정`으로 표시한다.
+- 팀·선수 상세: 팀 경기는 `statusText`·`scheduledAtText` 원문을 쓰고, 스태프 행은 이동하지 않는다. 선수 요원 기록은 사용자가 Rating 내림차순을 선택한 상태의 예시이며(첫 진입은 정렬 없음), 결측은 방향과 관계없이 마지막이다. 최근 경기는 `승리`/`패배`/`결과 미정`으로 표시한다.
 - 정보: 앱 이름·버전·소개, 링크 4행(외부 `↗`, 라이선스 `>`), 테마 안내, 출처·비공식·상표 고지를 계약 원문 그대로 담는다.
 - 뉴스 목록의 기사 제목·작성자와 경기 결과 탭의 대진은 v2 당시 API 캡처다. 그 밖의 대진·점수·통계·기사 본문·팀 뉴스 제목은 레이아웃 확인용 샘플이며 실제 기록이 아니다.
 
@@ -125,6 +125,7 @@
 - `부분 오류`·`확인 불가`는 앱 표기에 맞춰 `부분 정보`·`정보 없음`으로 이름을 바꿨다. 부분 정보는 재시도 대신 섹션의 제공 불가 안내로 표현한다.
 - 마이페이지 빈 상태의 `팀과 선수 찾기` 버튼은 현재 앱에 없어 넣지 않았다. 제거 중은 계약대로 대상만 숨긴다.
 - About 링크 실패 Snackbar는 계약대로 액션이 없다.
+- 루트 제목·하단 탭 라벨은 한국어(`뉴스`·`경기`·`마이페이지`·`대회`·`정보`)로 정했다(2026-11-05). 기능 문서를 함께 고쳤고, 앱의 영어 표기 변경은 v3 적용 작업에 포함한다.
 
 ## Compose 적용 시 참고
 
@@ -136,7 +137,7 @@
 | `ink`, `muted`, `line`, `skeleton` | `textPrimary`, `textSecondary`, `outline`, `skeleton` | `ink-2`, `line-strong`, `surface-sunken`은 신규 |
 | `accent`, `accent-pressed`, `accent-soft` | `actionPrimary`, `actionPrimaryPressed`, `surfaceSelected` | |
 | `live`, `focus`, `scrim` | `accentLive`, `focusOutline`, `scrim` | |
-| `panel`, `on-panel` | `inverseSurface`, `inverseOnSurface` | `panel-2`, `on-panel-muted`, `on-panel-accent`는 신규 |
+| `panel`, `on-panel`, `on-panel-accent` | `inverseSurface`, `inverseOnSurface`, `inversePrimary` | `panel-2`, `on-panel-muted`는 신규 |
 | `warn`, `warn-soft` | `statusPostponed`, `statusPostponedContainer` | 예정·종료 상태 색은 v3에서 텍스트로 대체 |
 
 - Saira Condensed는 숫자용 Latin 서체만 번들하면 된다. 한글은 시스템 서체를 쓴다.

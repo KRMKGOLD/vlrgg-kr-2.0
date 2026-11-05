@@ -11,7 +11,8 @@
 현재 Compose theme(`Colors.kt`, `Typography.kt`, `Dimensions.kt`)과 공통 컴포넌트는 이전 Stitch 기반 값을 사용한다. v3 적용은 기반(토큰·서체·아이콘·공통 컴포넌트) → 화면 순서의 별도 작업으로 진행한다.
 
 - 기반 적용 전에는 화면 하나만 부분적으로 v3로 바꾸지 않는다. 시각 변경은 v3 적용 작업 안에서만 한다.
-- 기능 문서의 동작·문구는 v3에서도 바뀌지 않는다. v3 시안의 상태 문구는 현재 앱 구현 문구를 그대로 옮긴 것이다.
+- 기능 문서의 동작은 v3에서도 바뀌지 않는다. 문구는 루트 제목·하단 탭 라벨만 한국어(`뉴스`·`경기`·`마이페이지`·`대회`·`정보`)로 바꾸며(2026-11-05 결정, 기능 문서 반영), 상태 문구는 현재 앱 구현 문구를 그대로 쓴다.
+- 현재 앱은 아직 영어 라벨(`News`·`Matches`·`My Page`·`Events`·`About`)을 쓴다. 라벨 변경은 v3 화면 적용 작업에 포함한다.
 
 | v3 토큰 | 현재 `VlrColors` | 적용 시 |
 | --- | --- | --- |
@@ -21,7 +22,8 @@
 | `accent`, `accent-pressed`, `accent-soft` | `actionPrimary`, `actionPrimaryPressed`, `surfaceSelected` | 값 교체 |
 | `live`, `focus`, `scrim` | `accentLive`, `focusOutline`, `scrim` | 값 교체 |
 | `panel`, `on-panel` | `inverseSurface`, `inverseOnSurface` | 값 교체 |
-| `panel-2`, `on-panel-muted`, `on-panel-accent` | — | 신규 |
+| `on-panel-accent` | `inversePrimary` | 값 교체(Snackbar 액션). 어두운 헤더의 즐겨찾기 ON에도 쓴다 |
+| `panel-2`, `on-panel-muted` | — | 신규 |
 | `warn`, `warn-soft` | `statusPostponed`, `statusPostponedContainer` | 값 교체 |
 | — | `statusUpcoming*`, `statusCompleted*`, `accentLiveContainer` | v3에서 상태는 텍스트로 표시한다. 사용처 정리 후 제거한다 |
 
@@ -155,7 +157,7 @@
   - 시간 열: 예정은 `오후 8:00`(13/700) + `1시간 32분 후`(12/500 `muted`)를 쓴다. LIVE는 6dp `live` 점과 `LIVE`(Saira 14/700 `accent`)이고, 종료는 `종료`(`muted`)다.
   - 팀 열: 팀 이름 `body` 700과 점수 `score-m`. 종료 경기의 승자는 `ink` 700, 패자는 `muted` 500이다. 예정 경기에는 점수를 두지 않는다. 대회 문맥은 12 `muted`다.
   - 목록에는 팀 로고가 없다(목록 응답에 이미지가 없음).
-- **News row:** 위아래 14·좌우 16dp. 제목 15/600(줄 높이 1.45), 아래 `작성자 · 게시 시각` 12 `muted`. 첫 기사는 `headline`과 위아래 20/18dp 여백을 쓴다.
+- **News row:** 위아래 14·좌우 16dp. 제목 15/600(줄 높이 1.45), 아래 `작성자 · 게시일` 12 `muted`. 목록의 게시일은 API `publishedAt` 원문(예: `September 19, 2026`)이며, 한국어 날짜·시각 형식은 뉴스 상세에만 쓴다. 첫 기사는 `headline`과 위아래 20/18dp 여백을 쓴다.
 - **Identity row:** 로고 slot 40dp, 제목 `body` 700, 메타 13 `muted`, trailing 48dp(chevron, 즐겨찾기 해제 별, 또는 없음). 이동하지 않는 행(스태프)은 trailing을 두지 않는다.
 - **Link row:** 선두 아이콘 22dp `ink-2`, 제목 15/600, 보조 12 `muted`, trailing `arrow_outward` 또는 `chevron_right`. 최소 48dp이며 button role을 갖는다.
 - **Search result row:** 타입 라벨 32dp 열(12/700 `muted`: `팀`·`선수`·`대회`·`시리즈`), 제목·메타, chevron. 이미지를 두지 않는다.
@@ -212,7 +214,7 @@
 
 | 상황 | 표현 |
 | --- | --- |
-| 최초 로딩 | 레이아웃과 같은 자리의 스켈레톤. 상세는 어두운 hero 스켈레톤 |
+| 최초 로딩 | 레이아웃과 같은 자리의 스켈레톤. 경기·대회·시리즈·팀·선수 상세는 어두운 hero 스켈레톤, 뉴스 상세는 밝은 헤더와 본문 스켈레톤 |
 | 최초 오류 | State panel + `재시도`(검색은 `다시 시도`) |
 | 정상 빈 목록 | State panel(기능 아이콘과 제목만, 버튼 없음) |
 | 추가 로드 오류 | 기존 목록을 유지하고 끝에 Inline retry |
@@ -225,7 +227,7 @@
 | 정보 링크 실패 | 액션 없는 Snackbar. 같은 행을 다시 눌러 재시도 |
 
 - 상태 문구는 기능 문서와 앱 구현 문구를 따른다. 오류 원인(HTTP status, 예외, URL, selector)을 노출하지 않는다.
-- 새로고침은 기존 콘텐츠를 지우지 않는다. 전체 화면을 스피너로 바꾸지 않는다.
+- 새로고침·진행 중 동작은 기능 문서 계약을 따른다. 예를 들어 뉴스·경기 새로고침은 기존 목록을 비우고 첫 페이지를 다시 요청하므로 최초 로딩 표현을 쓴다([공통 상태와 오류 계약](docs/feature/README.md#공통-상태와-오류-계약)).
 
 ## 10. 접근성과 상호작용
 
@@ -236,7 +238,7 @@
   - 하단 탭 선택: 막대와 굵기
   - 즐겨찾기 ON: 채운 별
   - 본문 링크: 밑줄
-- 일반 텍스트는 4.5:1, 큰 텍스트와 UI 경계는 3:1 이상이다(WCAG 2.2 AA 의도).
+- 본문 텍스트는 4.5:1, 큰 텍스트는 3:1 이상이다(WCAG 2.2 AA 의도). `line`·`line-strong` 구분선과 테두리(1.25–1.58:1)는 장식이며, 컨트롤 식별을 테두리에만 맡기지 않는다. 식별에 필요한 포커스 링·선택 막대·아이콘은 3:1 이상 색을 쓴다. 실제 적합 여부는 구현 후 렌더 검증으로 확인한다.
 - 표는 행 정체성과 지표 라벨을 함께 노출한다. 가로 스크롤해도 고정 열은 사라지지 않는다. 검색 포커스 순서는 Back → 입력 → 지우기 → 결과다.
 - 숫자만 있는 점수는 `KIWOOM DRX 2, Paper Rex 1`처럼 묶은 설명을 준다. 반복 로고와 장식 이미지는 낭독하지 않는다.
 - Snackbar 액션은 도달 가능하고 알림으로 읽힌다. 모달은 포커스를 가두고 명시적 action을 제공한다.

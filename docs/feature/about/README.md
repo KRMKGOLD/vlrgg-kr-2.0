@@ -18,7 +18,7 @@ Dark Mode 선택, 계정·프로필, 앱 내 문의 양식, 원격 About 설정�
 
 ## 화면과 이동
 
-화면은 App identity, Project links(소스 코드 → 개인정보처리방침 → 문의 → 오픈소스 라이선스), Appearance, Attribution(데이터 출처 → 비공식 앱 고지 → 상표 고지) 순서다. 과도한 카드나 마케팅형 hero를 사용하지 않고 외부 이동과 고지를 구분한다. Top App Bar 제목은 다른 root와 같이 `About`을 유지하고, 화면 안의 라벨은 한국어로 표시한다.
+화면은 App identity, Project links(소스 코드 → 개인정보처리방침 → 문의 → 오픈소스 라이선스), Appearance, Attribution(데이터 출처 → 비공식 앱 고지 → 상표 고지) 순서다. 과도한 카드나 마케팅형 hero를 사용하지 않고 외부 이동과 고지를 구분한다. Top App Bar 제목과 하단 탭 라벨은 다른 root와 같이 한국어 `정보`이고, 화면 안의 라벨도 한국어로 표시한다(2026-11-05 v3 결정. 현재 앱의 `About` 표기는 v3 적용 작업에서 바꾼다).
 
 - Bottom navigation의 `About`에서 진입한다.
 - Search는 About 위에 push되고 Back 시 기존 About 상태로 돌아온다.
