@@ -1,14 +1,16 @@
 # Design System: VLR.GG Mobile v3 — Scoreline
 
+> **코드 미적용:** 이 문서와 `.pen`은 v3 디자인 계약이다. 앱 코드(theme·공통 컴포넌트·화면)에는 아직 적용되지 않았으며, 적용은 [적용 순서](#11-적용-순서와-범위-밖)에 따른 후속 작업이다.
+
 - **Status:** Active — v3 채택 (2026-11-05). 앱 구현에는 아직 적용하지 않았다([구현 상태](#1-구현-상태) 참조).
 - **Design source:** [`docs/design/pen/vlrgg-mobile-v3.pen`](docs/design/pen/vlrgg-mobile-v3.pen) (Pencil). 작업 기록과 캔버스 구성은 [v3 디자인 기록](docs/design/v3-redesign.md)에 있다.
 - **Applies to:** `app/shared/src/commonMain`의 Compose Multiplatform UI. Android·iOS 모바일, 라이트 테마.
 - **소유 범위:** 이 문서는 시각·컴포넌트·상호작용·접근성 계약을 소유한다. 데이터, 흐름, 화면 문구는 [기능 문서](docs/feature/README.md)가, 배치와 런타임 경계는 [앱 아키텍처](docs/app-arch/app-arch.md)가 소유한다. 기능 문서와 시각 규칙이 충돌하면 이 문서를 따른다.
-- **이력:** 2026-08~10의 Stitch 기반 계약(`Tactical Editorial`)과 v2·v2.1 Pencil 제안([v2 기록](docs/design/v2-redesign.md), [v2.1 제안](docs/design/v2.1-design-system.md))은 보관 자료다. 이전 `DESIGN.md`는 git 이력에서 확인한다.
+- **이력:** v3 이전의 디자인 자료(2026-08~10 Stitch 기반 계약, v2·v2.1 Pencil 시안)는 v3로 대체되어 저장소에서 정리했다(2026-11-05). 필요하면 git 이력에서 확인한다.
 
 ## 1. 구현 상태
 
-현재 Compose theme(`Colors.kt`, `Typography.kt`, `Dimensions.kt`)과 공통 컴포넌트는 이전 Stitch 기반 값을 사용한다. v3 적용은 기반(토큰·서체·아이콘·공통 컴포넌트) → 화면 순서의 별도 작업으로 진행한다.
+현재 Compose theme(`Colors.kt`, `Typography.kt`, `Dimensions.kt`)과 공통 컴포넌트는 v3 이전 값을 사용한다. v3 적용은 기반(토큰·서체·아이콘·공통 컴포넌트) → 화면 순서의 별도 작업으로 진행한다.
 
 - 기반 적용 전에는 화면 하나만 부분적으로 v3로 바꾸지 않는다. 시각 변경은 v3 적용 작업 안에서만 한다.
 - 기능 문서의 동작은 v3에서도 바뀌지 않는다. 문구는 루트 제목·하단 탭 라벨만 한국어(`뉴스`·`경기`·`마이페이지`·`대회`·`정보`)로 바꾸며(2026-11-05 결정, 기능 문서 반영), 상태 문구는 현재 앱 구현 문구를 그대로 쓴다.
@@ -249,5 +251,6 @@
 1. [ ] 기반: `ui/theme` 토큰을 v3 값으로 교체하고 신규 토큰을 추가한다. Saira Condensed와 Material Symbols 글리프를 가져오고 공통 컴포넌트를 v3 계약으로 맞춘다.
 2. [ ] 화면: 기능 묶음별로 v3를 적용한다. 상세 상단의 어두운 띠에 맞는 상태바 아이콘 색은 플랫폼별로 처리한다.
 3. [ ] 검증: UI 테스트를 갱신하고 Android·iOS에서 주요 상태, 글꼴 확대, TalkBack·VoiceOver를 확인한다.
+4. [ ] 정리: 코드에 남은 이전 디자인 흔적(뉴스 상세 미리보기의 Stitch placeholder 이미지 URL, `TeamDetailContentUiTest`의 Stitch marker 테스트 이름)을 v3 기준으로 바꾼다.
 
 범위 밖: 다크 모드, 태블릿 전용 레이아웃, 별도 애니메이션 시스템, 플랫폼별로 다른 시각, 경기 알림(Stage 2) 화면. 새 색, 새 상호작용 컴포넌트, 파괴적 action 표현은 이 문서와 `.pen`을 먼저 갱신한 뒤 도입한다.

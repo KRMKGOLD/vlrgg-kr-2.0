@@ -7434,7 +7434,7 @@
                   "fill": "$ink-2",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "방송 스코어 바에서 가져온 정보 디자인입니다. 숫자와 팀이 먼저 읽히고 나머지는 물러납니다. v2와 무관한 전면 리뉴얼이며, 정보 구조와 기능 계약은 docs/feature를 따릅니다.",
+                  "content": "방송 스코어 바에서 가져온 정보 디자인입니다. 숫자와 팀이 먼저 읽히고 나머지는 물러납니다. 정보 구조와 기능 계약은 docs/feature를 따릅니다. 앱 코드에는 아직 적용되지 않았으며, 적용은 후속 작업입니다.",
                   "lineHeight": 1.6,
                   "fontFamily": "$font-text",
                   "fontSize": 16,
