@@ -51,7 +51,7 @@
 
 ### 형태·간격·아이콘
 
-- 모서리는 2dp(`radius`)다. Snackbar·다이얼로그(4dp), 앱 아이콘(12dp), 선수 사진 slot(원형)만 예외다.
+- 모서리는 2dp(`radius`)다. 버튼은 10dp(`radius-button`)로 둥글게 하고, Snackbar·다이얼로그(4dp), 앱 아이콘(12dp), 선수 사진 slot(원형)도 예외로 둔다.
 - 간격은 4·8·12·16·20·24·32, 화면 좌우 여백은 16dp, 섹션 사이는 8dp다. 터치 영역은 최소 48dp다.
 - 아이콘은 phosphor(MIT)다. 기본은 regular이고, 선택·ON 상태는 `-fill` 짝을 쓴다(하단 탭, 즐겨찾기 별). 경기 탭 아이콘은 Riot 자산이 아닌 `crosshair`다.
 
@@ -64,7 +64,7 @@
 | 내비게이션 | Status bar, Root header, Detail header, Tabs, Bottom navigation | 루트는 제목 24/900과 검색 48dp. 상세 헤더는 Back과 기능 action만 둔다. 탭 선택은 ink 2dp 밑줄, 하단 탭 선택은 빨간 2dp 막대와 fill 아이콘 |
 | 목록 | Section header, Match row, News row, Identity row, Link row, Search result row, Team match row, Favorite tile | Match row는 72dp 시간 열과 팀 열을 세로선으로 나눈다. 승자는 ink 700, 패자는 muted 500. 긴 팀 이름은 줄바꿈된다 |
 | 상세 | Scoreboard, Entity hero, Map row, Head to head row, Stat header, Stat row | Scoreboard는 로고 위·이름 아래 대칭 구조이며 점수는 중앙. Map row는 hero와 같은 좌우 위치에 점수를 두고 승자 아래에 빨간 막대를 둔다 |
-| 컨트롤 | Logo slot, Status chip, Primary button, Secondary button, Search field | Logo slot은 이미지가 없으면 팀 tag나 선수 이니셜, 대회는 trophy 아이콘을 표시한다 |
+| 컨트롤 | Logo slot, Status chip, Primary button, Secondary button, Search field | Logo slot은 이미지가 없으면 팀 tag나 선수 이니셜, 대회는 trophy 아이콘을 표시한다. 버튼은 높이 48dp, 좌우 여백 24dp, 모서리 10dp다 |
 | 상태 | Skeleton row, Skeleton match row, Skeleton hero, State panel, Inline retry, Section message, Snackbar, Error dialog | 아래 상태 규칙을 따른다 |
 
 ## 상태 규칙
@@ -82,6 +82,7 @@
 | About 링크 실패 | 액션 없는 Snackbar. 같은 행을 다시 눌러 재시도 | `소스 코드를 열 수 없습니다.` |
 
 - 상태 문구는 현재 앱 구현(`app/shared/.../ui/feature/**`)의 문구를 그대로 썼다. v2.1 시안 문구와 다른 곳이 있으면 앱 문구를 따랐다.
+- State panel은 아이콘과 문구 사이 16dp, 제목과 안내 사이 6dp, 문구와 버튼 사이 24dp다. 오류 다이얼로그는 본문과 버튼 사이 28dp이며 본문은 어절 단위로 줄을 나눈다.
 - 재시도 버튼은 앱과 같이 `재시도`다. 검색 화면만 앱 구현대로 `다시 시도`다.
 - 경기 상세 상태 라벨은 앱과 같이 `예정`, `완료됨`, `연기됨`, `취소됨`, `정보 없음`이다. 맵·상대 전적 섹션은 빈 목록(`맵 정보가 없습니다`)과 제공 불가(`이 경기의 맵 정보는 제공되지 않습니다`)를 구분한다.
 

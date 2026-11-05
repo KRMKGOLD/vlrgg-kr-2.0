@@ -2623,11 +2623,11 @@
                   "reusable": true,
                   "height": 48,
                   "fill": "$accent",
-                  "cornerRadius": "$radius",
+                  "cornerRadius": "$radius-button",
                   "gap": 8,
                   "padding": [
                     0,
-                    20
+                    24
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -2651,13 +2651,13 @@
                   "reusable": true,
                   "height": 48,
                   "fill": "$surface",
-                  "cornerRadius": "$radius",
+                  "cornerRadius": "$radius-button",
                   "stroke": "$line-strong",
                   "strokeWidth": 1,
                   "gap": 8,
                   "padding": [
                     0,
-                    20
+                    24
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -2958,7 +2958,7 @@
                   "width": 360,
                   "fill": "$surface",
                   "layout": "vertical",
-                  "gap": 12,
+                  "gap": 16,
                   "padding": [
                     56,
                     32
@@ -2976,42 +2976,66 @@
                       "fill": "$disabled"
                     },
                     {
-                      "type": "text",
-                      "id": "i3rpP",
-                      "name": "State title",
-                      "fill": "$ink",
-                      "textGrowth": "fixed-width",
+                      "type": "frame",
+                      "id": "MTpzc",
+                      "name": "Copy",
                       "width": "fill_container",
-                      "content": "뉴스를 불러오지 못했습니다.",
-                      "textAlign": "center",
-                      "fontFamily": "$font-text",
-                      "fontSize": 16,
-                      "fontWeight": "700"
-                    },
-                    {
-                      "type": "text",
-                      "id": "XDKme",
-                      "name": "State body",
-                      "fill": "$muted",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "네트워크 상태를 확인하고 다시 시도해 주세요.",
-                      "lineHeight": 1.5,
-                      "textAlign": "center",
-                      "fontFamily": "$font-text",
-                      "fontSize": 13,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "x9HYI",
-                      "type": "ref",
-                      "ref": "gJZQ1",
-                      "name": "State action",
-                      "descendants": {
-                        "PSA3Y": {
-                          "content": "재시도"
+                      "layout": "vertical",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "i3rpP",
+                          "name": "State title",
+                          "fill": "$ink",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "뉴스를 불러오지 못했습니다.",
+                          "textAlign": "center",
+                          "fontFamily": "$font-text",
+                          "fontSize": 16,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "XDKme",
+                          "name": "State body",
+                          "fill": "$muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "네트워크 상태를 확인하고 다시 시도해 주세요.",
+                          "lineHeight": 1.5,
+                          "textAlign": "center",
+                          "fontFamily": "$font-text",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
-                      }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "X455Jj",
+                      "name": "Action",
+                      "padding": [
+                        8,
+                        0,
+                        0,
+                        0
+                      ],
+                      "children": [
+                        {
+                          "id": "x9HYI",
+                          "type": "ref",
+                          "ref": "gJZQ1",
+                          "name": "State action",
+                          "descendants": {
+                            "PSA3Y": {
+                              "content": "재시도"
+                            }
+                          }
+                        }
+                      ]
                     }
                   ]
                 },
@@ -3235,7 +3259,7 @@
                       "fill": "$ink-2",
                       "textGrowth": "fixed-width",
                       "width": "fill_container",
-                      "content": "네트워크 상태를 확인하고 다시 시도해 주세요.",
+                      "content": "네트워크 상태를 확인하고\n다시 시도해 주세요.",
                       "lineHeight": 1.5,
                       "fontFamily": "$font-text",
                       "fontSize": 14,
@@ -3248,7 +3272,7 @@
                       "width": "fill_container",
                       "gap": 4,
                       "padding": [
-                        8,
+                        16,
                         0,
                         0,
                         0
@@ -8658,7 +8682,7 @@
                   "fill": "$ink-2",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "모서리 2dp — chip, slot, 버튼, 입력창",
+                  "content": "모서리 2dp — chip, slot, 입력창 · 버튼 10dp",
                   "fontFamily": "$font-text",
                   "fontSize": 14,
                   "fontWeight": "normal"
@@ -9343,7 +9367,7 @@
                 "XDKme": {
                   "enabled": false
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -9963,7 +9987,7 @@
                 "XDKme": {
                   "content": "본문 내용이 비어 있거나 유효하지 않습니다."
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -10922,7 +10946,7 @@
                 "XDKme": {
                   "enabled": false
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -16363,7 +16387,7 @@
                 "XDKme": {
                   "enabled": false
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -17366,7 +17390,7 @@
                 "XDKme": {
                   "enabled": false
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -18045,7 +18069,7 @@
                 "XDKme": {
                   "enabled": false
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -18946,7 +18970,7 @@
                 "XDKme": {
                   "enabled": false
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -19325,7 +19349,7 @@
                 "XDKme": {
                   "enabled": false
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -23884,7 +23908,7 @@
                 "XDKme": {
                   "content": "팀, 선수, 대회, 시리즈를 검색할 수 있습니다."
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -23990,7 +24014,7 @@
                 "XDKme": {
                   "content": "잠시만 기다려 주세요."
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -24096,7 +24120,7 @@
                 "XDKme": {
                   "content": "검색어를 바꿔 다시 시도해 주세요."
                 },
-                "x9HYI": {
+                "X455Jj": {
                   "enabled": false
                 }
               }
@@ -26563,6 +26587,10 @@
     "scrim": {
       "type": "color",
       "value": "#0B0D1066"
+    },
+    "radius-button": {
+      "type": "number",
+      "value": 10
     }
   },
   "fileToken": "3e7065de-3d47-4bb7-9030-72ddb6f79fb3"
