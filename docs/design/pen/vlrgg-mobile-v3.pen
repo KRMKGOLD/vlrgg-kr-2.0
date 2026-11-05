@@ -429,7 +429,11 @@
                               "id": "f1wYaY",
                               "name": "Label",
                               "fill": "$muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
                               "content": "뉴스",
+                              "lineHeight": 1.25,
+                              "textAlign": "center",
                               "fontFamily": "$font-text",
                               "fontSize": 12,
                               "fontWeight": "500"
@@ -475,7 +479,11 @@
                               "id": "Z7d5CC",
                               "name": "Label",
                               "fill": "$ink",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
                               "content": "경기",
+                              "lineHeight": 1.25,
+                              "textAlign": "center",
                               "fontFamily": "$font-text",
                               "fontSize": 12,
                               "fontWeight": "700"
@@ -521,7 +529,11 @@
                               "id": "K0Xcpd",
                               "name": "Label",
                               "fill": "$muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
                               "content": "마이페이지",
+                              "lineHeight": 1.25,
+                              "textAlign": "center",
                               "fontFamily": "$font-text",
                               "fontSize": 12,
                               "fontWeight": "500"
@@ -567,7 +579,11 @@
                               "id": "Z61OEC",
                               "name": "Label",
                               "fill": "$muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
                               "content": "대회",
+                              "lineHeight": 1.25,
+                              "textAlign": "center",
                               "fontFamily": "$font-text",
                               "fontSize": 12,
                               "fontWeight": "500"
@@ -613,7 +629,11 @@
                               "id": "an65A",
                               "name": "Label",
                               "fill": "$muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
                               "content": "정보",
+                              "lineHeight": 1.25,
+                              "textAlign": "center",
                               "fontFamily": "$font-text",
                               "fontSize": 12,
                               "fontWeight": "500"
@@ -26253,7 +26273,8 @@
             "K0Xcpd": {
               "fontWeight": "500",
               "fill": "$muted",
-              "fontSize": 16
+              "fontSize": 16,
+              "content": "마이\n페이지"
             },
             "KZZZ6": {
               "fill": "#00000000"
