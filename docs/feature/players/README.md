@@ -14,7 +14,7 @@ Search, News 본문, Team roster, 지원되는 Match Player link, MyPage에서 �
 
 ## 화면과 상태
 
-Back/favorite star, Player header, Current Team logo card, Agent Stats, Recent Matches outlined card 순서다.
+Back/favorite star, Player header, Current Team, Agent Stats, Recent Matches 순서다. 각 영역의 시각 형태는 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
 - Current Team, Agent Stats, Recent Matches 누락은 독립 section Empty다. atomic response이므로 generic Partial을 만들지 않는다.
 - 전체 조회 실패만 Retry/Back modal error다. source에 없는 metric은 `—`이며 실제 `0`과 구분한다.

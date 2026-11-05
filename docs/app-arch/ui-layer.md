@@ -34,6 +34,6 @@ ViewModel은 MetroX map binding에 기여하고 Screen은 `metroViewModel()`로 
 
 ## Component와 시각 규칙
 
-feature 하나에서만 쓰는 composable은 해당 feature에 둔다. 두 feature 이상에서 같은 계약으로 재사용할 때 `ui/component`로 옮긴다. Theme와 접근성·시각 결정은 [`../../DESIGN.md`](../../DESIGN.md), 기능 문서와 Stitch 결과물을 따른다.
+feature 하나에서만 쓰는 composable은 해당 feature에 둔다. 두 feature 이상에서 같은 계약으로 재사용할 때 `ui/component`로 옮긴다. Theme와 접근성·시각 결정은 [`../../DESIGN.md`](../../DESIGN.md), 기능 문서와 Pencil 디자인 원본(`docs/design/pen/vlrgg-mobile-v3.pen`)을 따른다.
 
 상태 전이는 ViewModel test로, callback과 주요 상태 렌더링은 가장 좁은 UI test로 검증한다. 플랫폼별 실제 접근성과 시각 동작은 simulator/device 확인이 필요한 별도 근거로 취급한다.

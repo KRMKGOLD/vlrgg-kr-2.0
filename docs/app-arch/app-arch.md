@@ -8,7 +8,7 @@ VLR.GG Mobile 2.0은 Compose Multiplatform 클라이언트다. 화면, 상태, V
 - 앱 runtime, Metro graph, Navigation 3: [`app-runtime.md`](app-runtime.md)
 - UI/Domain/Data 경계: [`ui-layer.md`](ui-layer.md), [`domain-layer.md`](domain-layer.md), [`data-layer.md`](data-layer.md)
 - 화면 요구사항과 사용자 흐름: [`../feature/`](../feature/)
-- 시각 규칙: [`../../DESIGN.md`](../../DESIGN.md)와 Stitch 결과물
+- 시각 규칙: [`../../DESIGN.md`](../../DESIGN.md)와 Pencil 디자인 원본 [`../design/pen/vlrgg-mobile-v3.pen`](../design/pen/vlrgg-mobile-v3.pen)
 
 코드와 문서가 다르면 현재 구현과 변경 의도를 확인하고 관련 문서를 함께 갱신한다. 아직 시작하지 않은 기능의 빈 문서나 package는 미리 만들지 않는다.
 
