@@ -259,8 +259,9 @@ class CiContractTest < Minitest::Test
     CiContract::TARGETS.each do |target|
       assert_includes jobs.fetch(target).fetch("if"), "needs.changes.outputs.#{target} == 'true'"
     end
-    assert_equal "ubuntu-latest", jobs.fetch("server").fetch("runs-on")
-    assert_equal "ubuntu-latest", jobs.fetch("android").fetch("runs-on")
+    # Pinned because ruby/setup-ruby publishes no Ruby 3.3.7 build for ubuntu-26.04 (ubuntu-latest).
+    assert_equal "ubuntu-24.04", jobs.fetch("server").fetch("runs-on")
+    assert_equal "ubuntu-24.04", jobs.fetch("android").fetch("runs-on")
     assert_equal "macos-26", jobs.fetch("ios").fetch("runs-on")
   end
 
