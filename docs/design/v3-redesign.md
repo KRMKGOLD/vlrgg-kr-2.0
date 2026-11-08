@@ -64,7 +64,7 @@
 
 | 묶음 | 컴포넌트 | 규칙 |
 | --- | --- | --- |
-| 내비게이션 | Status bar, Root header, Detail header, Tabs, Bottom navigation | 루트는 제목 24/900과 검색 48dp. 상세 헤더는 Back과 기능 action만 둔다. 탭 선택은 ink 2dp 밑줄, 하단 탭 선택은 빨간 2dp 막대, ink 아이콘, 굵은 라벨 |
+| 내비게이션 | Status bar, Root header, Detail header, Tabs, Bottom navigation | 루트는 제목 24/900과 검색 48dp. 상세 헤더는 Back과 기능 action을 두고, 제목은 밝은 변형에만 선택적으로 둔다. 어두운 변형은 제목을 두지 않는다. 탭 선택은 ink 2dp 밑줄, 하단 탭 선택은 빨간 2dp 막대, ink 아이콘, 굵은 라벨 |
 | 목록 | Section header, Match row, News row, Identity row, Link row, Search result row, Team match row, Favorite tile | Match row는 72dp 시간 열과 팀 열을 세로선으로 나눈다. 승자는 ink 700, 패자는 muted 500. 긴 팀 이름은 줄바꿈된다 |
 | 상세 | Scoreboard, Entity hero, Map row, Head to head row, Stat header, Stat row | Scoreboard는 로고 위·이름 아래 대칭 구조이며 점수는 중앙. Map row는 hero와 같은 좌우 위치에 점수를 두고 승자 아래에 빨간 막대를 둔다 |
 | 컨트롤 | Logo slot, Status chip, Primary button, Secondary button, Search field, Icon star(FILL 1) | Logo slot은 이미지가 없으면 팀 tag나 선수 이니셜, 대회는 trophy 아이콘을 표시한다. 버튼은 높이 48dp, 좌우 여백 24dp, 모서리 10dp다 |
