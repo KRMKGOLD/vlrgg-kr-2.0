@@ -32,7 +32,7 @@ VLR.GG Mobile Tracker는 VLR.GG의 News, Match, Event, Series, Team, Player를 �
 
 ## 공통 탐색 계약
 
-Bottom navigation은 `News`, `Matches`, `MyPage`, `Events`, `About` 다섯 root이며 기본 진입점은 `MyPage`다. 각 root는 독립 back stack과 화면 상태를 유지한다. 다른 root에서 돌아오면 기존 overlay와 entry state를 복원하고, 현재 root를 다시 선택하면 그 root의 overlay를 비운다.
+Bottom navigation은 `News`, `Matches`, `MyPage`, `Events`, `About` 다섯 root이며 기본 진입점은 `MyPage`다. 화면 제목과 하단 탭 라벨은 한국어 `뉴스`, `경기`, `마이페이지`, `대회`, `정보`로 표시한다(2026-11-05 v3 결정. 현재 앱의 영어 표기는 v3 적용 작업에서 바꾼다). 각 root는 독립 back stack과 화면 상태를 유지한다. 다른 root에서 돌아오면 기존 overlay와 entry state를 복원하고, 현재 root를 다시 선택하면 그 root의 overlay를 비운다.
 
 - 모든 root는 title과 Search action이 있는 공통 Top App Bar를 사용한다.
 - Search는 bottom item이 아닌 full-screen overlay다. 입력은 최대 30자, 명시적 제출만 허용하고 blank/symbol-only query는 요청하지 않는다.

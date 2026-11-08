@@ -15,7 +15,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 
 ## Source of Truth
 
-- 제품 기획과 화면 요구사항에 대해서는 docs/ 와 Stitch를 우선적으로 확인한다.
+- 제품 기획과 화면 요구사항에 대해서는 docs/와 `DESIGN.md`, Pencil 디자인 원본(`docs/design/pen/`)을 우선적으로 확인한다.
 - 앱 아키텍처 결정은 `docs/app-arch/`, 서버 아키텍처 결정은 `docs/architecture/` 또는 ralplan 결과물을 따른다.
 - 실제 구현 규칙은 루트 `AGENTS.md`와 각 모듈의 `AGENTS.md`를 함께 따른다.
 - 코드와 문서가 충돌하면 현재 코드 구조를 먼저 확인하고, 필요한 경우 문서를 함께 갱신한다.
@@ -95,9 +95,9 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 
 ## Documentation Workflow
 
-- 기능 작업을 시작하기 전 `docs/`, Stitch, ralplan 결과물에 해당 기능의 최신 기획/범위가 업데이트되어 있는지 확인한다.
+- 기능 작업을 시작하기 전 `docs/`, Pencil 디자인(`docs/design/pen/`), ralplan 결과물에 해당 기능의 최신 기획/범위가 업데이트되어 있는지 확인한다.
 - 기능별 상세 문서는 기능 작업이 시작될 때 `docs/` 아래에 생성하거나 갱신한다. 아직 작업이 시작되지 않은 예정 기능에 대해 빈 문서를 미리 만들지 않는다.
-- Stitch 기반 `DESIGN.md`가 수립되면 UI, theme, component, visual decision의 source of truth로 함께 확인한다.
+- `DESIGN.md`(v3, Pencil `docs/design/pen/vlrgg-mobile-v3.pen` 기반)를 UI, theme, component, visual decision의 source of truth로 함께 확인한다.
 - ralplan 결과물과 실행 계획은 `.omx`에서 관리한다. 장기적으로 유지해야 하는 제품 결정은 `docs/feature/`, 아키텍처 결정은 관련 architecture 문서로 승격한다.
 - 큰 기능을 시작하기 전 `docs/` 또는 ralplan 결과물에 목표와 범위를 남긴다. 관련 문서가 아직 예정 상태라면 그 사실을 명시하고, 현재 요청 범위 안에서 필요한 최소 문서만 생성하거나 갱신한다.
 - 아키텍처 결정이 바뀌면 관련 문서를 함께 갱신한다.

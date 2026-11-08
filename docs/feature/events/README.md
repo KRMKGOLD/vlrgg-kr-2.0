@@ -127,7 +127,7 @@ Event Stats는 독립 endpoint/state를 갖는 정식 탭이다. 첫 고정 colu
 
 Player Agent Stats와 공통 Table을 사용하며 Event의 긴 목록은 기존 lazy rendering을 유지한다. 위 metric header는 내림차순 → 오름차순 → 정렬 해제로 순환하고 다른 열은 내림차순부터 시작한다. 표시 문자열 대신 domain 숫자를 비교하며, 누락 값은 양 방향 모두 마지막, 동률은 현재 source 순서를 유지한다. 실제 `0`과 누락 표시 `—`를 구분하고 source 목록을 변경하지 않는다.
 
-정렬은 추가 API 요청 없이 화면 UiState와 명시적 callback으로 처리한다. 선택한 열·방향은 탭 전환과 Player 왕복 뒤 보존하고 Event ID별로 분리한다. 같은 대상의 새 데이터에는 현재 선택을 적용하며 해제하면 새 source 순서로 돌아간다. 잘못된 저장 값은 정렬 없음으로 복원한다. 외곽은 기본 8dp rounded와 단일 outline이며, 48dp 이상의 header target과 화살표·방향 설명을 제공한다.
+정렬은 추가 API 요청 없이 화면 UiState와 명시적 callback으로 처리한다. 선택한 열·방향은 탭 전환과 Player 왕복 뒤 보존하고 Event ID별로 분리한다. 같은 대상의 새 데이터에는 현재 선택을 적용하며 해제하면 새 source 순서로 돌아간다. 잘못된 저장 값은 정렬 없음으로 복원한다. 표의 외곽·행·셀 형태는 [`DESIGN.md`](../../../DESIGN.md)를 따르며, 48dp 이상의 header target과 화살표·방향 설명을 제공한다.
 
 ## 화면 상태
 

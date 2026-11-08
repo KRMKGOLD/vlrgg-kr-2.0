@@ -12,7 +12,7 @@
 | B. 기사 묶음 | 가독성은 좋지만 일반 목록 아이콘과 비슷하고 앱의 경기 정보가 드러나지 않는다. |
 | C. 대진 연결선 | 단순하지만 브래킷에 의미가 치우치며 뉴스·스코어를 함께 다루는 앱을 대표하기 어렵다. |
 
-[현재 DESIGN.md](../../../DESIGN.md)의 `Surface #FFFFFF`, `TextBrand #111823`, `AccentLive #FF4654`를 사용한다. 빨강은 작은 신호 점에만 쓴다. [v2.1 제안](../v2.1-design-system.md)의 차분한 정보 서비스 방향도 검토했으며, 아직 미채택인 색상 토큰은 적용하지 않았다.
+제작 당시(2026-10) 디자인 토큰 `Surface #FFFFFF`, `TextBrand #111823`, `AccentLive #FF4654`를 사용한다. [DESIGN.md](../../../DESIGN.md)가 v3로 바뀐 뒤에도 아이콘 색은 바꾸지 않았고, v3 팔레트 반영 여부는 v3 앱 적용 작업에서 정한다. 빨강은 작은 신호 점에만 쓴다.
 
 ## 에셋과 크기
 
@@ -21,7 +21,7 @@
 - `drawable/ic_launcher_{background,foreground,monochrome}.xml`: 108dp VectorDrawable. monochrome은 배경 없이 같은 두 패스를 단색으로 사용한다.
 - `mipmap-anydpi-v26/ic_launcher{,_round}.xml`: foreground/background와 Android 13 이상용 monochrome 레이어.
 - `mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}`: 각 48/72/96/144/192px 일반·원형 PNG. 원본의 중앙 72dp 영역을 내보내 adaptive icon과 크기를 맞췄다.
-- `drawable/ic_splash.xml`: 같은 foreground를 240dp 크기, 108단위 viewport로 사용한다. `Theme.SplashScreen.IconBackground`와 흰색 아이콘 배경으로 240dp/160dp 규격을 적용한다. 화면 배경도 DESIGN.md의 `Surface`다.
+- `drawable/ic_splash.xml`: 같은 foreground를 240dp 크기, 108단위 viewport로 사용한다. `Theme.SplashScreen.IconBackground`와 흰색 아이콘 배경으로 240dp/160dp 규격을 적용한다. 화면 배경은 `#FFFFFF`(v3 `surface`와 같은 값)다.
 
 핵심 형상은 중심 `(54,54)`, 반지름 33인 66dp safe zone 안에 있다. 창의 경계는 `(30,34)`–`(78,76)`으로 가장 먼 경계 상자 모서리도 반지름 32.56 이내이며, 신호 점은 중심 `(73,35)`, 반지름 5로 중심에서 최대 31.88이다. 스플래시에서도 최대 반지름은 `32.56 × 240 / 108 = 72.36dp`로 160dp 원 안에 들어간다.
 
