@@ -72,7 +72,7 @@ Fastlane `supply`는 앱의 수동 초기 설정과 최소 한 번의 build uplo
 
 ## Android 비공개 테스트와 프로덕션
 
-2026-10-13 소유자 결정(2026-10-19 확인)에 따라 Android 앱을 Google Play 프로덕션에 공개한다. 개인 개발자 계정이므로 비공개 테스트를 먼저 거친다. 이 절을 쓴 2026-10-19 기준 완료 기록이 있는 것은 internal 배포(`0.1.0(2)`)뿐이다. 이 절은 절차와 경계를 정하며 Console 입력이나 신청을 수행했다는 기록이 아니다.
+2026-10-13 소유자 결정(2026-10-19 확인)에 따라 Android 앱을 Google Play 프로덕션에 공개한다. 개인 개발자 계정이므로 비공개 테스트를 먼저 거친다. 이 절은 절차와 경계를 정하며, 실제로 진행한 단계는 [진행 기록](#진행-기록)에만 남긴다.
 
 ### 운영 방침
 
@@ -101,6 +101,20 @@ Fastlane `supply`는 앱의 수동 초기 설정과 최소 한 번의 build uplo
 테스터 목록은 Console의 Closed testing > Testers에서 이메일 목록 또는 Google Group으로 관리하고 opt-in 링크를 공유한다. 테스터 신원과 이메일은 저장소·이슈·공개 log에 남기지 않는다. 앱이 Published 상태가 아니면 opt-in 링크가 보이지 않는다고 안내되므로 현재 앱 상태에서 링크가 나오는지 확인한다(확인 필요).
 
 신청서 답변과 소유자의 모집·참여 기록은 이 문서가 아니라 소유자의 비공개 기록에 둔다. 신청과 Console 입력은 소유자가 직접 한다.
+
+### 진행 기록
+
+버전, 출처 SHA, 실행 기록과 단계별 날짜만 남긴다. 테스터 신원·인원, Console 원본 응답, 신청서 답변은 남기지 않는다.
+
+| 날짜 | 단계 | 기록 |
+| --- | --- | --- |
+| 2026-10-27 | internal 업로드 | `0.2.0(3)`. 출처 `main` cc4f92d, CI run [40450948804](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/40450948804), 배포 run [40451538732](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/40451538732) |
+| 2026-10-27 | 조회 서버 운영 배포 | `main` d39f6f5(#176), 배포 run [40467969598](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/40467969598) |
+| 2026-11-08 | 비공개 테스트 검토 제출 | 소유자가 internal의 `0.2.0(3)`을 비공개 테스트 트랙(대한민국)에 올리고 앱 설정과 함께 검토를 제출했다. |
+
+- 2026-11-08 기준 `main` d39f6f5는 cc4f92d 이후 앱·core·Gradle 변경이 없다(#175 문서, #176 서버). 비공개 테스트 빌드는 현재 main의 앱과 같으며, [`play-console.md`](play-console.md)의 선언 근거도 그대로 쓴다.
+- `0.2.0(3)` release 빌드를 물리 기기에서 설치하고 조회를 확인한 기록([Android completion evidence](#android-completion-evidence))은 아직 없다.
+- 검토 결과와 프로덕션 신청일은 해당 단계에서 이 표에 추가한다.
 
 ### Console 앱 콘텐츠 선언
 
