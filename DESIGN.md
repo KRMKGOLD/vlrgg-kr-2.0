@@ -68,7 +68,7 @@
 | `ink-2` | `#3D434C` | 보조 본문, 고지문 | surface 9.97 |
 | `muted` | `#646B78` | 메타, 패자, 비선택 탭 | surface 5.36, canvas 4.79, sunken 4.96 |
 | `accent` | `#CF1F33` | LIVE·`진행 중` chip·탭 선택·승자(`승리` 라벨)·즐겨찾기 ON 별·주요 버튼·재시도·본문 링크 | surface 5.39, canvas 4.81, 흰 글자 5.39 |
-| `accent-pressed` | `#A8172A` | 주요 버튼 누름 | — |
+| `accent-pressed` | `#A8172A` | 주요 버튼 누름(기본 ripple로 부족할 때만, [8.4](#84-컨트롤)) | — |
 | `accent-soft` | `#FDECEE` | 선택 배경이 필요할 때 | accent 4.72 |
 | `live` | `#FF3B4B` | LIVE 점(장식 신호, 항상 `LIVE` 글자와 함께) | panel 5.03 |
 | `panel` | `#15191E` | 상세 상단 띠, Snackbar | — |
@@ -77,7 +77,7 @@
 | `on-panel-muted` | `#A4ABB6` | panel 위 보조 글자, 패자 점수 | panel 7.63, panel-2 6.34 |
 | `on-panel-accent` | `#FF7A86` | Snackbar 액션, 어두운 헤더의 즐겨찾기 ON | panel 7.04 |
 | `warn` / `warn-soft` | `#9A5800` / `#FFF4E0` | `연기됨` 라벨 | 5.11 |
-| `focus` | `#2F6FED` | 키보드·접근성 포커스 링 | 비텍스트 |
+| `focus` | `#2F6FED` | 키보드·접근성 포커스 링(플랫폼 기본 표시가 보이지 않을 때) | 비텍스트 |
 | `disabled` | `#9AA1AC` | 상태 아이콘, 이미지 자리 아이콘 | 비텍스트 전용 |
 | `scrim` | `#0B0D10` 40% | 모달 뒤 배경 | — |
 
@@ -139,7 +139,8 @@
 | 검색창 | `search`, `cancel`(지우기) |
 | 정보 링크 | `code`, `privacy_tip`, `mail`, `description` |
 | 상태 | `error`(오류), `do_not_disturb_on`(섹션 빈 상태), `progress_activity`(검색 중), `info`(안내) |
-| 표 | `arrow_downward`(정렬), `swap_horiz`(가로 스크롤 안내) |
+| 빈 목록 | 기능 아이콘: `newspaper`(뉴스), `scoreboard`(경기), `trophy`(대회·시리즈), `search`(검색), `description`(기사 본문 없음), `bar_chart`(통계 없음) |
+| 표 | `arrow_downward`·`arrow_upward`(내림차순·오름차순 정렬), `swap_horiz`(가로 스크롤 안내) |
 | 자리 표시 | `trophy`(대회·시리즈 로고 없음), `image`(기사 이미지 로딩 실패) |
 
 ## 8. 컴포넌트
@@ -191,10 +192,12 @@
 
 | 상태 | 버튼 동작 |
 | --- | --- |
-| Pressed | Primary는 `accent-pressed`, Secondary·Text는 `surface-sunken` 바탕 |
-| Focus | 2dp `focus` 링을 바깥에 둔다. 색 변화만으로 표시하지 않는다 |
-| Disabled | 이유가 분명할 때만 50% 불투명도. 아니면 활성 상태로 두고 근처에 이유를 쓴다 |
+| Pressed | 별도 시안 없이 Compose 기본 indication(ripple)을 쓴다 |
+| Focus | 플랫폼 기본 포커스 표시를 쓴다. 보이지 않으면 2dp `focus` 링을 바깥에 둔다. 색 변화만으로 표시하지 않는다 |
+| Disabled | 이유가 분명할 때만 흐리게(50% 불투명도) 표시한다. 아니면 활성 상태로 두고 근처에 이유를 쓴다 |
 | Loading | 폭을 유지하고 반복 실행을 막으며 진행 표시와 busy semantics를 준다 |
+
+- 버튼 상태는 대략적인 기준만 둔다(2026-11-10 결정). ripple 색이나 흐림 정도 같은 세부 표현은 실제 기기에서 써 보고 불편하면 그때 조정하고 이 표를 갱신한다.
 
 - **Search field:** 높이 48dp, `surface-sunken`, 2dp 모서리, 선두 `search` 20dp `muted`. 지우기 `cancel`은 값이 있을 때만 48dp 영역으로 둔다(접근성 이름 `검색어 지우기`). 포커스는 2dp `ink` 테두리, 제출 후 비포커스는 1dp `line-strong`이다. placeholder는 `팀, 선수, 대회 검색…`이다.
 - **Status chip:** 위아래 2·좌우 6dp, 2dp 모서리, 정보 전용이다.
