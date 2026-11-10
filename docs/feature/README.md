@@ -21,14 +21,7 @@ VLR.GG Mobile Tracker는 VLR.GG의 News, Match, Event, Series, Team, Player를 �
 
 ## MVP 이후 Stage 2: 경기 알림
 
-2026-09-27 결정에 따라 경기 알림 전체는 MVP 이후 Stage 2다. Match Detail 벨, 권한·수신·탭 이동, MyPage 전역 OFF, App Check/FCM/Firestore/Scheduler 실환경 연동과 실기기 검증은 [Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76), #77–#91, #103과 [Stage 2 마일스톤](https://github.com/KRMKGOLD/vlrgg-kr-2.0/milestone/2)에서 관리한다.
-
-- 서버 Stage 1.1의 Target 인증, Firestore Emulator, START-only delivery, request-bound scheduler는 offline 검증이 완료된 기반이다. 앱 연결이나 실제 push 전달 완료를 뜻하지 않는다.
-- 현재 서버는 registration token을 전달 주소로 사용한다. FID 전환은 #77의 계획이며 구현 사실로 쓰지 않는다.
-- 현재 MVP에는 알림 벨·권한 요청·설정 UI·Match 즐겨찾기를 추가하지 않는다.
-- 일반 조회 서버 배포, Crashlytics, 서버 운영 장애 알림 #122는 제품 경기 알림과 별개다.
-
-상세한 Stage 2 제품 계약은 [`matches`](matches/README.md#mvp-이후-stage-2-범위-match-알림), 서버 구현 경계는 [`server-fcm-stage1.md`](../architecture/server-fcm-stage1.md)가 소유한다.
+경기 알림은 현재 제품 범위 밖이며 서버와 앱에 관련 코드가 없다. 이전 서버 Stage 1.1 offline 구현(익명 Target, Firestore 저장, START 전달)은 2026-11-10에 제거했고, 제거 전 마지막 커밋은 `177ecf8`이다. 다시 시작할 때는 [Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76)에서 범위와 설계를 새로 정한다.
 
 ## 공통 탐색 계약
 
