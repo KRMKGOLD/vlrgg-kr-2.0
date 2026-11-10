@@ -108,7 +108,7 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 - 스코어 또는 예정 상태
 - Match를 선택하는 데 필요한 설명 정보
 
-Match 표시에 관한 세부 규칙은 Match 기능 문서가 소유하며 Event Detail은 같은 요약 표현을 재사용한다. 경기 시각(`time`)과 남은 시간 표시는 [Matches 앱 표시 규칙](../matches/README.md#앱-표시-규칙)을 따르며, 응답에 날짜 그룹이 없어 날짜 헤더는 표시하지 않는다.
+Match 표시에 관한 세부 규칙은 Match 기능 문서가 소유하며 Event Detail은 같은 요약 표현을 재사용한다. 경기 시각(`time`)·남은 시간·날짜 헤더 표시는 [Matches 앱 표시 규칙](../matches/README.md#앱-표시-규칙)을 따른다. item `date`로 연속한 같은 날짜의 경기를 묶어 Matches 목록과 같은 날짜 헤더를 표시하고, `date`가 없는 응답은 날짜 헤더 없이 표시한다(2026-11-10 결정).
 Event 문맥의 `stage`는 wire field가 아닌 UI 문맥명이며 `matches.items[].event.series`를 표시한다. `event.series`가 `null`이면 이 보조 문맥은 생략한다. 현재 API 응답의 Team ID가 없으므로 Team cell은 비클릭 콘텐츠이며 card 전체만 Match Detail을 연다.
 
 ### News tab
@@ -188,8 +188,8 @@ GET /api/v1/events/{eventId}/stats
 ```
 
 - `matches`는 upstream Event Matches의 `series_id=all` 결과를 사용한다.
-- `matches.items`는 Matches 목록의 `MatchSummaryResponse` 계약을 재사용한다. `event`는 현재 Event의 `id`와 이름을 담고, Event 내부 단계 표시는 `event.series`에 둔다. `time`(`timeLabel`의 ISO local time)도 같은 의미로 채우지만, 응답에 날짜 그룹이 없어 날짜는 제공하지 않는다. [Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)을 따른다.
-- Events 목록·Event Detail의 `dateLabel`은 자유 형식 기간 문자열이고, vlr.gg가 기계 판독 가능한 값을 주지 않아 구조화하지 않는다. Event Detail bracket의 unix timestamp는 서버가 bracket을 파싱하지 않아 사용하지 않는다.
+- `matches.items`는 Matches 목록의 `MatchSummaryResponse` 계약을 재사용한다. `event`는 현재 Event의 `id`와 이름을 담고, Event 내부 단계 표시는 `event.series`에 둔다. `time`(`timeLabel`의 ISO local time)도 같은 의미로 채운다. 응답은 날짜 그룹 없이 원본 순서의 목록이며, 2026-11-10 계약으로 각 item에 원본 날짜 그룹의 `date`를 추가한다(서버 구현 예정). [Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)을 따른다.
+- Events 목록·Event Detail의 `dateLabel`은 원문 기간 문자열이다(목록 `Nov 5—16`, 상세 `Sep 13 – Dec 25, 2026`). 2026-11-10 계약으로 서버가 `startDate`·`endDate`(연도 없는 month-day)를 추가하고 앱은 한국어로 표시한다([한국어 표시 확장](../matches/README.md#한국어-표시-확장-2026-11-10)). Event Detail bracket의 unix timestamp는 서버가 bracket을 파싱하지 않아 사용하지 않는다.
 - Event Detail 원본에는 상태가 항상 존재하지 않으므로 상세 응답의 `status`는 선택 값이다. 목록 응답의 상태 그룹은 필수다.
 - Event News 원본에는 작성자가 항상 존재하지 않으므로 Event News 요약의 `author`는 선택 값이다. 제목, canonical News reference, 작성 시각은 필수다.
 - 섹션 하나의 network 또는 parsing 실패가 다른 섹션의 성공 응답을 대체하지 않는다. 각 실패는 공통 오류 envelope로 독립 반환한다.

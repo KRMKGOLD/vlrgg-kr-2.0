@@ -303,7 +303,7 @@ GET /api/v1/matches/{matchId}
 
 ### 날짜·시간 계약
 
-2026-10-26 날짜·시간 표시 수정(서버 1/2)에서 정한 계약이다. 앱이 사용자 시간대와 언어에 맞춰 날짜·시간을 포맷할 수 있도록, 기존 표시 문자열은 그대로 두고 기계 판독 가능한 값을 nullable field로 추가했다. Matches 외 화면의 값도 이 절에서 함께 정의한다.
+2026-10-26 날짜·시간 표시 수정(서버 1/2)에서 정한 계약이다. 앱이 사용자 시간대와 언어에 맞춰 날짜·시간을 포맷할 수 있도록, 기존 표시 문자열은 그대로 두고 기계 판독 가능한 값을 nullable field로 추가했다. Matches 외 화면의 값도 이 절에서 함께 정의한다. 2026-11-10에는 그때 "변경 없음"으로 둔 값까지 한국어로 표시하기로 하고 field를 더 정했다([한국어 표시 확장](#한국어-표시-확장-2026-11-10)).
 
 #### Upstream 조사 (2026-10-26)
 
@@ -365,20 +365,53 @@ GET /api/v1/matches/{matchId}
 - 새 앱 + 구서버 조합에서 구서버의 `scheduledAt`은 틀린 값이므로 앱이 쓰지 않는다. 구서버에는 `scheduledAtUtc`가 없어서 앱이 `timeLabel`로 돌아간다.
 - 새 서버를 배포하면 `0.1.0(2)`가 원문으로 표시하는 Match Detail `scheduledAt`이 서머타임 기간 4시간 늦어진다. 이것은 실제 시작 시각으로 바로잡히는 변화다.
 
+#### 한국어 표시 확장 (2026-11-10)
+
+v3 디자인 적용에 맞춰 한국어 UI를 기준으로 모든 날짜·시각을 한국어로 표시하기로 했다(2026-11-10 결정). 위 조사에서 "변경 없음"이던 값을 서울에서 다시 요청해 확인했다. 아래 field는 계약이며 서버 구현은 v3 적용 작업에서 한다. 구현 전까지 앱은 원문으로 대신 표시한다.
+
+| 화면 (endpoint) | 원문 (2026-11-10 실측) | 서버 결정 |
+|---|---|---|
+| News 목록 (`/news`) | `November 10, 2026` | `publishedAt` 유지, `publishedDate` 추가 |
+| Event News, Team news | `.ge-text-light` `2026/10/22` | 원문 유지, `publishedDate` 추가 |
+| Event Matches (`/events/{id}/matches`) | 페이지에 Matches 목록과 같은 `div.wf-label.mod-large` 날짜 그룹(`Sun, September 13, 2026`)이 있다. 지금 서버가 읽지 않을 뿐이다. 종료 경기 ETA에 `1mo` 단위도 나온다 | item에 `date` 추가 |
+| Events 목록·Series의 `dateLabel` | `Nov 5—16`, `Sep 13—Dec 25`, `Dec 17`, `Nov 1—TBD`(목록 103건 전수, 이 네 형식뿐이며 연도 없음) | `dateLabel` 유지, `startDate`·`endDate` 추가 |
+| Event Detail의 `dateLabel` | `Sep 13 – Dec 25, 2026`(연도 포함) | 같은 field 추가 |
+| Team Detail 경기 행 | `scheduledAtText` `2026/08/28 7:05 pm`, 예정 경기 `statusText`는 ETA 원문 `1d 6h`, 종료 경기는 점수 `0 : 2` | `scheduledDate`·`scheduledTime` 추가. `statusText`는 구조화하지 않음 |
+| Player 최근 경기 | `playedOn` `2026/08/02` | `playedDate` 추가 |
+
+| Endpoint | Field | 형식 | 의미 | null 조건 |
+|---|---|---|---|---|
+| `GET /api/v1/news` item, `GET /api/v1/events/{id}/news` item, `GET /api/v1/teams/{teamId}` news | `publishedDate` | ISO-8601 local date `2026-09-19` | 목록 게시일. vlr.gg 표시 시간대 기준이며 instant가 아니다 | 원문이 `MMMM d, yyyy`나 `yyyy/MM/dd`가 아니거나 달력에 없는 날짜 |
+| `GET /api/v1/events/{id}/matches` item | `date` | ISO-8601 local date | 경기가 속한 날짜 그룹의 달력 날짜. Matches 목록 group `date`와 같은 의미 | 그룹 label이 Matches 목록 `date`의 null 조건에 걸림 |
+| `GET /api/v1/events` item, `GET /api/v1/events/{id}`, `GET /api/v1/series/{seriesId}` event item | `startDate`, `endDate` | ISO-8601 month-day `--09-13` (연도 없음) | 기간의 시작·끝 달력 날짜. 하루짜리는 두 값이 같다 | 형식을 알 수 없으면 둘 다 null. 끝이 `TBD`면 `endDate`만 null |
+| `GET /api/v1/teams/{teamId}` match | `scheduledDate`, `scheduledTime` | ISO-8601 local date, local time `HH:mm` | `scheduledAtText`의 날짜와 시각. 표시 시간대 기준이며 instant가 아니다 | 날짜 형식이 다르면 둘 다 null. 시각만 없으면 `scheduledTime`만 null |
+| `GET /api/v1/players/{playerId}` recent match | `playedDate` | ISO-8601 local date | `playedOn`의 날짜 | 형식이 다르거나 달력에 없는 날짜 |
+
+- 기존 원문 field(`publishedAt`, `publishedDateText`, `dateLabel`, `scheduledAtText`, `playedOn`, `statusText`)는 삭제하지 않고 의미도 바꾸지 않는다. 배포된 앱이 이 field를 쓴다.
+- Team·Player 날짜·시각도 Matches 목록처럼 vlr.gg가 요청 위치로 고른 시간대(서울 리전·로컬은 KST)로 렌더된 값이라, 앱은 시간대를 변환하지 않는다.
+- Event Matches 응답의 순서는 바꾸지 않는다(원본은 날짜 오름차순). 앱이 연속한 같은 `date`를 하나의 날짜 헤더로 묶는다.
+
 #### 앱 표시 규칙
 
-2026-10-26 날짜·시간 표시 수정(앱 2/2)에서 정한 규칙이다. 표시 문자열은 UI layer의 `ui/format/KoreanDateTimeFormat`에서만 만든다. Domain Model에는 파싱한 값(`LocalDate`, `LocalTime`, `Instant`)만 두고, 파싱에 실패한 값은 null로 둔다.
+2026-10-26 날짜·시간 표시 수정(앱 2/2)에서 정한 규칙이며, 2026-11-10 한국어 표시 확장에서 행을 추가했다. 표시 문자열은 UI layer의 `ui/format/KoreanDateTimeFormat`에서만 만든다. Domain Model에는 파싱한 값(`LocalDate`, `LocalTime`, `Instant`)만 두고, 파싱에 실패한 값은 null로 둔다.
 
 | 화면 | 사용 값 | 표시 형식 | 값이 없을 때 |
 |---|---|---|---|
 | Matches 목록 날짜 헤더 | group `date` | `10월 27일 (화)` | `dateLabel` 원문 (`Tue, October 27, 2026`) |
-| Matches 목록·Event Matches 예정 경기 시각 | summary `time` | `오전 3:00`, `오후 7:05` | `timeLabel` 원문 (`3:00 AM`, `TBD`) |
+| Matches 목록·Event Matches 경기 시각 | summary `time` | `오전 3:00`, `오후 7:05`. 종료 경기는 아래 줄에 `종료`를 둔다(2026-11-10) | `timeLabel` 원문 (`3:00 AM`, `TBD`) |
+| Event Matches 날짜 헤더 | item `date` | `9월 13일 (일)`. 연속한 같은 날짜를 묶는다 | 날짜 헤더 없이 표시 |
+| News 목록·Event News·Team News 게시일 | `publishedDate` | `2026년 9월 19일` | `publishedAt`·`publishedDateText` 원문 |
+| Events 목록·Event Detail·Series 기간 | `startDate`·`endDate` | `9월 12일 ~ 10월 4일`, 같은 달 `11월 20일 ~ 23일`, 하루 `12월 17일`, 끝 미정 `11월 1일 ~ 미정` | `dateLabel` 원문 |
+| Team Detail 경기 날짜·시각 | `scheduledDate`·`scheduledTime` | `9월 24일 오후 6:00`, 시각이 없으면 `9월 24일` | `scheduledAtText` 원문 |
+| Team Detail 경기 상태 | `statusText` | 남은 시간 원문이면 아래 남은 시간 규칙으로 `1일 6시간 후`. 점수·`LIVE` 같은 다른 원문은 그대로 | — |
+| Player 최근 경기 날짜 | `playedDate` | `7월 12일` | `playedOn` 원문 |
 | Matches 목록·Event Matches 예정 경기 남은 시간 | `relativeTimeLabel` | `22m` → `22분 후`, `10h 32m` → `10시간 32분 후`, `1d 1h` → `1일 1시간 후` | 표시하지 않음 |
 | Match Detail hero 시각 | `scheduledAtUtc` | 기기 시간대 기준 `2026년 10월 27일 (화) 오전 3:00` | `timeLabel` 원문 (`scheduledAtUtc`가 없거나 null이거나 파싱 실패) |
 | Match Detail hero 보조 정보 | `relativeTimeLabel`, `seriesFormat` | 예정 경기만 `22분 후 · Bo3`, 그 외 `Bo3` | 값이 있는 항목만 표시 |
 | News 기사 게시 시각 | `publishedAtUtc` | 기기 시간대 기준 `2026년 10월 26일 오전 12:09` | `publishedAt` 원문 (`16 hours ago`) |
 
 - 시간대 변환은 instant(`scheduledAtUtc`, `publishedAtUtc`)에만 적용하고 기기 시스템 시간대를 쓴다. 목록의 `date`·`time`은 이미 vlr.gg 표시 시간대(KST) 값이라 변환하지 않는다.
+- 연도: 기사 날짜는 항상 연도를 쓴다. 경기 날짜(Team·Player)는 기기 날짜와 연도가 다를 때만 `2025년 9월 24일 오후 6:00`처럼 붙인다. 대회 기간은 원본에 연도가 없는 경우가 있어 쓰지 않는다.
 - 요일(`월`~`일`)과 `오전`/`오후`는 플랫폼 locale을 쓰지 않고 직접 만든다. Android와 iOS의 결과가 같다. 12시간제이며 00시는 `오전 12:00`, 12시는 `오후 12:00`이다.
 - 남은 시간은 `status = upcoming`인 경기에만 표시한다. 종료 경기 ETA는 시작 후 지난 시간이라 표시하지 않고 스코어를 보여준다. Live·연기·취소·정보 없음 경기는 상태 chip만 표시한다.
 - 남은 시간 원문은 `d`→`h`→`m` 순서의 1~3개 토큰(`22m`, `3h`, `2d`, `10h 32m`, `1d 1h`, `1d 2h 3m`)만 인식한다. 대문자, 순서가 다른 단위, `ago`·`LIVE` 같은 문구, 이미 번역된 문자열처럼 형식을 알 수 없는 원문은 표시하지 않는다.

@@ -41,7 +41,7 @@ GET /api/v1/players/{playerId}
 - 매 요청마다 `https://www.vlr.gg/player/{playerId}/?timespan=all`을 한 번 조회하며 cache, retry, stale-success fallback이 없다.
 - 응답은 필수 `id`/`profile`, nullable `currentTeam`, `agentStats`, `recentMatches`다. Profile은 `handle`, `realName`, `aliases`, `countryCode`, `countryName`, `imageUrl`, Team은 `id`, `name`, `imageUrl`을 가진다.
 - Agent Stats는 `agentName`, `mapsPlayed`, `pickRatePercent`, `roundsPlayed`, `rating`, `averageCombatScore`, `killDeathRatio`, `kastPercent`, `averageDamagePerRound`, `killsPerRound`, `assistsPerRound`, `firstKillDeathRatio`, `kills`, `deaths`, `assists`, `firstKills`, `firstDeaths`를 제공한다.
-- Recent Match는 `id`, `eventName`, `eventStage`, `teamA`, `teamB`, `teamAScore`, `teamBScore`, `outcome`, `playedOn`을 사용한다.
+- Recent Match는 `id`, `eventName`, `eventStage`, `teamA`, `teamB`, `teamAScore`, `teamBScore`, `outcome`, `playedOn`을 사용한다. `playedOn`(`2026/08/02`)은 원문이며, 2026-11-10 계약으로 `playedDate`를 추가해 앱이 `8월 2일`로 표시한다([한국어 표시 확장](../matches/README.md#한국어-표시-확장-2026-11-10)).
 - `profile.imageUrl`, `currentTeam.imageUrl`, optional numeric metric과 score/date/stage는 source 미제공 또는 안전하게 해석할 수 없으면 `null`이다.
 - recentMatches는 source 순서의 최대 5개다. ID, timestamp, metric 값을 만들지 않는다.
 - Player face URL을 public HTTPS로 정규화하지 못하면 `null`이며 parsing failure가 아니다.
