@@ -10,7 +10,6 @@
 | [앱 runtime](app-arch/app-runtime.md) | 플랫폼 소유 graph, ViewModel scope, navigation 복원 |
 | [UI](app-arch/ui-layer.md) · [Domain](app-arch/domain-layer.md) · [Data](app-arch/data-layer.md) | 각 레이어의 구현 규칙 |
 | [서버 구조](architecture/server-arch.md) | scraping·API·오류 경계 |
-| [서버 알림 기반](architecture/server-fcm-stage1.md) | Stage 1.1 offline 계약과 Stage 2 미구현 경계 |
 | [공개 조회 보호](architecture/server-public-api-protection.md) | 요청 제한과 앱 Busy 처리 |
 | [서버 배포·복구](architecture/server-container-deployment.md) | Cloud Run 배포, rollback, 비용 중단, 운영 알림 검증·복구 |
 | [CI/CD](ci-cd.md) | 검증 gate와 로컬 benchmark |
