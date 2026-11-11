@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches
 
-import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
 import kotlin.test.*
@@ -13,15 +12,15 @@ class MatchesServiceTest {
     fun `service maps fresh upstream content and does not retain a stale fallback`() = runBlocking {
         var requestCount = 0
         val scraper = object : MatchesScraper {
-            override suspend fun fetchList(category: MatchListCategory, page: Int): ScrapedMatchesPage {
+            override suspend fun fetchList(category: MatchListCategory, page: Int): String {
                 requestCount += 1
                 if (requestCount == 2) {
-                    throw UpstreamNetworkFailure(Url("https://www.vlr.gg/matches"))
+                    throw UpstreamNetworkFailure()
                 }
-                return ScrapedMatchesPage(Url("https://www.vlr.gg/matches"), fixtureHtml("upcoming.html"))
+                return fixtureHtml("upcoming.html")
             }
 
-            override suspend fun fetchDetail(matchId: String): ScrapedMatchDetail = error("not used")
+            override suspend fun fetchDetail(matchId: String): String = error("not used")
         }
         val service = DefaultMatchesService(scraper, parser, mapper)
 

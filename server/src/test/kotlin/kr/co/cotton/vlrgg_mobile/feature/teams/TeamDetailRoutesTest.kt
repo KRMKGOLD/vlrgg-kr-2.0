@@ -207,7 +207,7 @@ class TeamDetailRoutesTest {
                 recordedPaths += path
                 path == failedPath
             }
-            if (shouldFail) throw UpstreamNetworkFailure(url)
+            if (shouldFail) throw UpstreamNetworkFailure()
             return when {
                 path.startsWith("/team/news/") -> newsHtml
                 path.startsWith("/team/") -> overviewHtml

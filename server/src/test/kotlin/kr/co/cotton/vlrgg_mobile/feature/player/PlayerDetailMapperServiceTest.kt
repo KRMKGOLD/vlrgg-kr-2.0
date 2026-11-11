@@ -141,7 +141,7 @@ class PlayerDetailMapperServiceTest {
 
         override suspend fun get(url: Url): String {
             requestedUrls += url
-            if (failAfterFirst) throw UpstreamNetworkFailure(url)
+            if (failAfterFirst) throw UpstreamNetworkFailure()
             return html
         }
     }

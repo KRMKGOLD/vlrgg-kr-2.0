@@ -111,8 +111,8 @@ class PublicRequestProtectionTest {
                 get("/observed/ok") { call.respondText("ok") }
                 get("/observed/rate-limited") { throw RateLimitedFailure() }
                 get("/observed/busy") { throw ServerBusyFailure() }
-                get("/observed/upstream") { throw UpstreamNetworkFailure(Url("https://www.vlr.gg/fixture")) }
-                get("/observed/parsing") { throw SourceParsingFailure(Url("https://www.vlr.gg/fixture"), IllegalStateException()) }
+                get("/observed/upstream") { throw UpstreamNetworkFailure() }
+                get("/observed/parsing") { throw SourceParsingFailure(IllegalStateException()) }
                 get("/observed/large-json") { call.respondPublicJson(LargeResponse("x".repeat(MAX_PUBLIC_JSON_BYTES))) }
                 get("/observed/exception") { throw IllegalStateException("fixture exception") }
             }

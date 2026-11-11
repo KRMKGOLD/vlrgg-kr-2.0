@@ -20,6 +20,6 @@ internal class VlrSearchScraper(
             parameters.append("q", query)
         }.build()
 
-        return parser.parse(upstreamHtmlTransport.get(upstreamUrl), upstreamUrl)
+        return parser.parse(upstreamHtmlTransport.get(upstreamUrl))
     }
 }

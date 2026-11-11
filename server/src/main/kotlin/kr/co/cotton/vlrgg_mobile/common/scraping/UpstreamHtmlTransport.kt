@@ -54,13 +54,13 @@ private class KtorUpstreamHtmlTransport(
     override suspend fun get(url: Url): String {
         return try {
             if (!url.isAllowedVlrUpstreamUrl()) {
-                throw UpstreamNetworkFailure(url, DisallowedUpstreamUrlException())
+                throw UpstreamNetworkFailure(DisallowedUpstreamUrlException())
             }
 
             client.prepareGet(url).execute { response ->
                 if (!response.status.isSuccess()) {
                     response.cancelUndrainedBody()
-                    throw UpstreamNetworkFailure(url, UnexpectedUpstreamResponseStatusException())
+                    throw UpstreamNetworkFailure(UnexpectedUpstreamResponseStatusException())
                 }
                 response.bodyAsBoundedText(maxResponseBodyBytes)
             }
@@ -69,7 +69,7 @@ private class KtorUpstreamHtmlTransport(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (exception: Exception) {
-            throw UpstreamNetworkFailure(url, exception)
+            throw UpstreamNetworkFailure(exception)
         }
     }
 

@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.feature.teams
 
-import io.ktor.http.*
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kotlin.test.*
 
@@ -380,33 +379,25 @@ class TeamDetailParserTest {
     }
 
     @Test
-    fun `parser wraps missing required team header with overview source context`() {
-        val failure = assertFailsWith<SourceParsingFailure> {
+    fun `parser wraps missing required team header as a parsing failure`() {
+        assertFailsWith<SourceParsingFailure> {
             parser.parse(activeContent().copy(overviewHtml = "<html><body>not a team page</body></html>"))
         }
-
-        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
     }
 
     private fun activeContent() = TeamDetailUpstreamContent(
         overviewHtml = fixture("active-team-overview.html"),
         newsHtml = fixture("active-team-news.html"),
-        overviewUrl = Url("https://www.vlr.gg/team/8185/"),
-        newsUrl = Url("https://www.vlr.gg/team/news/8185/"),
     )
 
     private fun sparseContent() = TeamDetailUpstreamContent(
         overviewHtml = fixture("sparse-team-overview.html"),
         newsHtml = fixture("sparse-team-news.html"),
-        overviewUrl = Url("https://www.vlr.gg/team/19296/"),
-        newsUrl = Url("https://www.vlr.gg/team/news/19296/"),
     )
 
     private fun alternateAttaxRubyTbdContent() = TeamDetailUpstreamContent(
         overviewHtml = fixture("alternate-attax-ruby-tbd-overview.html"),
         newsHtml = fixture("sparse-team-news.html"),
-        overviewUrl = Url("https://www.vlr.gg/team/11496/"),
-        newsUrl = Url("https://www.vlr.gg/team/news/11496/"),
     )
 
     private fun fixture(name: String): String = checkNotNull(

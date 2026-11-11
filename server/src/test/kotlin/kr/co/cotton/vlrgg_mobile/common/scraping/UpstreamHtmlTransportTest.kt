@@ -45,7 +45,6 @@ class UpstreamHtmlTransportTest {
                 runBlocking { transport.get(UPSTREAM_URL) }
             }
 
-            assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
             assertIs<Exception>(failure.cause)
             assertTrue(body.wasCancelled)
         }
@@ -139,11 +138,10 @@ class UpstreamHtmlTransportTest {
                 "https://user:secret@www.vlr.gg/matches",
                 "https://untrusted.example/request-derived?token=secret#fragment",
             ).forEach { target ->
-                val failure = assertFailsWith<UpstreamNetworkFailure> {
+                assertFailsWith<UpstreamNetworkFailure> {
                     runBlocking { transport.get(Url(target)) }
                 }
 
-                assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
             }
         }
         assertEquals(1, requestCount)

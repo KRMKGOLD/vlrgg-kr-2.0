@@ -12,12 +12,12 @@ internal class DefaultMatchesService(
     private val mapper: MatchesMapper,
 ) : MatchesService {
     override suspend fun getMatches(category: MatchListCategory, page: Int): MatchesPageResponse {
-        val scraped = scraper.fetchList(category, page)
-        return mapper.toPageResponse(category, page, parser.parseList(scraped.html, scraped.upstreamUrl))
+        val html = scraper.fetchList(category, page)
+        return mapper.toPageResponse(category, page, parser.parseList(html))
     }
 
     override suspend fun getMatch(matchId: String): MatchDetailResponse {
-        val scraped = scraper.fetchDetail(matchId)
-        return mapper.toDetailResponse(parser.parseDetail(scraped.html, scraped.upstreamUrl, matchId))
+        val html = scraper.fetchDetail(matchId)
+        return mapper.toDetailResponse(parser.parseDetail(html, matchId))
     }
 }

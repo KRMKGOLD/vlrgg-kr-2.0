@@ -99,6 +99,7 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 - Event 상태
 - 원본에 존재하는 일정 또는 기간
 - Event를 식별하는 이미지·지역·시리즈 등 기본 메타데이터는 parser contract에서 존재 여부와 선택성을 확인한 뒤 노출한다.
+- Event 이미지 URL은 목록과 상세 모두 HTTPS로 정규화해 제공하며, source에 없거나 안전하게 해석할 수 없으면 `null`이다.
 
 ### Matches tab (Matches All API source)
 
