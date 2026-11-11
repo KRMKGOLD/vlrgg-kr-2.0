@@ -31,10 +31,10 @@ import androidx.navigation3.ui.NavDisplay
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutPlatform
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_event
+import vlrggmobile.app.shared.generated.resources.ic_trophy
 import vlrggmobile.app.shared.generated.resources.ic_info
-import vlrggmobile.app.shared.generated.resources.ic_match
-import vlrggmobile.app.shared.generated.resources.ic_news
+import vlrggmobile.app.shared.generated.resources.ic_scoreboard
+import vlrggmobile.app.shared.generated.resources.ic_newspaper
 import vlrggmobile.app.shared.generated.resources.ic_person
 
 @Composable
@@ -303,10 +303,10 @@ private fun RootNavigationBar(
                 onClick = { onSelectRoot(root) },
                 icon = {
                     val icon = when (root) {
-                        EventsRoot -> vectorResource(Res.drawable.ic_event)
-                        MatchesRoot -> vectorResource(Res.drawable.ic_match)
+                        EventsRoot -> vectorResource(Res.drawable.ic_trophy)
+                        MatchesRoot -> vectorResource(Res.drawable.ic_scoreboard)
                         MyPageRoot -> vectorResource(Res.drawable.ic_person)
-                        NewsRoot -> vectorResource(Res.drawable.ic_news)
+                        NewsRoot -> vectorResource(Res.drawable.ic_newspaper)
                         AboutRoot -> vectorResource(Res.drawable.ic_info)
                     }
 

@@ -49,7 +49,7 @@ import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_event
+import vlrggmobile.app.shared.generated.resources.ic_trophy
 
 internal const val SERIES_DETAIL_LOADING_TAG = "series-detail-loading"
 internal const val SERIES_DETAIL_IDENTITY_TAG = "series-detail-identity"
@@ -281,7 +281,7 @@ private fun SectionEmpty(message: String) {
         horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(vectorResource(Res.drawable.ic_event), contentDescription = null, tint = VlrTheme.colors.textSecondary)
+        Icon(vectorResource(Res.drawable.ic_trophy), contentDescription = null, tint = VlrTheme.colors.textSecondary)
         Text(message, style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary)
     }
     HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
@@ -298,7 +298,7 @@ private fun OverallEmpty() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
     ) {
-        Icon(vectorResource(Res.drawable.ic_event), contentDescription = null, tint = VlrTheme.colors.textSecondary)
+        Icon(vectorResource(Res.drawable.ic_trophy), contentDescription = null, tint = VlrTheme.colors.textSecondary)
         Text("표시할 대회가 없습니다.", style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary)
     }
 }

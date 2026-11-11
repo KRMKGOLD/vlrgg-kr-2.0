@@ -62,11 +62,11 @@ import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_match
-import vlrggmobile.app.shared.generated.resources.ic_news
+import vlrggmobile.app.shared.generated.resources.ic_scoreboard
+import vlrggmobile.app.shared.generated.resources.ic_newspaper
 import vlrggmobile.app.shared.generated.resources.ic_person
-import vlrggmobile.app.shared.generated.resources.ic_star_filled
-import vlrggmobile.app.shared.generated.resources.ic_star_outline
+import vlrggmobile.app.shared.generated.resources.ic_star_fill
+import vlrggmobile.app.shared.generated.resources.ic_star
 import kotlin.time.Duration.Companion.ZERO
 
 internal const val TEAM_DETAIL_LOADING_TAG = "team-detail-loading"
@@ -245,7 +245,7 @@ private fun TeamDetailTopBar(
                     icon = {
                         Icon(
                             imageVector = vectorResource(
-                                if (favorite.isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star_outline,
+                                if (favorite.isFavorite) Res.drawable.ic_star_fill else Res.drawable.ic_star,
                             ),
                             contentDescription = null,
                             tint = if (favorite.isFavorite) {
@@ -428,7 +428,7 @@ private fun TeamMatchesSection(
         if (matches.isEmpty()) {
             SectionEmpty(
                 message = emptyMessage,
-                icon = Res.drawable.ic_match,
+                icon = Res.drawable.ic_scoreboard,
             )
         } else {
             matches.forEach { match ->
@@ -616,7 +616,7 @@ private fun TeamNewsSection(
         if (news.isEmpty()) {
             SectionEmpty(
                 message = "관련 뉴스가 없습니다",
-                icon = Res.drawable.ic_news,
+                icon = Res.drawable.ic_newspaper,
                 modifier = Modifier.padding(horizontal = VlrDimensions.Space4),
             )
         } else {

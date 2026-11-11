@@ -57,7 +57,7 @@ import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_news
+import vlrggmobile.app.shared.generated.resources.ic_newspaper
 
 @Composable
 fun NewsDetailContent(
@@ -340,7 +340,7 @@ private fun NewsArticleEmpty(
             verticalArrangement = Arrangement.Center,
         ) {
             Icon(
-                imageVector = vectorResource(Res.drawable.ic_news),
+                imageVector = vectorResource(Res.drawable.ic_newspaper),
                 contentDescription = null,
                 modifier = Modifier.size(48.dp),
                 tint = VlrTheme.colors.outline,

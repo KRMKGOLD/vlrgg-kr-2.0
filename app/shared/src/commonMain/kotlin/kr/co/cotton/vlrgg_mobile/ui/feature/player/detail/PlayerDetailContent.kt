@@ -56,10 +56,10 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
-import vlrggmobile.app.shared.generated.resources.ic_match
+import vlrggmobile.app.shared.generated.resources.ic_scoreboard
 import vlrggmobile.app.shared.generated.resources.ic_person
-import vlrggmobile.app.shared.generated.resources.ic_star_filled
-import vlrggmobile.app.shared.generated.resources.ic_star_outline
+import vlrggmobile.app.shared.generated.resources.ic_star_fill
+import vlrggmobile.app.shared.generated.resources.ic_star
 import kotlin.time.Duration.Companion.ZERO
 
 internal const val PLAYER_DETAIL_LOADING_TAG = "player-detail-loading"
@@ -221,7 +221,7 @@ private fun PlayerFavoriteButton(
         icon = {
             Icon(
                 imageVector = vectorResource(
-                    if (favorite.isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star_outline,
+                    if (favorite.isFavorite) Res.drawable.ic_star_fill else Res.drawable.ic_star,
                 ),
                 contentDescription = null,
                 tint = if (favorite.isFavorite) VlrTheme.colors.actionPrimary else VlrTheme.colors.textSecondary,
@@ -341,7 +341,7 @@ private fun AgentStatsSection(
 @Composable
 private fun RecentMatchesSection(matches: List<PlayerRecentMatch>, onMatchClick: (String) -> Unit) {
     Section(PLAYER_DETAIL_MATCHES_SECTION_TAG, "최근 경기") {
-        if (matches.isEmpty()) SectionEmpty("최근 경기 기록이 없습니다", Res.drawable.ic_match)
+        if (matches.isEmpty()) SectionEmpty("최근 경기 기록이 없습니다", Res.drawable.ic_scoreboard)
         else Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
             matches.forEach { match ->
                 PlayerRecentMatchCard(match = match, onClick = { onMatchClick(match.id) })

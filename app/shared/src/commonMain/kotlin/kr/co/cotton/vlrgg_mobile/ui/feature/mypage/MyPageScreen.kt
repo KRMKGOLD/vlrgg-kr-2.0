@@ -59,7 +59,7 @@ import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_error
 import vlrggmobile.app.shared.generated.resources.ic_search
-import vlrggmobile.app.shared.generated.resources.ic_star_filled
+import vlrggmobile.app.shared.generated.resources.ic_star_fill
 
 internal const val MY_PAGE_LIST_TAG = "my_page_list"
 internal const val MY_PAGE_TOP_APP_BAR_TAG = "my_page_top_app_bar"
@@ -440,7 +440,7 @@ private fun FavoriteRow(
             onClick = removeFavorite,
             icon = {
                 Icon(
-                    imageVector = vectorResource(Res.drawable.ic_star_filled),
+                    imageVector = vectorResource(Res.drawable.ic_star_fill),
                     contentDescription = null,
                 )
             },
