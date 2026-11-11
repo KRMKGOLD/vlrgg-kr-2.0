@@ -1,19 +1,22 @@
 package kr.co.cotton.vlrgg_mobile.feature.player
 
-import io.ktor.http.*
-import java.net.URI
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import kotlinx.coroutines.CancellationException
-import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedText
+import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedTextOrNull
+import kr.co.cotton.vlrgg_mobile.common.scraping.ownNormalizedTextOrNull
+import kr.co.cotton.vlrgg_mobile.common.scraping.parseSource
+import kr.co.cotton.vlrgg_mobile.common.scraping.requiredText
+import kr.co.cotton.vlrgg_mobile.common.scraping.sourceStructureError
+import kr.co.cotton.vlrgg_mobile.common.scraping.toPublicImageUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 /** Owns all Player-page selectors, Jsoup traversal, and raw HTML interpretation. */
 internal class PlayerDetailParser {
-    fun parse(content: PlayerDetailUpstreamContent): PlayerDetailSource = parseSafely(content.upstreamUrl) {
-        val document = Jsoup.parse(content.html)
+    fun parse(html: String): PlayerDetailSource = parseSource {
+        val document = Jsoup.parse(html)
         PlayerDetailSource(
             profile = parseProfile(document),
             currentTeam = parseCurrentTeam(document),
@@ -33,14 +36,14 @@ internal class PlayerDetailParser {
                 ?.normalizedText()
                 ?.substringAfter(':', missingDelimiterValue = "")
                 ?.split(',')
-                ?.mapNotNull { alias -> alias.normalizedStringOrNull() }
+                ?.mapNotNull { alias -> alias.normalizedTextOrNull() }
                 .orEmpty(),
             countryCode = header.selectFirst(PLAYER_FLAG_SELECTOR)
                 ?.classNames()
                 ?.firstOrNull { it.startsWith(FLAG_MODIFIER_PREFIX) }
                 ?.removePrefix(FLAG_MODIFIER_PREFIX)
                 ?.lowercase()
-                ?.normalizedStringOrNull(),
+                ?.normalizedTextOrNull(),
             countryName = header.selectFirst(PLAYER_FLAG_SELECTOR)?.parent()?.normalizedTextOrNull(),
             imageUrl = header.selectFirst(PLAYER_AVATAR_SELECTOR)?.attr("src")?.toPublicImageUrl(),
         )
@@ -57,7 +60,7 @@ internal class PlayerDetailParser {
             id = link.attr("href").matchedId(TEAM_PATH_PATTERN)
                 ?: sourceStructureError("Current Team identifier is missing."),
             name = link.selectFirst(CURRENT_TEAM_NAME_SELECTOR)?.normalizedTextOrNull()
-                ?: link.selectFirst("img[alt]")?.attr("alt")?.normalizedStringOrNull()
+                ?: link.selectFirst("img[alt]")?.attr("alt")?.normalizedTextOrNull()
                 ?: sourceStructureError("Current Team name is missing."),
             imageUrl = link.selectFirst("img[src]")?.attr("src")?.toPublicImageUrl(),
         )
@@ -74,7 +77,7 @@ internal class PlayerDetailParser {
     private fun parseAgentStat(row: Element): AgentStatSource {
         val cells = row.children().filter { it.normalName() == "td" }
         if (cells.size != AGENT_STAT_COLUMN_COUNT) sourceStructureError("Agent stat row is malformed.")
-        val agentName = cells[0].selectFirst("img[alt]")?.attr("alt")?.normalizedStringOrNull()
+        val agentName = cells[0].selectFirst("img[alt]")?.attr("alt")?.normalizedTextOrNull()
             ?: sourceStructureError("Agent name is missing.")
         val usage = MAPS_PLAYED_PATTERN.matchEntire(cells[1].normalizedText())
             ?: sourceStructureError("Agent usage is malformed.")
@@ -169,27 +172,6 @@ internal class PlayerDetailParser {
         }
     }.distinct()
 
-    private fun Element.requiredText(selector: String, message: String): String =
-        selectFirst(selector)?.normalizedTextOrNull() ?: sourceStructureError(message)
-
-    private fun Element.normalizedText(): String = text().normalizedStringOrNull().orEmpty()
-    private fun Element.normalizedTextOrNull(): String? = text().normalizedStringOrNull()
-    private fun Element.ownNormalizedTextOrNull(): String? = ownText().normalizedStringOrNull()
-    private fun String.normalizedStringOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
-    // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and require a valid host.
-    private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
-        val normalized = when {
-            source.startsWith("//") -> "https:$source"
-            source.startsWith("https://", ignoreCase = true) ->
-                "https://${source.substringAfter("://")}"
-            source.startsWith("/") -> "https://www.vlr.gg$source"
-            else -> null
-        }
-        normalized?.takeIf { url ->
-            val uri = runCatching { URI(url) }.getOrNull() ?: return@takeIf false
-            uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrEmpty()
-        }
-    }
     private fun String.matchedId(pattern: Regex): String? = pattern.matchEntire(this)?.groups?.get(1)?.value
     private fun Element.nonNegativeIntOrNull(): Int? =
         normalizedText().replace(",", "").toIntOrNull()?.takeIf { it >= 0 }
@@ -210,17 +192,6 @@ internal class PlayerDetailParser {
         LocalDate.parse(this, VLR_DATE_FORMAT).toString()
     } catch (_: Exception) {
         null
-    }
-    private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
-
-    private inline fun <T> parseSafely(upstreamUrl: Url, block: () -> T): T = try {
-        block()
-    } catch (failure: SourceParsingFailure) {
-        throw failure
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (failure: Exception) {
-        throw SourceParsingFailure(upstreamUrl, failure)
     }
 
     private companion object {
@@ -257,6 +228,5 @@ internal class PlayerDetailParser {
         val PICK_RATE_PATTERN = Regex("^\\([0-9]+\\)\\s+([0-9]+)%$")
         val PERCENT_PATTERN = Regex("^([0-9]+)%$")
         val VLR_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
-        val WHITESPACE = Regex("\\s+")
     }
 }

@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.plugins
 
-import io.ktor.http.Url
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.Dispatchers
@@ -34,9 +33,9 @@ class FailureEventTest {
         val cause = IllegalStateException("credential-sentinel").withFrames(4)
         val cases = listOf(
             InvalidInputFailure(cause) to FailureSeverity.WARN,
-            UpstreamNetworkFailure(Url("https://vlr.gg/private?credential-sentinel"), cause) to FailureSeverity.WARN,
+            UpstreamNetworkFailure(cause) to FailureSeverity.WARN,
             InternalServerFailure(cause) to FailureSeverity.ERROR,
-            SourceParsingFailure(Url("https://vlr.gg/private?credential-sentinel"), cause) to FailureSeverity.ERROR,
+            SourceParsingFailure(cause) to FailureSeverity.ERROR,
         )
 
         cases.forEach { (failure, severity) ->
@@ -48,6 +47,11 @@ class FailureEventTest {
             assertEquals(severity == FailureSeverity.ERROR, json.getValue("message").jsonPrimitive.content.contains("\tat "))
             assertFalse(event.json.contains("credential-sentinel"))
         }
+
+        val canonicalUpstreams = cases.map { (failure, _) ->
+            Json.parseToJsonElement(formatter.format(failure).json).jsonObject.getValue("canonical_upstream").jsonPrimitive.content
+        }
+        assertEquals(listOf("none", "https://www.vlr.gg/", "none", "https://www.vlr.gg/"), canonicalUpstreams)
     }
 
     @Test
@@ -130,7 +134,7 @@ class FailureEventTest {
             "GOOGLE_CLOUD_PROJECT" to "p${"1".repeat(61)}z",
         )
         val event = FailureEventFormatter(maximumMetadata).format(
-            SourceParsingFailure(Url("https://vlr.gg/"), cause as Exception),
+            SourceParsingFailure(cause as Exception),
             listOf("a".repeat(32) + "/18446744073709551615;o=1"),
         )
         val json = event.parsed()

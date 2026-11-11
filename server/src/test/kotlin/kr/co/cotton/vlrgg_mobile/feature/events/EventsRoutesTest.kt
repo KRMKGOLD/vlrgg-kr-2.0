@@ -89,7 +89,7 @@ class EventsRoutesTest {
             installEventsRoutes(
                 object : UpstreamHtmlTransport {
                     override suspend fun get(url: Url): String {
-                        throw UpstreamNetworkFailure(url, IllegalStateException("private upstream token"))
+                        throw UpstreamNetworkFailure(IllegalStateException("private upstream token"))
                     }
                 },
             )

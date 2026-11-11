@@ -1,7 +1,12 @@
 package kr.co.cotton.vlrgg_mobile.feature.events
 
-import kotlinx.coroutines.CancellationException
-import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedText
+import kr.co.cotton.vlrgg_mobile.common.scraping.orNullIfBlank
+import kr.co.cotton.vlrgg_mobile.common.scraping.ownNormalizedText
+import kr.co.cotton.vlrgg_mobile.common.scraping.parseSource
+import kr.co.cotton.vlrgg_mobile.common.scraping.requiredText
+import kr.co.cotton.vlrgg_mobile.common.scraping.sourceStructureError
+import kr.co.cotton.vlrgg_mobile.common.scraping.toPublicImageUrl
 import kr.co.cotton.vlrgg_mobile.common.scraping.toVlrDisplayTimeOrNull
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -9,7 +14,7 @@ import org.jsoup.nodes.Element
 
 /** Owns all Jsoup traversal and VLR.GG markup assumptions for the Events feature. */
 internal class EventsParser {
-    fun parseEventList(page: EventHtmlPage): EventListSource = parseSafely(page) { document ->
+    fun parseEventList(html: String): EventListSource = parseSafely(html) { document ->
         val container = document.selectFirst(EVENTS_CONTAINER_SELECTOR)
             ?: sourceStructureError("Event list container is missing.")
         val cards = container.select(EVENT_CARD_SELECTOR).distinct()
@@ -26,7 +31,7 @@ internal class EventsParser {
         )
     }
 
-    fun parseEventDetail(page: EventHtmlPage, eventId: String): EventDetailSource = parseSafely(page) { document ->
+    fun parseEventDetail(html: String, eventId: String): EventDetailSource = parseSafely(html) { document ->
         val header = document.selectFirst(EVENT_HEADER_SELECTOR)
             ?: sourceStructureError("Event header is missing.")
 
@@ -42,7 +47,7 @@ internal class EventsParser {
         )
     }
 
-    fun parseEventMatches(page: EventHtmlPage, eventId: String): EventMatchesSource = parseSafely(page) { document ->
+    fun parseEventMatches(html: String, eventId: String): EventMatchesSource = parseSafely(html) { document ->
         val header = requireEventResourceHeader(document)
         val eventName = header.requiredText(EVENT_NAME_SELECTOR, "Event name is missing.")
         val expectedCount = document.selectFirst(EVENT_MATCH_COUNT_SELECTOR)
@@ -62,7 +67,7 @@ internal class EventsParser {
         )
     }
 
-    fun parseEventNews(page: EventHtmlPage): EventNewsListSource = parseSafely(page) { document ->
+    fun parseEventNews(html: String): EventNewsListSource = parseSafely(html) { document ->
         requireEventResourceHeader(document)
         val items = document.select(NEWS_CARD_SELECTOR).distinct()
         if (items.isEmpty() && !document.hasNoRelatedNewsMarker()) {
@@ -72,7 +77,7 @@ internal class EventsParser {
         EventNewsListSource(news = items.map(::parseNews))
     }
 
-    fun parseEventStats(page: EventHtmlPage): EventStatsSource = parseSafely(page) { document ->
+    fun parseEventStats(html: String): EventStatsSource = parseSafely(html) { document ->
         requireEventResourceHeader(document)
         if (document.hasNoStatsAvailableMarker()) {
             return@parseSafely EventStatsSource.NoStatsAvailable
@@ -213,15 +218,8 @@ internal class EventsParser {
     private fun requireEventResourceHeader(document: Document): Element =
         document.selectFirst(EVENT_HEADER_SELECTOR) ?: sourceStructureError("Event header is missing.")
 
-    private fun <T> parseSafely(page: EventHtmlPage, parse: (Document) -> T): T = try {
-        parse(Jsoup.parse(page.html, VLR_PRIMARY_ORIGIN))
-    } catch (failure: SourceParsingFailure) {
-        throw failure
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (failure: Exception) {
-        throw SourceParsingFailure(page.upstreamUrl, failure)
-    }
+    private inline fun <T> parseSafely(html: String, parse: (Document) -> T): T =
+        parseSource { parse(Jsoup.parse(html, VLR_PRIMARY_ORIGIN)) }
 
     private data class PlayerMetrics(
         val roundsPlayed: Int?,
@@ -289,15 +287,6 @@ internal class EventsParser {
     }
 }
 
-private fun Element.requiredText(selector: String, message: String): String =
-    selectFirst(selector)?.normalizedText().orNullIfBlank() ?: sourceStructureError(message)
-
-private fun Element.normalizedText(): String = text().replace(WHITESPACE, " ").trim()
-
-private fun Element.ownNormalizedText(): String = ownText().replace(WHITESPACE, " ").trim()
-
-private fun String?.orNullIfBlank(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
-
 private fun String.extractId(pattern: Regex): String? = pattern.matchEntire(trim())?.groupValues?.getOrNull(1)
 
 private fun String.extractReference(pattern: Regex): String? = pattern.matchEntire(trim())?.groupValues?.let { groups ->
@@ -330,16 +319,3 @@ private fun String.toStatDoubleOrNull(): Double? = replace(",", "")
     .removeSuffix("%")
     .toDoubleOrNull()
     ?.takeIf { it.isFinite() }
-
-private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
-    when {
-        source.startsWith("//") -> "https:$source"
-        source.startsWith("https://") -> source
-        source.startsWith("/") -> "https://www.vlr.gg$source"
-        else -> null
-    }
-}
-
-private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
-
-private val WHITESPACE = Regex("\\s+")

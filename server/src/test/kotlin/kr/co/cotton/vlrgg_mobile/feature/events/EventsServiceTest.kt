@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.feature.events
 
-import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
 import kotlin.test.*
@@ -26,13 +25,13 @@ class EventsServiceTest {
 
     @Test
     fun `service never returns a prior success after a later upstream failure`() = runBlocking {
-        val firstPage = page("event-list.html", "/events")
+        val firstPage = fixture("event-list.html")
         var requestCount = 0
         val scraper = object : RecordingEventsScraper() {
-            override suspend fun fetchEventList(): EventHtmlPage {
+            override suspend fun fetchEventList(): String {
                 requestCount += 1
                 if (requestCount == 1) return firstPage
-                throw UpstreamNetworkFailure(Url("https://www.vlr.gg/events"))
+                throw UpstreamNetworkFailure()
             }
         }
         val service = DefaultEventsService(scraper, EventsParser(), EventsMapper())
@@ -51,36 +50,31 @@ class EventsServiceTest {
     private open inner class RecordingEventsScraper : EventsScraper {
         val calls = mutableListOf<String>()
 
-        override suspend fun fetchEventList(): EventHtmlPage {
+        override suspend fun fetchEventList(): String {
             calls += "list"
-            return page("event-list.html", "/events")
+            return fixture("event-list.html")
         }
 
-        override suspend fun fetchEventDetail(eventId: String): EventHtmlPage {
+        override suspend fun fetchEventDetail(eventId: String): String {
             calls += "detail:$eventId"
-            return page("event-detail.html", "/event/$eventId")
+            return fixture("event-detail.html")
         }
 
-        override suspend fun fetchEventMatches(eventId: String): EventHtmlPage {
+        override suspend fun fetchEventMatches(eventId: String): String {
             calls += "matches:$eventId"
-            return page("event-matches.html", "/event/matches/$eventId/?series_id=all")
+            return fixture("event-matches.html")
         }
 
-        override suspend fun fetchEventNews(eventId: String): EventHtmlPage {
+        override suspend fun fetchEventNews(eventId: String): String {
             calls += "news:$eventId"
-            return page("event-news.html", "/event/news/$eventId")
+            return fixture("event-news.html")
         }
 
-        override suspend fun fetchEventStats(eventId: String): EventHtmlPage {
+        override suspend fun fetchEventStats(eventId: String): String {
             calls += "stats:$eventId"
-            return page("event-stats.html", "/event/stats/$eventId")
+            return fixture("event-stats.html")
         }
     }
-
-    private fun page(name: String, path: String) = EventHtmlPage(
-        upstreamUrl = Url("https://www.vlr.gg$path"),
-        html = fixture(name),
-    )
 
     private fun fixture(name: String): String = checkNotNull(
         javaClass.classLoader.getResource("events/$name"),

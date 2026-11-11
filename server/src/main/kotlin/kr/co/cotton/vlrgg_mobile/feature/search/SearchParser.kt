@@ -1,7 +1,8 @@
 package kr.co.cotton.vlrgg_mobile.feature.search
 
-import io.ktor.http.*
-import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedText
+import kr.co.cotton.vlrgg_mobile.common.scraping.ownNormalizedText
+import kr.co.cotton.vlrgg_mobile.common.scraping.parseSource
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
@@ -14,7 +15,7 @@ private const val CANONICAL_SEARCH_RESULT_PREFIX = "/search/r/"
 
 /** The only search component that knows the VLR.GG DOM shape and CSS class names. */
 internal class SearchParser {
-    fun parse(html: String, upstreamUrl: Url): SearchSourceModel = try {
+    fun parse(html: String): SearchSourceModel = parseSource {
         val resultsContainer = Jsoup.parse(html)
             .selectFirst("#wrapper .col.mod-1")
             ?: throw IllegalStateException("Search results container is missing.")
@@ -46,8 +47,6 @@ internal class SearchParser {
         }
 
         SearchSourceModel(results)
-    } catch (exception: Exception) {
-        throw SourceParsingFailure(upstreamUrl, exception)
     }
 
     private fun parseResult(card: Element): SearchSourceResult? {
@@ -77,11 +76,7 @@ internal class SearchParser {
         else -> null
     }
 
-    private fun Element.normalizedText(): String = text().replace(Regex("\\s+"), " ").trim()
-
-    private fun Element.eventPeriod(): String? = ownText()
-        .replace(Regex("\\s+"), " ")
-        .trim()
+    private fun Element.eventPeriod(): String? = ownNormalizedText()
         .trimEnd { character ->
             character.isWhitespace() || character == '·' || character == '•' || character == '⋅'
         }

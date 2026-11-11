@@ -121,7 +121,7 @@ internal class PublicApiProtection(
     }
 
     suspend fun getHtml(url: Url, fetch: suspend () -> String): String {
-        if (!url.isAllowedVlrUpstreamUrl()) throw UpstreamNetworkFailure(url)
+        if (!url.isAllowedVlrUpstreamUrl()) throw UpstreamNetworkFailure()
         return singleFlight.await(url.toString(), fetch)
     }
 }

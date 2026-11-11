@@ -60,7 +60,7 @@ fun main() {
             get("/__observability/internal/other") { validationOtherInternal() }
             get("/__observability/parsing") { validationParsing() }
             get("/__observability/upstream") {
-                throw UpstreamNetworkFailure(Url("https://www.vlr.gg/"), ValidationNetworkFailure())
+                throw UpstreamNetworkFailure(ValidationNetworkFailure())
             }
             get("/__observability/expected") { throw InvalidInputFailure() }
             post("/__observability/log-canary") {
@@ -164,4 +164,4 @@ private class ValidationNetworkFailure : IllegalStateException(SECRET_SENTINEL)
 
 private fun validationInternal(): Nothing = throw ValidationInternalFailure()
 private fun validationOtherInternal(): Nothing = throw ValidationOtherInternalFailure()
-private fun validationParsing(): Nothing = throw SourceParsingFailure(Url("https://www.vlr.gg/"), ValidationParsingFailure())
+private fun validationParsing(): Nothing = throw SourceParsingFailure(ValidationParsingFailure())

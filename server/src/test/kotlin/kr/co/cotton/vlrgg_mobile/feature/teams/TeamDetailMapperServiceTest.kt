@@ -46,11 +46,10 @@ class TeamDetailMapperServiceTest {
         assertEquals("8185", first.id)
 
         transport.failOn("/team/news/8185/")
-        val failure = assertFailsWith<UpstreamNetworkFailure> {
+        assertFailsWith<UpstreamNetworkFailure> {
             service.get(TeamId.fromPath("8185"))
         }
 
-        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         val requestedPaths = transport.requestedPaths
         assertEquals(
             mapOf("/team/8185/" to 2, "/team/news/8185/" to 2),
@@ -62,10 +61,9 @@ class TeamDetailMapperServiceTest {
     @Test
     fun `service preserves upstream failures from either source fetch`() = runBlocking {
         listOf("/team/8185/", "/team/news/8185/").forEach { failedPath ->
-            val failure = assertFailsWith<UpstreamNetworkFailure> {
+            assertFailsWith<UpstreamNetworkFailure> {
                 service(FixtureTransport(failedPath = failedPath)).get(TeamId.fromPath("8185"))
             }
-            assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         }
     }
 
@@ -94,7 +92,7 @@ class TeamDetailMapperServiceTest {
     @Test
     fun `scraper propagates source failure and cancellation without extra requests`() = runBlocking {
         val networkTransport = FailingConcurrentTransport(
-            UpstreamNetworkFailure(Url("https://www.vlr.gg/team/news/8185/")),
+            UpstreamNetworkFailure(),
         )
         withTimeout(5_000) {
             assertFailsWith<UpstreamNetworkFailure> {
@@ -144,7 +142,7 @@ class TeamDetailMapperServiceTest {
                 path == failedPath
             }
             if (path == cancellationPath) throw CancellationException("cancel")
-            if (shouldFail) throw UpstreamNetworkFailure(url)
+            if (shouldFail) throw UpstreamNetworkFailure()
             return when (path) {
                 "/team/8185/" -> fixture("active-team-overview.html")
                 "/team/news/8185/" -> fixture("active-team-news.html")

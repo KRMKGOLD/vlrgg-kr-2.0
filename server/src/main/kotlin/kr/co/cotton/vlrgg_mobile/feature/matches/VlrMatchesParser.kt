@@ -1,14 +1,17 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches
 
-import io.ktor.http.*
-import java.net.URI
 import java.time.DateTimeException
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
-import kotlinx.coroutines.CancellationException
-import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedText
+import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedTextOrNull
+import kr.co.cotton.vlrgg_mobile.common.scraping.orNullIfBlank
+import kr.co.cotton.vlrgg_mobile.common.scraping.parseSource
+import kr.co.cotton.vlrgg_mobile.common.scraping.requiredText
+import kr.co.cotton.vlrgg_mobile.common.scraping.sourceStructureError
+import kr.co.cotton.vlrgg_mobile.common.scraping.toPublicImageUrl
 import kr.co.cotton.vlrgg_mobile.common.scraping.toVlrDisplayDateOrNull
 import kr.co.cotton.vlrgg_mobile.common.scraping.toVlrDisplayTimeOrNull
 import org.jsoup.Jsoup
@@ -18,7 +21,7 @@ import org.jsoup.nodes.Element
 internal class VlrMatchesParser(
     private val htmlParser: (String) -> Document = Jsoup::parse,
 ) {
-    fun parseList(html: String, upstreamUrl: Url): MatchesPageSource = parse(upstreamUrl) {
+    fun parseList(html: String): MatchesPageSource = parseSource {
         val document = htmlParser(html)
         MatchesPageSource(
             groups = document.select("div.wf-label.mod-large").map { dateLabel ->
@@ -32,7 +35,7 @@ internal class VlrMatchesParser(
                     sourceStructureError("Match date group does not contain a match.")
                 }
                 MatchDateGroupSource(
-                    dateLabel = dateLabel.requiredText(),
+                    dateLabel = dateLabel.normalizedTextOrNull() ?: sourceStructureError(MISSING_TEXT_MESSAGE),
                     // The label's own text excludes tags such as `Today`.
                     date = dateLabel.ownText().toVlrDisplayDateOrNull(),
                     matches = matches,
@@ -41,7 +44,7 @@ internal class VlrMatchesParser(
         )
     }
 
-    fun parseDetail(html: String, upstreamUrl: Url, matchId: String): MatchDetailSource = parse(upstreamUrl) {
+    fun parseDetail(html: String, matchId: String): MatchDetailSource = parseSource {
         val document = htmlParser(html)
         val header = document.selectFirst("div.match-header")
             ?: sourceStructureError("Match header is missing.")
@@ -73,12 +76,12 @@ internal class VlrMatchesParser(
             time = null,
             relativeTimeLabel = null,
             homeTeam = MatchTeamSource(
-                name = teams[HOME_TEAM_INDEX].requiredText(".wf-title-med"),
+                name = teams[HOME_TEAM_INDEX].requiredText(".wf-title-med", MISSING_TEXT_MESSAGE),
                 id = teams[HOME_TEAM_INDEX].attr("href").extractTeamIdOrNull(),
                 imageUrl = teams[HOME_TEAM_INDEX].selectFirst("img[src]")?.attr("src").toPublicImageUrl(),
             ),
             awayTeam = MatchTeamSource(
-                name = teams[AWAY_TEAM_INDEX].requiredText(".wf-title-med"),
+                name = teams[AWAY_TEAM_INDEX].requiredText(".wf-title-med", MISSING_TEXT_MESSAGE),
                 id = teams[AWAY_TEAM_INDEX].attr("href").extractTeamIdOrNull(),
                 imageUrl = teams[AWAY_TEAM_INDEX].selectFirst("img[src]")?.attr("src").toPublicImageUrl(),
             ),
@@ -118,20 +121,20 @@ internal class VlrMatchesParser(
         val event = row.selectFirst(".match-item-event")
             ?: sourceStructureError("Match event is missing.")
 
-        val timeLabel = row.requiredText(".match-item-time")
+        val timeLabel = row.requiredText(".match-item-time", MISSING_TEXT_MESSAGE)
 
         return MatchSummarySource(
             id = matchId,
-            status = row.requiredText(".ml-status").toMatchStatus(),
+            status = row.requiredText(".ml-status", MISSING_TEXT_MESSAGE).toMatchStatus(),
             timeLabel = timeLabel,
             time = timeLabel.toVlrDisplayTimeOrNull(),
             relativeTimeLabel = row.selectFirst(".ml-eta")?.normalizedText().orNullIfBlank(),
-            homeTeam = MatchTeamSource(teams[HOME_TEAM_INDEX].requiredText(".match-item-vs-team-name")),
-            awayTeam = MatchTeamSource(teams[AWAY_TEAM_INDEX].requiredText(".match-item-vs-team-name")),
+            homeTeam = MatchTeamSource(teams[HOME_TEAM_INDEX].requiredText(".match-item-vs-team-name", MISSING_TEXT_MESSAGE)),
+            awayTeam = MatchTeamSource(teams[AWAY_TEAM_INDEX].requiredText(".match-item-vs-team-name", MISSING_TEXT_MESSAGE)),
             homeScore = teams[HOME_TEAM_INDEX].selectFirst(".match-item-vs-team-score")?.normalizedText().toScoreOrNull(),
             awayScore = teams[AWAY_TEAM_INDEX].selectFirst(".match-item-vs-team-score")?.normalizedText().toScoreOrNull(),
             event = MatchEventSource(
-                name = event.ownText().trimmedOrNull()
+                name = event.ownText().orNullIfBlank()
                     ?: sourceStructureError("Match event name is missing."),
                 series = event.selectFirst(".match-item-event-series")?.normalizedText().orNullIfBlank(),
             ),
@@ -140,7 +143,7 @@ internal class VlrMatchesParser(
 
     private fun parseMapOrNull(map: Element): MatchMapSource? {
         val header = map.selectFirst(".vm-stats-game-header") ?: return null
-        val name = header.selectFirst(".map span")?.ownText().trimmedOrNull() ?: return null
+        val name = header.selectFirst(".map span")?.ownText().orNullIfBlank() ?: return null
         val scores = header.children()
             .filter { it.hasClass("team") }
             .map { it.selectFirst(".score")?.normalizedText().toScoreOrNull() }
@@ -231,9 +234,9 @@ internal class VlrMatchesParser(
     private fun Element.requiredEventName(): String {
         val directDivs = children().filter { it.`is`("div") }
         return (directDivs + directDivs.flatMap { it.children().filter { child -> child.`is`("div") } })
-            .firstOrNull { !it.hasClass("match-header-event-series") && it.ownText().trimmedOrNull() != null }
+            .firstOrNull { !it.hasClass("match-header-event-series") && it.ownText().orNullIfBlank() != null }
             ?.ownText()
-            .trimmedOrNull()
+            .orNullIfBlank()
             ?: sourceStructureError("Match event name is missing.")
     }
 
@@ -287,16 +290,6 @@ internal class VlrMatchesParser(
             ((get(HOME_SCORE_INDEX).hasClass(HOME_SCORE_CLASS) && last().hasClass(AWAY_SCORE_CLASS)) ||
                 (get(HOME_SCORE_INDEX).hasClass(AWAY_SCORE_CLASS) && last().hasClass(HOME_SCORE_CLASS)))
 
-    private fun Element.requiredText(selector: String): String = selectFirst(selector)
-        ?.normalizedText()
-        .orNullIfBlank()
-        ?: sourceStructureError("Required source text is missing.")
-
-    private fun Element.requiredText(): String = normalizedText().orNullIfBlank()
-        ?: sourceStructureError("Required source text is missing.")
-
-    private fun Element.normalizedText(): String = text().replace(WHITESPACE, " ").trim()
-
     private fun String?.toScoreOrNull(): Int? = this
         ?.trim()
         ?.takeUnless { it.isEmpty() || it == "-" || it == "–" || it == "—" }
@@ -337,21 +330,6 @@ internal class VlrMatchesParser(
         null
     }
 
-    // Public image URLs are HTTPS-only: normalize protocol/root-relative sources and require a valid host.
-    private fun String?.toPublicImageUrl(): String? = this?.trim()?.takeIf { it.isNotEmpty() }?.let { source ->
-        val normalized = when {
-            source.startsWith("//") -> "https:$source"
-            source.startsWith("https://", ignoreCase = true) ->
-                "https://${source.substringAfter("://")}"
-            source.startsWith("/") -> "https://www.vlr.gg$source"
-            else -> null
-        }
-        normalized?.takeIf { url ->
-            val uri = runCatching { URI(url) }.getOrNull() ?: return@takeIf false
-            uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrEmpty()
-        }
-    }
-
     private fun String.extractMatchIdOrNull(): String? = canonicalVlrPathOrNull()
         ?.let(MATCH_PATH_REGEX::matchEntire)
         ?.groupValues
@@ -375,18 +353,7 @@ internal class VlrMatchesParser(
             ?.let(href::removePrefix)
     }
 
-    private inline fun <T> parse(upstreamUrl: Url, block: () -> T): T = try {
-        block()
-    } catch (failure: SourceParsingFailure) {
-        throw failure
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (failure: Exception) {
-        throw SourceParsingFailure(upstreamUrl, failure)
-    }
-
     private companion object {
-        val WHITESPACE = Regex("\\s+")
         val MATCH_PATH_REGEX = Regex("/([1-9]\\d{0,9})(?:/[^?#]*)?(?:[?#].*)?")
         val TEAM_PATH_REGEX = Regex("/team/([1-9]\\d{0,9})(?:/[^?#]*)?(?:[?#].*)?")
         val EVENT_PATH_REGEX = Regex("/event/([1-9]\\d{0,9})(?:/[^?#]*)?(?:[?#].*)?")
@@ -409,15 +376,10 @@ internal class VlrMatchesParser(
         const val SCORE_SEPARATOR = ":"
         const val HOME_SCORE_CLASS = "match-header-vs-score-winner"
         const val AWAY_SCORE_CLASS = "match-header-vs-score-loser"
+        const val MISSING_TEXT_MESSAGE = "Required source text is missing."
     }
 }
 
-private fun String?.orNullIfBlank(): String? = this?.trimmedOrNull()
-
-private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
-
 private fun String.toStrictScoreOrNull(): Int? = takeIf { STRICT_SCORE_REGEX.matches(it) }?.toIntOrNull()
-
-private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
 
 private val STRICT_SCORE_REGEX = Regex("\\d+")

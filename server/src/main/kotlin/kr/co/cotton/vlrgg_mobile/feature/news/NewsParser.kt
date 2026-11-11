@@ -3,13 +3,14 @@ package kr.co.cotton.vlrgg_mobile.feature.news
 import java.time.DateTimeException
 import java.time.OffsetDateTime
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
+import kr.co.cotton.vlrgg_mobile.common.scraping.WHITESPACE
+import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedTextOrNull
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 
-private val whitespace = Regex("\\s+")
 private val publicationAuthor = Regex("(?i)\\bby\\s+(.+)$")
 private val entityLink = Regex("^/(team|player|event)/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
 private val matchLink = Regex("^/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
@@ -85,8 +86,8 @@ internal class NewsParser {
             ".article-header-desc, .article-meta, .ge-text-light, .wf-title-med + .ge-text-light",
         )
             ?: throw NewsParsingException("Article metadata is missing.")
-        val explicitAuthor = metadata.selectFirst(".article-meta-author, [data-news-author]")?.cleanText()
-        val explicitPublishedAt = metadata.selectFirst(".article-meta-time, [data-news-published-at], time")?.cleanText()
+        val explicitAuthor = metadata.selectFirst(".article-meta-author, [data-news-author]")?.normalizedTextOrNull()
+        val explicitPublishedAt = metadata.selectFirst(".article-meta-time, [data-news-published-at], time")?.normalizedTextOrNull()
         val publishedAtUtc = metadata.selectFirst("time[datetime]")?.attr("datetime")?.toUtcIsoInstantOrNull()
 
         if (explicitAuthor != null && explicitPublishedAt != null) {
@@ -174,13 +175,13 @@ internal class NewsParser {
     }
 
     private fun parseDirectTextBlock(node: TextNode): NewsParagraphSourceBlock? =
-        node.wholeText.normalizeWhitespace().takeIf { it.isNotEmpty() }?.let { text ->
+        node.wholeText.normalizedTextOrNull()?.let { text ->
             NewsParagraphSourceBlock(content = listOf(NewsTextSourceInline(text)))
         }
 
     private fun parseImage(figure: Element): NewsImageSourceBlock? =
         figure.selectFirst("img[src]")?.let { image ->
-            parseImageElement(image, figure.selectFirst("figcaption")?.cleanText())
+            parseImageElement(image, figure.selectFirst("figcaption")?.normalizedTextOrNull())
         }
 
     private fun parseImageElement(image: Element, caption: String?): NewsImageSourceBlock? {
@@ -211,7 +212,7 @@ internal class NewsParser {
             is TextNode -> content.appendText(node.wholeText)
             is Element -> when (node.normalName()) {
                 "a" -> {
-                    val label = node.cleanText()
+                    val label = node.normalizedTextOrNull()
                     if (label != null) {
                         content += classifyLink(label = label, href = node.attr("href"))
                     }
@@ -275,11 +276,7 @@ internal class NewsParser {
             ?.toIntOrNull()
 
     private fun requiredText(element: Element?, message: String): String =
-        element?.cleanText() ?: throw NewsParsingException(message)
-
-    private fun Element.cleanText(): String? = text().normalizeWhitespace().takeIf { it.isNotEmpty() }
-
-    private fun String.normalizeWhitespace(): String = replace(whitespace, " ").trim()
+        element?.normalizedTextOrNull() ?: throw NewsParsingException(message)
 
     private fun String.trimSourceDecoration(): String =
         trim { character -> character.isWhitespace() || character == '•' || character == '-' }
@@ -302,7 +299,7 @@ internal class NewsParser {
     }
 
     private fun MutableList<NewsSourceInline>.appendText(rawText: String) {
-        val normalized = rawText.replace(whitespace, " ")
+        val normalized = rawText.replace(WHITESPACE, " ")
         if (normalized.isEmpty()) return
 
         val last = lastOrNull()

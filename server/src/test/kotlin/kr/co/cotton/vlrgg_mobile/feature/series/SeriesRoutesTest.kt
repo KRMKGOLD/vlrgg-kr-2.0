@@ -61,7 +61,7 @@ class SeriesRoutesTest {
 
     @Test
     fun `route maps network and parser failures to safe common envelopes`() {
-        withSeriesApplication(FixtureTransport(failure = { url -> throw UpstreamNetworkFailure(url) })) {
+        withSeriesApplication(FixtureTransport(failure = { url -> throw UpstreamNetworkFailure() })) {
             val response = client.get("/api/v1/series/85")
             assertError(response, HttpStatusCode.BadGateway, ApiErrorCode.UPSTREAM_NETWORK_FAILURE)
             assertFalse(response.bodyAsText().contains("vlr.gg"))

@@ -7,6 +7,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
 import kr.co.cotton.vlrgg_mobile.common.http.ServerFailure
+import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
 
 internal const val CLOUD_TRACE_HEADER = "X-Cloud-Trace-Context"
 
@@ -67,7 +69,7 @@ internal class FailureEventFormatter(
             put("error_code", JsonPrimitive(failure.errorCode.name))
             put("category", JsonPrimitive(category.name))
             put("http_status", JsonPrimitive(failure.status.value))
-            put("canonical_upstream", JsonPrimitive(failure.canonicalUpstreamUrl ?: "none"))
+            put("canonical_upstream", JsonPrimitive(failure.canonicalUpstream()))
             put("serviceContext", buildJsonObject {
                 put("service", JsonPrimitive(service))
                 put("version", JsonPrimitive(version))
@@ -221,7 +223,12 @@ internal class FailureEventFormatter(
         null
     }
 
+    // The server only contacts VLR.GG, so upstream failures log its fixed origin and never a request URL.
+    private fun ServerFailure.canonicalUpstream(): String =
+        if (this is UpstreamNetworkFailure || this is SourceParsingFailure) CANONICAL_UPSTREAM else "none"
+
     private companion object {
+        const val CANONICAL_UPSTREAM = "https://www.vlr.gg/"
         const val MAX_FRAMES = 32
         const val MAX_CAUSE_DEPTH = 3
         const val MAX_FRAME_CANDIDATES = 128

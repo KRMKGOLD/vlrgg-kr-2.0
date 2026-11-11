@@ -1,16 +1,14 @@
 package kr.co.cotton.vlrgg_mobile.feature.player
 
-import io.ktor.http.*
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kotlin.test.*
 
 class PlayerDetailParserTest {
     private val parser = PlayerDetailParser()
-    private val upstreamUrl = Url("https://www.vlr.gg/player/488/?timespan=all")
 
     @Test
     fun `parser separates profile current team all-time Agent Stats and five Recent Matches`() {
-        val source = parser.parse(content("player-detail.html"))
+        val source = parser.parse(fixture("player-detail.html"))
 
         assertEquals(
             PlayerProfileSource(
@@ -42,7 +40,7 @@ class PlayerDetailParserTest {
 
     @Test
     fun `parser accepts no stats current team or recent matches without synthesizing optionals`() {
-        val source = parser.parse(content("player-detail-empty.html"))
+        val source = parser.parse(fixture("player-detail-empty.html"))
 
         assertEquals(PlayerProfileSource("solo", null, emptyList(), null, null), source.profile)
         assertNull(source.currentTeam)
@@ -52,21 +50,21 @@ class PlayerDetailParserTest {
 
     @Test
     fun `parser deduplicates a direct Recent Match card while preserving section scope`() {
-        val source = parser.parse(content("player-detail-direct-match.html"))
+        val source = parser.parse(fixture("player-detail-direct-match.html"))
 
         assertEquals(listOf("700002"), source.recentMatches.map(PlayerRecentMatchSource::id))
     }
 
     @Test
     fun `parser deduplicates recent matches by stable ID before applying the cap`() {
-        val source = parser.parse(content("player-detail-duplicate-matches.html"))
+        val source = parser.parse(fixture("player-detail-duplicate-matches.html"))
 
         assertEquals(listOf("700001", "700002", "700003", "700004", "700005"), source.recentMatches.map(PlayerRecentMatchSource::id))
     }
 
     @Test
     fun `parser keeps missing and malformed optional pick rates null without dropping valid Agent Stats`() {
-        val source = parser.parse(content("player-detail-optional-pick-rate.html"))
+        val source = parser.parse(fixture("player-detail-optional-pick-rate.html"))
 
         assertEquals(listOf("sage", "brimstone"), source.agentStats.take(2).map(AgentStatSource::agentName))
         assertEquals(listOf(null, null), source.agentStats.take(2).map(AgentStatSource::pickRatePercent))
@@ -74,7 +72,7 @@ class PlayerDetailParserTest {
 
     @Test
     fun `parser accepts KAST percent boundaries and maps malformed optional values to null`() {
-        val source = parser.parse(content("player-detail-optional-pick-rate.html"))
+        val source = parser.parse(fixture("player-detail-optional-pick-rate.html"))
 
         assertEquals(
             listOf(0, 100, null, null, null, null, null, null, null),
@@ -84,7 +82,7 @@ class PlayerDetailParserTest {
 
     @Test
     fun `parser keeps zero optional doubles and maps negative doubles to null`() {
-        val stat = parser.parse(content("player-detail-optional-doubles.html")).agentStats.single()
+        val stat = parser.parse(fixture("player-detail-optional-doubles.html")).agentStats.single()
 
         assertNull(stat.rating)
         assertEquals(0.0, stat.averageCombatScore)
@@ -97,16 +95,16 @@ class PlayerDetailParserTest {
 
     @Test
     fun `parser rejects missing required structure and observed stat drift safely`() {
-        assertFailsWith<SourceParsingFailure> { parser.parse(content("player-detail-required-structure-missing.html")) }
-        assertFailsWith<SourceParsingFailure> { parser.parse(content("player-detail-stats-without-tbody.html")) }
+        assertFailsWith<SourceParsingFailure> { parser.parse(fixture("player-detail-required-structure-missing.html")) }
+        assertFailsWith<SourceParsingFailure> { parser.parse(fixture("player-detail-stats-without-tbody.html")) }
         assertFailsWith<SourceParsingFailure> {
-            parser.parse(content("player-detail.html").copy(html = fixture("player-detail.html").replace("(134) 25%</td><td>2680", "(134) 25%</td>")))
+            parser.parse(fixture("player-detail.html").replace("(134) 25%</td><td>2680", "(134) 25%</td>"))
         }
     }
 
     @Test
     fun `parser scopes sections to exclude contamination outside player detail content`() {
-        val source = parser.parse(content("player-detail-polluted.html"))
+        val source = parser.parse(fixture("player-detail-polluted.html"))
 
         assertEquals(PlayerTeamSource("101", "Clean Team"), source.currentTeam)
         assertNull(source.currentTeam?.imageUrl)
@@ -134,7 +132,7 @@ class PlayerDetailParserTest {
                 "//owcdn.net/img/6399bb707aacb.png",
                 source,
             )
-            assertEquals(expected, parser.parse(content("player-detail.html").copy(html = html)).currentTeam?.imageUrl, source)
+            assertEquals(expected, parser.parse(html).currentTeam?.imageUrl, source)
         }
     }
 
@@ -159,14 +157,14 @@ class PlayerDetailParserTest {
         imageSources.forEach { (source, expected) ->
             val html = fixture("player-detail.html").replace("//owcdn.net/img/69d5f87b7c32d.png", source)
 
-            assertEquals(expected, parser.parse(content("player-detail.html").copy(html = html)).profile.imageUrl, source)
+            assertEquals(expected, parser.parse(html).profile.imageUrl, source)
         }
 
         val withoutAvatar = fixture("player-detail.html").replace(
             "<div class=\"wf-avatar mod-player\"><img src=\"//owcdn.net/img/69d5f87b7c32d.png\" alt=\"Rb\"></div>",
             "",
         )
-        assertNull(parser.parse(content("player-detail.html").copy(html = withoutAvatar)).profile.imageUrl)
+        assertNull(parser.parse(withoutAvatar).profile.imageUrl)
     }
 
     @Test
@@ -180,14 +178,13 @@ class PlayerDetailParserTest {
             "<div class=\"wf-avatar mod-player\"><img src=\"//owcdn.net/img/players/outside.png\"></div></body>",
         )
 
-        val source = parser.parse(content("player-detail.html").copy(html = html))
+        val source = parser.parse(html)
 
         assertNull(source.profile.imageUrl)
         assertEquals("jett", source.agentStats.first().agentName)
         assertEquals("https://owcdn.net/img/6399bb707aacb.png", source.currentTeam?.imageUrl)
     }
 
-    private fun content(name: String) = PlayerDetailUpstreamContent(fixture(name), upstreamUrl)
     private fun fixture(name: String): String = checkNotNull(
         javaClass.classLoader.getResource("fixtures/players/$name"),
     ).readText()

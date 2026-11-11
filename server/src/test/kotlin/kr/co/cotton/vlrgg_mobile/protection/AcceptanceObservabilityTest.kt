@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.protection
 
-import io.ktor.http.Url
 import kr.co.cotton.vlrgg_mobile.common.http.RateLimitedFailure
 import kr.co.cotton.vlrgg_mobile.common.http.ServerBusyFailure
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
@@ -20,7 +19,7 @@ class AcceptanceObservabilityTest {
         observability.requestStarted(PublicRouteClass.API)
         observability.rejected(ServerBusyFailure(), elapsedMillis = 2)
         observability.requestStarted(PublicRouteClass.OTHER)
-        observability.rejected(UpstreamNetworkFailure(Url("https://www.vlr.gg/private?$sentinel")), elapsedMillis = 3)
+        observability.rejected(UpstreamNetworkFailure(), elapsedMillis = 3)
 
         val snapshot = observability.snapshot()
         assertEquals(3, snapshot.requests)
