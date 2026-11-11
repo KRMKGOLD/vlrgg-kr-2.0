@@ -170,8 +170,8 @@ private fun AboutTopAppBar(onSearch: () -> Unit) {
             Text(
                 text = "About",
                 modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.actionPrimary,
+                style = VlrTheme.typography.title,
+                color = VlrTheme.colors.accent,
             )
             VlrIconButton(
                 contentDescription = "검색",
@@ -186,7 +186,7 @@ private fun AboutTopAppBar(onSearch: () -> Unit) {
         }
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }
@@ -200,28 +200,28 @@ private fun AppIdentitySection(versionLabel: String?) {
         Text(
             text = "VLR.GG Mobile (Unofficial)",
             style = VlrTheme.typography.display,
-            color = VlrTheme.colors.textPrimary,
+            color = VlrTheme.colors.ink,
         )
         Text(
             text = "VLR.GG에 공개된 발로란트 e스포츠 경기·대회·팀·선수 정보를 모바일에서 보기 편하게 정리한 비공식 앱입니다.",
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.bodySm,
+            color = VlrTheme.colors.muted,
         )
         versionLabel?.let { label ->
             Surface(
-                border = BorderStroke(VlrDimensions.OutlineWidth, VlrTheme.colors.outline),
-                color = VlrTheme.colors.surfaceSubtle,
+                border = BorderStroke(VlrDimensions.OutlineWidth, VlrTheme.colors.line),
+                color = VlrTheme.colors.canvas,
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
             ) {
                 Text(
                     text = label,
                     modifier = Modifier.padding(horizontal = VlrDimensions.Space2, vertical = VlrDimensions.Space1),
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                 )
             }
         }
-        HorizontalDivider(color = VlrTheme.colors.outline)
+        HorizontalDivider(color = VlrTheme.colors.line)
     }
 }
 
@@ -240,8 +240,8 @@ private fun ProjectLinksSection(
             ) {
                 Text(
                     text = "↗",
-                    style = VlrTheme.typography.sectionTitle,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.section,
+                    color = VlrTheme.colors.muted,
                 )
             }
         }
@@ -255,7 +255,7 @@ private fun ProjectLinksSection(
             Icon(
                 imageVector = vectorResource(Res.drawable.ic_chevron_right),
                 contentDescription = null,
-                tint = VlrTheme.colors.textSecondary,
+                tint = VlrTheme.colors.muted,
             )
         }
     }
@@ -286,11 +286,11 @@ private fun AboutProjectRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = VlrTheme.typography.bodyStrong, color = VlrTheme.colors.textPrimary)
+                Text(title, style = VlrTheme.typography.body, color = VlrTheme.colors.ink)
                 Text(
                     detail,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                 )
             }
             Box(
@@ -300,7 +300,7 @@ private fun AboutProjectRow(
                 trailing()
             }
         }
-        HorizontalDivider(color = VlrTheme.colors.outline)
+        HorizontalDivider(color = VlrTheme.colors.line)
     }
 }
 
@@ -383,11 +383,11 @@ private fun AboutInfoSection(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
     ) {
-        Text(title, style = VlrTheme.typography.bodyStrong, color = VlrTheme.colors.textPrimary)
-        Text(body, style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary)
+        Text(title, style = VlrTheme.typography.body, color = VlrTheme.colors.ink)
+        Text(body, style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted)
         if (withDivider) HorizontalDivider(
             modifier = Modifier.padding(top = VlrDimensions.Space3),
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }

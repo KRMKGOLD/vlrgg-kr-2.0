@@ -49,7 +49,7 @@ import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_event
+import vlrggmobile.app.shared.generated.resources.ic_trophy
 
 internal const val SERIES_DETAIL_LOADING_TAG = "series-detail-loading"
 internal const val SERIES_DETAIL_IDENTITY_TAG = "series-detail-identity"
@@ -112,7 +112,7 @@ private fun SeriesDetailTopBar(onBack: () -> Unit) {
             modifier = Modifier.padding(start = VlrDimensions.Space1).weight(1f),
             icon = { Icon(vectorResource(Res.drawable.ic_arrow_back), contentDescription = null) },
         )
-        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
+        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
     }
 }
 
@@ -138,7 +138,7 @@ private fun LazyListScope.skeletonSection(key: String, title: String) {
                 SkeletonBlock(Modifier.width(96.dp).height(12.dp))
             }
         }
-        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
+        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
     }
 }
 
@@ -155,7 +155,7 @@ private fun SeriesIdentitySkeleton() {
 
 @Composable
 private fun SkeletonBlock(modifier: Modifier) {
-    Box(modifier = modifier.clip(RoundedCornerShape(VlrDimensions.DefaultCornerRadius)).background(VlrTheme.colors.skeleton))
+    Box(modifier = modifier.clip(RoundedCornerShape(VlrDimensions.CornerRadius)).background(VlrTheme.colors.skeleton))
 }
 
 @Composable
@@ -216,9 +216,9 @@ private fun SeriesIdentity(series: SeriesDetail) {
             .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space6),
         verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
     ) {
-        Text(series.name, style = VlrTheme.typography.display, color = VlrTheme.colors.textPrimary)
+        Text(series.name, style = VlrTheme.typography.display, color = VlrTheme.colors.ink)
         series.description?.takeIf(String::isNotBlank)?.let { description ->
-            Text(description, style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary)
+            Text(description, style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted)
         }
     }
 }
@@ -227,10 +227,10 @@ private fun SeriesIdentity(series: SeriesDetail) {
 private fun SeriesSectionHeading(title: String, modifier: Modifier = Modifier) {
     Text(
         text = title,
-        modifier = modifier.fillMaxWidth().background(VlrTheme.colors.surfaceSubtle)
+        modifier = modifier.fillMaxWidth().background(VlrTheme.colors.canvas)
             .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space3),
-        style = VlrTheme.typography.sectionTitle,
-        color = VlrTheme.colors.textPrimary,
+        style = VlrTheme.typography.section,
+        color = VlrTheme.colors.ink,
     )
 }
 
@@ -249,18 +249,18 @@ private fun SeriesEventRow(event: EventSummary, onClick: () -> Unit) {
                 model = imageUrl,
                 contentDescription = null,
                 modifier = Modifier.size(48.dp).testTag(seriesEventImageTag(event.id))
-                    .clip(RoundedCornerShape(VlrDimensions.DefaultCornerRadius)),
+                    .clip(RoundedCornerShape(VlrDimensions.CornerRadius)),
             )
             Spacer(Modifier.width(VlrDimensions.Space3))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1)) {
-            Text(event.name, style = VlrTheme.typography.bodyStrong, color = VlrTheme.colors.textPrimary)
+            Text(event.name, style = VlrTheme.typography.body, color = VlrTheme.colors.ink)
             EventMetadata(event)
         }
         Spacer(Modifier.width(VlrDimensions.Space2))
         StatusChip(event.status.toChipStatus(), event.status.label(), Modifier.align(Alignment.Top))
     }
-    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
+    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
 }
 
 @Composable
@@ -268,8 +268,8 @@ private fun EventMetadata(event: EventSummary) {
     val labels = listOfNotNull(event.dateLabel?.takeIf(String::isNotBlank), event.regionCode?.takeIf(String::isNotBlank))
     Text(
         text = labels.joinToString(" · ").ifEmpty { "정보 없음" },
-        style = VlrTheme.typography.labelSmall,
-        color = VlrTheme.colors.textSecondary,
+        style = VlrTheme.typography.label,
+        color = VlrTheme.colors.muted,
     )
 }
 
@@ -281,10 +281,10 @@ private fun SectionEmpty(message: String) {
         horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(vectorResource(Res.drawable.ic_event), contentDescription = null, tint = VlrTheme.colors.textSecondary)
-        Text(message, style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary)
+        Icon(vectorResource(Res.drawable.ic_trophy), contentDescription = null, tint = VlrTheme.colors.muted)
+        Text(message, style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted)
     }
-    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
+    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
 }
 
 @Composable
@@ -292,14 +292,14 @@ private fun OverallEmpty() {
     Column(
         modifier = Modifier.fillMaxWidth().testTag(SERIES_DETAIL_EMPTY_TAG)
             .padding(VlrDimensions.Space4)
-            .clip(RoundedCornerShape(VlrDimensions.DefaultCornerRadius))
-            .background(VlrTheme.colors.surfaceSubtle)
+            .clip(RoundedCornerShape(VlrDimensions.CornerRadius))
+            .background(VlrTheme.colors.canvas)
             .padding(VlrDimensions.Space6),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
     ) {
-        Icon(vectorResource(Res.drawable.ic_event), contentDescription = null, tint = VlrTheme.colors.textSecondary)
-        Text("표시할 대회가 없습니다.", style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary)
+        Icon(vectorResource(Res.drawable.ic_trophy), contentDescription = null, tint = VlrTheme.colors.muted)
+        Text("표시할 대회가 없습니다.", style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted)
     }
 }
 
@@ -310,11 +310,11 @@ private fun SeriesDetailError(onRetry: () -> Unit, modifier: Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(vectorResource(Res.drawable.ic_error), contentDescription = null, modifier = Modifier.size(48.dp), tint = VlrTheme.colors.textSecondary)
+        Icon(vectorResource(Res.drawable.ic_error), contentDescription = null, modifier = Modifier.size(48.dp), tint = VlrTheme.colors.muted)
         Spacer(Modifier.height(VlrDimensions.Space4))
-        Text("시리즈 정보를 불러오지 못했습니다", style = VlrTheme.typography.pageTitle, color = VlrTheme.colors.textPrimary, textAlign = TextAlign.Center)
+        Text("시리즈 정보를 불러오지 못했습니다", style = VlrTheme.typography.title, color = VlrTheme.colors.ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(VlrDimensions.Space2))
-        Text("잠시 후 다시 시도해 주세요.", style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary, textAlign = TextAlign.Center)
+        Text("잠시 후 다시 시도해 주세요.", style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted, textAlign = TextAlign.Center)
         Spacer(Modifier.height(VlrDimensions.Space6))
         VlrButton(text = "재시도", onClick = onRetry)
     }

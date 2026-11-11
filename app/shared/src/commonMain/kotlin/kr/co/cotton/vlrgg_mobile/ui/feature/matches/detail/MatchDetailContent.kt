@@ -152,7 +152,7 @@ private fun MatchDetailTopBar(onBack: () -> Unit) {
         }
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }
@@ -192,8 +192,8 @@ private fun LoadingSection(title: String, rowCount: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
         Text(
             text = title,
-            style = VlrTheme.typography.sectionTitle,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.section,
+            color = VlrTheme.colors.ink,
         )
         repeat(rowCount) { SkeletonBlock(VlrDimensions.MinimumTouchTarget) }
     }
@@ -215,7 +215,7 @@ private fun SkeletonBlock(height: androidx.compose.ui.unit.Dp, modifier: Modifie
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.DefaultCornerRadius))
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.CornerRadius))
             .background(VlrTheme.colors.skeleton),
     )
 }
@@ -272,8 +272,8 @@ private fun MatchHero(
         EventIdentity(match.event, onEventClick)
         Text(
             text = match.scheduleLabel(timeZone),
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
         )
         listOfNotNull(match.remainingTimeLabel(), match.seriesFormat)
             .filter(String::isNotBlank)
@@ -281,8 +281,8 @@ private fun MatchHero(
             ?.let { metadata ->
                 Text(
                     text = metadata.joinToString(" · "),
-                    style = VlrTheme.typography.label,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.meta,
+                    color = VlrTheme.colors.muted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -290,8 +290,8 @@ private fun MatchHero(
         match.description?.takeIf(String::isNotBlank)?.let { description ->
             Text(
                 text = description,
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.bodySm,
+                color = VlrTheme.colors.muted,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -322,12 +322,12 @@ private fun MatchHero(
                     .fillMaxWidth()
                     .border(
                         VlrDimensions.OutlineWidth,
-                        VlrTheme.colors.outline,
-                        androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.DefaultCornerRadius),
+                        VlrTheme.colors.line,
+                        androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.CornerRadius),
                     )
                     .padding(VlrDimensions.Space3),
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.bodySm,
+                color = VlrTheme.colors.muted,
             )
         }
     }
@@ -361,16 +361,16 @@ private fun EventIdentity(event: MatchEvent, onEventClick: (String) -> Unit) {
     ) {
         Text(
             text = event.name,
-            style = VlrTheme.typography.pageTitle,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.title,
+            color = VlrTheme.colors.ink,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         event.series?.takeIf(String::isNotBlank)?.let { series ->
             Text(
                 text = series,
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.bodySm,
+                color = VlrTheme.colors.muted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -404,10 +404,10 @@ private fun TeamIdentity(
             modifier = Modifier
                 .size(64.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(VlrTheme.colors.surfaceSubtle)
+                .background(VlrTheme.colors.canvas)
                 .border(
                     VlrDimensions.OutlineWidth,
-                    VlrTheme.colors.outline,
+                    VlrTheme.colors.line,
                     androidx.compose.foundation.shape.CircleShape,
                 ),
         ) {
@@ -431,8 +431,8 @@ private fun TeamIdentity(
         }
         Text(
             text = team.name,
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -451,7 +451,7 @@ private fun MatchScore(homeScore: Int?, awayScore: Int?) {
         text = score,
         modifier = Modifier.width(72.dp),
         style = VlrTheme.typography.display,
-        color = VlrTheme.colors.textPrimary,
+        color = VlrTheme.colors.ink,
         textAlign = TextAlign.Center,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -517,8 +517,8 @@ private fun DetailSection(
     ) {
         Text(
             text = title,
-            style = VlrTheme.typography.sectionTitle,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.section,
+            color = VlrTheme.colors.ink,
         )
         content()
     }
@@ -530,15 +530,15 @@ private fun MatchMapRow(map: MatchMap) {
         Text(
             text = map.name,
             modifier = Modifier.weight(1f),
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = "${map.homeScore.scoreText()} - ${map.awayScore.scoreText()}",
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
         )
     }
 }
@@ -567,8 +567,8 @@ private fun FlatOutlinedRow(modifier: Modifier = Modifier, content: @Composable 
             .heightIn(min = VlrDimensions.MinimumTouchTarget)
             .border(
                 VlrDimensions.OutlineWidth,
-                VlrTheme.colors.outline,
-                androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.DefaultCornerRadius),
+                VlrTheme.colors.line,
+                androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.CornerRadius),
             )
             .padding(horizontal = VlrDimensions.Space3),
         verticalAlignment = Alignment.CenterVertically,
@@ -585,16 +585,16 @@ private fun SectionEmpty(message: String) {
             .heightIn(min = VlrDimensions.MinimumTouchTarget)
             .border(
                 VlrDimensions.OutlineWidth,
-                VlrTheme.colors.outline,
-                androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.DefaultCornerRadius),
+                VlrTheme.colors.line,
+                androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.CornerRadius),
             )
             .padding(horizontal = VlrDimensions.Space3),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(
             text = message,
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.bodySm,
+            color = VlrTheme.colors.muted,
         )
     }
 }
@@ -608,15 +608,15 @@ private fun MatchDetailError(onRetry: () -> Unit, modifier: Modifier = Modifier)
     ) {
         Text(
             text = "경기 정보를 불러오지 못했습니다",
-            style = VlrTheme.typography.pageTitle,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.title,
+            color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(VlrDimensions.Space2))
         Text(
             text = "잠시 후 다시 시도해 주세요.",
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.bodySm,
+            color = VlrTheme.colors.muted,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(VlrDimensions.Space6))

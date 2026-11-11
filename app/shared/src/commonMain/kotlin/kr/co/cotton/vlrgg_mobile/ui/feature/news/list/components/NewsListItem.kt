@@ -41,13 +41,13 @@ fun NewsListItem(
 
         Text(
             text = news.title,
-            style = VlrTheme.typography.bodyStrong
+            style = VlrTheme.typography.body
         )
         Spacer(Modifier.height(Space1))
         Text(
             text = desc,
-            style = VlrTheme.typography.label,
-            color = VlrTheme.colors.textSecondary
+            style = VlrTheme.typography.meta,
+            color = VlrTheme.colors.muted
         )
     }
 }

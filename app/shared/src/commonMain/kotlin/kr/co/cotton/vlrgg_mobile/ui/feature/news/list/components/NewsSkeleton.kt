@@ -32,7 +32,7 @@ fun NewsSkeleton(
             )
             HorizontalDivider(
                 thickness = VlrDimensions.OutlineWidth,
-                color = VlrTheme.colors.outline,
+                color = VlrTheme.colors.line,
             )
         }
     }

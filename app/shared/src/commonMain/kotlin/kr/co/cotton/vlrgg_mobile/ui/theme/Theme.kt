@@ -7,34 +7,37 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.text.font.FontFamily
 
 val VlrLightMaterialColorScheme: ColorScheme = lightColorScheme(
-    primary = VlrLightColors.actionPrimary,
-    onPrimary = VlrLightColors.onActionPrimary,
-    primaryContainer = VlrLightColors.accentLiveContainer,
-    onPrimaryContainer = VlrLightColors.accentLiveOn,
-    secondary = VlrLightColors.accentLive,
-    onSecondary = VlrLightColors.accentLiveOn,
-    secondaryContainer = VlrLightColors.surfaceSelected,
-    onSecondaryContainer = VlrLightColors.actionPrimary,
-    background = VlrLightColors.surface,
-    onBackground = VlrLightColors.textPrimary,
+    primary = VlrLightColors.accent,
+    onPrimary = VlrLightColors.onPanel,
+    primaryContainer = VlrLightColors.accentSoft,
+    onPrimaryContainer = VlrLightColors.accent,
+    secondaryContainer = VlrLightColors.accentSoft,
+    onSecondaryContainer = VlrLightColors.ink,
+    background = VlrLightColors.canvas,
+    onBackground = VlrLightColors.ink,
     surface = VlrLightColors.surface,
-    onSurface = VlrLightColors.textPrimary,
-    surfaceVariant = VlrLightColors.surfaceSubtle,
-    onSurfaceVariant = VlrLightColors.textSecondary,
-    outline = VlrLightColors.outline,
-    error = VlrLightColors.actionPrimary,
-    onError = VlrLightColors.onActionPrimary,
+    onSurface = VlrLightColors.ink,
+    surfaceVariant = VlrLightColors.surfaceSunken,
+    onSurfaceVariant = VlrLightColors.muted,
+    outline = VlrLightColors.line,
+    outlineVariant = VlrLightColors.lineStrong,
+    error = VlrLightColors.accent,
+    onError = VlrLightColors.onPanel,
     scrim = VlrLightColors.scrim,
-    inverseSurface = VlrLightColors.inverseSurface,
-    inverseOnSurface = VlrLightColors.inverseOnSurface,
-    inversePrimary = VlrLightColors.inversePrimary,
+    inverseSurface = VlrLightColors.panel,
+    inverseOnSurface = VlrLightColors.onPanel,
+    inversePrimary = VlrLightColors.onPanelAccent,
 )
 
 val LocalVlrColors = staticCompositionLocalOf { VlrLightColors }
-val LocalVlrTypography = staticCompositionLocalOf { VlrTypography }
+
+// Outside VlrTheme the numeric roles fall back to the system sans-serif.
+val LocalVlrTypography = staticCompositionLocalOf { vlrTypeScale(FontFamily.SansSerif) }
 
 object VlrTheme {
     val colors: VlrColors
@@ -50,13 +53,15 @@ object VlrTheme {
 
 @Composable
 fun VlrTheme(content: @Composable () -> Unit) {
+    val typography = rememberVlrTypography()
+    val materialTypography = remember(typography) { vlrMaterialTypography(typography) }
     androidx.compose.runtime.CompositionLocalProvider(
         LocalVlrColors provides VlrLightColors,
-        LocalVlrTypography provides VlrTypography,
+        LocalVlrTypography provides typography,
     ) {
         MaterialTheme(
             colorScheme = VlrLightMaterialColorScheme,
-            typography = VlrMaterialTypography,
+            typography = materialTypography,
             content = content,
         )
     }

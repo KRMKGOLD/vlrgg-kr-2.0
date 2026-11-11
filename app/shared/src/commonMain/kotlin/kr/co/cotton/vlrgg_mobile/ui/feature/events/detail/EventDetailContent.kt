@@ -180,7 +180,7 @@ private fun EventDetailTopBar(onBack: () -> Unit) {
                 },
             )
         }
-        HorizontalDivider(color = VlrTheme.colors.outline)
+        HorizontalDivider(color = VlrTheme.colors.line)
     }
 }
 
@@ -200,8 +200,8 @@ private fun EventIdentityHeader(event: EventDetail) {
             Text(
                 text = event.name,
                 modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.title,
+                color = VlrTheme.colors.ink,
             )
             event.status?.let { status ->
                 StatusChip(status.toChipStatus(), status.displayLabel())
@@ -212,15 +212,15 @@ private fun EventIdentityHeader(event: EventDetail) {
             ?.let { metadata ->
                 Text(
                     text = metadata.joinToString(" · "),
-                    style = VlrTheme.typography.label,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.meta,
+                    color = VlrTheme.colors.muted,
                 )
             }
         event.description?.let { description ->
             Text(
                 text = description,
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.bodySm,
+                color = VlrTheme.colors.ink,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -233,12 +233,12 @@ private fun EventDetailTabs(
     selectedTab: EventDetailTab,
     onSelectTab: (EventDetailTab) -> Unit,
 ) {
-    val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
+    val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space2)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape)
+            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
             .clip(shape),
     ) {
         EventDetailTab.entries.forEach { tab ->
@@ -248,7 +248,7 @@ private fun EventDetailTabs(
                     .weight(1f)
                     .heightIn(min = VlrDimensions.MinimumTouchTarget)
                     .testTag(eventDetailTabTag(tab))
-                    .background(if (selected) VlrTheme.colors.surfaceSubtle else VlrTheme.colors.surface)
+                    .background(if (selected) VlrTheme.colors.canvas else VlrTheme.colors.surface)
                     .selectable(
                         selected = selected,
                         role = Role.Tab,
@@ -258,8 +258,8 @@ private fun EventDetailTabs(
             ) {
                 Text(
                     text = tab.label(),
-                    style = VlrTheme.typography.label,
-                    color = if (selected) VlrTheme.colors.actionPrimary else VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.meta,
+                    color = if (selected) VlrTheme.colors.accent else VlrTheme.colors.muted,
                 )
             }
         }
@@ -320,7 +320,7 @@ private fun NewsTabContent(
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = VlrDimensions.Space4),
-                    color = VlrTheme.colors.outline,
+                    color = VlrTheme.colors.line,
                 )
             }
         }
@@ -355,9 +355,9 @@ private fun StatsTabContent(
             identityWidth = 132.dp,
             headerMinHeight = 56.dp,
             rowMinHeight = 56.dp,
-            identityTextStyle = VlrTheme.typography.bodyStrong,
-            headerTextStyle = VlrTheme.typography.label,
-            valueTextStyle = VlrTheme.typography.label,
+            identityTextStyle = VlrTheme.typography.body,
+            headerTextStyle = VlrTheme.typography.meta,
+            valueTextStyle = VlrTheme.typography.meta,
             modifier = Modifier.fillMaxSize(),
             lazyListState = listState,
             sort = sort,
@@ -400,13 +400,13 @@ private fun EventStateMessage(
         verticalArrangement = Arrangement.Center,
     ) {
         if (loading) {
-            CircularProgressIndicator(color = VlrTheme.colors.actionPrimary)
+            CircularProgressIndicator(color = VlrTheme.colors.accent)
             Spacer(Modifier.height(VlrDimensions.Space3))
         }
         Text(
             text = message,
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
         actionText?.let { text ->

@@ -50,10 +50,10 @@ private fun SkeletonCard() {
             )
             .border(
                 VlrDimensions.OutlineWidth,
-                VlrTheme.colors.outline,
-                RoundedCornerShape(VlrDimensions.DefaultCornerRadius),
+                VlrTheme.colors.line,
+                RoundedCornerShape(VlrDimensions.CornerRadius),
             )
-            .background(VlrTheme.colors.surface, RoundedCornerShape(VlrDimensions.DefaultCornerRadius))
+            .background(VlrTheme.colors.surface, RoundedCornerShape(VlrDimensions.CornerRadius))
             .padding(VlrDimensions.Space3),
     ) {
         Row(Modifier.fillMaxWidth()) {
