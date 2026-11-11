@@ -8,7 +8,6 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.application.*
-import io.ktor.util.*
 import io.ktor.utils.io.*
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CancellationException
@@ -78,54 +77,25 @@ private class KtorUpstreamHtmlTransport(
     }
 }
 
-private val upstreamHtmlTransportKey = AttributeKey<KtorUpstreamHtmlTransport>("upstream-html-transport")
-
 /**
- * Creates exactly one reusable transport for an application and registers its cleanup once.
+ * Creates the application's transport and registers its cleanup once.
  * The returned contract has no close operation, so only the application lifecycle owns the client.
+ * [engine] is a test seam that preserves production client configuration while replacing only the engine.
  */
 internal fun Application.createUpstreamHtmlTransport(
+    engine: HttpClientEngine? = null,
     config: UpstreamHtmlTransportConfig = UpstreamHtmlTransportConfig(),
-): UpstreamHtmlTransport = getOrCreateUpstreamHtmlTransport {
-    KtorUpstreamHtmlTransport(
-        client = createUpstreamHttpClient(config),
-        maxResponseBodyBytes = config.maxResponseBodyBytes,
-    )
-}
-
-/** Internal test seam that preserves production client configuration while replacing only the engine. */
-internal fun Application.createUpstreamHtmlTransportForTesting(
-    engine: HttpClientEngine,
-    config: UpstreamHtmlTransportConfig = UpstreamHtmlTransportConfig(),
-): UpstreamHtmlTransport = getOrCreateUpstreamHtmlTransport {
-    KtorUpstreamHtmlTransport(
-        client = createUpstreamHttpClient(config, engine),
-        maxResponseBodyBytes = config.maxResponseBodyBytes,
-    )
-}
-
-private fun Application.getOrCreateUpstreamHtmlTransport(
-    factory: () -> KtorUpstreamHtmlTransport,
 ): UpstreamHtmlTransport {
-    attributes.getOrNull(upstreamHtmlTransportKey)?.let { return it }
-
-    return factory().also { transport ->
-        attributes.put(upstreamHtmlTransportKey, transport)
+    val client = if (engine == null) {
+        HttpClient(CIO) { configureUpstreamTransport(config) }
+    } else {
+        HttpClient(engine) { configureUpstreamTransport(config) }
+    }
+    return KtorUpstreamHtmlTransport(client, config.maxResponseBodyBytes).also { transport ->
         monitor.subscribe(ApplicationStopping) {
             transport.close()
         }
     }
-}
-
-private fun createUpstreamHttpClient(config: UpstreamHtmlTransportConfig): HttpClient = HttpClient(CIO) {
-    configureUpstreamTransport(config)
-}
-
-private fun createUpstreamHttpClient(
-    config: UpstreamHtmlTransportConfig,
-    engine: HttpClientEngine,
-): HttpClient = HttpClient(engine) {
-    configureUpstreamTransport(config)
 }
 
 private fun HttpClientConfig<*>.configureUpstreamTransport(config: UpstreamHtmlTransportConfig) {

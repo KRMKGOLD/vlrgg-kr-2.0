@@ -11,35 +11,33 @@ import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
 import kr.co.cotton.vlrgg_mobile.protection.respondPublicJson
 
-internal fun Application.configureMatchesRoutes(service: MatchesService) {
-    routing {
-        route(MATCHES_API_PATH) {
-            get("upcoming") {
-                call.respondPublicJson(service.getMatches(MatchListCategory.UPCOMING, call.validatedPage()))
-            }.describePublicGet<MatchesPageResponse>(
-                operationId = "getUpcomingMatches",
-                summary = "Get upcoming matches",
-                operationDescription = "Returns upcoming matches for an optional page. Only the page query parameter is accepted.",
-                tag = "Matches",
-            ) { matchesPageQuery() }
-            get("results") {
-                call.respondPublicJson(service.getMatches(MatchListCategory.RESULTS, call.validatedPage()))
-            }.describePublicGet<MatchesPageResponse>(
-                operationId = "getMatchResults",
-                summary = "Get match results",
-                operationDescription = "Returns completed match results for an optional page. Only the page query parameter is accepted.",
-                tag = "Matches",
-            ) { matchesPageQuery() }
-            get("{matchId}") {
-                call.respondPublicJson(service.getMatch(call.validatedMatchId()))
-            }.describePublicGet<MatchDetailResponse>(
-                operationId = "getMatchDetail",
-                summary = "Get match details",
-                operationDescription = "Returns details for one match. Query parameters are not accepted.",
-                tag = "Matches",
-            ) {
-                positiveDecimalIdPath("matchId")
-            }
+internal fun Route.configureMatchesRoutes(service: MatchesService) {
+    route(MATCHES_API_PATH) {
+        get("upcoming") {
+            call.respondPublicJson(service.getMatches(MatchListCategory.UPCOMING, call.validatedPage()))
+        }.describePublicGet<MatchesPageResponse>(
+            operationId = "getUpcomingMatches",
+            summary = "Get upcoming matches",
+            operationDescription = "Returns upcoming matches for an optional page. Only the page query parameter is accepted.",
+            tag = "Matches",
+        ) { matchesPageQuery() }
+        get("results") {
+            call.respondPublicJson(service.getMatches(MatchListCategory.RESULTS, call.validatedPage()))
+        }.describePublicGet<MatchesPageResponse>(
+            operationId = "getMatchResults",
+            summary = "Get match results",
+            operationDescription = "Returns completed match results for an optional page. Only the page query parameter is accepted.",
+            tag = "Matches",
+        ) { matchesPageQuery() }
+        get("{matchId}") {
+            call.respondPublicJson(service.getMatch(call.validatedMatchId()))
+        }.describePublicGet<MatchDetailResponse>(
+            operationId = "getMatchDetail",
+            summary = "Get match details",
+            operationDescription = "Returns details for one match. Query parameters are not accepted.",
+            tag = "Matches",
+        ) {
+            positiveDecimalIdPath("matchId")
         }
     }
 }
