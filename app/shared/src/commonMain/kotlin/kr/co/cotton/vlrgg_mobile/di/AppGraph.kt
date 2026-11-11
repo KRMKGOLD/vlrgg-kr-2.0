@@ -9,11 +9,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import kr.co.cotton.vlrgg_mobile.data.di.DataBinding
 import kr.co.cotton.vlrgg_mobile.data.di.FavoriteDataBinding
-import kr.co.cotton.vlrgg_mobile.domain.repository.MatchRepository
-import kr.co.cotton.vlrgg_mobile.domain.repository.FavoriteRepository
-import kr.co.cotton.vlrgg_mobile.domain.repository.PlayerRepository
-import kr.co.cotton.vlrgg_mobile.domain.repository.SeriesRepository
-import kr.co.cotton.vlrgg_mobile.domain.repository.TeamRepository
 import kr.co.cotton.vlrgg_mobile.network.NetworkConfig
 import kr.co.cotton.vlrgg_mobile.network.di.NetworkBinding
 
@@ -26,12 +21,6 @@ import kr.co.cotton.vlrgg_mobile.network.di.NetworkBinding
     ],
 )
 interface AppGraph : ViewModelGraph {
-
-    val teamRepository: TeamRepository
-    val playerRepository: PlayerRepository
-    val seriesRepository: SeriesRepository
-    val matchRepository: MatchRepository
-    val favoriteRepository: FavoriteRepository
 
     @DependencyGraph.Factory
     fun interface Factory {
