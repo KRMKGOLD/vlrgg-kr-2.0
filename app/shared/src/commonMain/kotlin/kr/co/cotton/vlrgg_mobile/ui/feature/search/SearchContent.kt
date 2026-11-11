@@ -158,7 +158,7 @@ private fun SearchTopBar(
         }
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }
@@ -174,7 +174,7 @@ private fun SearchInitialState(modifier: Modifier = Modifier) {
                 imageVector = vectorResource(Res.drawable.ic_search),
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
-                tint = VlrTheme.colors.textSecondary,
+                tint = VlrTheme.colors.muted,
             )
         },
     )
@@ -212,14 +212,14 @@ private fun SearchErrorState(
     ) {
         Text(
             text = "검색 결과를 불러오지 못했습니다.",
-            style = VlrTheme.typography.sectionTitle,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.section,
+            color = VlrTheme.colors.ink,
         )
         Spacer(Modifier.size(VlrDimensions.Space2))
         Text(
             text = "네트워크 상태를 확인하고 다시 시도해 주세요.",
-            color = VlrTheme.colors.textSecondary,
-            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.muted,
+            style = VlrTheme.typography.bodySm,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.size(VlrDimensions.Space4))
@@ -250,15 +250,15 @@ private fun SearchMessage(
         if (icon != null) Spacer(Modifier.size(VlrDimensions.Space3))
         Text(
             text = title,
-            style = VlrTheme.typography.sectionTitle,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.section,
+            color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.size(VlrDimensions.Space2))
         Text(
             text = body,
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.bodySm,
+            color = VlrTheme.colors.muted,
             textAlign = TextAlign.Center,
         )
     }
@@ -299,26 +299,26 @@ private fun SearchResultRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = result.name,
-                    style = VlrTheme.typography.body,
-                    color = VlrTheme.colors.textPrimary,
+                    style = VlrTheme.typography.bodySm,
+                    color = VlrTheme.colors.ink,
                 )
                 result.metadata?.let { metadata ->
                     Text(
                         text = metadata,
-                        style = VlrTheme.typography.labelSmall,
-                        color = VlrTheme.colors.textSecondary,
+                        style = VlrTheme.typography.label,
+                        color = VlrTheme.colors.muted,
                     )
                 }
             }
             Text(
                 text = result.typeLabel,
-                style = VlrTheme.typography.labelSmall,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.label,
+                color = VlrTheme.colors.muted,
             )
         }
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }

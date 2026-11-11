@@ -193,9 +193,9 @@ private fun PlayerDetailTopBar(
                     .align(Alignment.CenterEnd)
                     .padding(end = VlrDimensions.Space1),
             )
-            Text("Player Profile", Modifier.align(Alignment.Center), style = VlrTheme.typography.pageTitle, color = VlrTheme.colors.textPrimary)
+            Text("Player Profile", Modifier.align(Alignment.Center), style = VlrTheme.typography.title, color = VlrTheme.colors.ink)
         }
-        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
+        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
     }
 }
 
@@ -224,7 +224,7 @@ private fun PlayerFavoriteButton(
                     if (favorite.isFavorite) Res.drawable.ic_star_fill else Res.drawable.ic_star,
                 ),
                 contentDescription = null,
-                tint = if (favorite.isFavorite) VlrTheme.colors.actionPrimary else VlrTheme.colors.textSecondary,
+                tint = if (favorite.isFavorite) VlrTheme.colors.accent else VlrTheme.colors.muted,
             )
         },
     )
@@ -259,7 +259,7 @@ private fun PlayerDetailBody(
 }
 
 private fun LazyListScope.divider(key: String) = item(key) {
-    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
+    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
 }
 
 @Composable
@@ -279,7 +279,7 @@ private fun PlayerHeader(player: PlayerDetail) {
         Modifier.fillMaxWidth().testTag(PLAYER_DETAIL_HEADER_TAG).padding(VlrDimensions.Space4).semantics { contentDescription = "선수: ${profile.handle}" },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.height(96.dp).width(96.dp).clip(CircleShape).background(VlrTheme.colors.surfaceSubtle), contentAlignment = Alignment.Center) {
+        Box(Modifier.height(96.dp).width(96.dp).clip(CircleShape).background(VlrTheme.colors.canvas), contentAlignment = Alignment.Center) {
             if (imageUrl != null && !imageFailed) {
                 AsyncImage(
                     model = imageUrl,
@@ -295,14 +295,14 @@ private fun PlayerHeader(player: PlayerDetail) {
                     text = profile.handle.stablePlaceholder(),
                     modifier = Modifier.testTag(playerHeaderImagePlaceholderTag(player.id)),
                     style = VlrTheme.typography.display,
-                    color = VlrTheme.colors.textBrand,
+                    color = VlrTheme.colors.ink,
                 )
             }
         }
         Spacer(Modifier.height(VlrDimensions.Space3))
-        Text(profile.handle, style = VlrTheme.typography.display, color = VlrTheme.colors.textPrimary, textAlign = TextAlign.Center)
-        if (metadata.isNotEmpty()) Text(metadata, style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary, textAlign = TextAlign.Center)
-        if (profile.aliases.isNotEmpty()) Text(profile.aliases.joinToString(" · "), style = VlrTheme.typography.labelSmall, color = VlrTheme.colors.textSecondary, textAlign = TextAlign.Center)
+        Text(profile.handle, style = VlrTheme.typography.display, color = VlrTheme.colors.ink, textAlign = TextAlign.Center)
+        if (metadata.isNotEmpty()) Text(metadata, style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted, textAlign = TextAlign.Center)
+        if (profile.aliases.isNotEmpty()) Text(profile.aliases.joinToString(" · "), style = VlrTheme.typography.label, color = VlrTheme.colors.muted, textAlign = TextAlign.Center)
     }
 }
 
@@ -353,7 +353,7 @@ private fun RecentMatchesSection(matches: List<PlayerRecentMatch>, onMatchClick:
 @Composable
 private fun Section(tag: String, title: String, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().testTag(tag).padding(VlrDimensions.Space4)) {
-        Text(title, Modifier.semantics { heading() }, style = VlrTheme.typography.sectionTitle, color = VlrTheme.colors.textPrimary)
+        Text(title, Modifier.semantics { heading() }, style = VlrTheme.typography.section, color = VlrTheme.colors.ink)
         Spacer(Modifier.height(VlrDimensions.Space3))
         content()
     }
@@ -367,10 +367,10 @@ private fun SectionEmpty(
     Modifier.fillMaxWidth().heightIn(min = 96.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
 ) {
     icon?.let {
-        Icon(vectorResource(it), null, Modifier.height(40.dp), tint = VlrTheme.colors.outline)
+        Icon(vectorResource(it), null, Modifier.height(40.dp), tint = VlrTheme.colors.line)
         Spacer(Modifier.height(VlrDimensions.Space2))
     }
-    Text(message, style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary, textAlign = TextAlign.Center)
+    Text(message, style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted, textAlign = TextAlign.Center)
 }
 
 @Composable
@@ -403,7 +403,7 @@ private fun LoadingHeader() = Column(
     horizontalAlignment = Alignment.CenterHorizontally,
 ) {
     Box(
-        Modifier.size(96.dp).testTag(PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG).clip(CircleShape).background(VlrTheme.colors.surfaceSubtle),
+        Modifier.size(96.dp).testTag(PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG).clip(CircleShape).background(VlrTheme.colors.canvas),
     )
     Spacer(Modifier.height(VlrDimensions.Space3))
     Skeleton(160.dp, 28.dp)
@@ -438,5 +438,5 @@ private fun Skeleton(width: androidx.compose.ui.unit.Dp?, height: androidx.compo
     (if (width == null) Modifier.fillMaxWidth() else Modifier.width(width))
         .height(height)
         .clip(RoundedCornerShape(VlrDimensions.Space1))
-        .background(VlrTheme.colors.surfaceSubtle),
+        .background(VlrTheme.colors.canvas),
 )

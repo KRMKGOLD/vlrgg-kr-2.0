@@ -85,7 +85,7 @@ private fun accessibleStatusContent(
 ): Color = if (contrastRatio(preferred, container) >= MinimumStatusTextContrast) {
     preferred
 } else {
-    colors.textPrimary
+    colors.ink
 }
 
 fun statusChipColors(
@@ -93,16 +93,16 @@ fun statusChipColors(
     colors: VlrColors,
 ): StatusChipColors = when (status) {
     StatusChipStatus.Live -> statusChipColors(
-        container = colors.surfaceSelected,
-        preferredContent = colors.actionPrimary,
-        border = colors.actionPrimary,
+        container = colors.accentSoft,
+        preferredContent = colors.accent,
+        border = colors.accent,
         colors = colors,
     )
 
     StatusChipStatus.Loss -> statusChipColors(
-        container = colors.surfaceSelected,
-        preferredContent = colors.actionPrimaryPressed,
-        border = colors.actionPrimary,
+        container = colors.accentSoft,
+        preferredContent = colors.accentPressed,
+        border = colors.accent,
         colors = colors,
     )
 
@@ -121,14 +121,14 @@ fun statusChipColors(
     )
 
     StatusChipStatus.Postponed -> statusChipColors(
-        container = colors.statusPostponedContainer,
-        preferredContent = colors.statusPostponed,
-        border = colors.statusPostponed,
+        container = colors.warnSoft,
+        preferredContent = colors.warn,
+        border = colors.warn,
         colors = colors,
     )
 
     StatusChipStatus.Cancelled -> statusChipColors(
-        container = colors.surfaceSubtle,
+        container = colors.canvas,
         preferredContent = colors.statusCancelled,
         border = colors.statusCancelled,
         colors = colors,
@@ -137,16 +137,16 @@ fun statusChipColors(
     StatusChipStatus.Partial,
     StatusChipStatus.Stale,
     -> statusChipColors(
-        container = colors.surfaceSubtle,
-        preferredContent = colors.textSecondary,
-        border = colors.textSecondary,
+        container = colors.canvas,
+        preferredContent = colors.muted,
+        border = colors.muted,
         colors = colors,
     )
 
     StatusChipStatus.Unavailable -> statusChipColors(
         container = colors.surface,
-        preferredContent = colors.textSecondary,
-        border = colors.outline,
+        preferredContent = colors.muted,
+        border = colors.line,
         colors = colors,
         usesDashedBorder = true,
     )
@@ -198,7 +198,7 @@ fun StatusChip(
         Text(
             text = label,
             color = colors.content,
-            style = typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+            style = typography.label.copy(fontWeight = FontWeight.Medium),
         )
     }
 }

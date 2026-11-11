@@ -263,8 +263,8 @@ private fun MyPageTopAppBar(onSearch: () -> Unit) {
             Text(
                 text = "MyPage",
                 modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.title,
+                color = VlrTheme.colors.ink,
             )
             VlrIconButton(
                 contentDescription = "검색",
@@ -279,7 +279,7 @@ private fun MyPageTopAppBar(onSearch: () -> Unit) {
         }
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }
@@ -291,8 +291,8 @@ private fun SectionHeader(title: String, testTag: String) {
         modifier = Modifier
             .fillMaxWidth()
             .testTag(testTag),
-        style = VlrTheme.typography.sectionTitle,
-        color = VlrTheme.colors.textPrimary,
+        style = VlrTheme.typography.section,
+        color = VlrTheme.colors.ink,
     )
 }
 
@@ -307,14 +307,14 @@ private fun SectionLoading(description: String) {
     ) {
         CircularProgressIndicator(
             modifier = Modifier.size(24.dp),
-            color = VlrTheme.colors.actionPrimary,
+            color = VlrTheme.colors.accent,
             strokeWidth = 2.dp,
         )
         Spacer(Modifier.width(VlrDimensions.Space3))
         Text(
             text = description,
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.bodySm,
+            color = VlrTheme.colors.muted,
         )
     }
 }
@@ -393,7 +393,7 @@ private fun FavoriteRow(
             modifier = Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(VlrTheme.colors.surfaceSubtle),
+                .background(VlrTheme.colors.canvas),
         ) {
             if (nonBlankImageUrl != null && !imageFailed) {
                 AsyncImage(
@@ -420,16 +420,16 @@ private fun FavoriteRow(
         ) {
             Text(
                 text = title,
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.body,
+                color = VlrTheme.colors.ink,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             subtitle?.let {
                 Text(
                     text = it,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -455,9 +455,9 @@ private fun SectionCard(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(VlrDimensions.CardCornerRadius),
+        shape = RoundedCornerShape(VlrDimensions.CornerRadius),
         color = VlrTheme.colors.surface,
-        border = BorderStroke(VlrDimensions.OutlineWidth, VlrTheme.colors.outline),
+        border = BorderStroke(VlrDimensions.OutlineWidth, VlrTheme.colors.line),
         content = content,
     )
 }
@@ -478,8 +478,8 @@ private fun SectionMessage(
         ) {
             Text(
                 text = message,
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.bodySm,
+                color = VlrTheme.colors.muted,
                 textAlign = TextAlign.Center,
             )
             action?.let {
@@ -504,13 +504,13 @@ private fun FullError(
             imageVector = vectorResource(Res.drawable.ic_error),
             contentDescription = null,
             modifier = Modifier.size(48.dp),
-            tint = VlrTheme.colors.textSecondary,
+            tint = VlrTheme.colors.muted,
         )
         Spacer(Modifier.height(VlrDimensions.Space4))
         Text(
             text = "즐겨찾기를 불러오지 못했습니다.",
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(VlrDimensions.Space4))
