@@ -1,9 +1,9 @@
 # VLR.GG Mobile v3 — Scoreline 디자인 기록
 
-> **Status:** 2026-11-05 채택. 토큰, 재사용 컴포넌트, 화면 12계열의 기본·상태 화면 83개, QA 화면 5개를 포함한다. 시각 계약은 루트 [DESIGN.md](../../DESIGN.md)가 소유하고, 이 문서는 작업 기록과 캔버스 구성을 남긴다. 앱 구현 적용은 후속 작업이다.
+> **Status:** 2026-11-05 채택. 토큰, 재사용 컴포넌트, 화면 12계열의 기본·상태 화면 83개, QA 화면 5개를 포함한다. 시각 계약은 루트 [DESIGN.md](../../DESIGN.md)가 소유하고, 이 문서는 작업 기록과 캔버스 구성을 남긴다. 앱 구현은 기반만 적용했고 공통 컴포넌트·화면은 후속이다.
 
 - **편집 원본:** [`pen/vlrgg-mobile-v3.pen`](pen/vlrgg-mobile-v3.pen). Pencil에서 열어 편집하고, 앱에서 저장해야 디스크에 반영된다.
-- **코드 적용:** 앱 코드에는 아직 적용되지 않았다. 적용 순서와 범위는 [DESIGN.md](../../DESIGN.md#11-적용-순서와-범위-밖)를 따르는 후속 작업이다.
+- **코드 적용:** 기반(토큰·서체·아이콘)은 `feat/v3-design`에 적용, 공통 컴포넌트·화면은 후속이다. 적용 순서와 범위는 [DESIGN.md](../../DESIGN.md#11-적용-순서와-범위-밖)를 따른다.
 - **제품 계약:** 정보 구조, 화면 순서, 필드, 문구, 상태 규칙은 [`docs/feature/`](../feature/README.md)를 따른다. v3는 시각 언어만 새로 정한다.
 
 ## 방향
@@ -139,9 +139,9 @@
 
 ## Compose 적용 시 참고
 
-앱 코드에는 아직 적용하지 않았다. 적용할 때 기존 theme surface를 확장한다. 아래는 현재 `VlrColors`와의 대응이다.
+기반 토큰은 `feat/v3-design`에 적용했다. 아래는 v3 이전 `VlrColors` 이름과의 대응이며, 실제 이름은 [DESIGN.md 1절](../../DESIGN.md#1-구현-상태)을 따른다.
 
-| v3 토큰 | 현재 `VlrColors` | 비고 |
+| v3 토큰 | 이전 `VlrColors` | 비고 |
 | --- | --- | --- |
 | `surface`, `canvas` | `surface`, `surfaceSubtle` | 캔버스가 앱 배경이 된다 |
 | `ink`, `muted`, `line`, `skeleton` | `textPrimary`, `textSecondary`, `outline`, `skeleton` | `ink-2`, `line-strong`, `surface-sunken`은 신규 |
@@ -165,4 +165,4 @@
 ## 다음 단계
 
 - 날짜·시각 한국어 표시에 필요한 서버 field(`publishedDate`, `startDate`·`endDate`, Event Matches `date`, `scheduledDate`·`scheduledTime`, `playedDate`)는 v3 적용 작업에서 구현한다.
-- 루트 `DESIGN.md`는 v3 기준으로 갱신했다(2026-11-05). 앱 코드 적용(theme·공통 컴포넌트·화면, 루트 라벨 한국어 변경 포함)은 후속 작업이다.
+- 루트 `DESIGN.md`는 v3 기준으로 갱신했다(2026-11-05). 앱 코드는 기반(theme 토큰·서체·아이콘)만 적용했고, 공통 컴포넌트·화면(루트 라벨 한국어 변경 포함)은 후속 작업이다.

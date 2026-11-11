@@ -1,8 +1,8 @@
 # Design System: VLR.GG Mobile v3 — Scoreline
 
-> **코드 미적용:** 이 문서와 `.pen`은 v3 디자인 계약이다. 앱 코드(theme·공통 컴포넌트·화면)에는 아직 적용되지 않았으며, 적용은 [적용 순서](#11-적용-순서와-범위-밖)에 따른 후속 작업이다.
+> **코드 일부 적용:** 이 문서와 `.pen`은 v3 디자인 계약이다. 기반(토큰·서체·아이콘)은 `feat/v3-design`에 적용했고, 공통 컴포넌트·화면은 [적용 순서](#11-적용-순서와-범위-밖)에 따른 후속 작업이다.
 
-- **Status:** Active — v3 채택 (2026-11-05). 앱 구현에는 아직 적용하지 않았다([구현 상태](#1-구현-상태) 참조).
+- **Status:** Active — v3 채택 (2026-11-05). 기반은 `feat/v3-design`에 적용, 공통 컴포넌트·화면은 후속이다([구현 상태](#1-구현-상태) 참조).
 - **Design source:** [`docs/design/pen/vlrgg-mobile-v3.pen`](docs/design/pen/vlrgg-mobile-v3.pen) (Pencil). 작업 기록과 캔버스 구성은 [v3 디자인 기록](docs/design/v3-redesign.md)에 있다.
 - **Applies to:** `app/shared/src/commonMain`의 Compose Multiplatform UI. Android·iOS 모바일, 라이트 테마.
 - **소유 범위:** 이 문서는 시각·컴포넌트·상호작용·접근성 계약을 소유한다. 데이터, 흐름, 화면 문구는 [기능 문서](docs/feature/README.md)가, 배치와 런타임 경계는 [앱 아키텍처](docs/app-arch/app-arch.md)가 소유한다. 기능 문서와 시각 규칙이 충돌하면 이 문서를 따른다.
@@ -10,24 +10,28 @@
 
 ## 1. 구현 상태
 
-현재 Compose theme(`Colors.kt`, `Typography.kt`, `Dimensions.kt`)과 공통 컴포넌트는 v3 이전 값을 사용한다. v3 적용은 기반(토큰·서체·아이콘·공통 컴포넌트) → 화면 순서의 별도 작업으로 진행한다.
+기반(토큰·서체·아이콘)은 `feat/v3-design`에 적용했고, 공통 컴포넌트·화면은 후속 작업이다(2026-11-11). Compose theme(`Colors.kt`, `Typography.kt`, `Dimensions.kt`)은 v3 값과 이름을 쓰지만 공통 컴포넌트와 화면 배치는 아직 v3 이전 구조라서, 다음 단계 전까지 화면에 v2와 v3가 섞여 보인다.
 
-- 기반 적용 전에는 화면 하나만 부분적으로 v3로 바꾸지 않는다. 시각 변경은 v3 적용 작업 안에서만 한다.
+- 공통 컴포넌트 적용 전에는 화면 하나만 부분적으로 v3 배치로 바꾸지 않는다. 시각 변경은 v3 적용 작업 안에서만 한다.
 - 기능 문서의 동작은 v3에서도 바뀌지 않는다. 문구는 루트 제목·하단 탭 라벨만 한국어(`뉴스`·`경기`·`마이페이지`·`대회`·`정보`)로 바꾸며(2026-11-05 결정, 기능 문서 반영), 상태 문구는 현재 앱 구현 문구를 그대로 쓴다.
 - 현재 앱은 아직 영어 라벨(`News`·`Matches`·`My Page`·`Events`·`About`)을 쓴다. 라벨 변경은 v3 화면 적용 작업에 포함한다.
+- 타이포그래피: `VlrTypeScale`은 [5절](#5-타이포그래피) 역할을 camelCase로 쓴다(`bodySm`, `scoreXl`, `scoreL`, `scoreM`, `stat`, `tag`). 숫자 역할은 `VlrTheme` 안에서 번들 Saira Condensed로 만든다. 굵기 범위가 있는 역할은 가장 낮은 굵기가 기본이고 화면에서 `copy(fontWeight = …)`로 올린다. 이전 이름은 `pageTitle`→`title`, `sectionTitle`→`section`, `body`→`bodySm`, `bodyStrong`→`body`, `label`→`meta`, `labelSmall`→`label`이다.
+- 형태·간격: `VlrDimensions`에 `Space5`(20dp), `CornerRadius`(2dp), `ButtonCornerRadius`(10dp), `OverlayCornerRadius`(4dp, Snackbar·다이얼로그), `HeaderHeight`(56dp)를 둔다. 이전 `DefaultCornerRadius`·`CardCornerRadius` 사용처는 `CornerRadius`로, 버튼은 `ButtonCornerRadius`로 옮겼다.
+- 서체: Saira Condensed SemiBold·Bold 원본 TTF를 subset 없이 `composeResources/font/`에 번들한다. `Saira`가 OFL Reserved Font Name이라 subset한 수정본은 이름을 바꿔야 하기 때문이다(OFL FAQ 2.6).
+- 아이콘: [7절](#7-아이콘) 글리프 24개를 `composeResources/drawable/ic_<glyph>.xml`로 가져왔다. FILL 1 별은 `ic_star_fill.xml`이다.
 
-| v3 토큰 | 현재 `VlrColors` | 적용 시 |
+| v3 토큰 | `VlrColors` | 이전 이름 |
 | --- | --- | --- |
-| `surface`, `canvas` | `surface`, `surfaceSubtle` | 캔버스(`#F1F2F4`)가 앱 배경이 된다 |
-| `ink`, `muted`, `line`, `skeleton` | `textPrimary`, `textSecondary`, `outline`, `skeleton` | 값 교체 |
-| `ink-2`, `line-strong`, `surface-sunken` | — | 신규 |
-| `accent`, `accent-pressed`, `accent-soft` | `actionPrimary`, `actionPrimaryPressed`, `surfaceSelected` | 값 교체 |
-| `live`, `focus`, `scrim` | `accentLive`, `focusOutline`, `scrim` | 값 교체 |
-| `panel`, `on-panel` | `inverseSurface`, `inverseOnSurface` | 값 교체 |
-| `on-panel-accent` | `inversePrimary` | 값 교체(Snackbar 액션). 어두운 헤더의 즐겨찾기 ON에도 쓴다 |
-| `panel-2`, `on-panel-muted` | — | 신규 |
-| `warn`, `warn-soft` | `statusPostponed`, `statusPostponedContainer` | 값 교체 |
-| — | `statusUpcoming*`, `statusCompleted*`, `accentLiveContainer` | v3에서 상태는 텍스트로 표시한다. 사용처 정리 후 제거한다 |
+| `canvas`, `surface`, `surface-sunken` | `canvas`, `surface`, `surfaceSunken` | `surfaceSubtle`, `surface`, — |
+| `ink`, `ink-2`, `muted` | `ink`, `ink2`, `muted` | `textPrimary`·`textBrand`, —, `textSecondary` |
+| `line`, `line-strong`, `skeleton` | `line`, `lineStrong`, `skeleton` | `outline`, —, `skeleton` |
+| `accent`, `accent-pressed`, `accent-soft` | `accent`, `accentPressed`, `accentSoft` | `actionPrimary`, `actionPrimaryPressed`, `surfaceSelected` |
+| `live`, `focus`, `scrim` | `live`, `focus`, `scrim` | `accentLive`, `focusOutline`, `scrim` |
+| `panel`, `panel-2` | `panel`, `panel2` | `inverseSurface`, — |
+| `on-panel`, `on-panel-muted`, `on-panel-accent` | `onPanel`, `onPanelMuted`, `onPanelAccent` | `inverseOnSurface`·`onActionPrimary`, —, `inversePrimary` |
+| `warn`, `warn-soft` | `warn`, `warnSoft` | `statusPostponed`, `statusPostponedContainer` |
+| `disabled` | `disabled` | — |
+| — | `statusUpcoming*`, `statusCompleted*`, `statusCancelled` | v3에서 상태는 텍스트로 표시한다. 해당 화면 적용 단계에서 제거한다 |
 
 ## 2. 화면 계약
 
@@ -256,7 +260,7 @@
 
 ## 11. 적용 순서와 범위 밖
 
-1. [ ] 기반: `ui/theme` 토큰을 v3 값으로 교체하고 신규 토큰을 추가한다. Saira Condensed와 Material Symbols 글리프를 가져오고 공통 컴포넌트를 v3 계약으로 맞춘다.
+1. [ ] 기반: `ui/theme` 토큰을 v3 값으로 교체하고 신규 토큰을 추가한다. Saira Condensed와 Material Symbols 글리프를 가져오고 공통 컴포넌트를 v3 계약으로 맞춘다. 토큰·서체·아이콘은 `feat/v3-design`에 적용했고(2026-11-11), 공통 컴포넌트가 남았다.
 2. [ ] 화면: 기능 묶음별로 v3를 적용한다. 상세 상단의 어두운 띠에 맞는 상태바 아이콘 색은 플랫폼별로 처리한다.
 3. [ ] 검증: UI 테스트를 갱신하고 Android·iOS에서 주요 상태, 글꼴 확대, TalkBack·VoiceOver를 확인한다.
 4. [ ] 정리: 코드에 남은 이전 디자인 흔적(뉴스 상세 미리보기의 Stitch placeholder 이미지 URL, `TeamDetailContentUiTest`의 Stitch marker 테스트 이름)을 v3 기준으로 바꾼다.
