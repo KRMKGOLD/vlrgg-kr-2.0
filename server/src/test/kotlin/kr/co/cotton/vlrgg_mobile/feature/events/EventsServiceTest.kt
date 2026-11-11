@@ -8,7 +8,7 @@ class EventsServiceTest {
     @Test
     fun `service delegates each section to its own fresh upstream resource`() = runBlocking {
         val scraper = RecordingEventsScraper()
-        val service = DefaultEventsService(scraper, EventsParser(), EventsMapper())
+        val service = EventsService(scraper, EventsParser(), EventsMapper())
 
         val firstList = service.getEventList()
         val secondList = service.getEventList()
@@ -34,7 +34,7 @@ class EventsServiceTest {
                 throw UpstreamNetworkFailure()
             }
         }
-        val service = DefaultEventsService(scraper, EventsParser(), EventsMapper())
+        val service = EventsService(scraper, EventsParser(), EventsMapper())
 
         assertTrue(service.getEventList().ongoing.isNotEmpty())
         val failure = try {

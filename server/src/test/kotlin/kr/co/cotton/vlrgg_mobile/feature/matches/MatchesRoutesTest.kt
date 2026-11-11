@@ -4,6 +4,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.*
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
@@ -20,7 +21,7 @@ class MatchesRoutesTest {
         application {
             configureSerialization()
             configureErrorHandling()
-            configureMatchesRoutes(FakeMatchesService())
+            routing { configureMatchesRoutes(FakeMatchesService()) }
         }
 
         val list = client.get("/api/v1/matches/upcoming?page=2")
@@ -63,7 +64,7 @@ class MatchesRoutesTest {
         application {
             configureSerialization()
             configureErrorHandling()
-            configureMatchesRoutes(FakeMatchesService())
+            routing { configureMatchesRoutes(FakeMatchesService()) }
         }
 
         assertInvalid("/api/v1/matches/upcoming?page=0")
@@ -79,14 +80,16 @@ class MatchesRoutesTest {
         application {
             configureSerialization()
             configureErrorHandling()
-            configureMatchesRoutes(
-                FakeMatchesService(
-                    detailFailure = SourceParsingFailure(
-                        IllegalStateException("selector details"),
+            routing {
+                configureMatchesRoutes(
+                    FakeMatchesService(
+                        detailFailure = SourceParsingFailure(
+                            IllegalStateException("selector details"),
+                        ),
+                        listFailure = UpstreamNetworkFailure(),
                     ),
-                    listFailure = UpstreamNetworkFailure(),
-                ),
-            )
+                )
+            }
         }
 
         assertError("/api/v1/matches/results", HttpStatusCode.BadGateway, ApiErrorCode.UPSTREAM_NETWORK_FAILURE)
