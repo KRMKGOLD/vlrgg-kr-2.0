@@ -4,6 +4,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Density
 import kotlin.test.assertFalse
 import androidx.compose.runtime.getValue
@@ -611,6 +613,37 @@ class MatchDetailContentUiTest {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    @Test
+    fun rightToLeftKeepsEachScoreOnItsOwnTeamSideInlineAndStacked() {
+        // 360dp·1배는 한 줄 배치, 320dp·2배·`2 : —`는 점수를 팀 아래로 내린 배치다.
+        listOf(
+            Triple(360f, 1f, completedMatch),
+            Triple(320f, 2f, completedMatch.copy(homeScore = 2, awayScore = null)),
+        ).forEach { (width, scale, match) ->
+            runSkikoComposeUiTest(size = Size(width, 1600f)) {
+                setContent {
+                    CompositionLocalProvider(
+                        LocalLayoutDirection provides LayoutDirection.Rtl,
+                        LocalDensity provides Density(density.density, scale),
+                    ) {
+                        Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match)))
+                    }
+                }
+
+                val label = "RTL width=$width fontScale=$scale"
+                val homeTeam = onNodeWithTag(matchDetailTeamTag("home")).fetchSemanticsNode().boundsInRoot
+                val awayTeam = onNodeWithTag(matchDetailTeamTag("away")).fetchSemanticsNode().boundsInRoot
+                val homeScore = onNodeWithTag(matchDetailScoreTag("home"), useUnmergedTree = true)
+                    .fetchSemanticsNode().boundsInRoot
+                val awayScore = onNodeWithTag(matchDetailScoreTag("away"), useUnmergedTree = true)
+                    .fetchSemanticsNode().boundsInRoot
+                // RTL에서는 홈 팀이 오른쪽이고, 홈 점수도 원정 점수보다 오른쪽(홈 팀 쪽)이어야 한다.
+                assertTrue(homeTeam.center.x > awayTeam.center.x, "$label home team is not on the right")
+                assertTrue(homeScore.center.x > awayScore.center.x, "$label home score is not on the home side")
             }
         }
     }

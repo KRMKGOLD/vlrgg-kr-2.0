@@ -313,9 +313,10 @@ private fun ScoreboardMatchup(
         val resultTop = if (inline) 0 else teamsHeight + VlrDimensions.Space3.roundToPx()
         val height = if (inline) maxOf(teamsHeight, resultPlaceable.height) else resultTop + resultPlaceable.height
         layout(width, height) {
-            homePlaceable.place(0, 0)
-            awayPlaceable.place(width - teamWidth, 0)
-            resultPlaceable.place((width - resultPlaceable.width) / 2, resultTop)
+            // RTL에서는 팀 열도 점수 Row처럼 뒤집혀 홈 점수가 홈 팀 쪽에 남는다.
+            homePlaceable.placeRelative(0, 0)
+            awayPlaceable.placeRelative(width - teamWidth, 0)
+            resultPlaceable.placeRelative((width - resultPlaceable.width) / 2, resultTop)
         }
     }
 }
