@@ -59,6 +59,12 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_star_fill
+import androidx.compose.runtime.key
+import kr.co.cotton.vlrgg_mobile.ui.component.IdentityRow
+import kr.co.cotton.vlrgg_mobile.ui.component.IdentityRowTrailing
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
+import kr.co.cotton.vlrgg_mobile.ui.component.logoInitials
 
 internal const val MY_PAGE_LIST_TAG = "my_page_list"
 internal const val MY_PAGE_TOP_APP_BAR_TAG = "my_page_top_app_bar"
@@ -149,22 +155,22 @@ internal fun MyPageContent(
                         .fillMaxSize()
                         .testTag(MY_PAGE_LIST_TAG),
                     contentPadding = PaddingValues(bottom = VlrDimensions.Space6),
-                    verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
                 ) {
+                    // Gaps live on the items rather than the list, so player rows stay one divided block.
                     item(key = "favorite_teams_header") {
-                        SectionHeader("Favorite Teams", Modifier.testTag(MY_PAGE_TEAM_SECTION_TAG))
+                        SectionHeader("Favorite Teams", Modifier.testTag(MY_PAGE_TEAM_SECTION_TAG).itemGap())
                     }
                     when (val teams = uiState.favoriteTeams) {
                         FavoriteSectionState.Loading -> item(key = "favorite_teams_loading") {
                             SectionCard(
-                                modifier = Modifier.padding(horizontal = VlrDimensions.Space4).semantics {
+                                modifier = Modifier.itemGap().padding(horizontal = VlrDimensions.Space4).semantics {
                                     contentDescription = "즐겨찾기한 팀을 불러오는 중"
                                 },
                             ) { SectionLoading("즐겨찾기한 팀을 불러오는 중") }
                         }
 
                         FavoriteSectionState.Empty -> item(key = "favorite_teams_empty") {
-                            SectionMessage("즐겨찾기한 팀이 없습니다.")
+                            SectionMessage("즐겨찾기한 팀이 없습니다.", Modifier.itemGap())
                         }
 
                         FavoriteSectionState.Error -> item(key = "favorite_teams_error") {
@@ -172,6 +178,7 @@ internal fun MyPageContent(
                                 message = "즐겨찾기한 팀을 불러오지 못했습니다.",
                                 onRetry = onRetryTeams,
                                 showBottomDivider = false,
+                                modifier = Modifier.itemGap(),
                             )
                         }
 
@@ -179,7 +186,7 @@ internal fun MyPageContent(
                             items = teams.favorites,
                             key = { favorite -> "favorite_team_${favorite.id}" },
                         ) { favorite ->
-                            SectionCard(Modifier.padding(horizontal = VlrDimensions.Space4)) {
+                            SectionCard(Modifier.itemGap().padding(horizontal = VlrDimensions.Space4)) {
                                 FavoriteTeamRow(
                                     favorite = favorite,
                                     onClick = onTeamClick,
@@ -189,22 +196,22 @@ internal fun MyPageContent(
                         }
                     }
                     item(key = "favorite_sections_gap") {
-                        Spacer(Modifier.height(VlrDimensions.Space2))
+                        Spacer(Modifier.itemGap().height(VlrDimensions.Space2))
                     }
                     item(key = "favorite_players_header") {
-                        SectionHeader("Favorite Players", Modifier.testTag(MY_PAGE_PLAYER_SECTION_TAG))
+                        SectionHeader("Favorite Players", Modifier.testTag(MY_PAGE_PLAYER_SECTION_TAG).itemGap())
                     }
                     when (val players = uiState.favoritePlayers) {
                         FavoriteSectionState.Loading -> item(key = "favorite_players_loading") {
                             SectionCard(
-                                modifier = Modifier.padding(horizontal = VlrDimensions.Space4).semantics {
+                                modifier = Modifier.itemGap().padding(horizontal = VlrDimensions.Space4).semantics {
                                     contentDescription = "즐겨찾기한 선수를 불러오는 중"
                                 },
                             ) { SectionLoading("즐겨찾기한 선수를 불러오는 중") }
                         }
 
                         FavoriteSectionState.Empty -> item(key = "favorite_players_empty") {
-                            SectionMessage("즐겨찾기한 선수가 없습니다.")
+                            SectionMessage("즐겨찾기한 선수가 없습니다.", Modifier.itemGap())
                         }
 
                         FavoriteSectionState.Error -> item(key = "favorite_players_error") {
@@ -212,6 +219,7 @@ internal fun MyPageContent(
                                 message = "즐겨찾기한 선수를 불러오지 못했습니다.",
                                 onRetry = onRetryPlayers,
                                 showBottomDivider = false,
+                                modifier = Modifier.itemGap(),
                             )
                         }
 
@@ -219,13 +227,11 @@ internal fun MyPageContent(
                             items = players.favorites,
                             key = { favorite -> "favorite_player_${favorite.id}" },
                         ) { favorite ->
-                            SectionCard(Modifier.padding(horizontal = VlrDimensions.Space4)) {
-                                FavoritePlayerRow(
-                                    favorite = favorite,
-                                    onClick = onPlayerClick,
-                                    onRemove = onRemovePlayer,
-                                )
-                            }
+                            FavoritePlayerRow(
+                                favorite = favorite,
+                                onClick = onPlayerClick,
+                                onRemove = onRemovePlayer,
+                            )
                         }
                     }
                 }
@@ -242,6 +248,9 @@ internal fun MyPageContent(
         }
     }
 }
+
+/** 12dp gap under a list item; player identity rows skip it and keep their 1dp dividers. */
+private fun Modifier.itemGap(): Modifier = padding(bottom = VlrDimensions.Space3)
 
 @Composable
 private fun SectionLoading(description: String) {
@@ -293,17 +302,26 @@ private fun FavoritePlayerRow(
     onClick: (String) -> Unit,
     onRemove: (String) -> Unit,
 ) {
-    FavoriteRow(
-        id = favorite.id,
+    val openDetail = remember(favorite.id, onClick) { { onClick(favorite.id) } }
+    val removeFavorite = remember(favorite.id, onRemove) { { onRemove(favorite.id) } }
+    IdentityRow(
         title = favorite.handle,
-        subtitle = listOfNotNull(favorite.realName, favorite.countryName).joinToString(" · ").ifBlank { null },
-        imageUrl = favorite.imageUrl,
-        imageTag = myPagePlayerImageTag(favorite.id),
-        imagePlaceholderTag = myPagePlayerImagePlaceholderTag(favorite.id),
-        rowDescription = "선수 상세: ${favorite.handle}",
-        removalDescription = "${favorite.handle} 즐겨찾기 해제",
-        onClick = onClick,
-        onRemove = onRemove,
+        meta = listOfNotNull(favorite.realName, favorite.countryName).joinToString(" · ").ifBlank { null },
+        leading = {
+            LogoSlot(
+                imageUrl = favorite.imageUrl,
+                kind = LogoSlotKind.Player,
+                placeholderText = logoInitials(favorite.handle),
+                imageTestTag = myPagePlayerImageTag(favorite.id),
+                placeholderTestTag = myPagePlayerImagePlaceholderTag(favorite.id),
+            )
+        },
+        onClick = openDetail,
+        contentDescription = "선수 상세: ${favorite.handle}",
+        trailing = IdentityRowTrailing.FavoriteRemove(
+            contentDescription = "${favorite.handle} 즐겨찾기 해제",
+            onClick = removeFavorite,
+        ),
         modifier = Modifier.testTag(myPagePlayerRowTag(favorite.id)),
     )
 }

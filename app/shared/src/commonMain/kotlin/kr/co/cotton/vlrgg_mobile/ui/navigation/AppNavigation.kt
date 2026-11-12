@@ -33,6 +33,10 @@ import vlrggmobile.app.shared.generated.resources.ic_info
 import vlrggmobile.app.shared.generated.resources.ic_scoreboard
 import vlrggmobile.app.shared.generated.resources.ic_newspaper
 import vlrggmobile.app.shared.generated.resources.ic_person
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.ui.platform.LocalLayoutDirection
 
 @Composable
 fun AppNavigation(
@@ -123,6 +127,14 @@ internal fun AppNavigationRuntime(
             }
         },
     ) { contentPadding ->
+        // Screen headers paint the status bar area themselves (light headers, the dark detail
+        // band), so the top inset is left to them and only the side and bottom insets apply here.
+        val layoutDirection = LocalLayoutDirection.current
+        val screenPadding = PaddingValues(
+            start = contentPadding.calculateStartPadding(layoutDirection),
+            end = contentPadding.calculateEndPadding(layoutDirection),
+            bottom = contentPadding.calculateBottomPadding(),
+        )
         // A bottom-navigation selection changes peer roots rather than pushing a Navigation 3
         // scene. The keyed display host uses only a short fade, while the root stacks and their
         // decorators remain outside this layer to preserve root-specific state.
@@ -137,7 +149,7 @@ internal fun AppNavigationRuntime(
             key(displayedRoot) {
                 NavDisplay(
                     entries = rootEntries.getValue(displayedRoot),
-                    modifier = Modifier.padding(contentPadding),
+                    modifier = Modifier.padding(screenPadding),
                     onBack = popOverlay,
                 )
             }

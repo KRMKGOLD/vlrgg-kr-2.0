@@ -1,20 +1,20 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatchOutcome
-import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kr.co.cotton.vlrgg_mobile.ui.component.TeamMatchOutcome
 
 class PlayerRecentMatchCardTest {
 
     @Test
-    fun outcomesExposeWrittenLabelsAndDistinctLossStyle() {
-        assertEquals(StatusChipStatus.Completed, PlayerRecentMatchOutcome.WIN.chipStatus())
-        assertEquals("승리", PlayerRecentMatchOutcome.WIN.displayLabel())
-        assertEquals(StatusChipStatus.Loss, PlayerRecentMatchOutcome.LOSS.chipStatus())
-        assertEquals("패배", PlayerRecentMatchOutcome.LOSS.displayLabel())
-        assertEquals(StatusChipStatus.Partial, PlayerRecentMatchOutcome.UNKNOWN.chipStatus())
-        assertEquals("결과 미정", PlayerRecentMatchOutcome.UNKNOWN.displayLabel())
+    fun outcomesExposeWrittenLabelsInTheResultColumn() {
+        assertEquals(TeamMatchOutcome.Win, PlayerRecentMatchOutcome.WIN.rowOutcome())
+        assertEquals("승리", PlayerRecentMatchOutcome.WIN.rowOutcome().label)
+        assertEquals(TeamMatchOutcome.Loss, PlayerRecentMatchOutcome.LOSS.rowOutcome())
+        assertEquals("패배", PlayerRecentMatchOutcome.LOSS.rowOutcome().label)
+        assertEquals(TeamMatchOutcome.Unknown, PlayerRecentMatchOutcome.UNKNOWN.rowOutcome())
+        assertEquals("결과 미정", PlayerRecentMatchOutcome.UNKNOWN.rowOutcome().label)
     }
 
     @Test

@@ -5,13 +5,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerAgentStat
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsColumn
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrStatsTable
-import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsMissingValue
 
 internal const val PLAYER_AGENT_STATS_TABLE_TAG = "player-agent-stats-table"
 internal fun playerAgentIdentityTag(agentName: String, occurrence: Int = 1) =
@@ -42,14 +40,7 @@ internal fun PlayerAgentStatsTable(
         rowSemanticsLabel = "에이전트 통계",
         columns = playerAgentStatsColumns(),
         horizontalScrollState = horizontalScrollState,
-        identityWidth = 120.dp,
-        headerMinHeight = 56.dp,
-        rowMinHeight = 52.dp,
-        identityTextStyle = VlrTheme.typography.bodySm,
-        headerTextStyle = VlrTheme.typography.label,
-        valueTextStyle = VlrTheme.typography.bodySm,
         modifier = modifier.testTag(PLAYER_AGENT_STATS_TABLE_TAG),
-        headerContainer = VlrTheme.colors.canvas,
         sort = sort,
         onSortColumn = onSortColumn,
         identityTestTag = { playerAgentIdentityTag(it.key.first, it.key.second) },
@@ -65,23 +56,23 @@ internal fun playerAgentStatsColumns(): List<StatsColumn<PlayerAgentStatsRow, Pl
         playerAgentColumn(PlayerAgentStatsSortColumn.MAPS, { it.mapsPlayed.toString() }) { it.mapsPlayed.toDouble() },
         playerAgentColumn(
             PlayerAgentStatsSortColumn.PICK_RATE,
-            { it.pickRatePercent?.let { value -> "$value%" } ?: "—" },
+            { it.pickRatePercent?.let { value -> "$value%" } ?: StatsMissingValue },
         ) { it.pickRatePercent?.toDouble() },
-        playerAgentColumn(PlayerAgentStatsSortColumn.RATING, { it.rating?.toString() ?: "—" }) { it.rating },
+        playerAgentColumn(PlayerAgentStatsSortColumn.RATING, { it.rating?.toString() ?: StatsMissingValue }) { it.rating },
         playerAgentColumn(
             PlayerAgentStatsSortColumn.ACS,
-            { it.averageCombatScore?.toString() ?: "—" },
+            { it.averageCombatScore?.toString() ?: StatsMissingValue },
         ) { it.averageCombatScore },
-        playerAgentColumn(PlayerAgentStatsSortColumn.K_D, { it.killDeathRatio?.toString() ?: "—" }) {
+        playerAgentColumn(PlayerAgentStatsSortColumn.K_D, { it.killDeathRatio?.toString() ?: StatsMissingValue }) {
             it.killDeathRatio
         },
         playerAgentColumn(
             PlayerAgentStatsSortColumn.KAST,
-            { it.kastPercent?.let { value -> "$value%" } ?: "—" },
+            { it.kastPercent?.let { value -> "$value%" } ?: StatsMissingValue },
         ) { it.kastPercent?.toDouble() },
         playerAgentColumn(
             PlayerAgentStatsSortColumn.ADR,
-            { it.averageDamagePerRound?.toString() ?: "—" },
+            { it.averageDamagePerRound?.toString() ?: StatsMissingValue },
         ) { it.averageDamagePerRound },
     )
 
@@ -92,8 +83,6 @@ private fun playerAgentColumn(
 ) = StatsColumn<PlayerAgentStatsRow, PlayerAgentStatsSortColumn>(
     key = key,
     label = key.label,
-    width = 84.dp,
-    textAlign = TextAlign.End,
     displayValue = { displayValue(it.stat) },
     numericValue = { numericValue(it.stat) },
 )

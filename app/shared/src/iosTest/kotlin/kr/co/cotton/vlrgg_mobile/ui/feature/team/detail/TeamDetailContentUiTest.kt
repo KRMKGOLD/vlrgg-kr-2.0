@@ -127,7 +127,8 @@ class TeamDetailContentUiTest {
     fun loadingKeepsTopBarAndShowsGeometrySkeletonWithoutSampleTeamData() = runComposeUiTest {
         setContent { Fixture(uiState = TeamDetailUiState()) }
 
-        onNodeWithText("Team Detail").assertIsDisplayed()
+        // The dark band header has no title; Back stays reachable while the hero skeleton loads.
+        onNodeWithText("Team Detail").assertDoesNotExist()
         onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
         onNodeWithTag(TEAM_DETAIL_LOADING_TAG).assertIsDisplayed()
         listOf("예정된 경기", "최근 경기", "로스터", "뉴스").forEach { section ->
@@ -167,24 +168,23 @@ class TeamDetailContentUiTest {
         assertTextInTaggedSection(TEAM_NAME, TEAM_DETAIL_HEADER_TAG)
         assertTextInTaggedSection("KRX · South Korea", TEAM_DETAIL_HEADER_TAG)
 
+        // Team match rows name the opponent; the hero above already names the team.
         scrollToTag(teamMatchCardTag(UPCOMING_MATCH_ID))
-        assertTextInTaggedSection(TEAM_NAME, teamMatchCardTag(UPCOMING_MATCH_ID))
-        assertTextInTaggedSection("Sentinels", teamMatchCardTag(UPCOMING_MATCH_ID))
-        assertTextInTaggedSection("VCT Pacific", teamMatchCardTag(UPCOMING_MATCH_ID))
-        assertTextInTaggedSection("Stage 2", teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection("vs Sentinels", teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection("VCT Pacific · Stage 2", teamMatchCardTag(UPCOMING_MATCH_ID))
         assertTextInTaggedSection("in 2d", teamMatchCardTag(UPCOMING_MATCH_ID))
         assertTextInTaggedSection("2026-08-28 17:00", teamMatchCardTag(UPCOMING_MATCH_ID))
+        onNodeWithContentDescription("경기 상세: $TEAM_NAME 대 Sentinels").assertExists()
 
         scrollToTag(teamMatchCardTag(RECENT_MATCH_ID))
-        assertTextInTaggedSection(TEAM_NAME, teamMatchCardTag(RECENT_MATCH_ID))
-        assertTextInTaggedSection("Gen.G", teamMatchCardTag(RECENT_MATCH_ID))
+        assertTextInTaggedSection("vs Gen.G", teamMatchCardTag(RECENT_MATCH_ID))
         assertTextInTaggedSection("VCT Pacific", teamMatchCardTag(RECENT_MATCH_ID))
         assertTextInTaggedSection("final", teamMatchCardTag(RECENT_MATCH_ID))
         assertTextInTaggedSection("2026-08-25", teamMatchCardTag(RECENT_MATCH_ID))
         scrollToTag(teamPlayerRowTag(PLAYER_ID))
         assertTextNodeCount("MaKo", expectedCount = 1)
-        assertTextNodeCount("Kim Myeong-kwan", expectedCount = 1)
-        assertTextNodeCount("player", expectedCount = 1)
+        // Identity row meta joins the real name and the roles on one 13 `muted` line.
+        assertTextNodeCount("Kim Myeong-kwan · player", expectedCount = 1)
         scrollToTag(teamStaffRowTag(STAFF_ID))
         assertTextNodeCount("termi", expectedCount = 1)
         assertTextNodeCount("head coach", expectedCount = 1)
@@ -382,9 +382,9 @@ class TeamDetailContentUiTest {
         }
 
         scrollToTag(teamMatchCardTag(UPCOMING_MATCH_ID))
-        val eventNodes = onAllNodesWithText("VCT Pacific", useUnmergedTree = true)
+        val eventNodes = onAllNodesWithText("VCT Pacific", substring = true, useUnmergedTree = true)
             .fetchSemanticsNodes()
-        val stageNodes = onAllNodesWithText("Stage 2", useUnmergedTree = true)
+        val stageNodes = onAllNodesWithText("Stage 2", substring = true, useUnmergedTree = true)
             .fetchSemanticsNodes()
         assertTrue(eventNodes.isNotEmpty(), "Upcoming match event name was not composed")
         assertTrue(stageNodes.isNotEmpty(), "Upcoming match stage was not composed")
