@@ -27,6 +27,23 @@ class SeriesParserTest {
     }
 
     @Test
+    fun `parser reads the actual vlr gg series page structure`() {
+        val source = parse("real-dom.html")
+
+        assertEquals("Valorant Champions Tour 2026", source.name)
+        assertNull(source.description)
+        assertTrue(source.events.none { it.status != SeriesEventStatusSource.COMPLETED })
+        assertEquals(3, source.events.size)
+        val first = source.events.first()
+        assertEquals("2766", first.id)
+        assertEquals("Valorant Champions 2026", first.name)
+        assertEquals(SeriesEventStatusSource.COMPLETED, first.status)
+        assertEquals("Sep 24—Oct 19", first.dateLabel)
+        assertEquals("cn", first.regionCode)
+        assertEquals("https://owcdn.net/img/692fc60a022bb.png", first.imageUrl)
+    }
+
+    @Test
     fun `parser accepts verified empty and one-populated-section pages`() {
         assertTrue(parse("verified-empty.html").events.isEmpty())
         assertEquals(listOf("101"), parse("upcoming-only.html").events.map(SeriesEventSource::id))
