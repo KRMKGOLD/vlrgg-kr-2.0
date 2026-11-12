@@ -1,19 +1,19 @@
 # Series
 
-Series Detail은 같은 대회 체계의 Event를 예정·완료로 나누고 Event Detail로 연결하는 Phase 5 화면이다. 서버·앱과 자동화 검증은 완료됐고 실제 양 플랫폼 screenshot·실기기 접근성 확인은 남아 있다.
+Series Detail은 같은 대회 체계의 Event를 예정·완료로 나누고 Event Detail로 연결하는 Phase 5 화면이다. 서버·앱과 자동화 검증은 완료됐고 v3 화면(`.pen` `42`: 한국어 섹션 제목과 개수, 로딩 스켈레톤, 한국어 기간)을 적용했다(2026-11-12). 실기기 접근성 확인은 남아 있고, 2026-11-12 로컬 서버에서 시리즈 조회가 `SOURCE_PARSING_FAILURE`로 실패해 기기 화면은 오류 상태만 확인했다.
 
 ## MVP 범위
 
 - Search의 Series 결과에서 진입
 - Series 기본 정보
-- `Upcoming Events`, `Completed Events` 순서의 독립 섹션
+- `예정 대회`, `완료 대회` 순서의 독립 섹션(제목 옆에 Event 수, 빈 섹션은 개수 없음)
 - stable Event ID로 Event Detail 이동과 Search까지의 상태 복원
 
 Standings·ranking·포인트, 고급 진행 상태, 즐겨찾기·알림, 필터·pagination, bottom destination, Team/Player 우회 경로는 제외하며 placeholder로 표시하지 않는다.
 
 ## 화면과 상태
 
-- Back app bar 아래 Series identity와 Upcoming, Completed를 표시한다.
+- Back app bar 아래 Series identity와 `예정 대회`, `완료 대회`를 표시한다.
 - 한 섹션만 비면 그 섹션의 Empty를 표시하고 다른 콘텐츠를 유지한다. 둘 다 비면 전체 Empty다.
 - optional metadata 누락은 row의 missing marker로 처리한다. Event ID나 이름이 누락되면 Event를 개별적으로 생략하지 않고 전체 response를 `SOURCE_PARSING_FAILURE`로 실패시킨다.
 - response는 atomic이다. generic Partial이나 section transport error를 만들지 않고 조회·해석 실패는 identity와 섹션을 대체하는 full Error+Retry로 처리한다.
@@ -37,7 +37,7 @@ GET /api/v1/series/{seriesId}
 ## 수용 기준
 
 - [x] Search → Series → Event 이동과 역방향 상태 복원이 동작한다.
-- [x] Upcoming을 먼저 표시하고 section Empty와 전체 Empty를 구분한다.
+- [x] `예정 대회`를 먼저 표시하고 section Empty와 전체 Empty를 구분한다.
 - [x] optional 누락, 정상 Empty, 필수 구조 failure를 구분하며 generic Partial이 없다.
 - [x] unknown/conflicting status를 fail closed 하고 내부 오류 정보를 노출하지 않는다.
 - [ ] 실제 기기 시각·접근성 검증을 완료한다.
