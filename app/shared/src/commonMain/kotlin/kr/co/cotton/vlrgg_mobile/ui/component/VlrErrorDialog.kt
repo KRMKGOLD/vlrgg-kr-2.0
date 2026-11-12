@@ -3,13 +3,16 @@ package kr.co.cotton.vlrgg_mobile.ui.component
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.shadow.Shadow
@@ -61,12 +64,17 @@ fun VlrErrorDialog(
             dismissLabel = dismissLabel,
             onDismiss = onDismiss,
             confirmEnabled = confirmEnabled,
+            modifier = Modifier.padding(vertical = VlrDimensions.Space6),
         )
     }
 }
 
+/**
+ * Dialog body. The action row is measured first so it always keeps its 48dp targets; in a short
+ * window with a large font only the title and message scroll.
+ */
 @Composable
-private fun VlrErrorDialogSurface(
+internal fun VlrErrorDialogSurface(
     title: String,
     message: String,
     confirmLabel: String,
@@ -74,10 +82,11 @@ private fun VlrErrorDialogSurface(
     dismissLabel: String,
     onDismiss: () -> Unit,
     confirmEnabled: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(VlrDimensions.OverlayCornerRadius)
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(296.dp)
             .dropShadow(
                 shape = shape,
@@ -95,24 +104,30 @@ private fun VlrErrorDialogSurface(
                 top = VlrDimensions.Space6,
                 bottom = VlrDimensions.Space3,
             ),
-        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
     ) {
-        Text(
-            text = title,
-            modifier = Modifier.semantics { heading() },
-            style = VlrTheme.typography.section.copy(fontSize = 18.sp, lineHeight = 25.sp),
-            color = VlrTheme.colors.ink,
-        )
-        Text(
-            text = message,
-            style = VlrTheme.typography.bodySm.copy(lineHeight = 21.sp),
-            color = VlrTheme.colors.ink2,
-        )
-        Row(
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.semantics { heading() },
+                style = VlrTheme.typography.section.copy(fontSize = 18.sp, lineHeight = 25.sp),
+                color = VlrTheme.colors.ink,
+            )
+            Text(
+                text = message,
+                style = VlrTheme.typography.bodySm.copy(lineHeight = 21.sp),
+                color = VlrTheme.colors.ink2,
+            )
+        }
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = VlrDimensions.Space4),
-            horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space1, androidx.compose.ui.Alignment.End),
+                .padding(top = 28.dp),
+            horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space1, Alignment.End),
         ) {
             VlrButton(
                 text = dismissLabel,

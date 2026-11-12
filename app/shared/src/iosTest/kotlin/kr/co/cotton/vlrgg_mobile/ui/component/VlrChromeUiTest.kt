@@ -1,6 +1,9 @@
 package kr.co.cotton.vlrgg_mobile.ui.component
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.CompositionLocalProvider
@@ -8,7 +11,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -176,11 +181,54 @@ class VlrChromeUiTest {
         assertTrue(largeMyPage > largeNews, "마이페이지 wraps to a second line instead of being ellipsized")
     }
 
+    @Test
+    fun bottomNavigationKeepsOuterItemsInsideSideInsetsInShortLandscape() = runComposeUiTest {
+        var selected by mutableStateOf("matches")
+        var density = 1f
+        setContent {
+            density = LocalDensity.current.density
+            CompositionLocalProvider(LocalDensity provides Density(density, fontScale = 2f)) {
+                VlrTheme {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 640.dp, height = 200.dp)
+                            .testTag(LANDSCAPE_ROOT_TAG),
+                        contentAlignment = Alignment.BottomCenter,
+                    ) {
+                        BottomNavigationFixture(
+                            selected = selected,
+                            onSelect = { selected = it },
+                            windowInsets = WindowInsets(left = 48.dp, right = 48.dp, bottom = 16.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        val root = onNodeWithTag(LANDSCAPE_ROOT_TAG).fetchSemanticsNode().boundsInRoot
+        val first = onNodeWithTag("nav-news").fetchSemanticsNode().boundsInRoot
+        val last = onNodeWithTag("nav-about").fetchSemanticsNode().boundsInRoot
+        assertTrue(first.left >= root.left + 48f * density - 1f, "First item must clear the start inset")
+        assertTrue(last.right <= root.right - 48f * density + 1f, "Last item must clear the end inset")
+        assertTrue(last.bottom <= root.bottom - 16f * density + 1f, "Items must clear the bottom inset")
+        bottomNavigationItems.forEach { (key, _) ->
+            onNodeWithTag("nav-$key").assertIsDisplayed().assertHeightIsAtLeast(48.dp)
+        }
+        onNodeWithTag("nav-about").performClick()
+        onNodeWithTag("nav-news").performClick()
+        assertEquals("news", selected)
+        onNodeWithTag("nav-news").assertIsSelected()
+    }
+
     private fun androidx.compose.ui.test.ComposeUiTest.itemHeight(tag: String): Float =
         onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.height
 
     @androidx.compose.runtime.Composable
-    private fun BottomNavigationFixture(selected: String, onSelect: (String) -> Unit) {
+    private fun BottomNavigationFixture(
+        selected: String,
+        windowInsets: WindowInsets = WindowInsets(0.dp),
+        onSelect: (String) -> Unit,
+    ) {
         val icons = remember {
             mapOf(
                 "news" to Res.drawable.ic_newspaper,
@@ -190,7 +238,7 @@ class VlrChromeUiTest {
                 "about" to Res.drawable.ic_info,
             )
         }
-        VlrBottomNavigation {
+        VlrBottomNavigation(windowInsets = windowInsets) {
             bottomNavigationItems.forEach { (key, label) ->
                 VlrBottomNavigationItem(
                     label = label,
@@ -205,6 +253,7 @@ class VlrChromeUiTest {
     }
 
     private companion object {
+        const val LANDSCAPE_ROOT_TAG = "landscape-root"
         val bottomNavigationItems = listOf(
             "news" to "뉴스",
             "matches" to "경기",

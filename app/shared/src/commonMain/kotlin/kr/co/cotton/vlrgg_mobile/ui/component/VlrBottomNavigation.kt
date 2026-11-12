@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -48,27 +50,39 @@ import vlrggmobile.app.shared.generated.resources.ic_trophy
 
 /**
  * Root bottom navigation (`DESIGN.md` 8.1): `surface` with a 1dp top `line` and equal-width items.
- * The system navigation inset is added below the items instead of a fixed gesture area.
+ * Items stay inside [windowInsets]: the bottom system inset replaces a fixed gesture area, and
+ * landscape side system bars or display cutouts push the outer items inward. The surface and the
+ * top line still span the full width.
  */
 @Composable
 fun VlrBottomNavigation(
     modifier: Modifier = Modifier,
+    windowInsets: WindowInsets = VlrBottomNavigationDefaults.windowInsets,
     content: @Composable RowScope.() -> Unit,
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(VlrTheme.colors.surface)
-            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
+            .background(VlrTheme.colors.surface),
     ) {
         HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .windowInsetsPadding(windowInsets)
                 .selectableGroup(),
             content = content,
         )
     }
+}
+
+object VlrBottomNavigationDefaults {
+    /** Same sides as Material `NavigationBar`: horizontal and bottom system bars plus display cutout. */
+    val windowInsets: WindowInsets
+        @Composable
+        get() = WindowInsets.systemBars
+            .union(WindowInsets.displayCutout)
+            .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
 }
 
 /**

@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.ui.component
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -50,11 +53,52 @@ fun StatePanel(
     actionEnabled: Boolean = true,
     actionTestTag: String = STATE_PANEL_ACTION_TAG,
 ) {
-    Column(
-        modifier = modifier.padding(vertical = 56.dp, horizontal = VlrDimensions.Space8),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
+    BoxWithConstraints(modifier = modifier) {
+        // In a bounded area the panel scrolls, so the action stays reachable in short (landscape,
+        // large font) areas. Areas shorter than the default composition also use a smaller margin.
+        val isBounded = constraints.hasBoundedHeight
+        val verticalPadding = if (isBounded && maxHeight < StatePanelCompactHeight) {
+            VlrDimensions.Space4
+        } else {
+            StatePanelVerticalPadding
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (isBounded) {
+                        Modifier
+                            .verticalScroll(rememberScrollState())
+                            .heightIn(min = maxHeight)
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(vertical = verticalPadding, horizontal = VlrDimensions.Space8),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            StatePanelContent(title, icon, body, actionLabel, onAction, actionEnabled, actionTestTag)
+        }
+    }
+}
+
+private val StatePanelVerticalPadding = 56.dp
+
+/** Below this height the 56dp margins would crowd out the action, so the panel uses 16dp. */
+private val StatePanelCompactHeight = 320.dp
+
+@Composable
+private fun StatePanelContent(
+    title: String,
+    icon: DrawableResource,
+    body: String?,
+    actionLabel: String?,
+    onAction: () -> Unit,
+    actionEnabled: Boolean,
+    actionTestTag: String,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(
             imageVector = vectorResource(icon),
             contentDescription = null,
