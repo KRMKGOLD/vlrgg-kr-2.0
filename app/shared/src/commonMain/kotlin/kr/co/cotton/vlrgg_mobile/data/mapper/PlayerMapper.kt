@@ -1,5 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.data.mapper
 
+import kotlinx.datetime.LocalDate
+
 import kr.co.cotton.vlrgg_mobile.data.remote.model.player.PlayerAgentStatDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.player.PlayerCurrentTeamDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.player.PlayerDetailResponseDto
@@ -68,6 +70,7 @@ private fun PlayerRecentMatchDto.toDomain(): PlayerRecentMatch = PlayerRecentMat
     teamBScore = teamBScore,
     outcome = outcome.toDomain(),
     playedOn = playedOn,
+    playedDate = playedDate?.let(LocalDate.Formats.ISO::parseOrNull),
 )
 
 private fun PlayerRecentMatchTeamDto.toDomain(): PlayerRecentMatchTeam = PlayerRecentMatchTeam(

@@ -1,5 +1,8 @@
 package kr.co.cotton.vlrgg_mobile.data.mapper
 
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
+
 import kr.co.cotton.vlrgg_mobile.data.remote.model.team.TeamDetailResponseDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.team.TeamMatchDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.team.TeamNewsDto
@@ -22,15 +25,21 @@ internal fun TeamDetailResponseDto.toDomain(): TeamDetail = TeamDetail(
     logoUrl = logoUrl,
 )
 
-private fun TeamMatchDto.toDomain(): TeamMatch = TeamMatch(
-    id = id,
-    eventName = eventName,
-    eventStage = eventStage,
-    teamName = teamName,
-    opponentName = opponentName,
-    statusText = statusText,
-    scheduledAtText = scheduledAtText,
-)
+private fun TeamMatchDto.toDomain(): TeamMatch {
+    // The contract nulls both values when the date is unreadable, so a time never stands alone.
+    val date = scheduledDate?.let(LocalDate.Formats.ISO::parseOrNull)
+    return TeamMatch(
+        id = id,
+        eventName = eventName,
+        eventStage = eventStage,
+        teamName = teamName,
+        opponentName = opponentName,
+        statusText = statusText,
+        scheduledAtText = scheduledAtText,
+        scheduledDate = date,
+        scheduledTime = date?.let { scheduledTime?.let(LocalTime.Formats.ISO::parseOrNull) },
+    )
+}
 
 private fun TeamRosterMemberDto.toDomain(): TeamRosterMember = TeamRosterMember(
     id = id,
@@ -48,5 +57,6 @@ private fun TeamNewsDto.toDomain(): TeamNews {
         slug = slug,
         title = title,
         publishedDateText = publishedDateText,
+        publishedDate = publishedDate?.let(LocalDate.Formats.ISO::parseOrNull),
     )
 }

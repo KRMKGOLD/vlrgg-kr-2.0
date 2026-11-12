@@ -15,7 +15,9 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -130,10 +132,13 @@ class TeamDetailContentUiTest {
         // The dark band header has no title; Back stays reachable while the hero skeleton loads.
         onNodeWithText("Team Detail").assertDoesNotExist()
         onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
-        onNodeWithTag(TEAM_DETAIL_LOADING_TAG).assertIsDisplayed()
-        listOf("예정된 경기", "최근 경기", "로스터", "뉴스").forEach { section ->
-            scrollToText(section)
-            onNodeWithText(section).assertExists()
+        onNodeWithTag(TEAM_DETAIL_LOADING_TAG)
+            .assertIsDisplayed()
+            .assert(hasContentDescription("팀 상세를 불러오는 중"))
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+        // `.pen` 50-3: row skeletons only, without section titles or a spinner.
+        listOf("예정 경기", "최근 경기", "선수", "스태프", "뉴스").forEach { section ->
+            onNodeWithText(section).assertDoesNotExist()
         }
         onNodeWithText(TEAM_NAME).assertDoesNotExist()
         onNodeWithContentDescription("즐겨찾기 추가").assertDoesNotExist()
@@ -197,7 +202,8 @@ class TeamDetailContentUiTest {
         listOf(
             TEAM_DETAIL_UPCOMING_SECTION_TAG,
             TEAM_DETAIL_RECENT_SECTION_TAG,
-            TEAM_DETAIL_ROSTER_SECTION_TAG,
+            TEAM_DETAIL_PLAYERS_SECTION_TAG,
+            TEAM_DETAIL_STAFF_SECTION_TAG,
             TEAM_DETAIL_NEWS_SECTION_TAG,
         ).forEach { tag -> onNodeWithTag(tag).assertExists() }
     }
@@ -266,7 +272,7 @@ class TeamDetailContentUiTest {
     }
 
     @Test
-    fun whollyEmptyRosterUsesStitchMarkerAndKeepsNews() = runComposeUiTest {
+    fun whollyEmptyRosterKeepsPlayerAndStaffSectionMessagesAndNews() = runComposeUiTest {
         setContent {
             Fixture(
                 contentState = TeamDetailContentState.Content(
@@ -275,8 +281,11 @@ class TeamDetailContentUiTest {
             )
         }
 
-        scrollToText("로스터 정보가 없습니다")
-        onNodeWithText("로스터 정보가 없습니다").assertExists()
+        // `.pen` 50-4: `선수` and `스태프` are separate sections, each with its own Section message.
+        scrollToText("선수 정보가 없습니다")
+        onNodeWithText("선수 정보가 없습니다").assertExists()
+        scrollToText("스태프 정보가 없습니다")
+        onNodeWithText("스태프 정보가 없습니다").assertExists()
         scrollToTag(teamNewsRowTag(ARTICLE_ID, ARTICLE_SLUG))
         onNodeWithText("KIWOOM DRX releases rookie Hermes").assertExists()
     }
@@ -317,7 +326,10 @@ class TeamDetailContentUiTest {
         onNodeWithTag(TEAM_DETAIL_HEADER_TAG).assertExists()
         onNodeWithText("예정된 경기가 없습니다").assertExists()
         onNodeWithText("최근 경기 기록이 없습니다").assertExists()
-        onNodeWithText("로스터 정보가 없습니다").assertExists()
+        scrollToText("선수 정보가 없습니다")
+        onNodeWithText("선수 정보가 없습니다").assertExists()
+        scrollToText("스태프 정보가 없습니다")
+        onNodeWithText("스태프 정보가 없습니다").assertExists()
         scrollToText("관련 뉴스가 없습니다")
         onNodeWithText("관련 뉴스가 없습니다").assertExists()
         onNode(isDialog()).assertDoesNotExist()
@@ -339,6 +351,9 @@ class TeamDetailContentUiTest {
         onNodeWithText("정보를 불러오지 못했습니다").assertIsDisplayed()
         onNodeWithText("네트워크 상태를 확인하고 다시 시도해 주세요.").assertIsDisplayed()
         onNodeWithText(TEAM_NAME).assertDoesNotExist()
+        // `.pen` 50-5: the dialog sits over the skeleton, which does not read as loading.
+        onNodeWithTag(TEAM_DETAIL_ERROR_SKELETON_TAG).assertExists()
+        onNodeWithTag(TEAM_DETAIL_LOADING_TAG).assertDoesNotExist()
         onNodeWithContentDescription("재시도").performClick()
         onNodeWithContentDescription("뒤로가기").performClick()
         assertEquals(1, retries)

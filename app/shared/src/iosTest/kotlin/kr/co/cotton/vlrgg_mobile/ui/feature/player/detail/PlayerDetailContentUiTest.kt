@@ -64,8 +64,12 @@ class PlayerDetailContentUiTest {
         // The dark band header has no title; Back stays reachable while the hero skeleton loads.
         onNodeWithText("Player Profile").assertDoesNotExist()
         onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
-        onNodeWithTag(PLAYER_DETAIL_LOADING_TAG).assertExists()
+        onNodeWithTag(PLAYER_DETAIL_LOADING_TAG)
+            .assertExists()
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
         onNodeWithTag(PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG).assertExists()
+        // `.pen` 51-3: row skeletons only, without section titles.
+        listOf("현재 팀", "요원별 기록", "최근 경기").forEach { onNodeWithText(it).assertDoesNotExist() }
         onNodeWithText("stax").assertDoesNotExist()
         onNodeWithText("T1").assertDoesNotExist()
         onNodeWithText("Jett").assertDoesNotExist()
@@ -95,8 +99,8 @@ class PlayerDetailContentUiTest {
         setContent { Fixture(PlayerDetailContentState.Content(player), { teamId = it }, { matchId = it }) }
 
         onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
-        onNodeWithText("현재 소속 팀").assertExists()
-        onNodeWithText("에이전트 통계").assertExists()
+        onNodeWithText("현재 팀").assertExists()
+        onNodeWithText("요원별 기록").assertExists()
         onNodeWithText("최근 경기").assertExists()
         onNodeWithTag(playerCurrentTeamCardTag(TEAM_ID)).assertExists()
         onNodeWithTag(playerRecentMatchCardTag(MATCH_ID)).assertExists()
@@ -242,7 +246,7 @@ class PlayerDetailContentUiTest {
         onNodeWithText("Jett").assertExists()
         onNodeWithText("jett").assertDoesNotExist()
         assertEquals(3, onAllNodesWithText("—").fetchSemanticsNodes().size)
-        onNodeWithContentDescription("에이전트 통계: Jett").assertExists()
+        onNodeWithContentDescription("요원별 기록: Jett").assertExists()
         onNodeWithContentDescription("Jett, Maps, 0").assertExists()
         onNodeWithContentDescription("Jett, Pick Rate, 0%").assertExists()
         onNodeWithContentDescription("Jett, Rating, —").assertExists()
@@ -405,6 +409,9 @@ class PlayerDetailContentUiTest {
         onNode(isDialog()).assertExists()
         onNodeWithText("정보를 불러오지 못했습니다").assertIsDisplayed()
         onNodeWithText("네트워크 상태를 확인하고 다시 시도해 주세요.").assertIsDisplayed()
+        // `.pen` 51-5: the dialog sits over the skeleton, which does not read as loading.
+        onNodeWithTag(PLAYER_DETAIL_ERROR_SKELETON_TAG).assertExists()
+        onNodeWithTag(PLAYER_DETAIL_LOADING_TAG).assertDoesNotExist()
         onNodeWithContentDescription("재시도").performClick()
         onNodeWithContentDescription("뒤로가기").performClick()
         assertEquals(1, retries)
@@ -617,7 +624,7 @@ class PlayerDetailContentUiTest {
         assertMinimumTarget("팀 상세: Nongshim RedForce Official Esports Organization")
         onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(playerMatchCardTag(MATCH_ID)))
         // Without both scores the row names the teams instead of a partial score.
-        assertMinimumTarget("경기 상세: T1 대 GEN")
+        assertMinimumTarget("경기 상세: T1 대 GEN, 승리")
     }
 
     @Composable

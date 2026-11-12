@@ -34,6 +34,21 @@ internal object KoreanDateTimeFormat {
         return "${local.date.year}년 ${monthDay(local.date)} ${time(local.time)}"
     }
 
+    /**
+     * Team·player match date: `9월 24일`, or `2025년 9월 24일` when [date] is not in [currentYear],
+     * the device year ([rememberDeviceToday]).
+     */
+    fun matchDate(date: LocalDate, currentYear: Int): String {
+        val monthDay = "${date.month.number}월 ${date.day}일"
+        return if (date.year == currentYear) monthDay else "${date.year}년 $monthDay"
+    }
+
+    /** Team match schedule: `9월 24일 오후 6:00`, or the [matchDate] alone without [time]. */
+    fun matchDateTime(date: LocalDate, time: LocalTime?, currentYear: Int): String {
+        val dateText = matchDate(date, currentYear)
+        return if (time == null) dateText else "$dateText ${time(time)}"
+    }
+
     /** `2026년 9월 19일` */
     fun date(date: LocalDate): String = "${date.year}년 ${date.month.number}월 ${date.day}일"
 
@@ -93,6 +108,12 @@ internal object KoreanDateTimeFormat {
         }
         return parts.joinToString(" ") + " 후"
     }
+
+    /**
+     * Team upcoming match status: a remaining-time source (`1d 6h`) becomes `1일 6시간 후`, and any
+     * other source (a score, `LIVE`) stays as written.
+     */
+    fun remainingTimeOrSource(label: String): String = remainingTime(label) ?: label
 
     private fun DayOfWeek.koreanShortName(): String = when (this) {
         DayOfWeek.MONDAY -> "월"

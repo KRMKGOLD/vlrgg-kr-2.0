@@ -1,6 +1,6 @@
 # Player
 
-Player Detail은 기본 정보, 현재 Team, 전체 기간 Agent Stats와 최근 경기로 연결하는 Phase 4 기능이다. 서버·앱과 자동화 검증은 완료됐고 실기기 screenshot·접근성 확인은 남아 있다. 즐겨찾기는 [공통 계약](../README.md#즐겨찾기-계약)을 따른다.
+Player Detail은 기본 정보, 현재 Team, 전체 기간 Agent Stats와 최근 경기로 연결하는 Phase 4 기능이다. 서버·앱과 자동화 검증은 완료됐고 실기기 screenshot·접근성 확인은 남아 있다. 앱 화면은 v3(`.pen` `51`)로 적용했다(2026-11-12). 즐겨찾기는 [공통 계약](../README.md#즐겨찾기-계약)을 따른다.
 
 ## MVP 범위
 
@@ -14,17 +14,17 @@ Search, News 본문, Team roster, 지원되는 Match Player link, MyPage에서 �
 
 ## 화면과 상태
 
-Back/favorite star, Player header, Current Team, Agent Stats, Recent Matches 순서다. 각 영역의 시각 형태는 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
+Back/즐겨찾기 별, hero, `현재 팀`, `요원별 기록`(메타 `전체 기간`), `최근 경기`(개수와 메타 `최대 5경기`) 순서다. 빈 섹션은 개수·메타 없이 둔다. 각 영역의 시각 형태는 [`DESIGN.md`](../../../DESIGN.md)를 따른다.
 
-- Current Team, Agent Stats, Recent Matches 누락은 독립 section Empty다. atomic response이므로 generic Partial을 만들지 않는다.
-- 전체 조회 실패만 Retry/Back modal error다. source에 없는 metric은 `—`이며 실제 `0`과 구분한다.
+- 현재 팀, 요원별 기록, 최근 경기 누락은 독립 section Empty다. atomic response이므로 generic Partial을 만들지 않는다.
+- 전체 조회 실패만 로딩과 같은 skeleton 위 Retry/Back modal error다. source에 없는 metric은 `—`이며 실제 `0`과 구분한다.
 - nullable face/team image의 blank·load failure는 text placeholder와 layout을 유지한다. Agent icon은 지원하지 않는다.
-- Recent Match outcome은 server의 `WIN`/`LOSS`/`UNKNOWN`만 사용한다. team 위치나 score로 추정하지 않으며 각각 `승리`/`패배`/`결과 미정` text를 함께 표시한다.
+- Recent Match outcome은 server의 `WIN`/`LOSS`/`UNKNOWN`만 사용한다. team 위치나 score로 추정하지 않으며 각각 `승리`/`패배`/`결과 미정` text를 함께 표시하고 행 낭독도 이 결과로 끝난다.
 - favorite mutation과 MyPage 반영은 공통 계약대로 처리하며 notification에 영향을 주지 않는다.
 
 ## Agent Stats 표
 
-Agent identity column은 고정하고 metric만 수평 스크롤한다. 열은 `Maps`, `Pick Rate`, `Rating`, `ACS`, `K/D`, `KAST`, `ADR` 순서이며 Agent 이름은 표시할 때 첫 글자만 대문자로 만든다.
+요원 고정 열(머리 `요원`)은 고정하고 metric만 수평 스크롤한다. 열은 `Maps`, `Pick Rate`, `Rating`, `ACS`, `K/D`, `KAST`, `ADR` 순서이며 Agent 이름은 표시할 때 첫 글자만 대문자로 만든다.
 
 - header 선택은 내림차순 → 오름차순 → 해제로 순환한다. 새 열은 내림차순부터 시작한다.
 - 표시 문자열이 아닌 domain 숫자를 비교하고 누락 값은 양 방향 모두 마지막, 동률은 source 순서를 유지한다.
@@ -41,7 +41,7 @@ GET /api/v1/players/{playerId}
 - 매 요청마다 `https://www.vlr.gg/player/{playerId}/?timespan=all`을 한 번 조회하며 cache, retry, stale-success fallback이 없다.
 - 응답은 필수 `id`/`profile`, nullable `currentTeam`, `agentStats`, `recentMatches`다. Profile은 `handle`, `realName`, `aliases`, `countryCode`, `countryName`, `imageUrl`, Team은 `id`, `name`, `imageUrl`을 가진다.
 - Agent Stats는 `agentName`, `mapsPlayed`, `pickRatePercent`, `roundsPlayed`, `rating`, `averageCombatScore`, `killDeathRatio`, `kastPercent`, `averageDamagePerRound`, `killsPerRound`, `assistsPerRound`, `firstKillDeathRatio`, `kills`, `deaths`, `assists`, `firstKills`, `firstDeaths`를 제공한다.
-- Recent Match는 `id`, `eventName`, `eventStage`, `teamA`, `teamB`, `teamAScore`, `teamBScore`, `outcome`, `playedOn`을 사용한다. `playedOn`(`2026/08/02`)은 원문이며, 2026-11-10 계약으로 `playedDate`를 추가해 앱이 `8월 2일`로 표시한다([한국어 표시 확장](../matches/README.md#한국어-표시-확장-2026-11-10)).
+- Recent Match는 `id`, `eventName`, `eventStage`, `teamA`, `teamB`, `teamAScore`, `teamBScore`, `outcome`, `playedOn`을 사용한다. `playedOn`(`2026/08/02`)은 원문이며, 2026-11-10 계약으로 `playedDate`를 추가해 앱이 `8월 2일`로 표시한다(앱 구현 완료, 서버 field가 오기 전까지는 원문, [한국어 표시 확장](../matches/README.md#한국어-표시-확장-2026-11-10)).
 - `profile.imageUrl`, `currentTeam.imageUrl`, optional numeric metric과 score/date/stage는 source 미제공 또는 안전하게 해석할 수 없으면 `null`이다.
 - recentMatches는 source 순서의 최대 5개다. ID, timestamp, metric 값을 만들지 않는다.
 - Player face URL을 public HTTPS로 정규화하지 못하면 `null`이며 parsing failure가 아니다.

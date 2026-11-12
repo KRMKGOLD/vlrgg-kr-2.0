@@ -1,22 +1,16 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,36 +21,40 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerAgentStat
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
-import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
-import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
-import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrErrorDialog
-import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
-import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
-import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import kotlin.time.Duration.Companion.ZERO
 import kr.co.cotton.vlrgg_mobile.ui.component.DetailTopBand
 import kr.co.cotton.vlrgg_mobile.ui.component.EntityHero
+import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
 import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteStarIcon
 import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
 import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotDefaults
 import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
 import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotSurface
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonHero
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrErrorDialog
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.favoriteStarTint
 import kr.co.cotton.vlrgg_mobile.ui.component.logoInitials
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
+import kr.co.cotton.vlrgg_mobile.ui.format.rememberDeviceToday
+import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
+import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kotlin.time.Duration.Companion.ZERO
 
 internal const val PLAYER_DETAIL_LOADING_TAG = "player-detail-loading"
+internal const val PLAYER_DETAIL_ERROR_SKELETON_TAG = "player-detail-error-skeleton"
 internal const val PLAYER_DETAIL_HEADER_TAG = "player-detail-header"
 internal const val PLAYER_DETAIL_TEAM_SECTION_TAG = "player-detail-team-section"
 internal const val PLAYER_DETAIL_STATS_SECTION_TAG = "player-detail-stats-section"
@@ -105,7 +103,7 @@ fun PlayerDetailContent(
 
     Scaffold(
         modifier = modifier,
-        containerColor = VlrTheme.colors.surface,
+        containerColor = VlrTheme.colors.canvas,
         topBar = {
             PlayerDetailTopBar(
                 favorite = uiState.favorite,
@@ -134,8 +132,9 @@ fun PlayerDetailContent(
         },
     ) { padding ->
         when (val state = uiState.contentState) {
-            PlayerDetailContentState.Loading -> PlayerDetailLoading(
+            PlayerDetailContentState.Loading -> PlayerDetailSkeleton(
                 listState,
+                isLoading = true,
                 Modifier.fillMaxSize().padding(padding),
             )
             is PlayerDetailContentState.Content -> PlayerDetailBody(
@@ -148,7 +147,11 @@ fun PlayerDetailContent(
                 onAgentStatsSortColumn,
                 Modifier.fillMaxSize().padding(padding),
             )
-            PlayerDetailContentState.Error -> Box(Modifier.fillMaxSize().padding(padding))
+            PlayerDetailContentState.Error -> PlayerDetailSkeleton(
+                listState,
+                isLoading = false,
+                Modifier.fillMaxSize().padding(padding),
+            )
         }
     }
     if (
@@ -208,6 +211,10 @@ private fun PlayerFavoriteButton(
     )
 }
 
+/**
+ * `.pen` 51-1: hero, then white `현재 팀`·`요원별 기록`·`최근 경기` sections on `canvas`, 8dp apart and
+ * 8dp below the hero. Each section keeps its title and shows a Section message when empty (51-4).
+ */
 @Composable
 private fun PlayerDetailBody(
     player: PlayerDetail,
@@ -218,25 +225,26 @@ private fun PlayerDetailBody(
     onMatchClick: (String) -> Unit,
     onAgentStatsSortColumn: (PlayerAgentStatsSortColumn) -> Unit,
     modifier: Modifier,
-) = LazyColumn(state = listState, modifier = modifier) {
-    item("header") { PlayerHeader(player) }
-    item("team") { CurrentTeamSection(player, onTeamClick) }
-    divider("team-divider")
-    item("stats") {
-        AgentStatsSection(
-            stats = player.agentStats,
-            horizontalScrollState = agentStatsHorizontalScrollState,
-            sort = agentStatsSort,
-            onSortColumn = onAgentStatsSortColumn,
-        )
+) {
+    val currentYear = rememberDeviceToday().year
+    LazyColumn(
+        state = listState,
+        modifier = modifier.background(VlrTheme.colors.canvas),
+        contentPadding = PaddingValues(bottom = VlrDimensions.Space6),
+        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
+    ) {
+        item("header") { PlayerHeader(player) }
+        item("team") { CurrentTeamSection(player, onTeamClick) }
+        item("stats") {
+            AgentStatsSection(
+                stats = player.agentStats,
+                horizontalScrollState = agentStatsHorizontalScrollState,
+                sort = agentStatsSort,
+                onSortColumn = onAgentStatsSortColumn,
+            )
+        }
+        item("matches") { RecentMatchesSection(player.recentMatches, currentYear, onMatchClick) }
     }
-    divider("stats-divider")
-    item("matches") { RecentMatchesSection(player.recentMatches, onMatchClick) }
-    item("bottom-space") { Spacer(Modifier.height(VlrDimensions.Space8)) }
-}
-
-private fun LazyListScope.divider(key: String) = item(key) {
-    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
 }
 
 @Composable
@@ -272,10 +280,13 @@ private fun PlayerHeader(player: PlayerDetail) {
 
 @Composable
 private fun CurrentTeamSection(player: PlayerDetail, onTeamClick: (String) -> Unit) {
-    Section(PLAYER_DETAIL_TEAM_SECTION_TAG, "현재 소속 팀") {
-        player.currentTeam?.let { team ->
+    val team = player.currentTeam
+    Section(PLAYER_DETAIL_TEAM_SECTION_TAG, "현재 팀") {
+        if (team == null) {
+            SectionMessage("소속 팀 정보가 없습니다")
+        } else {
             PlayerCurrentTeamCard(team = team, onClick = { onTeamClick(team.id) })
-        } ?: SectionEmpty("소속 팀 정보가 없습니다")
+        }
     }
 }
 
@@ -286,9 +297,9 @@ private fun AgentStatsSection(
     sort: StatsSort<PlayerAgentStatsSortColumn>?,
     onSortColumn: (PlayerAgentStatsSortColumn) -> Unit,
 ) {
-    Section(PLAYER_DETAIL_STATS_SECTION_TAG, "에이전트 통계") {
+    Section(PLAYER_DETAIL_STATS_SECTION_TAG, "요원별 기록", meta = "전체 기간".takeIf { stats.isNotEmpty() }) {
         if (stats.isEmpty()) {
-            SectionEmpty("에이전트 통계 정보가 없습니다")
+            SectionMessage("에이전트 통계 정보가 없습니다")
         } else {
             PlayerAgentStatsTable(
                 stats = stats,
@@ -301,82 +312,74 @@ private fun AgentStatsSection(
 }
 
 @Composable
-private fun RecentMatchesSection(matches: List<PlayerRecentMatch>, onMatchClick: (String) -> Unit) {
-    Section(PLAYER_DETAIL_MATCHES_SECTION_TAG, "최근 경기") {
-        if (matches.isEmpty()) SectionEmpty("최근 경기 기록이 없습니다")
-        else Column {
+private fun RecentMatchesSection(
+    matches: List<PlayerRecentMatch>,
+    currentYear: Int,
+    onMatchClick: (String) -> Unit,
+) {
+    Section(
+        tag = PLAYER_DETAIL_MATCHES_SECTION_TAG,
+        title = "최근 경기",
+        count = matches.size.takeIf { it > 0 }?.toString(),
+        meta = "최대 5경기".takeIf { matches.isNotEmpty() },
+    ) {
+        if (matches.isEmpty()) {
+            SectionMessage("최근 경기 기록이 없습니다")
+        } else {
             matches.forEach { match ->
-                PlayerRecentMatchCard(match = match, onClick = { onMatchClick(match.id) })
+                PlayerRecentMatchCard(match = match, currentYear = currentYear, onClick = { onMatchClick(match.id) })
             }
         }
     }
 }
 
+/** White section with a [SectionHeader]; the meta (`전체 기간`, `최대 5경기`) only describes shown rows. */
 @Composable
-private fun Section(tag: String, title: String, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().testTag(tag).padding(top = VlrDimensions.Space4)) {
-        Text(
-            title,
-            Modifier.padding(horizontal = VlrDimensions.Space4).semantics { heading() },
-            style = VlrTheme.typography.section,
-            color = VlrTheme.colors.ink,
-        )
-        Spacer(Modifier.height(VlrDimensions.Space3))
+private fun Section(
+    tag: String,
+    title: String,
+    count: String? = null,
+    meta: String? = null,
+    content: @Composable () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().background(VlrTheme.colors.surface).testTag(tag)) {
+        SectionHeader(title = title, count = count, meta = meta)
         content()
     }
 }
 
+/**
+ * `.pen` 51-3·51-5: dark hero skeleton with a round photo slot and two white sections of list-row
+ * skeletons on `canvas`. The overall error shows the same skeleton under its dialog, so only
+ * [isLoading] reads as progress.
+ */
 @Composable
-private fun SectionEmpty(message: String) {
-    SectionMessage(message = message)
-}
-
-@Composable
-private fun PlayerDetailLoading(listState: LazyListState, modifier: Modifier) = LazyColumn(
-    state = listState, modifier = modifier.testTag(PLAYER_DETAIL_LOADING_TAG).semantics { contentDescription = "선수 상세를 불러오는 중" },
-) {
-    item("loading-header") { SkeletonHero(Modifier.testTag(PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG)) }
-    item("loading-team") {
-        LoadingSection { LoadingCurrentTeamCard() }
+private fun PlayerDetailSkeleton(listState: LazyListState, isLoading: Boolean, modifier: Modifier) {
+    val progress = if (isLoading) {
+        Modifier
+            .testTag(PLAYER_DETAIL_LOADING_TAG)
+            .semantics {
+                contentDescription = "선수 상세를 불러오는 중"
+                progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+            }
+    } else {
+        Modifier.testTag(PLAYER_DETAIL_ERROR_SKELETON_TAG)
     }
-    divider("loading-team-divider")
-    item("loading-stats") {
-        LoadingSection { LoadingAgentStatsTable() }
-    }
-    divider("loading-stats-divider")
-    item("loading-matches") {
-        LoadingSection {
-            Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
-                LoadingRecentMatchCard()
-                LoadingRecentMatchCard()
+    LazyColumn(
+        state = listState,
+        modifier = modifier.background(VlrTheme.colors.canvas).then(progress),
+        contentPadding = PaddingValues(bottom = VlrDimensions.Space6),
+        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
+    ) {
+        item("skeleton-hero") {
+            SkeletonHero(Modifier.testTag(PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG), circularLogo = true)
+        }
+        listOf(3, 2).forEachIndexed { index, rows ->
+            item("skeleton-section-$index") {
+                Column(Modifier.fillMaxWidth().background(VlrTheme.colors.surface)) {
+                    repeat(rows) { SkeletonRow() }
+                }
             }
         }
     }
 }
-
-@Composable
-private fun LoadingSection(content: @Composable () -> Unit) = Column(
-    Modifier.fillMaxWidth().padding(VlrDimensions.Space4),
-) {
-    Skeleton(96.dp, 20.dp)
-    Spacer(Modifier.height(VlrDimensions.Space3))
-    content()
-}
-
-@Composable
-private fun LoadingCurrentTeamCard() = Skeleton(width = null, height = 72.dp)
-
-@Composable
-private fun LoadingAgentStatsTable() = Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.OutlineWidth)) {
-    Skeleton(width = null, height = 56.dp)
-    Skeleton(width = null, height = 52.dp)
-    Skeleton(width = null, height = 52.dp)
-}
-
-@Composable
-private fun LoadingRecentMatchCard() = Skeleton(width = null, height = 96.dp)
-
-@Composable
-private fun Skeleton(width: androidx.compose.ui.unit.Dp?, height: androidx.compose.ui.unit.Dp) = SkeletonBlock(
-    (if (width == null) Modifier.fillMaxWidth() else Modifier.width(width)).height(height),
-)

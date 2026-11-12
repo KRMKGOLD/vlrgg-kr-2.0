@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -23,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kotlin.math.roundToInt
 
 /** Result column of a [TeamMatchRow]; only player matches carry one. */
 enum class TeamMatchOutcome(val label: String) {
@@ -97,6 +99,7 @@ fun TeamMatchRow(
         }
         if (status != null || date != null) {
             Column(
+                modifier = Modifier.capWidth(TeamMatchRowTrailingMaxFraction),
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
@@ -112,6 +115,24 @@ fun TeamMatchRow(
             }
         }
     }
+}
+
+/**
+ * Share of the width left beside the result column that the status and date column may take. A
+ * long schedule (`2025년 12월 24일 오후 12:00` at a large font) wraps inside it instead of being
+ * measured first at full width and leaving the match title no room.
+ */
+internal const val TeamMatchRowTrailingMaxFraction = 0.45f
+
+/** Measures with at most [fraction] of the incoming max width, so a [Row] sibling keeps the rest. */
+private fun Modifier.capWidth(fraction: Float): Modifier = layout { measurable, constraints ->
+    val maxWidth = if (constraints.hasBoundedWidth) {
+        (constraints.maxWidth * fraction).roundToInt().coerceAtLeast(constraints.minWidth)
+    } else {
+        constraints.maxWidth
+    }
+    val placeable = measurable.measure(constraints.copy(maxWidth = maxWidth))
+    layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
 }
 
 @Composable
@@ -145,8 +166,8 @@ private fun TeamMatchRowPreview() {
                 onClick = {},
                 contentDescription = "경기 상세: KIWOOM DRX 대 Paper Rex",
                 context = "VCT Pacific 2026 · Playoffs–Upper Final",
-                status = TeamMatchRowStatus.Label("1d 6h"),
-                date = "2026/09/24 6:00 pm",
+                status = TeamMatchRowStatus.Label("1일 6시간 후"),
+                date = "9월 24일 오후 6:00",
             )
             TeamMatchRow(
                 title = "Nongshim RedForce vs BBL Esports",
@@ -154,7 +175,7 @@ private fun TeamMatchRowPreview() {
                 contentDescription = "경기 상세: Nongshim RedForce 2, BBL Esports 0",
                 context = "Esports World Cup 2026 · Playoffs",
                 status = TeamMatchRowStatus.Score("2 : 0"),
-                date = "2026/07/12",
+                date = "7월 12일",
                 outcome = TeamMatchOutcome.Win,
             )
         }
