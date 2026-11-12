@@ -24,7 +24,7 @@ Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 ### Event Detail
 
 - Event 기본 정보
-- `Matches`, `News`, `Stats` 탭 (`Matches` 기본)
+- `Matches`, `News`, `Stats` 탭 (`Matches` 기본, 화면 라벨은 `경기`·`뉴스`·`통계`)
 - Match 선택 시 Match Detail 이동
 - News 선택 시 News Detail 이동
 - Stats의 pinned Player identity cell 선택 시 Player Detail 이동
