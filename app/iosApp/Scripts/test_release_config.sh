@@ -31,7 +31,7 @@ IOS_TEAM_ID=ABCDE12345 \
 
 test "$(stat -f %Lp "$release_config")" = 600
 grep -F 'API_BASE_URL=https:$(SLASH)$(SLASH)example.invalid' "$release_config" >/dev/null
-! grep -F 'https://' "$release_config" >/dev/null
+expect_failure grep -F 'https://' "$release_config"
 
 build_settings="$temp_dir/build-settings"
 xcodebuild \
@@ -60,7 +60,7 @@ sed -n 's/^[[:space:]]*file\.puts("\(.*\)")$/\1/p' "$repository_dir/fastlane/Fas
     sed "s/#{profile_uuid}/$profile_uuid/" >>"$signing_config"
 grep -Fx 'CODE_SIGN_STYLE=Manual' "$signing_config" >/dev/null
 grep -Fx "PROVISIONING_PROFILE_SPECIFIER=$profile_uuid" "$signing_config" >/dev/null
-! grep -E '^(CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM)=' "$signing_config" >/dev/null
+expect_failure grep -E '^(CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM)=' "$signing_config"
 
 signing_settings="$temp_dir/signing-settings"
 xcodebuild \
@@ -91,7 +91,7 @@ if FIREBASE_ALLOW_UNCONFIGURED=YES xcodebuild \
     exit 1
 fi
 grep -F "No profile for team 'ABCDE12345' matching '$profile_uuid'" "$temp_dir/signing-plan" >/dev/null
-! grep -E 'requires a development team|does not support provisioning profiles' "$temp_dir/signing-plan" >/dev/null
+expect_failure grep -E 'requires a development team|does not support provisioning profiles' "$temp_dir/signing-plan"
 test "$(grep -c 'error: ' "$temp_dir/signing-plan")" = 1
 
 for origin in 'https://example.invalid:1' 'https://example.invalid:65535' 'https://[::1]' 'https://[::1]:443'; do
@@ -106,7 +106,7 @@ xcodebuild \
     -configuration Release \
     -destination 'generic/platform=iOS' \
     -showBuildSettings >"$default_release_settings" 2>"$temp_dir/default-release-stderr"
-! grep -E '^[[:space:]]*(API_BASE_URL|MARKETING_VERSION|CURRENT_PROJECT_VERSION) = .+' "$default_release_settings" >/dev/null
+expect_failure grep -E '^[[:space:]]*(API_BASE_URL|MARKETING_VERSION|CURRENT_PROJECT_VERSION) = .+' "$default_release_settings"
 
 debug_settings="$temp_dir/debug-settings"
 xcodebuild \
