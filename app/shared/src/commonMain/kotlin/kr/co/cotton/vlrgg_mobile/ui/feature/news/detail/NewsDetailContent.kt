@@ -47,17 +47,15 @@ import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticle
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleBlock
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsArticleInline
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsLinkKind
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_arrow_back
-import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_newspaper
+import vlrggmobile.app.shared.generated.resources.ic_description
 
 @Composable
 fun NewsDetailContent(
@@ -72,7 +70,7 @@ fun NewsDetailContent(
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { NewsDetailTopBar(onBack = onBack) },
+        topBar = { DetailHeader(onBack = onBack, title = "뉴스") },
     ) { contentPadding ->
         when (val contentState = uiState.contentState) {
             NewsDetailContentState.Loading -> NewsDetailSkeleton(
@@ -108,40 +106,6 @@ fun NewsDetailContent(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun NewsDetailTopBar(
-    onBack: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(VlrTheme.colors.surface),
-    ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = VlrDimensions.Space1),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            VlrIconButton(
-                contentDescription = "뒤로 가기",
-                onClick = onBack,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_arrow_back),
-                        contentDescription = null,
-                    )
-                },
-            )
-        }
-        HorizontalDivider(
-            thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.line,
-        )
     }
 }
 
@@ -330,36 +294,14 @@ private fun NewsArticleEmpty(
 ) {
     Column(modifier = modifier) {
         NewsArticleHeader(article = article, showDivider = false)
-        Column(
+        StatePanel(
+            title = "기사 내용을 불러올 수 없습니다.",
+            body = "본문 내용이 비어 있거나 유효하지 않습니다.",
+            icon = Res.drawable.ic_description,
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = VlrDimensions.Space4)
-                .padding(bottom = VlrDimensions.Space8),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Icon(
-                imageVector = vectorResource(Res.drawable.ic_newspaper),
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = VlrTheme.colors.line,
-            )
-            Spacer(Modifier.height(VlrDimensions.Space3))
-            Text(
-                text = "기사 내용을 불러올 수 없습니다.",
-                style = VlrTheme.typography.section,
-                color = VlrTheme.colors.ink,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(VlrDimensions.Space1))
-            Text(
-                text = "본문 내용이 비어 있거나 유효하지 않습니다.",
-                style = VlrTheme.typography.bodySm,
-                color = VlrTheme.colors.muted,
-                textAlign = TextAlign.Center,
-            )
-        }
+                .fillMaxWidth(),
+        )
     }
 }
 
@@ -368,46 +310,18 @@ private fun NewsDetailError(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier.padding(horizontal = VlrDimensions.Space4),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space6),
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-            ) {
-                Icon(
-                    imageVector = vectorResource(Res.drawable.ic_error),
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = VlrTheme.colors.line,
-                )
-                Text(
-                    text = "기사 내용을 불러올 수 없습니다.",
-                    style = VlrTheme.typography.bodySm,
-                    color = VlrTheme.colors.ink,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            VlrButton(
-                text = "재시도",
-                onClick = onRetry,
-                modifier = Modifier.widthIn(min = 120.dp),
-            )
-        }
-    }
+    StatePanel(
+        title = "기사 내용을 불러올 수 없습니다.",
+        actionLabel = "재시도",
+        onAction = onRetry,
+        modifier = modifier,
+    )
 }
 
 @Composable
 private fun NewsDetailSkeleton(
     modifier: Modifier = Modifier,
 ) {
-    val skeletonShape = RoundedCornerShape(VlrDimensions.Space1)
-
     LazyColumn(
         modifier = modifier.clearAndSetSemantics {},
     ) {
@@ -436,14 +350,14 @@ private fun NewsDetailSkeleton(
                     )
                     Spacer(Modifier.width(VlrDimensions.Space3))
                     Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1)) {
-                        SkeletonLine(widthFraction = 0.32f, height = 16.dp, shape = skeletonShape)
-                        SkeletonLine(widthFraction = 0.20f, height = 12.dp, shape = skeletonShape)
+                        SkeletonLine(widthFraction = 0.32f, height = 16.dp)
+                        SkeletonLine(widthFraction = 0.20f, height = 12.dp)
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
-                    SkeletonLine(widthFraction = 1f, height = 32.dp, shape = skeletonShape)
-                    SkeletonLine(widthFraction = 0.75f, height = 32.dp, shape = skeletonShape)
-                    SkeletonLine(widthFraction = 0.5f, height = 32.dp, shape = skeletonShape)
+                    SkeletonLine(widthFraction = 1f, height = 32.dp)
+                    SkeletonLine(widthFraction = 0.75f, height = 32.dp)
+                    SkeletonLine(widthFraction = 0.5f, height = 32.dp)
                 }
                 HorizontalDivider(
                     thickness = VlrDimensions.OutlineWidth,
@@ -460,7 +374,6 @@ private fun NewsDetailSkeleton(
                                 else -> 1f
                             },
                             height = 16.dp,
-                            shape = skeletonShape,
                         )
                     }
                 }
@@ -475,16 +388,15 @@ private fun NewsDetailSkeleton(
                         .padding(VlrDimensions.Space4),
                     verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
                 ) {
-                    SkeletonLine(widthFraction = 0.33f, height = 20.dp, shape = skeletonShape)
-                    SkeletonLine(widthFraction = 1f, height = 16.dp, shape = skeletonShape)
-                    SkeletonLine(widthFraction = 0.8f, height = 16.dp, shape = skeletonShape)
+                    SkeletonLine(widthFraction = 0.33f, height = 20.dp)
+                    SkeletonLine(widthFraction = 1f, height = 16.dp)
+                    SkeletonLine(widthFraction = 0.8f, height = 16.dp)
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
                     repeat(4) { index ->
                         SkeletonLine(
                             widthFraction = if (index == 1) 0.85f else if (index == 3) 0.6f else 1f,
                             height = 16.dp,
-                            shape = skeletonShape,
                         )
                     }
                 }
@@ -503,7 +415,6 @@ private fun NewsDetailSkeleton(
                             SkeletonLine(
                                 widthFraction = if (index == 1) 0.85f else 0.75f,
                                 height = 16.dp,
-                                shape = skeletonShape,
                             )
                         }
                     }
@@ -517,14 +428,11 @@ private fun NewsDetailSkeleton(
 private fun SkeletonLine(
     widthFraction: Float,
     height: androidx.compose.ui.unit.Dp,
-    shape: RoundedCornerShape,
 ) {
-    Box(
+    SkeletonBlock(
         modifier = Modifier
             .fillMaxWidth(widthFraction)
-            .height(height)
-            .clip(shape)
-            .background(VlrTheme.colors.skeleton),
+            .height(height),
     )
 }
 

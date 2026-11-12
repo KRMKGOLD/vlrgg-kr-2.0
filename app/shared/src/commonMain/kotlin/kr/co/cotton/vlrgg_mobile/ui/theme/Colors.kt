@@ -31,12 +31,6 @@ data class VlrColors(
     val focus: Color,
     val disabled: Color,
     val scrim: Color,
-    // v3에서는 상태를 텍스트로 표시하므로 해당 화면 적용 단계에서 제거한다.
-    val statusUpcomingContainer: Color,
-    val statusUpcoming: Color,
-    val statusCompletedContainer: Color,
-    val statusCompleted: Color,
-    val statusCancelled: Color,
 )
 
 val VlrLightColors = VlrColors(
@@ -63,9 +57,4 @@ val VlrLightColors = VlrColors(
     focus = Color(0xFF2F6FED),
     disabled = Color(0xFF9AA1AC),
     scrim = Color(0xFF0B0D10).copy(alpha = 0.40f),
-    statusUpcomingContainer = Color(0xFFE3F2FD),
-    statusUpcoming = Color(0xFF1976D2),
-    statusCompletedContainer = Color(0xFFE8F5E9),
-    statusCompleted = Color(0xFF388E3C),
-    statusCancelled = Color(0xFF757575),
 )

@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -49,10 +48,12 @@ import kotlinx.coroutines.delay
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrErrorDialog
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchSection
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
@@ -60,11 +61,6 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_arrow_back
-import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_scoreboard
-import vlrggmobile.app.shared.generated.resources.ic_newspaper
-import vlrggmobile.app.shared.generated.resources.ic_person
 import vlrggmobile.app.shared.generated.resources.ic_star_fill
 import vlrggmobile.app.shared.generated.resources.ic_star
 import kotlin.time.Duration.Companion.ZERO
@@ -197,72 +193,35 @@ private fun TeamDetailTopBar(
     onBack: () -> Unit,
     onFavoriteToggle: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(VlrTheme.colors.surface),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-        ) {
-            VlrIconButton(
-                contentDescription = "뒤로 가기",
-                onClick = onBack,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = VlrDimensions.Space1),
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_arrow_back),
-                        contentDescription = null,
-                    )
-                },
-            )
-            Text(
-                text = "Team Detail",
-                modifier = Modifier.align(Alignment.Center),
-                style = VlrTheme.typography.title,
-                color = VlrTheme.colors.ink,
-            )
+    DetailHeader(
+        onBack = onBack,
+        title = "Team Detail",
+        actions = { iconColor ->
             if (favorite.isRestored) {
                 VlrIconButton(
                     contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
                     onClick = onFavoriteToggle,
                     enabled = !favorite.isMutationInProgress,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = VlrDimensions.Space1)
-                        .testTag(
-                            if (favorite.isFavorite) {
-                                TEAM_DETAIL_FAVORITE_FILLED_TAG
-                            } else {
-                                TEAM_DETAIL_FAVORITE_OUTLINE_TAG
-                            },
-                        ),
+                    tint = if (favorite.isFavorite) VlrTheme.colors.accent else iconColor,
+                    modifier = Modifier.testTag(
+                        if (favorite.isFavorite) {
+                            TEAM_DETAIL_FAVORITE_FILLED_TAG
+                        } else {
+                            TEAM_DETAIL_FAVORITE_OUTLINE_TAG
+                        },
+                    ),
                     icon = {
                         Icon(
                             imageVector = vectorResource(
                                 if (favorite.isFavorite) Res.drawable.ic_star_fill else Res.drawable.ic_star,
                             ),
                             contentDescription = null,
-                            tint = if (favorite.isFavorite) {
-                                VlrTheme.colors.accent
-                            } else {
-                                VlrTheme.colors.ink
-                            },
                         )
                     },
                 )
             }
-        }
-        HorizontalDivider(
-            thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.line,
-        )
-    }
+        },
+    )
 }
 
 @Composable
@@ -428,7 +387,6 @@ private fun TeamMatchesSection(
         if (matches.isEmpty()) {
             SectionEmpty(
                 message = emptyMessage,
-                icon = Res.drawable.ic_scoreboard,
             )
         } else {
             matches.forEach { match ->
@@ -463,7 +421,6 @@ private fun TeamRosterSection(
         if (players.isEmpty() && staff.isEmpty()) {
             SectionEmpty(
                 message = "로스터 정보가 없습니다",
-                icon = Res.drawable.ic_person,
                 modifier = Modifier.padding(horizontal = VlrDimensions.Space4),
             )
             return
@@ -616,7 +573,6 @@ private fun TeamNewsSection(
         if (news.isEmpty()) {
             SectionEmpty(
                 message = "관련 뉴스가 없습니다",
-                icon = Res.drawable.ic_newspaper,
                 modifier = Modifier.padding(horizontal = VlrDimensions.Space4),
             )
         } else {
@@ -684,47 +640,14 @@ private fun SectionTitle(
 @Composable
 private fun SectionEmpty(
     message: String,
-    icon: DrawableResource,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 112.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            imageVector = vectorResource(icon),
-            contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            tint = VlrTheme.colors.line,
-        )
-        Spacer(Modifier.height(VlrDimensions.Space2))
-        Text(
-            text = message,
-            style = VlrTheme.typography.bodySm,
-            color = VlrTheme.colors.muted,
-            textAlign = TextAlign.Center,
-        )
-    }
+    SectionMessage(message = message, modifier = modifier, horizontalPadding = 0.dp)
 }
 
 @Composable
 private fun InlineEmpty(message: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .padding(horizontal = VlrDimensions.Space4),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Text(
-            text = message,
-            style = VlrTheme.typography.bodySm,
-            color = VlrTheme.colors.muted,
-        )
-    }
+    SectionMessage(message = message)
 }
 
 @Composable
@@ -866,11 +789,7 @@ private fun LoadingRosterRow() {
 
 @Composable
 private fun SkeletonBox(modifier: Modifier) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(VlrDimensions.Space1))
-            .background(VlrTheme.colors.skeleton),
-    )
+    SkeletonBlock(modifier)
 }
 
 @Composable
@@ -878,61 +797,17 @@ private fun TeamDetailErrorDialog(
     onRetry: () -> Unit,
     onBack: () -> Unit,
 ) {
-    AlertDialog(
+    VlrErrorDialog(
+        title = "정보를 불러오지 못했습니다",
+        message = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+        confirmLabel = "재시도",
+        onConfirm = onRetry,
+        dismissLabel = "뒤로가기",
+        onDismiss = onBack,
         onDismissRequest = {},
         properties = DialogProperties(
             dismissOnBackPress = false,
             dismissOnClickOutside = false,
         ),
-        icon = {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(VlrTheme.colors.accentSoft),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = vectorResource(Res.drawable.ic_error),
-                    contentDescription = null,
-                    tint = VlrTheme.colors.accent,
-                )
-            }
-        },
-        title = {
-            Text(
-                text = "정보를 불러오지 못했습니다",
-                style = VlrTheme.typography.section,
-                color = VlrTheme.colors.ink,
-                textAlign = TextAlign.Center,
-            )
-        },
-        text = {
-            Text(
-                text = "네트워크 상태를 확인하고 다시 시도해 주세요.",
-                style = VlrTheme.typography.bodySm,
-                color = VlrTheme.colors.muted,
-                textAlign = TextAlign.Center,
-            )
-        },
-        confirmButton = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-            ) {
-                VlrButton(
-                    text = "재시도",
-                    onClick = onRetry,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                VlrButton(
-                    text = "뒤로가기",
-                    onClick = onBack,
-                    modifier = Modifier.fillMaxWidth(),
-                    variant = VlrButtonVariant.Secondary,
-                )
-            }
-        },
-        containerColor = VlrTheme.colors.surface,
     )
 }

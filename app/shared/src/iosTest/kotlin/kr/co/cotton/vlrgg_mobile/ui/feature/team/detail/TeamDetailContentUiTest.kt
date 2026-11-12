@@ -40,6 +40,8 @@ import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamMatch
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kr.co.cotton.vlrgg_mobile.ui.navigation.rootNavKeys
+import kr.co.cotton.vlrgg_mobile.ui.navigation.rootNavigationItemTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.initializeVlrMaterial3
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -488,9 +490,10 @@ class TeamDetailContentUiTest {
 
         onNodeWithText(longKoreanName).assertExists()
         onNodeWithContentDescription("즐겨찾기 추가").assertExists()
-        onNodeWithText("News").assertDoesNotExist()
-        onNodeWithText("Matches").assertDoesNotExist()
-        onNodeWithText("MyPage").assertDoesNotExist()
+        rootNavKeys.forEach { root ->
+            onNodeWithTag(rootNavigationItemTag(root)).assertDoesNotExist()
+        }
+        onNodeWithText("마이페이지").assertDoesNotExist()
     }
 
     @Test

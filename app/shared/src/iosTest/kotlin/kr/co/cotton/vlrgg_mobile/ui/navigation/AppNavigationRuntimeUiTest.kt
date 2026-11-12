@@ -148,22 +148,22 @@ class AppNavigationRuntimeUiTest {
                 )
             }
 
-            onNodeWithText("root:My Page").assertExists()
+            onNodeWithText("root:마이페이지").assertExists()
             mainClock.autoAdvance = false
             runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
             mainClock.advanceTimeByFrame()
 
-            onNodeWithText("root:News").assertExists()
+            onNodeWithText("root:뉴스").assertExists()
             runOnIdle {
-                assertEquals(listOf("My Page", "News"), composedDestinations)
-                assertFalse("My Page" in disposedDestinations)
+                assertEquals(listOf("마이페이지", "뉴스"), composedDestinations)
+                assertFalse("마이페이지" in disposedDestinations)
             }
 
             mainClock.advanceTimeBy(RootSelectionFadeDurationMillis.toLong() + 100)
             waitForIdle()
 
-            onNodeWithText("root:News").assertExists()
-            assertTrue("My Page" in disposedDestinations)
+            onNodeWithText("root:뉴스").assertExists()
+            assertTrue("마이페이지" in disposedDestinations)
         }
     }
 
@@ -190,7 +190,7 @@ class AppNavigationRuntimeUiTest {
                 }
             }
 
-            onNodeWithText("root:My Page").assertExists()
+            onNodeWithText("root:마이페이지").assertExists()
             onNodeWithText("set-loaded-page").performClick()
             onNodeWithText("set-selected-tab").performClick()
             onNodeWithText("increment-counter").performClick()
@@ -204,10 +204,10 @@ class AppNavigationRuntimeUiTest {
             onNodeWithText("saveable-counter:1").assertExists()
             val myPageViewModel = tracker.rootFor(MyPageRoot)
 
-            onNodeWithText("News").performClick()
-            onNodeWithText("root:News").assertExists()
-            onNodeWithText("My Page").performClick()
-            onNodeWithText("root:My Page").assertExists()
+            onNodeWithTag(rootNavigationItemTag(NewsRoot)).performClick()
+            onNodeWithText("root:뉴스").assertExists()
+            onNodeWithTag(rootNavigationItemTag(MyPageRoot)).performClick()
+            onNodeWithText("root:마이페이지").assertExists()
             onNodeWithText("loaded-page:loaded").assertExists()
             onNodeWithText("selected-tab:results").assertExists()
             onNodeWithText("saveable-counter:1").assertExists()
@@ -222,7 +222,7 @@ class AppNavigationRuntimeUiTest {
             onNodeWithText("pop-detail").performClick()
             waitForIdle()
 
-            onNodeWithText("root:My Page").assertExists()
+            onNodeWithText("root:마이페이지").assertExists()
             onNodeWithText("loaded-page:loaded").assertExists()
             onNodeWithText("selected-tab:results").assertExists()
             onNodeWithText("saveable-counter:1").assertExists()
@@ -267,7 +267,7 @@ class AppNavigationRuntimeUiTest {
             val myPageSearchViewModel = tracker.searchFor(1)
 
             runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
-            onNodeWithText("root:News").assertExists()
+            onNodeWithText("root:뉴스").assertExists()
             onNodeWithText("push-search").performClick()
             onNodeWithText("search-view-model:2").assertExists()
             onNodeWithText("search-saveable-counter:0").assertExists()
@@ -284,7 +284,7 @@ class AppNavigationRuntimeUiTest {
 
             onNodeWithText("pop-search").performClick()
             waitForIdle()
-            onNodeWithText("root:My Page").assertExists()
+            onNodeWithText("root:마이페이지").assertExists()
             assertTrue(myPageSearchViewModel.cleared)
             assertFalse(newsSearchViewModel.cleared)
             assertEquals(1, tracker.clearedSearchCount)
@@ -296,7 +296,7 @@ class AppNavigationRuntimeUiTest {
 
             onNodeWithText("pop-search").performClick()
             waitForIdle()
-            onNodeWithText("root:News").assertExists()
+            onNodeWithText("root:뉴스").assertExists()
             assertTrue(newsSearchViewModel.cleared)
             assertEquals(2, tracker.clearedSearchCount)
         }

@@ -14,35 +14,35 @@ val AppNavKey.destinationDescriptor: DestinationDescriptor
     get() = when (this) {
         NewsRoot -> rootDescriptor(
             marker = "news",
-            title = "News",
+            title = "뉴스",
             rootOrder = 0,
             requiresEntryScope = true,
         )
 
         MatchesRoot -> rootDescriptor(
             marker = "matches",
-            title = "Matches",
+            title = "경기",
             rootOrder = 1,
             requiresEntryScope = true,
         )
 
         MyPageRoot -> rootDescriptor(
             marker = "my_page",
-            title = "My Page",
+            title = "마이페이지",
             rootOrder = 2,
             requiresEntryScope = true,
         )
 
         EventsRoot -> rootDescriptor(
             marker = "events",
-            title = "Events",
+            title = "대회",
             rootOrder = 3,
             requiresEntryScope = true,
         )
 
         AboutRoot -> rootDescriptor(
             marker = "about",
-            title = "About",
+            title = "정보",
             rootOrder = 4,
         )
 

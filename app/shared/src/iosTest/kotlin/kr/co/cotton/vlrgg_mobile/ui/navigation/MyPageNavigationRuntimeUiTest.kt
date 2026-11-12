@@ -94,9 +94,9 @@ class MyPageNavigationRuntimeUiTest {
         onNodeWithText("fixture:search").performClick()
         onNodeWithTag(playerTag).assertIsDisplayed()
 
-        onNodeWithText("News").performClick()
-        onNodeWithText("fixture:root:News").assertExists()
-        onNodeWithText("My Page").performClick()
+        onNodeWithTag(rootNavigationItemTag(NewsRoot)).performClick()
+        onNodeWithText("fixture:root:뉴스").assertExists()
+        onNodeWithTag(rootNavigationItemTag(MyPageRoot)).performClick()
         onNodeWithTag(playerTag).assertIsDisplayed()
         assertEquals(1, repository.teamSubscriptions)
         assertEquals(1, repository.playerSubscriptions)
