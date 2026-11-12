@@ -126,6 +126,7 @@ fun EventDetailContent(
             }
 
             is EventIdentityContentState.Content -> EventDetailCollapsingBody(
+                selectedTab = uiState.selectedTab,
                 hero = { EventIdentityHeader(identity.event) },
                 tabs = { EventDetailTabs(uiState.selectedTab, onSelectTab) },
                 modifier = Modifier
@@ -172,16 +173,21 @@ fun EventDetailContent(
  * Hero, tabs and the selected tab share one vertical scroll. Scrolling up collapses the hero
  * before the tab list moves, and the tab content keeps the viewport height under the tabs, so a
  * tall hero (long text, large font, short screen) never pushes the tabs out of reach.
+ *
+ * Each tab keeps its own saveable outer scroll, so returning to a tab restores how far its hero
+ * was collapsed together with its list position.
  */
 @Composable
 private fun EventDetailCollapsingBody(
+    selectedTab: EventDetailTab,
     hero: @Composable () -> Unit,
     tabs: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     BoxWithConstraints(modifier) {
-        val scrollState = rememberScrollState()
+        val heroScrollStates = EventDetailTab.entries.associateWith { rememberScrollState() }
+        val scrollState = heroScrollStates.getValue(selectedTab)
         val collapseHeroFirst = remember(scrollState) { CollapseHeroFirst(scrollState) }
         var tabsHeight by remember { mutableIntStateOf(0) }
         val contentHeight = (maxHeight - with(LocalDensity.current) { tabsHeight.toDp() }).coerceAtLeast(0.dp)

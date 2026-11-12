@@ -44,6 +44,10 @@ import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import kotlin.test.assertTrue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.swipeDown
 
 @OptIn(ExperimentalTestApi::class)
 class EventDetailContentUiTest {
@@ -263,6 +267,48 @@ class EventDetailContentUiTest {
             assertTrue(tabsTopAfter < tabsTopBefore, "Hero did not collapse: $tabsTopBefore -> $tabsTopAfter")
             // The tabs stop at the top of the content area instead of scrolling out with the hero.
             assertTrue(tabsTopAfter >= 0f, "Tabs scrolled out of view: $tabsTopAfter")
+        }
+
+    @Test
+    fun eachTabRestoresItsOwnHeroCollapseAndListPositionAfterSwitchingTabs() =
+        runSkikoComposeUiTest(size = Size(360f, 640f)) {
+            val matches = (1..30).map { match.copy(id = "match-$it") }
+            val newsItems = (1..30).map { news.copy(articleId = "${200 + it}", slug = "news-$it", title = "News $it") }
+            var state by mutableStateOf(
+                populatedState.copy(
+                    matches = EventMatchesContentState.Content(matches),
+                    news = EventNewsContentState.Content(newsItems),
+                ),
+            )
+            setContent {
+                Fixture(uiState = state, onSelectTab = { state = state.copy(selectedTab = it) })
+            }
+            fun tabsTop() = onNodeWithTag(eventDetailTabTag(EventDetailTab.MATCHES)).fetchSemanticsNode().boundsInRoot.top
+            fun firstVisibleMatch() = matches.firstNotNullOf { item ->
+                onAllNodesWithTag(matchCardTag(item.id)).fetchSemanticsNodes()
+                    .firstOrNull { it.boundsInRoot.top >= tabsTop() }
+                    ?.let { item.id to it.boundsInRoot.top }
+            }
+            val expandedTabsTop = tabsTop()
+
+            // Matches: collapse the hero and scroll the list.
+            repeat(3) { onRoot().performTouchInput { swipeUp(startY = bottom - 20f, endY = centerY) } }
+            waitForIdle()
+            val collapsedTabsTop = tabsTop()
+            val (matchId, matchTop) = firstVisibleMatch()
+            assertTrue(collapsedTabsTop < expandedTabsTop, "Hero did not collapse on the matches tab")
+            assertTrue(matchId != matches.first().id, "Matches list did not scroll")
+
+            // News keeps its own hero, and expanding it there must not leak back into matches.
+            onNodeWithTag(eventDetailTabTag(EventDetailTab.NEWS)).performClick()
+            repeat(2) { onRoot().performTouchInput { swipeDown(startY = centerY, endY = bottom - 20f) } }
+            waitForIdle()
+            assertEquals(expandedTabsTop, tabsTop(), 1f)
+
+            onNodeWithTag(eventDetailTabTag(EventDetailTab.MATCHES)).performClick()
+            waitForIdle()
+            assertEquals(collapsedTabsTop, tabsTop(), 1f)
+            assertEquals(matchTop, onNodeWithTag(matchCardTag(matchId)).fetchSemanticsNode().boundsInRoot.top, 1f)
         }
 
     @androidx.compose.runtime.Composable
