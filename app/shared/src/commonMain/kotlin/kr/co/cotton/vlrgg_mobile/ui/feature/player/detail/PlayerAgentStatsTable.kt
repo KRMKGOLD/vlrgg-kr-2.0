@@ -35,9 +35,9 @@ internal fun PlayerAgentStatsTable(
     VlrStatsTable(
         rows = rows,
         rowKey = PlayerAgentStatsRow::key,
-        identityHeader = "Agent",
+        identityHeader = "요원",
         identityText = { it.stat.agentName.agentDisplayName() },
-        rowSemanticsLabel = "에이전트 통계",
+        rowSemanticsLabel = "요원별 기록",
         columns = playerAgentStatsColumns(),
         horizontalScrollState = horizontalScrollState,
         modifier = modifier.testTag(PLAYER_AGENT_STATS_TABLE_TAG),
