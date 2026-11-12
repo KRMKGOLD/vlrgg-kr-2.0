@@ -173,4 +173,4 @@
 ## 다음 단계
 
 - 날짜·시각 한국어 표시에 필요한 서버 field(`publishedDate`, `startDate`·`endDate`, Event Matches `date`, `scheduledDate`·`scheduledTime`, `playedDate`)는 v3 적용 작업에서 구현한다.
-- 루트 `DESIGN.md`는 v3 기준으로 갱신했다(2026-11-05). 앱 코드는 v3를 모두 적용했다(2026-11-12). iOS 화면 조작·VoiceOver와 실기기 접근성 검증은 #49에서 이어 간다.
+- 루트 `DESIGN.md`는 v3 기준으로 갱신했다(2026-11-05). 앱 코드는 v3를 모두 적용했다(2026-11-12). Android 에뮬레이터와 iOS simulator에서 주요 화면을 확인했고, 남은 기기 확인은 #49에서 가벼운 범위로 이어 간다.
