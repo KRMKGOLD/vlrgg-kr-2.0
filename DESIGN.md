@@ -16,11 +16,12 @@
 - 기능 문서의 동작은 v3에서도 바뀌지 않는다. 문구는 루트 제목·하단 탭 라벨만 한국어(`뉴스`·`경기`·`마이페이지`·`대회`·`정보`)로 바꾸며(2026-11-05 결정, 기능 문서 반영), 상태 문구는 현재 앱 구현 문구를 그대로 쓴다.
 - 루트 제목·하단 탭 라벨과 대회 상세 탭 라벨(`경기`·`뉴스`·`통계`)은 한국어로 바꿨다(2026-11-12).
 - 공통 컴포넌트(`ui/component`): `RootHeader`, `DetailHeader`(Light·Dark), `VlrBottomNavigation`, `VlrTabs`, `VlrButton`(Primary·Secondary·Text), `VlrIconButton`, `StatusChip`, `VlrSearchField`, `StatePanel`, `InlineRetry`, `SectionMessage`, `SectionHeader`, `SkeletonBlock`·`SkeletonRow`·`SkeletonMatchRow`·`SkeletonHero`, `VlrSnackbar`, `VlrErrorDialog`(`BusyRetryDialog`가 사용). 화면의 같은 역할 구현은 이 컴포넌트로 바꿨다.
-- 목록·상세 컴포넌트(2026-11-12): `LogoSlot`, `MatchRow`(경기 목록·대회 경기 탭), `NewsRow`(뉴스 목록 첫 기사 `headline`·대회 뉴스·팀 뉴스), `IdentityRow`(대회 목록·시리즈 대회·팀 로스터·스태프·마이페이지 선수·선수 현재 팀), `TeamMatchRow`(팀 예정·최근 경기, 선수 최근 경기), v3 `VlrStatsTable`(선수 요원 기록·대회 통계), `DetailTopBand`·`EntityHero`(팀·선수·대회·시리즈 상세, 로딩은 `SkeletonHero`). `StatusChip`의 v2 `Loss`·`Partial` 변형은 없앴다. 검색 결과 행·Favorite tile은 화면 단계다.
+- 목록·상세 컴포넌트(2026-11-12): `LogoSlot`, `MatchRow`(경기 목록·대회 경기 탭), `NewsRow`(뉴스 목록 첫 기사 `headline`·대회 뉴스·팀 뉴스), `IdentityRow`(대회 목록·시리즈 대회·팀 로스터·스태프·마이페이지 선수·선수 현재 팀), `TeamMatchRow`(팀 예정·최근 경기, 선수 최근 경기), v3 `VlrStatsTable`(선수 요원 기록·대회 통계), `DetailTopBand`·`EntityHero`(팀·선수·대회·시리즈 상세, 로딩은 `SkeletonHero`). `StatusChip`의 v2 `Loss`·`Partial` 변형은 없앴다. 검색 결과 행은 화면 단계다.
 - 상단 inset: `RootHeader`·`DetailHeader`·검색 헤더가 상태바 영역을 직접 칠하고, 앱 runtime은 위쪽 inset을 화면에 넘긴다. 어두운 띠가 보이는 동안 `LightStatusBarIconsEffect`가 밝은 상태바 아이콘을 요청하고, 마지막 띠가 사라지면 루트의 어두운 아이콘으로 돌아온다(Android `WindowInsetsController`, iOS 앱 전체 status bar style — `UIViewControllerBasedStatusBarAppearance` 끔).
 - 대회 목록·시리즈 행은 그룹·섹션 제목이 상태를 나타낸다. 섞인 상태만 따로 표시한다: 종료 그룹의 중단 대회는 메타 앞에 `중단`(시리즈 `일시 중지`), 시리즈 예정 섹션의 진행 중 대회는 `진행 중` 상태 chip. 대회 상세 hero·탭은 탭 내용과 한 스크롤로 묶여 hero부터 접히고, hero 메타 줄은 최대 3줄이다. 팀 경기 행 제목은 `vs 상대 팀`이다.
 - 뉴스 목록·상세(2026-11-12): `.pen` `10`·`11`대로 적용했다. 목록 끝 추가 로딩은 스피너 대신 기사 행 스켈레톤 한 줄(진행 중 semantics)이고, 목록 게시일은 `publishedDate`가 있으면 `2026년 9월 19일`, 없으면 원문이다(서버 field는 미구현). 상세는 밝은 헤더 + `title` 제목 + `작성자 · 날짜 시각` + `article` 본문이며, 본문 이미지는 184dp `surface-sunken` 자리에 그리고 실패하면 `image` 아이콘을 둔다. 본문 없음은 기사 제목 없이 State panel만 둔다. 소제목·인용 블록은 서버 응답에 없어 그리지 않는다.
 - 경기 목록·상세(2026-11-12): `.pen` `20`·`21`대로 적용했다. 목록 날짜 헤더는 `한국 시간` 메타를 두고 그룹 사이를 8dp `canvas`로 띄우며, 로딩은 경기 행 스켈레톤(추가 로딩은 한 줄 + 진행 중 semantics)이다. 상세는 Scoreboard hero·Map row·Head to head row를 경기 상세 화면 안에 두었다(다른 화면이 쓰지 않아 `ui/component`로 올리지 않음). 맵 범례는 응답에 팀 tag가 없어 팀 이름을 쓴다. 완료 경기 점수가 null로 오는 서버 `sp-hide` 문제가 남아 있어 그 경우 hero가 `VS`로 보인다.
+- 마이페이지(2026-11-12): `.pen` `30`대로 적용했다. 섹션 제목은 `팀`·`선수`와 보이는 개수(제거 중에는 숨긴 대상을 뺀 수)이고, 흰 섹션 사이 8dp `canvas` 아래에 `즐겨찾기는 이 기기에만 저장됩니다.` 안내를 둔다. Favorite tile은 마이페이지만 써서 화면 안에 두었고, 같은 행의 두 타일은 높이를 맞추며 글꼴 확대 시 함께 늘어난다. 섹션 로딩은 스피너 대신 타일·행 스켈레톤(진행 중 semantics)이다. LogoSlot 48dp 자리 표시 글자는 16sp다.
 - 한글 어절 줄바꿈: State panel·Error dialog·기사 제목·본문·캡션에 `withKoreanWordBreak()`(locale `ko` + `WordBreak.Phrase`)를 쓴다. Android 13(API 33) 이상에서만 적용되고, 그 아래 Android와 iOS(skiko가 `LineBreak`를 읽지 않음)는 기존 줄바꿈 그대로다.
 - 하단 탭은 시스템 navigation inset을 아래에 더하고 `.pen`의 16dp Gesture area를 고정값으로 두지 않는다. 글꼴 확대로 `마이페이지`가 칸을 넘으면 `마이`/`페이지`로 줄바꿈한다.
 - 다이얼로그 뒤 배경은 플랫폼 Dialog의 기본 scrim을 쓴다(`scrim` 토큰 값과 다를 수 있다).
@@ -270,7 +271,7 @@
 ## 11. 적용 순서와 범위 밖
 
 1. [x] 기반: `ui/theme` 토큰을 v3 값으로 교체하고 신규 토큰을 추가한다. Saira Condensed와 Material Symbols 글리프를 가져오고 공통 컴포넌트를 v3 계약으로 맞춘다. 토큰·서체·아이콘(2026-11-11)과 chrome·컨트롤·피드백·목록·상세 컴포넌트(2026-11-12)를 `feat/v3-design`에 적용했다.
-2. [ ] 화면: 기능 묶음별로 v3를 적용한다. 상세 상단의 어두운 띠와 상태바 아이콘 색은 공통 컴포넌트 단계에서 처리했다. 뉴스(`10`·`11`)와 경기(`20`·`21`)를 적용했다(2026-11-12).
+2. [ ] 화면: 기능 묶음별로 v3를 적용한다. 상세 상단의 어두운 띠와 상태바 아이콘 색은 공통 컴포넌트 단계에서 처리했다. 뉴스(`10`·`11`), 경기(`20`·`21`), 마이페이지(`30`)를 적용했다(2026-11-12).
 3. [ ] 검증: UI 테스트를 갱신하고 Android·iOS에서 주요 상태, 글꼴 확대, TalkBack·VoiceOver를 확인한다.
 4. [ ] 정리: 코드에 남은 이전 디자인 흔적(`TeamDetailContentUiTest`의 Stitch marker 테스트 이름)을 v3 기준으로 바꾼다. 뉴스 상세 미리보기의 Stitch placeholder 이미지 URL은 v3 샘플로 바꿨다(2026-11-12).
 
