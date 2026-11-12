@@ -2,6 +2,26 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail
 
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Density
+import kotlin.test.assertFalse
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import kr.co.cotton.vlrgg_mobile.ui.theme.VlrLightColors
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assert
@@ -114,15 +134,17 @@ class MatchDetailContentUiTest {
     }
 
     @Test
-    fun loadingKeepsBackAndSkeletonGeometryWithoutSampleMatchData() = runComposeUiTest {
+    fun loadingKeepsBackAndDarkScoreboardSkeletonWithoutSampleMatchData() = runComposeUiTest {
         setContent { Fixture(MatchDetailUiState()) }
 
         onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
         onNodeWithTag(MATCH_DETAIL_LOADING_TAG).assertExists()
         onNodeWithText(HOME_TEAM.name).assertDoesNotExist()
         onNodeWithText(EVENT.name).assertDoesNotExist()
-        onNodeWithText("Maps").assertExists()
-        onNodeWithText("Head to Head").assertExists()
+        // `.pen` 21-6에는 섹션 제목이 없다. 스켈레톤은 낭독하지 않는다.
+        onNodeWithText("맵").assertDoesNotExist()
+        onNodeWithText("상대 전적").assertDoesNotExist()
+        onNodeWithTag(MATCH_DETAIL_HERO_TAG).assertDoesNotExist()
     }
 
     @Test
@@ -156,8 +178,7 @@ class MatchDetailContentUiTest {
             Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match)))
         }
 
-        onNodeWithText("Tuesday, October 27 3:00 AM KST").assertIsDisplayed()
-        onNodeWithText("Bo3").assertIsDisplayed()
+        onNodeWithText("Tuesday, October 27 3:00 AM KST · Bo3").assertIsDisplayed()
         onAllNodesWithText("10h 43m", substring = true).assertCountEquals(0)
     }
 
@@ -179,9 +200,11 @@ class MatchDetailContentUiTest {
 
         onNodeWithText("완료됨").assertExists()
         onNodeWithTag(matchDetailMapTag("Lotus")).performScrollTo()
-        onAllNodesWithText("0 - —").assertCountEquals(2)
+        onNodeWithContentDescription("MAP 1 Lotus, Paper Rex 0, FNATIC —").assertExists()
         onNodeWithTag(matchDetailHeadToHeadTag(RELATED_MATCH.id)).performScrollTo()
-        onNodeWithTag(matchDetailHeadToHeadTag(RELATED_MATCH.id)).assertTextContains("0 - —")
+        onNodeWithTag(matchDetailHeadToHeadTag(RELATED_MATCH.id))
+            .assertTextContains("0")
+            .assertTextContains("—")
         onNodeWithText("past match must not render").assertDoesNotExist()
         onNodeWithContentDescription("알림").assertDoesNotExist()
         onNodeWithContentDescription("즐겨찾기").assertDoesNotExist()
@@ -211,10 +234,11 @@ class MatchDetailContentUiTest {
 
             onNodeWithTag(matchDetailHeadToHeadTag(relatedMatch.id)).performScrollTo()
             onNodeWithTag(matchDetailHeadToHeadTag(relatedMatch.id))
-                .assertLeftPositionInRootIsEqualTo(16.dp)
-                .assertWidthIsEqualTo(328.dp)
+                .assertLeftPositionInRootIsEqualTo(0.dp)
+                .assertWidthIsEqualTo(360.dp)
                 .assertHeightIsAtLeast(48.dp)
-                .assertTextContains("0 - —")
+                .assertTextContains("0")
+                .assertTextContains("—")
             onNodeWithText(longHomeName).assertExists()
             onNodeWithText(longAwayName).assertExists()
             onNodeWithContentDescription("경기 상세: $longHomeName 대 $longAwayName")
@@ -397,7 +421,7 @@ class MatchDetailContentUiTest {
         onNodeWithContentDescription("뒤로 가기").assertHeightIsAtLeast(48.dp)
         onNodeWithTag(MATCH_DETAIL_EVENT_TAG)
             .assertHeightIsAtLeast(48.dp)
-            .assertTextContains(longEventName)
+            .assertTextContains(longEventName, substring = true)
         onNodeWithTag(matchDetailTeamTag("home"))
             .assertHeightIsAtLeast(48.dp)
             .assertTextContains(longHomeName)
@@ -407,6 +431,254 @@ class MatchDetailContentUiTest {
         onNodeWithText(longDescription).assertExists()
         onNodeWithTag(matchDetailHeadToHeadTag(RELATED_MATCH.id)).performScrollTo()
         onNodeWithTag(matchDetailHeadToHeadTag(RELATED_MATCH.id)).assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun scoreboardMarksWinnerAndLoserAndBundlesTheScoreDescription() = runComposeUiTest {
+        setContent {
+            Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(completedMatch)))
+        }
+
+        onNodeWithTag(MATCH_DETAIL_SCORE_TAG).assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Paper Rex 0, FNATIC 2")),
+        )
+        val loserScore = onNodeWithTag(matchDetailScoreTag("home"), useUnmergedTree = true).textStyle()
+        val winnerScore = onNodeWithTag(matchDetailScoreTag("away"), useUnmergedTree = true).textStyle()
+        assertEquals(VlrLightColors.onPanelMuted, loserScore.color)
+        assertEquals(VlrLightColors.onPanel, winnerScore.color)
+        assertEquals(52.sp, winnerScore.fontSize)
+        assertEquals(VlrLightColors.onPanelMuted, teamName("home").textStyle().color)
+        assertEquals(VlrLightColors.onPanel, teamName("away").textStyle().color)
+        onNodeWithText(MatchDetailVsLabel).assertDoesNotExist()
+        // 대회 링크는 `이벤트 이름 · 시리즈` 한 줄이고, 일정 줄은 `날짜 · Bo3`이다.
+        onNodeWithText("${EVENT.name} · ${EVENT.series}", useUnmergedTree = true).assertExists()
+        onNodeWithText("${completedMatch.scheduleLabel(TimeZone.currentSystemDefault())} · Bo3").assertIsDisplayed()
+    }
+
+    @Test
+    fun liveScoreHasNoWinnerAndUnplayedOrTerminalStatusesShowVsInsteadOfScores() = runComposeUiTest {
+        var match by mutableStateOf(completedMatch.copy(status = MatchStatus.LIVE, homeScore = 1, awayScore = 0))
+        setContent { Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match))) }
+
+        onNodeWithText(MatchDetailVsLabel).assertDoesNotExist()
+        assertEquals(VlrLightColors.onPanel, onNodeWithTag(matchDetailScoreTag("home"), useUnmergedTree = true).textStyle().color)
+        assertEquals(VlrLightColors.onPanel, onNodeWithTag(matchDetailScoreTag("away"), useUnmergedTree = true).textStyle().color)
+        assertEquals(VlrLightColors.onPanel, teamName("home").textStyle().color)
+
+        listOf(
+            MatchStatus.UPCOMING,
+            MatchStatus.POSTPONED,
+            MatchStatus.CANCELLED,
+            MatchStatus.UNAVAILABLE,
+        ).forEach { status ->
+            match = completedMatch.copy(status = status, homeScore = 1, awayScore = 0)
+            waitForIdle()
+            val vs = onNodeWithText(MatchDetailVsLabel)
+            vs.assertIsDisplayed()
+            assertEquals(36.sp, vs.textStyle().fontSize)
+            assertEquals(VlrLightColors.onPanelMuted, vs.textStyle().color)
+            onNodeWithTag(matchDetailScoreTag("home"), useUnmergedTree = true).assertDoesNotExist()
+        }
+
+        // 서버가 종료 경기 점수를 주지 않으면(현재 `sp-hide` 문제) 숫자를 만들지 않고 VS를 둔다.
+        match = completedMatch.copy(homeScore = null, awayScore = null)
+        waitForIdle()
+        onNodeWithText(MatchDetailVsLabel).assertIsDisplayed()
+    }
+
+    @Test
+    fun mapRowsUnderlineOnlyFinishedMapWinnersAndNameEachScore() = runComposeUiTest {
+        var match by mutableStateOf(
+            completedMatch.copy(
+                maps = listOf(MatchMap("Haven", 13, 8), MatchMap("Ascent", 10, 13)),
+            ),
+        )
+        setContent { Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match))) }
+
+        onNodeWithTag(MATCH_DETAIL_MAPS_SECTION_TAG).performScrollTo()
+        onNode(hasText("2") and hasAnyAncestor(hasTestTag(MATCH_DETAIL_MAPS_SECTION_TAG)), useUnmergedTree = true)
+            .assertExists()
+        onNodeWithText("MAP 2", useUnmergedTree = true).assertExists()
+        onNodeWithTag(matchDetailMapWinBarTag("Haven", "home"), useUnmergedTree = true)
+            .assertWidthIsEqualTo(16.dp)
+            .assertHeightIsEqualTo(2.dp)
+        onNodeWithTag(matchDetailMapWinBarTag("Haven", "away"), useUnmergedTree = true).assertDoesNotExist()
+        onNodeWithTag(matchDetailMapWinBarTag("Ascent", "away"), useUnmergedTree = true).assertExists()
+        onNodeWithContentDescription("MAP 1 Haven, Paper Rex 13, FNATIC 8").assertExists()
+        val loser = onNode(hasText("8") and hasAnyAncestor(hasTestTag(matchDetailMapTag("Haven"))), useUnmergedTree = true)
+        assertEquals(VlrLightColors.muted, loser.textStyle().color)
+        assertEquals(26.sp, loser.textStyle().fontSize)
+
+        // LIVE: 끝난 맵(13점·2점 차)만 승자 막대를 두고, 진행 중 맵은 점수만 둔다.
+        match = completedMatch.copy(
+            status = MatchStatus.LIVE,
+            maps = listOf(MatchMap("Haven", 13, 9), MatchMap("Ascent", 8, 6)),
+        )
+        waitForIdle()
+        onNodeWithTag(matchDetailMapWinBarTag("Haven", "home"), useUnmergedTree = true).assertExists()
+        onNodeWithTag(matchDetailMapWinBarTag("Ascent", "home"), useUnmergedTree = true).assertDoesNotExist()
+        onNodeWithTag(matchDetailMapWinBarTag("Ascent", "away"), useUnmergedTree = true).assertDoesNotExist()
+        val inProgress = onNode(hasText("6") and hasAnyAncestor(hasTestTag(matchDetailMapTag("Ascent"))), useUnmergedTree = true)
+        assertEquals(VlrLightColors.ink, inProgress.textStyle().color)
+    }
+
+    @Test
+    fun headToHeadRowMarksWinnerAndWholeRowOpensThatMatch() = runComposeUiTest {
+        var opened: String? = null
+        val related = RELATED_MATCH.copy(homeScore = 2, awayScore = 0)
+        setContent {
+            Fixture(
+                MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(completedMatch.copy(headToHead = listOf(related))),
+                ),
+                onMatchClick = { opened = it },
+            )
+        }
+
+        val row = onNodeWithTag(matchDetailHeadToHeadTag(related.id))
+        row.performScrollTo()
+        onNodeWithContentDescription("경기 상세: Paper Rex 2, FNATIC 0").assertIsDisplayed()
+        onNodeWithText("상대 전적", useUnmergedTree = true).assertExists()
+        val winnerName = onNode(
+            hasText(related.homeTeamName) and hasAnyAncestor(hasTestTag(matchDetailHeadToHeadTag(related.id))),
+            useUnmergedTree = true,
+        ).textStyle()
+        val loserName = onNode(
+            hasText(related.awayTeamName) and hasAnyAncestor(hasTestTag(matchDetailHeadToHeadTag(related.id))),
+            useUnmergedTree = true,
+        ).textStyle()
+        assertEquals(VlrLightColors.ink, winnerName.color)
+        assertEquals(FontWeight.Bold, winnerName.fontWeight)
+        assertEquals(VlrLightColors.muted, loserName.color)
+        assertEquals(FontWeight.Medium, loserName.fontWeight)
+        row.performClick()
+        assertEquals(related.id, opened)
+    }
+
+    @Test
+    fun descriptionIsShownInFullUnderItsLabelBetweenHeroAndMaps() = runComposeUiTest {
+        val longDescription = "DRX ban Split; PRX ban Bind; DRX pick Haven; PRX pick Ascent; " +
+            "DRX ban Icebox; PRX ban Sunset; Lotus remains"
+        setContent {
+            Fixture(
+                MatchDetailUiState(
+                    contentState = MatchDetailContentState.Content(completedMatch.copy(description = longDescription)),
+                ),
+            )
+        }
+
+        onNodeWithText("경기 설명", useUnmergedTree = true).assertExists()
+        onNodeWithText(longDescription).assertExists()
+        val heroBottom = onNodeWithTag(MATCH_DETAIL_HERO_TAG).fetchSemanticsNode().boundsInRoot.bottom
+        val descriptionTop = onNodeWithTag(MATCH_DETAIL_DESCRIPTION_TAG).fetchSemanticsNode().boundsInRoot.top
+        val mapsTop = onNodeWithTag(MATCH_DETAIL_MAPS_SECTION_TAG).fetchSemanticsNode().boundsInRoot.top
+        assertTrue(heroBottom < descriptionTop)
+        assertTrue(descriptionTop < mapsTop)
+    }
+
+    @Test
+    fun scoreboardScoreIsNeverClippedOnNarrowScreensOrLargeFonts() {
+        listOf(320f, 360f, 411f).forEach { width ->
+            runSkikoComposeUiTest(size = Size(width, 1600f)) {
+                var fontScale by mutableStateOf(1f)
+                var match by mutableStateOf(completedMatch)
+                setContent {
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                        Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match)))
+                    }
+                }
+
+                listOf(1f, 1.5f, 2f).forEach { scale ->
+                    // `0 : 2`와 한쪽 점수가 없는 `2 : —`(가장 넓은 점수)
+                    listOf(completedMatch, completedMatch.copy(homeScore = 2, awayScore = null)).forEach { case ->
+                        fontScale = scale
+                        match = case
+                        waitForIdle()
+                        val label = "width=$width fontScale=$scale score=${case.homeScore}:${case.awayScore}"
+                        val score = onNodeWithTag(MATCH_DETAIL_SCORE_TAG).fetchSemanticsNode().boundsInRoot
+                        listOf("home", "away").forEach { side ->
+                            val layout = onNodeWithTag(matchDetailScoreTag(side), useUnmergedTree = true).textLayout()
+                            // skiko는 문단을 최대 폭으로 배치해 `didOverflowWidth`가 늘 참이라, 필요한 폭과 실제 폭을 비교한다.
+                            assertTrue(
+                                layout.multiParagraph.maxIntrinsicWidth <= layout.size.width + 0.5f,
+                                "$label $side score is clipped: needs ${layout.multiParagraph.maxIntrinsicWidth}, has ${layout.size.width}",
+                            )
+                            assertEquals(1, layout.lineCount, "$label $side score wraps")
+                        }
+                        assertTrue(score.left >= 0f && score.right <= width, "$label score leaves the screen: $score")
+                        listOf("home", "away").forEach { side ->
+                            val team = onNodeWithTag(matchDetailTeamTag(side)).fetchSemanticsNode().boundsInRoot
+                            assertFalse(team.overlaps(score), "$label score overlaps $side team: $score / $team")
+                            assertTrue(team.left >= 0f && team.right <= width, "$label $side team leaves the screen")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun rightToLeftKeepsEachScoreOnItsOwnTeamSideInlineAndStacked() {
+        // 360dp·1배는 한 줄 배치, 320dp·2배·`2 : —`는 점수를 팀 아래로 내린 배치다.
+        listOf(
+            Triple(360f, 1f, completedMatch),
+            Triple(320f, 2f, completedMatch.copy(homeScore = 2, awayScore = null)),
+        ).forEach { (width, scale, match) ->
+            runSkikoComposeUiTest(size = Size(width, 1600f)) {
+                setContent {
+                    CompositionLocalProvider(
+                        LocalLayoutDirection provides LayoutDirection.Rtl,
+                        LocalDensity provides Density(density.density, scale),
+                    ) {
+                        Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match)))
+                    }
+                }
+
+                val label = "RTL width=$width fontScale=$scale"
+                val homeTeam = onNodeWithTag(matchDetailTeamTag("home")).fetchSemanticsNode().boundsInRoot
+                val awayTeam = onNodeWithTag(matchDetailTeamTag("away")).fetchSemanticsNode().boundsInRoot
+                val homeScore = onNodeWithTag(matchDetailScoreTag("home"), useUnmergedTree = true)
+                    .fetchSemanticsNode().boundsInRoot
+                val awayScore = onNodeWithTag(matchDetailScoreTag("away"), useUnmergedTree = true)
+                    .fetchSemanticsNode().boundsInRoot
+                // RTL에서는 홈 팀이 오른쪽이고, 홈 점수도 원정 점수보다 오른쪽(홈 팀 쪽)이어야 한다.
+                assertTrue(homeTeam.center.x > awayTeam.center.x, "$label home team is not on the right")
+                assertTrue(homeScore.center.x > awayScore.center.x, "$label home score is not on the home side")
+            }
+        }
+    }
+
+    @Test
+    fun scoreboardKeepsSymmetricHundredDpTeamColumnsAtDefaultSize() =
+        runSkikoComposeUiTest(size = Size(360f, 1600f)) {
+            setContent { Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(completedMatch))) }
+
+            val home = onNodeWithTag(matchDetailTeamTag("home")).fetchSemanticsNode().boundsInRoot
+            val away = onNodeWithTag(matchDetailTeamTag("away")).fetchSemanticsNode().boundsInRoot
+            val score = onNodeWithTag(MATCH_DETAIL_SCORE_TAG).fetchSemanticsNode().boundsInRoot
+            assertEquals(100f, home.width)
+            assertEquals(100f, away.width)
+            assertEquals(16f, home.left)
+            assertEquals(344f, away.right)
+            assertEquals(home.top, away.top)
+            // 점수는 두 팀 사이 가운데(같은 행)에 있다.
+            assertTrue(score.top < home.bottom)
+            assertEquals(180f, score.center.x, 1f)
+        }
+
+    private fun SemanticsNodeInteraction.textLayout(): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.first()
+    }
+
+    private fun ComposeUiTest.teamName(side: String): SemanticsNodeInteraction =
+        onNode(hasText(if (side == "home") HOME_TEAM.name else AWAY_TEAM.name) and hasAnyAncestor(hasTestTag(matchDetailTeamTag(side))), useUnmergedTree = true)
+
+    private fun SemanticsNodeInteraction.textStyle(): TextStyle {
+        val results = mutableListOf<TextLayoutResult>()
+        fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.first().layoutInput.style
     }
 }
 

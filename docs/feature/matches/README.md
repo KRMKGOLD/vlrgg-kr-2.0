@@ -10,6 +10,15 @@
 
 Matches 조회 API, Upcoming/Live·Results 목록과 Match Detail Basic은 구현되어 있다. 목록의 독립 pagination·refresh, 상태별 Detail, Team/Event/H2H 이동과 화면 복원은 자동 검증을 통과했지만 실제 양 플랫폼 screenshot·실기기 접근성 확인은 남아 있다.
 
+v3 화면(`.pen` `20`·`21`)을 적용했다(2026-11-12).
+
+- 목록: 날짜 헤더 오른쪽에 `한국 시간`을 두고 날짜 그룹 사이를 8dp 띄운다. 최초 로딩은 경기 행 스켈레톤 5줄, 추가 로딩은 스피너 대신 경기 행 스켈레톤 한 줄(진행 중 semantics)이다.
+- 상세: Scoreboard hero(대회 링크 → 대칭 팀 → 점수 또는 `VS`·상태 chip → 일정 줄) 아래에 제한 정보 안내, `경기 설명`, `맵`, `상대 전적` 섹션을 둔다. 점수는 LIVE·종료 경기에만 두고, 승자·패자 색은 종료 경기에만 쓴다. 로딩은 어두운 hero 스켈레톤이다.
+- 맵 범례: 응답에 팀 tag가 없어 `.pen`의 tag(`DRX`) 대신 팀 이름을 쓴다.
+- 맵 승자: 종료 경기는 점수가 높은 쪽이다. LIVE 경기는 13점 이상이면서 2점 차 이상 앞선 맵만 끝난 맵으로 보고, 진행 중 맵에는 승자 막대를 두지 않는다(응답에 맵 상태가 없음).
+- 빈 목록과 제공 불가 문구는 기존 규칙(취소·정보 없음 경기만 제공 불가)을 유지한다. `.pen` 21-5(취소 → 빈 목록 문구, 제한 안내 없음)와 21-8(종료 경기의 맵 없음 → 제공 불가)은 이 규칙과 다르며 결정 대기다.
+- 남은 문제: 서버가 완료 경기의 세트 점수를 `sp-hide` 때문에 null로 주면 hero가 숫자 대신 `VS`로 보인다(서버 수정은 사용자 결정 대기). 예정 경기 상세 응답에 `relativeTimeLabel`이 없는 경우가 있어 남은 시간 줄이 빠지고, 예정 경기에도 `TBD 0:0` 맵이 오면 그대로 표시한다.
+
 알림은 서버 Stage 1.1 offline 기반만 구현됐다. Firestore Emulator의 익명 Target 권한, START-only delivery와 request-bound scheduler는 GREEN이지만 앱 알림, 실제 App Check/FCM/production Firestore 연결은 Stage 2에서 검증한다. 상세 경계는 [server-fcm-stage1.md](../../architecture/server-fcm-stage1.md)와 두 ADR을 따른다.
 
 ## 목적과 사용자 가치
@@ -161,7 +170,7 @@ FCM registration token, Target Secret, scheduler 내부 delivery marker와 다�
 - `Initial loading`: 최초 목록 skeleton을 표시한다.
 - `Populated`: 선택한 목록의 경기가 날짜별로 표시된다.
 - `Empty`: 정상 응답이지만 선택한 Upcoming/Live 또는 Results에 경기가 없다.
-- `Pagination error`: 기존 페이지는 유지하지만 다음 페이지 요청이 실패했다. footer Retry를 제공한다.
+- `Pagination error`: 기존 페이지는 유지하지만 다음 페이지 요청이 실패했다. 목록 끝 Inline retry를 제공한다. 다음 페이지 로딩 중에는 목록 끝에 경기 행 스켈레톤 한 줄을 둔다.
 - `Initial error`: 최초 목록 요청 실패로 표시할 경기가 없다. 전체 화면 Retry를 제공한다.
 - `Stale`: 서버는 이전 scraping 결과를 fallback으로 반환하지 않는다. 향후 앱이 기존 목록을 유지한다면 마지막 확인 시각과 갱신 실패를 명시해야 한다.
 
