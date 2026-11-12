@@ -1,7 +1,28 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.mypage
 
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertHeightIsEqualTo
@@ -29,6 +50,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
@@ -204,8 +226,14 @@ class MyPageContentUiTest {
             )
         }
 
-        onNodeWithContentDescription("즐겨찾기한 팀을 불러오는 중").assertExists()
-        onNodeWithContentDescription("즐겨찾기한 선수를 불러오는 중").assertExists()
+        // Skeletons replace the spinners and keep the loading descriptions with indeterminate progress.
+        listOf("즐겨찾기한 팀을 불러오는 중", "즐겨찾기한 선수를 불러오는 중").forEach { description ->
+            onNodeWithContentDescription(description)
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        }
+        onNodeWithText("팀").assertExists()
+        onNodeWithText("선수").assertExists()
+        onNodeWithText("즐겨찾기는 이 기기에만 저장됩니다.").assertExists()
         onNodeWithText("Next Matches").assertDoesNotExist()
         onNodeWithText("Notifications").assertDoesNotExist()
     }
@@ -255,9 +283,10 @@ class MyPageContentUiTest {
             }
 
             onNodeWithTag(MY_PAGE_TOP_APP_BAR_TAG).assertHeightIsEqualTo(56.dp)
+            // A single team is the first of two 8dp-apart columns inside the 16dp insets.
             onNodeWithTag(myPageTeamRowTag(favoriteTeam.id))
                 .assertLeftPositionInRootIsEqualTo(16.dp)
-                .assertWidthIsEqualTo(328.dp)
+                .assertWidthIsEqualTo(160.dp)
                 .assertHeightIsAtLeast(48.dp)
             onNodeWithContentDescription("$longTeamName 즐겨찾기 해제")
                 .assertHeightIsAtLeast(48.dp)
@@ -377,6 +406,315 @@ class MyPageContentUiTest {
         onNodeWithText("로그인").assertDoesNotExist()
     }
 
+    @Test
+    fun sectionsUseKoreanTitlesWithVisibleCountsAndTheStorageNote() = runComposeUiTest {
+        setContent {
+            TestContent(
+                uiState = MyPageUiState(
+                    favoriteTeams = FavoriteSectionState.Content(listOf(team("team-1"), team("team-2"))),
+                    favoritePlayers = FavoriteSectionState.Content(listOf(player("player-1"))),
+                ),
+            )
+        }
+
+        onNode(hasText("팀") and hasAnyAncestor(hasTestTag(MY_PAGE_TEAM_SECTION_TAG)), useUnmergedTree = true).assertExists()
+        onNode(hasText("2") and hasAnyAncestor(hasTestTag(MY_PAGE_TEAM_SECTION_TAG)), useUnmergedTree = true).assertExists()
+        onNode(hasText("선수") and hasAnyAncestor(hasTestTag(MY_PAGE_PLAYER_SECTION_TAG)), useUnmergedTree = true).assertExists()
+        onNode(hasText("1") and hasAnyAncestor(hasTestTag(MY_PAGE_PLAYER_SECTION_TAG)), useUnmergedTree = true).assertExists()
+        onNodeWithText("Favorite Teams").assertDoesNotExist()
+        onNodeWithText("Favorite Players").assertDoesNotExist()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("즐겨찾기는 이 기기에만 저장됩니다."))
+        onNodeWithText("즐겨찾기는 이 기기에만 저장됩니다.").assertExists()
+    }
+
+    @Test
+    fun tilesOfARowStayEqualWhenAnOddPixelWidthSplitsTheColumnsUnevenly() =
+        runSkikoComposeUiTest(size = Size(355f, 800f)) {
+            // At density 1 and 355px the two grid columns differ by one pixel, so the name areas
+            // differ too. A name that fits on one line only in the wider area must still leave
+            // both tiles of the row with the same height.
+            fun uiState(first: String, second: String) = MyPageUiState(
+                favoriteTeams = FavoriteSectionState.Content(
+                    listOf(team("left").copy(name = first), team("right").copy(name = second)),
+                ),
+                favoritePlayers = FavoriteSectionState.Empty,
+            )
+            val candidates = (0..24).flatMap { thin ->
+                (0..8).flatMap { wide -> (0..4).map { "Team " + "i".repeat(thin) + "W".repeat(wide) + "m".repeat(it) } }
+            }
+            var candidateWidths: List<Float> = emptyList()
+            var state by mutableStateOf(uiState("T1", "T1"))
+            setContent {
+                val measurer = rememberTextMeasurer()
+                val style = VlrTheme.typography.body.copy(fontWeight = FontWeight.ExtraBold)
+                candidateWidths = candidates.map { measurer.measure(it, style).multiParagraph.maxIntrinsicWidth }
+                TestContent(uiState = state)
+            }
+            // `GridCells.Fixed(2)` splits 355px into 178 + 177. Without equal cells the name areas
+            // would be the cell minus 16 + 4 (cell insets), 14 + 4 (tile padding) and 10 (copy end).
+            val wider = (355 + 1) / 2 - 48f
+            val narrower = 355 / 2 - 48f
+            val boundaryName = candidates.indices
+                .first { candidateWidths[it] > narrower && candidateWidths[it] <= wider }
+                .let(candidates::get)
+
+            listOf(boundaryName to "T1", "T1" to boundaryName).forEach { (first, second) ->
+                state = uiState(first, second)
+                waitForIdle()
+                val left = onNodeWithTag(myPageTeamRowTag("left")).fetchSemanticsNode().boundsInRoot
+                val right = onNodeWithTag(myPageTeamRowTag("right")).fetchSemanticsNode().boundsInRoot
+                assertEquals(left.height, right.height, "'$first' | '$second' tiles differ in height")
+                assertEquals(left.width, right.width, "'$first' | '$second' tiles differ in width")
+                // The neighbour is measured, not drawn: each name has exactly one text node.
+                assertEquals(1, onAllNodes(hasText(boundaryName), useUnmergedTree = true).fetchSemanticsNodes().size)
+            }
+        }
+
+    @Test
+    fun teamTilesFillTwoColumnsInStoredOrderWithEqualRowHeights() =
+        runSkikoComposeUiTest(size = Size(360f, 1200f)) {
+            val teams = listOf(team("c"), team("a"), team("b"))
+            setContent {
+                TestContent(
+                    uiState = MyPageUiState(
+                        favoriteTeams = FavoriteSectionState.Content(
+                            teams.mapIndexed { index, favorite ->
+                                if (index == 1) favorite.copy(name = "Second team with a much longer name that wraps") else favorite
+                            },
+                        ),
+                        favoritePlayers = FavoriteSectionState.Empty,
+                    ),
+                )
+            }
+
+            val first = onNodeWithTag(myPageTeamRowTag("c")).fetchSemanticsNode().boundsInRoot
+            val second = onNodeWithTag(myPageTeamRowTag("a")).fetchSemanticsNode().boundsInRoot
+            val third = onNodeWithTag(myPageTeamRowTag("b")).fetchSemanticsNode().boundsInRoot
+            assertEquals(16f, first.left)
+            assertEquals(160f, first.width)
+            assertEquals(184f, second.left)
+            assertEquals(344f, second.right)
+            assertEquals(first.top, second.top)
+            // A longer name grows both tiles of the row together.
+            assertEquals(first.height, second.height)
+            assertEquals(16f, third.left)
+            assertEquals(first.bottom + 8f, third.top, 0.5f)
+            val header = onNodeWithTag(MY_PAGE_TEAM_SECTION_TAG).fetchSemanticsNode().boundsInRoot
+            assertEquals(header.bottom + 4f, first.top, 0.5f)
+            // The team tag is the logo placeholder at the tile size.
+            onNodeWithTag(myPageTeamImagePlaceholderTag("c"), useUnmergedTree = true)
+                .assertTextEquals("TAG-c")
+                .assert(SemanticsMatcher("16sp placeholder") { node -> node.textLayout().layoutInput.style.fontSize == 16.sp })
+        }
+
+    @Test
+    fun tileStarIsASeparateNamed48DpTargetFromTheTileDetailTarget() =
+        runSkikoComposeUiTest(size = Size(360f, 800f)) {
+            val favorite = team("drx")
+            var opened: String? = null
+            var removed: String? = null
+            setContent {
+                TestContent(
+                    uiState = MyPageUiState(
+                        favoriteTeams = FavoriteSectionState.Content(listOf(favorite)),
+                        favoritePlayers = FavoriteSectionState.Empty,
+                    ),
+                    onTeamClick = { opened = it },
+                    onRemoveTeam = { removed = it },
+                )
+            }
+
+            val tile = onNodeWithTag(myPageTeamRowTag(favorite.id))
+            tile.assert(hasContentDescription("팀 상세: ${favorite.name}"))
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            val star = onNodeWithContentDescription("${favorite.name} 즐겨찾기 해제")
+                .assertWidthIsEqualTo(48.dp)
+                .assertHeightIsEqualTo(48.dp)
+            val tileBounds = tile.fetchSemanticsNode().boundsInRoot
+            val starBounds = star.fetchSemanticsNode().boundsInRoot
+            assertTrue(tileBounds.contains(starBounds.topLeft) && starBounds.right <= tileBounds.right)
+            // The star is not merged into the tile, so the tile does not read it out as its own name.
+            assertFalse(star.fetchSemanticsNode().id == tile.fetchSemanticsNode().id)
+
+            star.performClick()
+            assertEquals(favorite.id, removed)
+            assertEquals(null, opened)
+            tile.performClick()
+            assertEquals(favorite.id, opened)
+        }
+
+    @Test
+    fun sectionStateCombinationsKeepBothTitlesAndTheOtherSection() = runComposeUiTest {
+        var state by mutableStateOf(MyPageUiState())
+        setContent { TestContent(uiState = state) }
+
+        val teams = FavoriteSectionState.Content(listOf(team("team-1")))
+        val players = FavoriteSectionState.Content(listOf(player("player-1")))
+        data class Case(val state: MyPageUiState, val present: List<String>, val absent: List<String>)
+        listOf(
+            // 30-4 team empty · players shown
+            Case(MyPageUiState(FavoriteSectionState.Empty, players), listOf("즐겨찾기한 팀이 없습니다."), listOf("즐겨찾기한 선수가 없습니다.")),
+            // 30-5 teams shown · player empty
+            Case(MyPageUiState(teams, FavoriteSectionState.Empty), listOf("즐겨찾기한 선수가 없습니다."), listOf("즐겨찾기한 팀이 없습니다.")),
+            // 30-6 team error · players shown
+            Case(MyPageUiState(FavoriteSectionState.Error, players), listOf("즐겨찾기한 팀을 불러오지 못했습니다."), listOf("즐겨찾기한 선수를 불러오지 못했습니다.")),
+            // 30-7 teams shown · player error
+            Case(MyPageUiState(teams, FavoriteSectionState.Error), listOf("즐겨찾기한 선수를 불러오지 못했습니다."), listOf("즐겨찾기한 팀을 불러오지 못했습니다.")),
+        ).forEach { case ->
+            state = case.state
+            waitForIdle()
+            onNodeWithTag(MY_PAGE_TEAM_SECTION_TAG).assertExists()
+            onNodeWithTag(MY_PAGE_PLAYER_SECTION_TAG).assertExists()
+            onNodeWithTag(MY_PAGE_FULL_ERROR_TAG).assertDoesNotExist()
+            case.present.forEach { onNodeWithText(it).assertExists() }
+            case.absent.forEach { onNodeWithText(it).assertDoesNotExist() }
+            if (case.state.favoriteTeams is FavoriteSectionState.Content) {
+                onNodeWithTag(myPageTeamRowTag("team-1")).assertExists()
+            }
+            if (case.state.favoritePlayers is FavoriteSectionState.Content) {
+                onNodeWithTag(myPagePlayerRowTag("player-1")).assertExists()
+            }
+        }
+
+        // 30-11 team loading · players shown
+        state = MyPageUiState(FavoriteSectionState.Loading, players)
+        waitForIdle()
+        onNodeWithContentDescription("즐겨찾기한 팀을 불러오는 중").assertExists()
+        onNodeWithContentDescription("즐겨찾기한 선수를 불러오는 중").assertDoesNotExist()
+        onNodeWithTag(myPagePlayerRowTag("player-1")).assertExists()
+    }
+
+    @Test
+    fun removalHidesOnlyTheTargetAndAFailureRestoresTheTileWithARetrySnackbar() = runComposeUiTest {
+        val teams = listOf(team("team-1"), team("team-2"))
+        val removing = FavoriteRemovalTarget.Team("team-1")
+        var state by mutableStateOf(
+            MyPageUiState(
+                favoriteTeams = FavoriteSectionState.Content(teams),
+                favoritePlayers = FavoriteSectionState.Content(listOf(player("player-1"))),
+            ),
+        )
+        var removalRetries = 0
+        setContent { TestContent(uiState = state, onRemovalRetry = { removalRetries++ }) }
+
+        // 30-9: the ViewModel hides only the target while the removal runs.
+        state = state.copy(
+            favoriteTeams = FavoriteSectionState.Content(teams.drop(1)),
+            removingFavorite = removing,
+        )
+        waitForIdle()
+        onNodeWithTag(myPageTeamRowTag("team-1")).assertDoesNotExist()
+        onNodeWithTag(myPageTeamRowTag("team-2")).assertExists()
+        onNodeWithTag(myPagePlayerRowTag("player-1")).assertExists()
+        onNode(hasText("1") and hasAnyAncestor(hasTestTag(MY_PAGE_TEAM_SECTION_TAG)), useUnmergedTree = true).assertExists()
+        onNodeWithTag(MY_PAGE_REMOVAL_SNACKBAR_TAG).assertDoesNotExist()
+
+        // 30-10: failure restores the tile in its stored order with the star and shows the retry Snackbar.
+        state = state.copy(
+            favoriteTeams = FavoriteSectionState.Content(teams),
+            removingFavorite = null,
+            failedRemoval = removing,
+        )
+        waitForIdle()
+        val restored = onNodeWithTag(myPageTeamRowTag("team-1")).fetchSemanticsNode().boundsInRoot
+        val other = onNodeWithTag(myPageTeamRowTag("team-2")).fetchSemanticsNode().boundsInRoot
+        assertTrue(restored.left < other.left)
+        onNodeWithContentDescription("Team team-1 즐겨찾기 해제").assertExists()
+        onNode(hasText("2") and hasAnyAncestor(hasTestTag(MY_PAGE_TEAM_SECTION_TAG)), useUnmergedTree = true).assertExists()
+        onNodeWithTag(MY_PAGE_REMOVAL_SNACKBAR_TAG).assertExists()
+        onNodeWithText("즐겨찾기 해제에 실패했습니다.").assertExists()
+        onNodeWithText("재시도").performClick()
+        assertEquals(1, removalRetries)
+    }
+
+    @Test
+    fun removingATeamAboveTheViewportKeepsTheTilesBeingViewedOnScreen() =
+        runSkikoComposeUiTest(size = Size(360f, 600f)) {
+            val teams = (1..12).map { team("t$it") }
+            var state by mutableStateOf(
+                MyPageUiState(
+                    favoriteTeams = FavoriteSectionState.Content(teams),
+                    favoritePlayers = FavoriteSectionState.Empty,
+                ),
+            )
+            setContent { TestContent(uiState = state) }
+
+            onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(myPageTeamRowTag("t10")))
+            val list = onNodeWithTag(MY_PAGE_LIST_TAG).fetchSemanticsNode().boundsInRoot
+            // The first tile fully inside the viewport is what the user is looking at.
+            val viewed = teams.map { it.id }.first { id ->
+                val node = onAllNodes(hasTestTag(myPageTeamRowTag(id))).fetchSemanticsNodes().singleOrNull()
+                node != null && node.boundsInRoot.top >= list.top
+            }
+            val viewedTop = onNodeWithTag(myPageTeamRowTag(viewed)).fetchSemanticsNode().boundsInRoot.top
+            assertTrue(viewed != "t1" && viewed != "t2", "fixture must scroll past the first row, viewing $viewed")
+
+            // The first team is removed while the user looks further down the list.
+            state = state.copy(favoriteTeams = FavoriteSectionState.Content(teams.drop(1)))
+            waitForIdle()
+
+            val after = onAllNodes(hasTestTag(myPageTeamRowTag(viewed))).fetchSemanticsNodes().singleOrNull()
+            assertTrue(after != null, "$viewed left the composition after removing t1")
+            val afterBounds = after.boundsInRoot
+            assertTrue(
+                afterBounds.top >= list.top - 0.5f && afterBounds.bottom <= list.bottom + 0.5f,
+                "$viewed scrolled out of view: was top $viewedTop, now $afterBounds in $list",
+            )
+        }
+
+    @Test
+    fun tileTextWrapsWithoutClippingOnNarrowScreensAndDoubleFonts() {
+        val longName = "xXxMasterProMegaTeamxXx Frankfurt Bahnhofsviertel Esports"
+        val longMeta = "아주긴대한민국대표팀태그 · 대한민국"
+        val favorites = listOf(
+            FavoriteTeam(id = "long", name = longName, tag = "아주긴대한민국대표팀태그", country = "대한민국"),
+            FavoriteTeam(id = "short", name = "T1", tag = "T1", country = "대한민국"),
+        )
+        listOf(320f, 360f, 411f).forEach { width ->
+            runSkikoComposeUiTest(size = Size(width, 2400f)) {
+                var fontScale by mutableStateOf(1f)
+                setContent {
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                        TestContent(
+                            uiState = MyPageUiState(
+                                favoriteTeams = FavoriteSectionState.Content(favorites),
+                                favoritePlayers = FavoriteSectionState.Empty,
+                            ),
+                        )
+                    }
+                }
+
+                var defaultHeight = 0f
+                listOf(1f, 2f).forEach { scale ->
+                    fontScale = scale
+                    waitForIdle()
+                    val label = "width=$width fontScale=$scale"
+                    val tile = onNodeWithTag(myPageTeamRowTag("long")).fetchSemanticsNode().boundsInRoot
+                    val pair = onNodeWithTag(myPageTeamRowTag("short")).fetchSemanticsNode().boundsInRoot
+                    assertTrue(tile.left >= 0f && pair.right <= width, "$label tiles leave the screen")
+                    assertEquals(tile.height, pair.height, "$label tiles of a row differ in height")
+                    if (scale == 1f) defaultHeight = tile.height else assertTrue(tile.height > defaultHeight, "$label tile did not grow")
+                    listOf(longName, longMeta).forEach { text ->
+                        val node = onNode(hasText(text) and hasAnyAncestor(hasTestTag(myPageTeamRowTag("long"))), useUnmergedTree = true)
+                        val layout = node.fetchSemanticsNode().textLayout()
+                        val bounds = node.fetchSemanticsNode().boundsInRoot
+                        // Every character reaches a laid-out line (no maxLines cut), and nothing is ellipsized.
+                        assertEquals(text.length, layout.getLineEnd(layout.lineCount - 1), "$label '$text' is truncated")
+                        assertFalse(layout.isLineEllipsized(layout.lineCount - 1), "$label '$text' is ellipsized")
+                        assertTrue(layout.multiParagraph.height <= layout.size.height + 0.5f, "$label '$text' is cut vertically")
+                        assertTrue(
+                            bounds.left >= tile.left && bounds.right <= tile.right + 0.5f && bounds.bottom <= tile.bottom + 0.5f,
+                            "$label '$text' leaves its tile: $bounds / $tile",
+                        )
+                    }
+                    val star = onNodeWithContentDescription("$longName 즐겨찾기 해제").fetchSemanticsNode().boundsInRoot
+                    assertEquals(48f, star.width, "$label star target")
+                    assertTrue(star.right <= tile.right, "$label star leaves its tile")
+                }
+            }
+        }
+    }
+
     @Composable
     private fun TestContent(
         uiState: MyPageUiState,
@@ -393,7 +731,7 @@ class MyPageContentUiTest {
         VlrTheme {
             MyPageContent(
                 uiState = uiState,
-                listState = rememberLazyListState(),
+                gridState = rememberLazyGridState(),
                 onSearch = onSearch,
                 onTeamClick = onTeamClick,
                 onPlayerClick = onPlayerClick,
@@ -421,4 +759,10 @@ class MyPageContentUiTest {
         countryCode = "KR",
         countryName = "Korea",
     )
+
+    private fun SemanticsNode.textLayout(): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.first()
+    }
 }

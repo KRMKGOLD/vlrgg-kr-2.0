@@ -133,7 +133,13 @@ private fun LogoSlotPlaceholder(
     Text(
         text = text?.trim().orEmpty(),
         modifier = modifier.semantics { hideFromAccessibility() },
-        style = VlrTheme.typography.tag.copy(fontSize = if (large) 22.sp else 14.sp),
+        style = VlrTheme.typography.tag.copy(
+            fontSize = when {
+                large -> 22.sp
+                size == LogoSlotDefaults.TileSize -> 16.sp
+                else -> 14.sp
+            },
+        ),
         color = VlrTheme.colors.muted,
         maxLines = 1,
         softWrap = false,

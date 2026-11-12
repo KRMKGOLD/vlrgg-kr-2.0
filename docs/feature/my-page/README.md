@@ -1,10 +1,10 @@
 # MyPage
 
-MyPage는 앱의 기본 root이며 기기에 저장한 Team·Player 즐겨찾기를 다시 찾고 해제하는 화면이다. 구현과 자동화 검증은 완료됐고 실기기 시각·접근성 확인은 남아 있다. 공통 즐겨찾기 계약은 [Feature Guide](../README.md#즐겨찾기-계약)를 따른다.
+MyPage는 앱의 기본 root이며 기기에 저장한 Team·Player 즐겨찾기를 다시 찾고 해제하는 화면이다. 구현과 자동화 검증은 완료됐고 v3 화면(`.pen` `30`)을 적용했다(2026-11-12). Android 기기 시각 확인은 했고, TalkBack·VoiceOver와 iOS 시각 확인은 남아 있다. 공통 즐겨찾기 계약은 [Feature Guide](../README.md#즐겨찾기-계약)를 따른다.
 
 ## MVP 범위
 
-- Favorite Teams 주 섹션과 Favorite Players 보조 섹션
+- `팀` 주 섹션과 `선수` 보조 섹션
 - repository 저장 순서를 유지한 독립 목록
 - 저장된 nullable Team logo와 Player profile image, 안정적인 placeholder
 - stable ID를 사용한 Team/Player Detail 이동
@@ -16,13 +16,13 @@ Match 목록·즐겨찾기·알림·`Next Matches`, 로그인·프로필·동기
 
 ## 화면과 이동
 
-Shared Top App Bar 아래 Favorite Teams, Favorite Players 순서로 표시하고 두 종류를 섞지 않는다. MyPage는 bottom navigation의 세 번째 item이다.
+Shared Top App Bar 아래 `팀`, `선수` 순서로 표시하고 두 종류를 섞지 않는다. 섹션 제목 옆에는 보이는 즐겨찾기 수를 두고, 팀은 2열 Favorite tile, 선수는 Identity row로 표시한다. 두 섹션 아래에 `즐겨찾기는 이 기기에만 저장됩니다.` 안내를 둔다. MyPage는 bottom navigation의 세 번째 item이다.
 
 - Team/Player row는 저장된 ID로 대응 Detail을 연다.
 - Search는 MyPage 위에 push된다.
 - Back이나 root 왕복 뒤 독립 back stack과 entry state를 복원한다.
-- 행 전체는 48dp 이상의 target이고 제거 icon은 별도의 접근 가능한 이름을 가진다.
-- Phone inset 16dp, Top App Bar 56dp를 사용하고 360dp에서 긴 이름과 한국어 문자열은 안전하게 ellipsis 처리한다.
+- 타일·행 전체는 48dp 이상의 상세 이동 target이고, 제거 별은 별도의 48dp target과 `<이름> 즐겨찾기 해제` 이름을 가진다.
+- Phone inset 16dp, Top App Bar 56dp를 사용한다. 긴 이름과 한국어 문자열은 말줄임하지 않고 줄바꿈하며, 글꼴 확대 시 타일·행 높이가 늘어난다([DESIGN.md](../../../DESIGN.md#10-접근성과-상호작용) 10절).
 
 ## 데이터
 
@@ -39,7 +39,7 @@ Team과 Player 관찰은 독립적으로 시작하고 갱신한다.
 
 | 상태 | 동작 |
 | --- | --- |
-| Loading / Empty / Content | 해당 섹션만 바꾸고 다른 섹션은 유지한다. |
+| Loading / Empty / Content | 해당 섹션만 바꾸고 다른 섹션은 유지한다. Loading은 타일·행 스켈레톤, Empty는 섹션 제목 아래 Section message다. |
 | Section Error | 성공한 다른 섹션과 최신 성공 snapshot을 유지하고 해당 종류만 Retry한다. |
 | Initial Full Error | 두 섹션 모두 첫 성공 snapshot 없이 실패하면 전체 Retry를 제공하되 bottom navigation은 유지한다. |
 | Removal In Progress | 대상 행만 optimistic하게 숨기고 다른 action은 유지한다. |
@@ -58,6 +58,6 @@ MyPage 목록과 persistence는 앱이 소유하며 전용 서버 API는 없다.
 - [x] 두 섹션의 상태·Retry와 저장 순서가 독립적이며 stale generation을 무시한다.
 - [x] Detail/Search/root 왕복 뒤 scroll과 entry state를 복원한다.
 - [x] 제거는 대상만 숨기고 실패 시 최신 snapshot 기준으로 rollback하며 이미 사라진 대상을 복원하지 않는다.
-- [x] 360dp에서 inset, app bar, minimum target과 긴 문자열 배치를 자동 검증한다.
+- [x] 360dp에서 inset, app bar, minimum target과 긴 문자열 배치를 자동 검증한다. 320·360·411dp와 글꼴 2배에서 타일 글자가 잘리지 않는지도 검증한다.
 - [x] Team·Player 이외의 개인화 섹션을 표시하지 않는다.
-- [ ] 실기기 screenshot·접근성 검증을 완료한다.
+- [ ] 실기기 screenshot·접근성 검증을 완료한다. Android 에뮬레이터 화면(411dp, 글꼴 2배)은 확인했고(2026-11-12), TalkBack·VoiceOver와 iOS 화면은 남아 있다.
