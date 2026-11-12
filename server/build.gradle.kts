@@ -11,7 +11,6 @@ application {
 }
 
 dependencies {
-    api(projects.core)
     implementation(libs.jspecify)
     implementation(libs.jsoup)
     implementation(libs.logback)

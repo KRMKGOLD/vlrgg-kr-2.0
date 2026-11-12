@@ -17,7 +17,6 @@ class CiContractTest < Minitest::Test
       "app/iosApp/iosApp/App.swift" => %w[ios], "app/iosApp/Scripts/check.sh" => %w[ios],
       "app/shared/src/commonMain/Shared.kt" => %w[android ios],
       "app/shared/src/androidMain/Platform.kt" => %w[android ios],
-      "core/src/commonMain/Core.kt" => CiContract::TARGETS,
       "app/androidApp/build.gradle.kts" => CiContract::TARGETS,
       "app/shared/build.gradle.kts" => CiContract::TARGETS,
       "server/build.gradle.kts" => CiContract::TARGETS,
