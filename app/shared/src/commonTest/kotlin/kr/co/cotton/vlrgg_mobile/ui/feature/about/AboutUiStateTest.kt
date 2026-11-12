@@ -7,7 +7,8 @@ import kotlin.test.assertNull
 class AboutUiStateTest {
     @Test
     fun versionLabelPrefixesOnlyAvailableBuildVersions() {
-        assertEquals("v2.0.4", aboutUiState("2.0.4").versionLabel)
+        assertEquals("버전 2.0.4", aboutUiState("2.0.4").versionLabel)
+        assertEquals("버전 0.2.0 (3)", aboutUiState("0.2.0 (3)").versionLabel)
         assertNull(aboutUiState(" ").versionLabel)
         assertNull(aboutUiState(null).versionLabel)
     }
@@ -37,7 +38,7 @@ class AboutUiStateTest {
             val failed = aboutUiState("2.0.4").afterLinkOpen(link, opened = false)
 
             assertEquals(link, failed.failedLink)
-            assertEquals("v2.0.4", failed.versionLabel)
+            assertEquals("버전 2.0.4", failed.versionLabel)
             assertEquals(1L, failed.linkErrorId)
         }
     }
@@ -78,7 +79,7 @@ class AboutUiStateTest {
 
         viewModel.updateBuildVersion("2.0.4")
         viewModel.onLinkOpenResult(AboutLink.SourceCode, opened = false)
-        assertEquals("v2.0.4", viewModel.uiState.value.versionLabel)
+        assertEquals("버전 2.0.4", viewModel.uiState.value.versionLabel)
         assertEquals(AboutLink.SourceCode, viewModel.uiState.value.failedLink)
 
         viewModel.onLinkOpenResult(AboutLink.SourceCode, opened = true)

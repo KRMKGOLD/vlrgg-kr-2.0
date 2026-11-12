@@ -238,20 +238,28 @@ fun SectionHeader(
         horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = title,
-            modifier = Modifier.semantics { heading() },
-            style = VlrTheme.typography.section,
-            color = VlrTheme.colors.ink,
-        )
-        count?.let {
+        // A long title (e.g. a search query) wraps instead of pushing the count and meta out.
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                text = it,
-                style = VlrTheme.typography.tag.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
-                color = VlrTheme.colors.muted,
+                text = title,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .semantics { heading() },
+                style = VlrTheme.typography.section,
+                color = VlrTheme.colors.ink,
             )
+            count?.let {
+                Text(
+                    text = it,
+                    style = VlrTheme.typography.tag.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+                    color = VlrTheme.colors.muted,
+                )
+            }
         }
-        Spacer(Modifier.weight(1f))
         meta?.let {
             Text(text = it, style = VlrTheme.typography.label, color = VlrTheme.colors.muted)
         }

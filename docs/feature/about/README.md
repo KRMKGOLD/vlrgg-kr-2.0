@@ -18,12 +18,12 @@ Dark Mode 선택, 계정·프로필, 앱 내 문의 양식, 원격 About 설정�
 
 ## 화면과 이동
 
-화면은 App identity, Project links(소스 코드 → 개인정보처리방침 → 문의 → 오픈소스 라이선스), Appearance, Attribution(데이터 출처 → 비공식 앱 고지 → 상표 고지) 순서다. 과도한 카드나 마케팅형 hero를 사용하지 않고 외부 이동과 고지를 구분한다. Top App Bar 제목과 하단 탭 라벨은 다른 root와 같이 한국어 `정보`이고, 화면 안의 라벨도 한국어로 표시한다(2026-11-05 v3 결정, 2026-11-12 앱 적용).
+화면은 App identity, Project links(소스 코드 → 개인정보처리방침 → 문의 → 오픈소스 라이선스), Appearance, Attribution(데이터 출처 → 비공식 앱 고지 → 상표 고지) 순서다. v3(`.pen` `70`, 2026-11-12 적용)에서 세 섹션 제목은 `프로젝트`·`화면 테마`·`출처와 고지`이고, 화면 테마는 `라이트`와 `현재 라이트 테마만 지원합니다. 다크 모드는 이후 업데이트에서 제공할 예정입니다.`, 데이터 출처 제목은 `데이터 출처 · VLR.GG`다. 과도한 카드나 마케팅형 hero를 사용하지 않고 외부 이동과 고지를 구분한다. Top App Bar 제목과 하단 탭 라벨은 다른 root와 같이 한국어 `정보`이고, 화면 안의 라벨도 한국어로 표시한다(2026-11-05 v3 결정, 2026-11-12 앱 적용).
 
 - Bottom navigation의 `About`에서 진입한다.
 - Search는 About 위에 push되고 Back 시 기존 About 상태로 돌아온다.
 - 각 row는 목적지와 이동 방식을 접근 가능한 label(`소스 코드 외부 링크 열기`, `개인정보처리방침 외부 링크 열기`, `메일 앱에서 문의 메일 쓰기`, `오픈소스 라이선스 화면 열기`)로 알린다. 같은 문구를 click label과 content description에 쓰고, row는 button role과 최소 48dp 높이를 가진다.
-- 앱 밖으로 나가는 세 row는 `↗`, 앱 안 화면으로 가는 오픈소스 라이선스 row는 chevron(`>`)을 trailing에 둬 구분한다. 외부 row는 브라우저나 메일 앱으로 연다. Android는 `mailto:`를 `ACTION_SENDTO`로 보내 메일 앱만 대상으로 하고, `startActivity` 실패를 실패로 처리하므로 package visibility 선언이 필요 없다. iOS는 `canOpenURL` 사전 검사 없이 `UIApplication.open`의 완료 결과로 성공 여부를 판단한다(`LSApplicationQueriesSchemes`에 없는 `mailto:`는 `canOpenURL`이 항상 false).
+- 각 row는 선두 아이콘(`code`·`privacy_tip`·`mail`·`description`)과 제목·보조 문구(소스 코드·개인정보처리방침 `GitHub에서 보기`, 문의 `teamcotton124@gmail.com`, 오픈소스 라이선스 `앱에 포함된 라이브러리`)를 둔다. 앱 밖으로 나가는 세 row는 `arrow_outward`(`↗`), 앱 안 화면으로 가는 오픈소스 라이선스 row는 `chevron_right`를 trailing에 둬 구분한다. 외부 row는 브라우저나 메일 앱으로 연다. Android는 `mailto:`를 `ACTION_SENDTO`로 보내 메일 앱만 대상으로 하고, `startActivity` 실패를 실패로 처리하므로 package visibility 선언이 필요 없다. iOS는 `canOpenURL` 사전 검사 없이 `UIApplication.open`의 완료 결과로 성공 여부를 판단한다(`LSApplicationQueriesSchemes`에 없는 `mailto:`는 `canOpenURL`이 항상 false).
 - 오픈소스 라이선스 row는 Navigation 3 `OpenSourceLicenses` key를 About stack에 push한다. Back은 About으로 돌아오며 About 상태를 유지한다.
 - 다른 bottom item은 해당 root로 이동한다.
 
@@ -36,7 +36,7 @@ Dark Mode 선택, 계정·프로필, 앱 내 문의 양식, 원격 About 설정�
 
 ## 표시와 오류 계약
 
-- version은 build metadata를 사용한다. null·blank·unavailable이면 version chip과 대체 문구를 모두 생략하고 나머지 identity는 유지한다.
+- version은 build metadata를 사용하고 `버전 0.2.0 (3)`처럼 `버전 ` 접두어로 표시한다(2026-11-12, 이전 `v` 접두어). null·blank·unavailable이면 version chip과 대체 문구를 모두 생략하고 나머지 identity는 유지한다.
 - 라이트는 유일한 현재 테마다. Dark Mode를 선택 가능한 disabled control처럼 표현하지 않는다.
 - 외부 링크 실행이 실패하면 화면과 모든 링크 row를 유지하고, 실패한 링크의 문구 하나만 담은 action 없는 짧은 Snackbar를 표시한다.
 
@@ -58,7 +58,7 @@ Dark Mode 선택, 계정·프로필, 앱 내 문의 양식, 원격 About 설정�
   - Android: `:app:androidApp`에 `com.mikepenz.aboutlibraries.plugin.android`를 적용해 variant마다 runtime classpath로 `res/raw/aboutlibraries.json`을 생성한다. Firebase Crashlytics, activity-compose, splashscreen 같은 앱 모듈 의존성과 `:app:shared` 의존성이 모두 들어간다. Release resource는 release runtime classpath 기준이다(debug에는 `debugImplementation` ui-tooling만 추가된다). platform owner(`AndroidAboutPlatform.readLicenseDefinitions`)가 이 raw resource를 읽어 `App`에 전달한다.
   - iOS: `:app:shared`의 `exportLibraryDefinitions`가 iosArm64 Kotlin/Native graph(`collect.all` + `filterVariants = iosArm64`; K/N에는 `*Classpath` configuration이 없다)로 JSON을 만들고 iosMain compose resource(`files/aboutlibraries.json`)로 번들한다. `:app:shared`의 Android variant 생성 task는 끈다. AboutLibraries가 attribute 없는 detached configuration으로 POM을 찾을 때 K/N publication의 `kotlin-api`/`kotlin-metadata` variant가 모호해지므로 `:app:shared`에 `kotlin-api` 우선 disambiguation rule을 둔다.
   - SPM으로 들어오는 Firebase Apple SDK는 Gradle이 수집하지 못하므로 `app/shared/aboutlibraries/libraries/`에 수동 정의한다: firebase-ios-sdk 12.19.2, GoogleDataTransport 10.1.1, GoogleUtilities 8.1.3, nanopb 2.30910.1(Zlib), Promises 2.4.1(Apache-2.0). firebase-ios-sdk 행은 Crashlytics가 `third_party/libunwind/dwarf.h`를 포함하므로 12.19.2 `Crashlytics/LICENSE` 전문(Apache License 2.0 본문 뒤 Hewlett-Packard libunwind MIT 고지까지)을 쓴다. **Firebase SPM 버전을 바꾸면 `app/iosApp/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, 이 파일들, 해당 버전의 `Crashlytics/LICENSE` 정의를 함께 갱신한다.**
-  - 번들된 제3자 asset: `composeResources/drawable`에는 Google Material Symbols(Apache-2.0) 아이콘만 두고, Android·iOS 양쪽 config에 `Material Symbols` 항목을 둔다(쓰지 않던 Compose Multiplatform 템플릿 로고는 삭제했다). `composeResources/font`에는 Saira Condensed SemiBold·Bold(OFL-1.1, [google/fonts `5bb2873`](https://github.com/google/fonts/tree/5bb28733cec313b63fbd415b574b5ae35c8aa8b8/ofl/sairacondensed) 원본 TTF, subset 없음)를 두고, 양쪽 config에 `Saira Condensed` 항목(`saira-condensed.json`, 설명에 글꼴 저작권 고지 포함)을 둔다. 런처·스플래시 아이콘은 자체 제작(`docs/design/app-icon/`)이다.
+  - 번들된 제3자 asset: `composeResources/drawable`에는 Google Material Symbols(Apache-2.0) 아이콘과 자체 제작 앱 아이콘(`app_icon.xml`, `docs/design/app-icon/app-icon.svg`)만 두고, Android·iOS 양쪽 config에 `Material Symbols` 항목을 둔다(쓰지 않던 Compose Multiplatform 템플릿 로고는 삭제했다). `composeResources/font`에는 Saira Condensed SemiBold·Bold(OFL-1.1, [google/fonts `5bb2873`](https://github.com/google/fonts/tree/5bb28733cec313b63fbd415b574b5ae35c8aa8b8/ofl/sairacondensed) 원본 TTF, subset 없음)를 두고, 양쪽 config에 `Saira Condensed` 항목(`saira-condensed.json`, 설명에 글꼴 저작권 고지 포함)을 둔다. 런처·스플래시 아이콘은 자체 제작(`docs/design/app-icon/`)이다.
 - 라이선스 전문(로컬 번들):
   - 두 모듈 모두 `offlineMode = true`라 plugin은 build 중 SPDX 전문을 내려받지 않는다. 전문은 각 모듈의 `aboutlibraries/licenses/*.json`(`hash`가 생성 JSON의 license key와 같으면 plugin이 병합한다)에서만 온다. 정의에는 받은 원문을 그대로 넣고 요약·수정하지 않는다. 생성 JSON에 쓰이는 license만 둔다(이 폴더의 정의는 쓰이지 않아도 출력에 들어간다).
 
