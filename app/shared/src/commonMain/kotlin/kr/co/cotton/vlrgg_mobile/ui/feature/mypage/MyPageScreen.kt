@@ -59,6 +59,12 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_star_fill
+import androidx.compose.runtime.key
+import kr.co.cotton.vlrgg_mobile.ui.component.IdentityRow
+import kr.co.cotton.vlrgg_mobile.ui.component.IdentityRowTrailing
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
+import kr.co.cotton.vlrgg_mobile.ui.component.logoInitials
 
 internal const val MY_PAGE_LIST_TAG = "my_page_list"
 internal const val MY_PAGE_TOP_APP_BAR_TAG = "my_page_top_app_bar"
@@ -215,16 +221,18 @@ internal fun MyPageContent(
                             )
                         }
 
-                        is FavoriteSectionState.Content -> items(
-                            items = players.favorites,
-                            key = { favorite -> "favorite_player_${favorite.id}" },
-                        ) { favorite ->
-                            SectionCard(Modifier.padding(horizontal = VlrDimensions.Space4)) {
-                                FavoritePlayerRow(
-                                    favorite = favorite,
-                                    onClick = onPlayerClick,
-                                    onRemove = onRemovePlayer,
-                                )
+                        // Player rows are one divided block, so they share an item instead of the list spacing.
+                        is FavoriteSectionState.Content -> item(key = "favorite_players_rows") {
+                            Column {
+                                players.favorites.forEach { favorite ->
+                                    key(favorite.id) {
+                                        FavoritePlayerRow(
+                                            favorite = favorite,
+                                            onClick = onPlayerClick,
+                                            onRemove = onRemovePlayer,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -293,17 +301,26 @@ private fun FavoritePlayerRow(
     onClick: (String) -> Unit,
     onRemove: (String) -> Unit,
 ) {
-    FavoriteRow(
-        id = favorite.id,
+    val openDetail = remember(favorite.id, onClick) { { onClick(favorite.id) } }
+    val removeFavorite = remember(favorite.id, onRemove) { { onRemove(favorite.id) } }
+    IdentityRow(
         title = favorite.handle,
-        subtitle = listOfNotNull(favorite.realName, favorite.countryName).joinToString(" · ").ifBlank { null },
-        imageUrl = favorite.imageUrl,
-        imageTag = myPagePlayerImageTag(favorite.id),
-        imagePlaceholderTag = myPagePlayerImagePlaceholderTag(favorite.id),
-        rowDescription = "선수 상세: ${favorite.handle}",
-        removalDescription = "${favorite.handle} 즐겨찾기 해제",
-        onClick = onClick,
-        onRemove = onRemove,
+        meta = listOfNotNull(favorite.realName, favorite.countryName).joinToString(" · ").ifBlank { null },
+        leading = {
+            LogoSlot(
+                imageUrl = favorite.imageUrl,
+                kind = LogoSlotKind.Player,
+                placeholderText = logoInitials(favorite.handle),
+                imageTestTag = myPagePlayerImageTag(favorite.id),
+                placeholderTestTag = myPagePlayerImagePlaceholderTag(favorite.id),
+            )
+        },
+        onClick = openDetail,
+        contentDescription = "선수 상세: ${favorite.handle}",
+        trailing = IdentityRowTrailing.FavoriteRemove(
+            contentDescription = "${favorite.handle} 즐겨찾기 해제",
+            onClick = removeFavorite,
+        ),
         modifier = Modifier.testTag(myPagePlayerRowTag(favorite.id)),
     )
 }

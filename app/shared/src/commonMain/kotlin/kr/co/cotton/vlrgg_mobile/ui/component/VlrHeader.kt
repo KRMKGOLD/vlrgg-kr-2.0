@@ -29,22 +29,30 @@ import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_search
 import vlrggmobile.app.shared.generated.resources.ic_star
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 
 internal const val RootHeaderSearchLabel = "검색"
 internal const val DetailHeaderBackLabel = "뒤로 가기"
 
-/** Root screen header: `title` text and a 48dp search action (`DESIGN.md` 8.1). */
+/**
+ * Root screen header: `title` text and a 48dp search action (`DESIGN.md` 8.1). It paints the
+ * status bar area above itself, so screens draw edge to edge.
+ */
 @Composable
 fun RootHeader(
     title: String,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
+    windowInsets: WindowInsets = WindowInsets.statusBars,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(VlrDimensions.HeaderHeight)
             .background(VlrTheme.colors.surface)
+            .windowInsetsPadding(windowInsets)
+            .height(VlrDimensions.HeaderHeight)
             .padding(start = VlrDimensions.Space4, end = VlrDimensions.Space1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -76,7 +84,8 @@ enum class DetailHeaderVariant {
 
 /**
  * Pushed-screen header: Back, optional title (light only), and feature actions (`DESIGN.md` 8.1).
- * [actions] receives the icon color of the variant.
+ * [actions] receives the icon color of the variant. Like [RootHeader] it paints the status bar
+ * area; the dark variant is the top of [DetailTopBand].
  */
 @Composable
 fun DetailHeader(
@@ -84,13 +93,19 @@ fun DetailHeader(
     modifier: Modifier = Modifier,
     title: String? = null,
     variant: DetailHeaderVariant = DetailHeaderVariant.Light,
+    windowInsets: WindowInsets = WindowInsets.statusBars,
     actions: @Composable RowScope.(iconColor: Color) -> Unit = {},
 ) {
     val colors = VlrTheme.colors
     val container = if (variant == DetailHeaderVariant.Dark) colors.panel else colors.surface
     val iconColor = if (variant == DetailHeaderVariant.Dark) colors.onPanel else colors.ink
 
-    Column(modifier = modifier.fillMaxWidth().background(container)) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(container)
+            .windowInsetsPadding(windowInsets),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

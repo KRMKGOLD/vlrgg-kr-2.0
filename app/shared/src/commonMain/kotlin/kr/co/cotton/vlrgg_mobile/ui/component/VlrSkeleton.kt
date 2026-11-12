@@ -57,7 +57,7 @@ fun SkeletonMatchRow(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
-                .padding(horizontal = VlrDimensions.Space4, vertical = 14.dp),
+                .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space3),
             horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
         ) {
             Column(

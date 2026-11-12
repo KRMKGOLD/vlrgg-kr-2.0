@@ -46,6 +46,9 @@ import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_progress_activity
 import vlrggmobile.app.shared.generated.resources.ic_search
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 
 internal const val SEARCH_LOADING_TAG = "search-loading"
 internal const val SEARCH_RETRY_TAG = "search-retry"
@@ -115,7 +118,7 @@ private fun SearchTopBar(
     onBack: () -> Unit,
     focusRequester: FocusRequester,
 ) {
-    Column {
+    Column(Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
