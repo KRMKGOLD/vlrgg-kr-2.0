@@ -30,13 +30,23 @@ import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.toInstant
+import kotlin.time.Instant
+import kr.co.cotton.vlrgg_mobile.ui.format.LocalDeviceClock
 import kotlinx.datetime.LocalTime
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamMatch
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
-import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kr.co.cotton.vlrgg_mobile.ui.theme.initializeVlrMaterial3
 import kotlin.test.Test
@@ -206,6 +216,25 @@ class TeamDetailV3UiTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun resumingInANewYearAddsTheYearToLastYearsSchedule() = runComposeUiTest {
+        val clock = MutableClock(at(2026, 12, 31, 21, 0))
+        val owner = ResumedLifecycleOwner()
+        val match = team.upcomingMatches.first().copy(scheduledDate = LocalDate(2026, 12, 24), scheduledTime = LocalTime(18, 0))
+        setContent {
+            CompositionLocalProvider(LocalDeviceClock provides clock, LocalLifecycleOwner provides owner) {
+                Fixture(TeamDetailUiState(TeamDetailContentState.Content(team.copy(upcomingMatches = listOf(match)))))
+            }
+        }
+        assertRowText("12월 24일 오후 6:00", UPCOMING_ID)
+
+        owner.registry.currentState = Lifecycle.State.STARTED
+        clock.now = at(2027, 1, 1, 9, 0)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        waitForIdle()
+        assertRowText("2026년 12월 24일 오후 6:00", UPCOMING_ID)
     }
 
     @Test
@@ -380,8 +409,20 @@ class TeamDetailV3UiTest {
         }
     }
 
+    private class MutableClock(var now: Instant) : Clock {
+        override fun now(): Instant = now
+    }
+
+    private class ResumedLifecycleOwner : LifecycleOwner {
+        val registry = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
+    }
+
+    private fun at(year: Int, month: Int, day: Int, hour: Int, minute: Int): Instant =
+        LocalDateTime(year, month, day, hour, minute).toInstant(TimeZone.currentSystemDefault())
+
     private companion object {
-        val YEAR = KoreanDateTimeFormat.currentYear()
+        val YEAR = Clock.System.todayIn(TimeZone.currentSystemDefault()).year
         const val UPCOMING_ID = "1"
         const val LIVE_ID = "2"
         const val LAST_YEAR_ID = "3"

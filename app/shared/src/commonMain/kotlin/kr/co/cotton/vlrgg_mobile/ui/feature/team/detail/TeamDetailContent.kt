@@ -54,6 +54,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.logoInitials
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchSection
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
+import kr.co.cotton.vlrgg_mobile.ui.format.rememberDeviceToday
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.time.Duration.Companion.ZERO
@@ -228,7 +229,7 @@ private fun TeamDetailBody(
     onNewsClick: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val currentYear = remember { KoreanDateTimeFormat.currentYear() }
+    val currentYear = rememberDeviceToday().year
     LazyColumn(
         state = listState,
         modifier = modifier.background(VlrTheme.colors.canvas),

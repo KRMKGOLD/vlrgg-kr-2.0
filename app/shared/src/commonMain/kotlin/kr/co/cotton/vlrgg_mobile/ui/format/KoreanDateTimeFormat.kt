@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.ui.format
 
-import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
@@ -8,7 +7,6 @@ import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
-import kotlinx.datetime.todayIn
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventMonthDay
 
 /**
@@ -38,7 +36,7 @@ internal object KoreanDateTimeFormat {
 
     /**
      * Team·player match date: `9월 24일`, or `2025년 9월 24일` when [date] is not in [currentYear],
-     * the device year.
+     * the device year ([rememberDeviceToday]).
      */
     fun matchDate(date: LocalDate, currentYear: Int): String {
         val monthDay = "${date.month.number}월 ${date.day}일"
@@ -50,10 +48,6 @@ internal object KoreanDateTimeFormat {
         val dateText = matchDate(date, currentYear)
         return if (time == null) dateText else "$dateText ${time(time)}"
     }
-
-    /** The device's calendar year, which decides whether [matchDate] spells out the year. */
-    fun currentYear(timeZone: TimeZone = TimeZone.currentSystemDefault()): Int =
-        Clock.System.todayIn(timeZone).year
 
     /** `2026년 9월 19일` */
     fun date(date: LocalDate): String = "${date.year}년 ${date.month.number}월 ${date.day}일"

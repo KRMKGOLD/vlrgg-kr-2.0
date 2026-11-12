@@ -31,7 +31,15 @@ import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.toInstant
+import kotlin.time.Instant
+import kr.co.cotton.vlrgg_mobile.ui.format.LocalDeviceClock
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerAgentStat
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerCurrentTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
@@ -42,7 +50,9 @@ import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatchTeam
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsSortIconTag
 import kr.co.cotton.vlrgg_mobile.ui.component.nextStatsSort
-import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kr.co.cotton.vlrgg_mobile.ui.theme.initializeVlrMaterial3
 import kotlin.test.Test
@@ -200,6 +210,25 @@ class PlayerDetailV3UiTest {
     }
 
     @Test
+    fun resumingInANewYearAddsTheYearToLastYearsMatchDate() = runComposeUiTest {
+        val clock = MutableClock(at(2026, 12, 31, 21, 0))
+        val owner = ResumedLifecycleOwner()
+        val match = player.recentMatches.first().copy(playedDate = LocalDate(2026, 12, 24))
+        setContent {
+            CompositionLocalProvider(LocalDeviceClock provides clock, LocalLifecycleOwner provides owner) {
+                Fixture(player.copy(recentMatches = listOf(match)))
+            }
+        }
+        inRow("12월 24일", WIN_ID)
+
+        owner.registry.currentState = Lifecycle.State.STARTED
+        clock.now = at(2027, 1, 1, 9, 0)
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        waitForIdle()
+        inRow("2026년 12월 24일", WIN_ID)
+    }
+
+    @Test
     fun rtlMirrorsTheHeroSectionTitlesAndResultColumn() =
         runSkikoComposeUiTest(size = Size(360f, 2400f)) {
             setContent {
@@ -320,8 +349,20 @@ class PlayerDetailV3UiTest {
         }
     }
 
+    private class MutableClock(var now: Instant) : Clock {
+        override fun now(): Instant = now
+    }
+
+    private class ResumedLifecycleOwner : LifecycleOwner {
+        val registry = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
+    }
+
+    private fun at(year: Int, month: Int, day: Int, hour: Int, minute: Int): Instant =
+        LocalDateTime(year, month, day, hour, minute).toInstant(TimeZone.currentSystemDefault())
+
     private companion object {
-        val YEAR = KoreanDateTimeFormat.currentYear()
+        val YEAR = Clock.System.todayIn(TimeZone.currentSystemDefault()).year
         const val WIN_ID = "1"
         const val LOSS_ID = "2"
         const val UNKNOWN_ID = "3"

@@ -48,6 +48,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.favoriteStarTint
 import kr.co.cotton.vlrgg_mobile.ui.component.logoInitials
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
+import kr.co.cotton.vlrgg_mobile.ui.format.rememberDeviceToday
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.time.Duration.Companion.ZERO
@@ -225,7 +226,7 @@ private fun PlayerDetailBody(
     onAgentStatsSortColumn: (PlayerAgentStatsSortColumn) -> Unit,
     modifier: Modifier,
 ) {
-    val currentYear = remember { KoreanDateTimeFormat.currentYear() }
+    val currentYear = rememberDeviceToday().year
     LazyColumn(
         state = listState,
         modifier = modifier.background(VlrTheme.colors.canvas),
