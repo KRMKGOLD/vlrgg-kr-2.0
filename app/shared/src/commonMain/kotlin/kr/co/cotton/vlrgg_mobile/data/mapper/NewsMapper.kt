@@ -1,6 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.data.mapper
 
 import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
 import kr.co.cotton.vlrgg_mobile.data.remote.model.news.NewsArticleBlockDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.news.NewsArticleInlineDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.news.NewsArticleResponseDto
@@ -43,6 +44,7 @@ private fun NewsSummaryDto.toDomain(): NewsSummary {
         title = title,
         author = author,
         publishedAt = publishedAt,
+        publishedDate = publishedDate?.let(LocalDate.Formats.ISO::parseOrNull),
     )
 }
 
