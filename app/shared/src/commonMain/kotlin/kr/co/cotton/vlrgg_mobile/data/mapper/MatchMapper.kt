@@ -47,6 +47,7 @@ internal fun MatchSummaryDto.toDomain(): MatchSummary = MatchSummary(
     homeScore = homeScore,
     awayScore = awayScore,
     event = event.toDomain(),
+    date = date?.let(LocalDate.Formats.ISO::parseOrNull),
 )
 
 internal fun MatchDetailResponseDto.toDomain(): MatchDetail = MatchDetail(

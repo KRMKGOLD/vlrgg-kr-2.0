@@ -10,4 +10,6 @@ internal data class EventSummaryDto(
     val dateLabel: String? = null,
     val regionCode: String? = null,
     val imageUrl: String? = null,
+    val startDate: String? = null,
+    val endDate: String? = null,
 )
