@@ -145,8 +145,8 @@ private fun TeamMatchRowPreview() {
                 onClick = {},
                 contentDescription = "경기 상세: KIWOOM DRX 대 Paper Rex",
                 context = "VCT Pacific 2026 · Playoffs–Upper Final",
-                status = TeamMatchRowStatus.Label("1d 6h"),
-                date = "2026/09/24 6:00 pm",
+                status = TeamMatchRowStatus.Label("1일 6시간 후"),
+                date = "9월 24일 오후 6:00",
             )
             TeamMatchRow(
                 title = "Nongshim RedForce vs BBL Esports",
@@ -154,7 +154,7 @@ private fun TeamMatchRowPreview() {
                 contentDescription = "경기 상세: Nongshim RedForce 2, BBL Esports 0",
                 context = "Esports World Cup 2026 · Playoffs",
                 status = TeamMatchRowStatus.Score("2 : 0"),
-                date = "2026/07/12",
+                date = "7월 12일",
                 outcome = TeamMatchOutcome.Win,
             )
         }
