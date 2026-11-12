@@ -1,6 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.mypage
 
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -583,6 +583,41 @@ class MyPageContentUiTest {
     }
 
     @Test
+    fun removingATeamAboveTheViewportKeepsTheTilesBeingViewedOnScreen() =
+        runSkikoComposeUiTest(size = Size(360f, 600f)) {
+            val teams = (1..12).map { team("t$it") }
+            var state by mutableStateOf(
+                MyPageUiState(
+                    favoriteTeams = FavoriteSectionState.Content(teams),
+                    favoritePlayers = FavoriteSectionState.Empty,
+                ),
+            )
+            setContent { TestContent(uiState = state) }
+
+            onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(myPageTeamRowTag("t10")))
+            val list = onNodeWithTag(MY_PAGE_LIST_TAG).fetchSemanticsNode().boundsInRoot
+            // The first tile fully inside the viewport is what the user is looking at.
+            val viewed = teams.map { it.id }.first { id ->
+                val node = onAllNodes(hasTestTag(myPageTeamRowTag(id))).fetchSemanticsNodes().singleOrNull()
+                node != null && node.boundsInRoot.top >= list.top
+            }
+            val viewedTop = onNodeWithTag(myPageTeamRowTag(viewed)).fetchSemanticsNode().boundsInRoot.top
+            assertTrue(viewed != "t1" && viewed != "t2", "fixture must scroll past the first row, viewing $viewed")
+
+            // The first team is removed while the user looks further down the list.
+            state = state.copy(favoriteTeams = FavoriteSectionState.Content(teams.drop(1)))
+            waitForIdle()
+
+            val after = onAllNodes(hasTestTag(myPageTeamRowTag(viewed))).fetchSemanticsNodes().singleOrNull()
+            assertTrue(after != null, "$viewed left the composition after removing t1")
+            val afterBounds = after.boundsInRoot
+            assertTrue(
+                afterBounds.top >= list.top - 0.5f && afterBounds.bottom <= list.bottom + 0.5f,
+                "$viewed scrolled out of view: was top $viewedTop, now $afterBounds in $list",
+            )
+        }
+
+    @Test
     fun tileTextWrapsWithoutClippingOnNarrowScreensAndDoubleFonts() {
         val longName = "xXxMasterProMegaTeamxXx Frankfurt Bahnhofsviertel Esports"
         val longMeta = "아주긴대한민국대표팀태그 · 대한민국"
@@ -651,7 +686,7 @@ class MyPageContentUiTest {
         VlrTheme {
             MyPageContent(
                 uiState = uiState,
-                listState = rememberLazyListState(),
+                gridState = rememberLazyGridState(),
                 onSearch = onSearch,
                 onTeamClick = onTeamClick,
                 onPlayerClick = onPlayerClick,

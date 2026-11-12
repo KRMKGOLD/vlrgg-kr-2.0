@@ -4,23 +4,24 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridItemScope
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -86,11 +87,11 @@ fun MyPageScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
 
     MyPageContent(
         uiState = uiState,
-        listState = listState,
+        gridState = gridState,
         onSearch = onSearch,
         onTeamClick = onTeamClick,
         onPlayerClick = onPlayerClick,
@@ -107,7 +108,7 @@ fun MyPageScreen(
 @Composable
 internal fun MyPageContent(
     uiState: MyPageUiState,
-    listState: LazyListState,
+    gridState: LazyGridState,
     onSearch: () -> Unit,
     onTeamClick: (String) -> Unit,
     onPlayerClick: (String) -> Unit,
@@ -146,10 +147,12 @@ internal fun MyPageContent(
                         .testTag(MY_PAGE_FULL_ERROR_TAG),
                 )
             } else {
-                // White sections on the canvas, 8dp apart (`.pen` 30-1). Each item paints its own
-                // surface so team tiles and player rows stay lazy items.
-                LazyColumn(
-                    state = listState,
+                // White sections on the canvas, 8dp apart (`.pen` 30-1). A two-column grid keeps
+                // every team tile and player row its own keyed item, so removing a favorite above
+                // the viewport does not move the tiles being viewed. Only team tiles take one cell.
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(TeamTilesPerRow),
+                    state = gridState,
                     modifier = Modifier
                         .fillMaxSize()
                         .testTag(MY_PAGE_LIST_TAG),
@@ -161,7 +164,7 @@ internal fun MyPageContent(
                         onRemoveTeam = onRemoveTeam,
                         onRetryTeams = onRetryTeams,
                     )
-                    item(key = "favorite_sections_gap") {
+                    fullWidthItem(key = "favorite_sections_gap") {
                         Spacer(Modifier.height(VlrDimensions.Space2))
                     }
                     favoritePlayersSection(
@@ -170,7 +173,7 @@ internal fun MyPageContent(
                         onRemovePlayer = onRemovePlayer,
                         onRetryPlayers = onRetryPlayers,
                     )
-                    item(key = "favorite_storage_note") {
+                    fullWidthItem(key = "favorite_storage_note") {
                         StorageNote()
                     }
                 }
@@ -188,13 +191,13 @@ internal fun MyPageContent(
     }
 }
 
-private fun LazyListScope.favoriteTeamsSection(
+private fun LazyGridScope.favoriteTeamsSection(
     teams: FavoriteSectionState<FavoriteTeam>,
     onTeamClick: (String) -> Unit,
     onRemoveTeam: (String) -> Unit,
     onRetryTeams: () -> Unit,
 ) {
-    item(key = "favorite_teams_header") {
+    fullWidthItem(key = "favorite_teams_header") {
         SectionHeader(
             title = "팀",
             count = (teams as? FavoriteSectionState.Content)?.favorites?.size?.toString(),
@@ -204,20 +207,24 @@ private fun LazyListScope.favoriteTeamsSection(
         )
     }
     when (teams) {
-        FavoriteSectionState.Loading -> item(key = "favorite_teams_loading") {
-            TeamTileRow(
-                isFirst = true,
-                modifier = Modifier.sectionLoading("즐겨찾기한 팀을 불러오는 중"),
+        FavoriteSectionState.Loading -> fullWidthItem(key = "favorite_teams_loading") {
+            Row(
+                modifier = Modifier
+                    .sectionLoading("즐겨찾기한 팀을 불러오는 중")
+                    .fillMaxWidth()
+                    .background(VlrTheme.colors.surface)
+                    .padding(start = VlrDimensions.Space4, end = VlrDimensions.Space4, top = VlrDimensions.Space1),
+                horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
             ) {
                 repeat(TeamTilesPerRow) { FavoriteTeamTileSkeleton(Modifier.weight(1f)) }
             }
         }
 
-        FavoriteSectionState.Empty -> item(key = "favorite_teams_empty") {
+        FavoriteSectionState.Empty -> fullWidthItem(key = "favorite_teams_empty") {
             SectionMessage("즐겨찾기한 팀이 없습니다.", Modifier.background(VlrTheme.colors.surface))
         }
 
-        FavoriteSectionState.Error -> item(key = "favorite_teams_error") {
+        FavoriteSectionState.Error -> fullWidthItem(key = "favorite_teams_error") {
             InlineRetry(
                 message = "즐겨찾기한 팀을 불러오지 못했습니다.",
                 onRetry = onRetryTeams,
@@ -227,29 +234,27 @@ private fun LazyListScope.favoriteTeamsSection(
         }
 
         is FavoriteSectionState.Content -> {
-            val rows = teams.favorites.chunked(TeamTilesPerRow)
+            val favorites = teams.favorites
             itemsIndexed(
-                items = rows,
-                key = { _, row -> "favorite_team_row_${row.first().id}" },
-            ) { index, row ->
-                TeamTileRow(isFirst = index == 0) {
-                    row.forEach { favorite ->
-                        FavoriteTeamTile(
-                            favorite = favorite,
-                            onClick = onTeamClick,
-                            onRemove = onRemoveTeam,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .testTag(myPageTeamRowTag(favorite.id)),
-                        )
-                    }
-                    repeat(TeamTilesPerRow - row.size) { Spacer(Modifier.weight(1f)) }
+                items = favorites,
+                key = { _, favorite -> "favorite_team_${favorite.id}" },
+                span = { index, _ -> GridItemSpan(if (isAloneInRow(index, favorites.size)) maxLineSpan else 1) },
+            ) { index, favorite ->
+                TeamTileCell(index = index, count = favorites.size) {
+                    FavoriteTeamTile(
+                        favorite = favorite,
+                        onClick = onTeamClick,
+                        onRemove = onRemoveTeam,
+                        rowPartner = if (isAloneInRow(index, favorites.size)) null else favorites[index xor 1],
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(myPageTeamRowTag(favorite.id)),
+                    )
                 }
             }
         }
     }
-    item(key = "favorite_teams_bottom") {
+    fullWidthItem(key = "favorite_teams_bottom") {
         Spacer(
             Modifier
                 .fillMaxWidth()
@@ -259,13 +264,13 @@ private fun LazyListScope.favoriteTeamsSection(
     }
 }
 
-private fun LazyListScope.favoritePlayersSection(
+private fun LazyGridScope.favoritePlayersSection(
     players: FavoriteSectionState<FavoritePlayer>,
     onPlayerClick: (String) -> Unit,
     onRemovePlayer: (String) -> Unit,
     onRetryPlayers: () -> Unit,
 ) {
-    item(key = "favorite_players_header") {
+    fullWidthItem(key = "favorite_players_header") {
         SectionHeader(
             title = "선수",
             count = (players as? FavoriteSectionState.Content)?.favorites?.size?.toString(),
@@ -275,17 +280,17 @@ private fun LazyListScope.favoritePlayersSection(
         )
     }
     when (players) {
-        FavoriteSectionState.Loading -> item(key = "favorite_players_loading") {
+        FavoriteSectionState.Loading -> fullWidthItem(key = "favorite_players_loading") {
             Column(Modifier.sectionLoading("즐겨찾기한 선수를 불러오는 중")) {
                 repeat(PlayerSkeletonRows) { PlayerRowSkeleton() }
             }
         }
 
-        FavoriteSectionState.Empty -> item(key = "favorite_players_empty") {
+        FavoriteSectionState.Empty -> fullWidthItem(key = "favorite_players_empty") {
             SectionMessage("즐겨찾기한 선수가 없습니다.", Modifier.background(VlrTheme.colors.surface))
         }
 
-        FavoriteSectionState.Error -> item(key = "favorite_players_error") {
+        FavoriteSectionState.Error -> fullWidthItem(key = "favorite_players_error") {
             InlineRetry(
                 message = "즐겨찾기한 선수를 불러오지 못했습니다.",
                 onRetry = onRetryPlayers,
@@ -297,6 +302,7 @@ private fun LazyListScope.favoritePlayersSection(
         is FavoriteSectionState.Content -> items(
             items = players.favorites,
             key = { favorite -> "favorite_player_${favorite.id}" },
+            span = { GridItemSpan(maxLineSpan) },
         ) { favorite ->
             FavoritePlayerRow(
                 favorite = favorite,
@@ -310,26 +316,42 @@ private fun LazyListScope.favoritePlayersSection(
 private const val TeamTilesPerRow = 2
 private const val PlayerSkeletonRows = 2
 
-/** One row of two equal-height tiles; the first row sits 4dp under the header, later rows 8dp apart. */
+private fun LazyGridScope.fullWidthItem(
+    key: String,
+    content: @Composable LazyGridItemScope.() -> Unit,
+) = item(key = key, span = { GridItemSpan(maxLineSpan) }, content = content)
+
+/** An odd last team spans the full line and keeps half its width, so its surface reaches both edges. */
+private fun isAloneInRow(index: Int, count: Int): Boolean =
+    index == count - 1 && index % TeamTilesPerRow == 0
+
+/**
+ * Grid cell around one team tile: 16dp screen insets, 8dp between the two columns (4dp on each
+ * inner side), 4dp under the header for the first line and 8dp between later lines.
+ */
 @Composable
-private fun TeamTileRow(
-    isFirst: Boolean,
-    modifier: Modifier = Modifier,
-    content: @Composable RowScope.() -> Unit,
+private fun TeamTileCell(
+    index: Int,
+    count: Int,
+    tile: @Composable RowScope.() -> Unit,
 ) {
+    val alone = isAloneInRow(index, count)
+    val isStartColumn = index % TeamTilesPerRow == 0
+    val halfGap = VlrDimensions.Space2 / 2
     Row(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .background(VlrTheme.colors.surface)
             .padding(
-                start = VlrDimensions.Space4,
-                end = VlrDimensions.Space4,
-                top = if (isFirst) VlrDimensions.Space1 else VlrDimensions.Space2,
-            )
-            .height(IntrinsicSize.Min),
+                start = if (isStartColumn) VlrDimensions.Space4 else halfGap,
+                end = if (isStartColumn && !alone) halfGap else VlrDimensions.Space4,
+                top = if (index < TeamTilesPerRow) VlrDimensions.Space1 else VlrDimensions.Space2,
+            ),
         horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-        content = content,
-    )
+    ) {
+        tile()
+        if (alone) Spacer(Modifier.weight(1f))
+    }
 }
 
 /** Section skeletons keep the existing loading description and announce indeterminate progress. */

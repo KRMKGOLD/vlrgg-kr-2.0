@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -41,6 +43,10 @@ import vlrggmobile.app.shared.generated.resources.ic_star_fill
  * Favorite tile (`DESIGN.md` 8.2, `.pen` `PLXGm`): the whole tile opens the team detail and the
  * 48dp star is a separate removal target. Text wraps instead of truncating, so the tile grows
  * with the font scale; [modifier] lands on the tile target.
+ *
+ * Lazy grid lines do not stretch their items, so [rowPartner], the tile beside this one, is laid
+ * out invisibly under this tile's copy. Both copies take the taller of the two texts and the
+ * tiles of a row stay the same height.
  */
 @Composable
 internal fun FavoriteTeamTile(
@@ -48,6 +54,7 @@ internal fun FavoriteTeamTile(
     onClick: (String) -> Unit,
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
+    rowPartner: FavoriteTeam? = null,
 ) {
     val openDetail = remember(favorite.id, onClick) { { onClick(favorite.id) } }
     val removeFavorite = remember(favorite.id, onRemove) { { onRemove(favorite.id) } }
@@ -83,24 +90,42 @@ internal fun FavoriteTeamTile(
                 icon = { Icon(vectorResource(Res.drawable.ic_star_fill), contentDescription = null) },
             )
         }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(end = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = favorite.name,
-                style = VlrTheme.typography.body.copy(fontWeight = FontWeight.ExtraBold),
-                color = VlrTheme.colors.ink,
-            )
-            favoriteTeamMeta(favorite)?.let {
-                Text(
-                    text = it,
-                    style = VlrTheme.typography.label.copy(fontWeight = FontWeight.Normal),
-                    color = VlrTheme.colors.muted,
+        Box(Modifier.fillMaxWidth()) {
+            rowPartner?.let {
+                FavoriteTeamTileCopy(
+                    favorite = it,
+                    modifier = Modifier
+                        .alpha(0f)
+                        .clearAndSetSemantics {},
                 )
             }
+            FavoriteTeamTileCopy(favorite)
+        }
+    }
+}
+
+@Composable
+private fun FavoriteTeamTileCopy(
+    favorite: FavoriteTeam,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(end = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = favorite.name,
+            style = VlrTheme.typography.body.copy(fontWeight = FontWeight.ExtraBold),
+            color = VlrTheme.colors.ink,
+        )
+        favoriteTeamMeta(favorite)?.let {
+            Text(
+                text = it,
+                style = VlrTheme.typography.label.copy(fontWeight = FontWeight.Normal),
+                color = VlrTheme.colors.muted,
+            )
         }
     }
 }
