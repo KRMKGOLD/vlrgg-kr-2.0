@@ -1,8 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.news.list
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,33 +11,30 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.InlineRetry
+import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsListItem
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsSkeleton
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_search
+import vlrggmobile.app.shared.generated.resources.ic_newspaper
+
+internal const val NEWS_INITIAL_RETRY_TAG = "news-initial-retry"
+internal const val NEWS_PAGINATION_RETRY_TAG = "news-pagination-retry"
 
 @Composable
 fun NewsContent(
@@ -70,7 +65,7 @@ fun NewsContent(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
         topBar = {
-            NewsTopBar(onSearch = onSearch)
+            RootHeader(title = "뉴스", onSearch = onSearch)
         },
     ) { contentPadding ->
         PullToRefreshBox(
@@ -92,8 +87,9 @@ fun NewsContent(
                     }
 
                     NewsListContentState.Empty -> item(key = "empty") {
-                        NewsStateMessage(
-                            message = "표시할 뉴스가 없어요.",
+                        StatePanel(
+                            title = "표시할 뉴스가 없어요.",
+                            icon = Res.drawable.ic_newspaper,
                             modifier = Modifier.fillParentMaxSize(),
                         )
                     }
@@ -102,10 +98,12 @@ fun NewsContent(
                         if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
                             Box(Modifier.fillParentMaxSize())
                         } else {
-                            NewsStateMessage(
-                                message = "뉴스를 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
-                                actionText = "재시도",
+                            StatePanel(
+                                title = "뉴스를 불러오지 못했습니다.",
+                                body = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+                                actionLabel = "재시도",
                                 onAction = onRetryInitial,
+                                actionTestTag = NEWS_INITIAL_RETRY_TAG,
                                 modifier = Modifier.fillParentMaxSize(),
                             )
                         }
@@ -145,98 +143,31 @@ fun NewsContent(
 }
 
 @Composable
-private fun NewsTopBar(
-    onSearch: () -> Unit,
-) {
-    TopAppBar(
-        title = {
-            Text(
-                text = "News",
-                style = VlrTheme.typography.title,
-                color = VlrTheme.colors.ink,
-            )
-        },
-        actions = {
-            VlrIconButton(
-                contentDescription = "검색",
-                onClick = onSearch,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_search),
-                        contentDescription = null,
-                    )
-                },
-            )
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = VlrTheme.colors.surface,
-        ),
-    )
-}
-
-@Composable
-private fun NewsStateMessage(
-    message: String,
-    modifier: Modifier = Modifier,
-    actionText: String? = null,
-    onAction: () -> Unit = {},
-) {
-    Column(
-        modifier = modifier.padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = message,
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.ink,
-            textAlign = TextAlign.Center,
-        )
-        actionText?.let { text ->
-            VlrButton(
-                text = text,
-                onClick = onAction,
-                modifier = Modifier.padding(top = VlrDimensions.Space4),
-            )
-        }
-    }
-}
-
-@Composable
 private fun NewsPaginationFooter(
     isLoading: Boolean,
     hasError: Boolean,
     onRetry: () -> Unit,
 ) {
+    if (!isLoading && hasError) {
+        InlineRetry(
+            message = "뉴스 소식을 더 불러오지 못했습니다.",
+            onRetry = onRetry,
+            actionTestTag = NEWS_PAGINATION_RETRY_TAG,
+        )
+        return
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(VlrDimensions.Space4),
         contentAlignment = Alignment.Center,
     ) {
-        when {
-            isLoading -> CircularProgressIndicator(
+        if (isLoading) {
+            CircularProgressIndicator(
                 modifier = Modifier.size(24.dp),
                 color = VlrTheme.colors.accent,
                 strokeWidth = 2.dp,
             )
-
-            hasError -> Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-            ) {
-                Text(
-                    text = "뉴스 소식을 더 불러오지 못했습니다.",
-                    style = VlrTheme.typography.bodySm,
-                    color = VlrTheme.colors.muted,
-                    textAlign = TextAlign.Center,
-                )
-                VlrButton(
-                    text = "재시도",
-                    onClick = onRetry,
-                    variant = VlrButtonVariant.Text,
-                )
-            }
         }
     }
 }

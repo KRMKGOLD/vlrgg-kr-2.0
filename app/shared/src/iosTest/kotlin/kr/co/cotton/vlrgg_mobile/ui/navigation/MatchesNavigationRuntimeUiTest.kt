@@ -101,9 +101,9 @@ class MatchesNavigationRuntimeUiTest {
             onNodeWithText("결과").performClick()
             onNodeWithTag(matchCardTag("result-10")).assertIsDisplayed()
 
-            onNodeWithText("News").performClick()
-            onNodeWithText("root:News").assertExists()
-            onNodeWithText("Matches").performClick()
+            onNodeWithTag(rootNavigationItemTag(NewsRoot)).performClick()
+            onNodeWithText("root:뉴스").assertExists()
+            onNodeWithTag(rootNavigationItemTag(MatchesRoot)).performClick()
             onNodeWithTag(matchCardTag("result-10")).assertIsDisplayed()
             assertEquals(1, repository.upcomingRequests)
             assertEquals(1, repository.resultsRequests)

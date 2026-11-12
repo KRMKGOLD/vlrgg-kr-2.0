@@ -48,7 +48,7 @@ class EventDetailContentUiTest {
         }
 
         onNodeWithText("Masters Seoul").assertIsDisplayed()
-        onNodeWithText("Matches").assertIsDisplayed()
+        onNodeWithText("경기").assertIsDisplayed()
         onNodeWithText("Playoffs").assertIsDisplayed()
         onNodeWithTag(matchCardTag(match.id)).performClick()
         assertEquals(match.id, clickedMatch)

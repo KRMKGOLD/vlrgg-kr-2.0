@@ -1,28 +1,16 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.matches
 
-import androidx.compose.foundation.border
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.ui.draw.clip
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,25 +19,25 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.InlineRetry
+import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrTab
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrTabs
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchesSkeleton
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_search
+import vlrggmobile.app.shared.generated.resources.ic_scoreboard
 
 internal const val MATCHES_LOADING_TAG = "matches-loading"
 internal const val MATCHES_REFRESHING_TAG = "matches-refreshing"
@@ -102,7 +90,7 @@ fun MatchesContent(
         containerColor = VlrTheme.colors.surface,
         topBar = {
             Column {
-                MatchesTopBar(onSearch = onSearch)
+                RootHeader(title = "경기", onSearch = onSearch)
                 MatchesTabs(
                     selectedTab = uiState.selectedTab,
                     onSelectTab = onSelectTab,
@@ -138,8 +126,9 @@ fun MatchesContent(
                     }
 
                     MatchesFeedContentState.Empty -> item(key = "empty") {
-                        MatchesStateMessage(
-                            message = uiState.selectedTab.emptyMessage(),
+                        StatePanel(
+                            title = uiState.selectedTab.emptyMessage(),
+                            icon = Res.drawable.ic_scoreboard,
                             modifier = Modifier.fillParentMaxSize(),
                         )
                     }
@@ -148,10 +137,11 @@ fun MatchesContent(
                         if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
                             Box(Modifier.fillParentMaxSize())
                         } else {
-                            MatchesStateMessage(
-                                message = "경기 목록을 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
-                                actionText = "재시도",
-                                actionTag = MATCHES_INITIAL_RETRY_TAG,
+                            StatePanel(
+                                title = "경기 목록을 불러오지 못했습니다.",
+                                body = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+                                actionLabel = "재시도",
+                                actionTestTag = MATCHES_INITIAL_RETRY_TAG,
                                 onAction = onRetryInitial,
                                 modifier = Modifier.fillParentMaxSize(),
                             )
@@ -189,17 +179,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
     onMatchClick: (String) -> Unit,
 ) {
     item(key = "date-${group.dateLabel}") {
-        Text(
-            text = group.displayDateLabel(),
-            modifier = Modifier.padding(
-                start = VlrDimensions.Space4,
-                end = VlrDimensions.Space4,
-                top = VlrDimensions.Space2,
-                bottom = VlrDimensions.Space2,
-            ),
-            style = VlrTheme.typography.section,
-            color = VlrTheme.colors.ink,
-        )
+        SectionHeader(title = group.displayDateLabel())
     }
     items(
         items = group.matches,
@@ -218,121 +198,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
 }
 
 @Composable
-private fun MatchesTopBar(onSearch: () -> Unit) {
-    TopAppBar(
-        title = {
-            Text(
-                text = "Matches",
-                style = VlrTheme.typography.title,
-                color = VlrTheme.colors.ink,
-            )
-        },
-        actions = {
-            VlrIconButton(
-                contentDescription = "검색",
-                onClick = onSearch,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_search),
-                        contentDescription = null,
-                    )
-                },
-            )
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = VlrTheme.colors.surface,
-        ),
-    )
-}
-
-@Composable
 private fun MatchesTabs(
     selectedTab: MatchesTab,
     onSelectTab: (MatchesTab) -> Unit,
 ) {
-    val controlShape = RoundedCornerShape(VlrDimensions.CornerRadius)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space3,
-            )
-            .testTag(MATCHES_TABS_TAG)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, controlShape)
-            .clip(controlShape)
-            .background(VlrTheme.colors.canvas)
-            .padding(2.dp),
-    ) {
+    VlrTabs(modifier = Modifier.testTag(MATCHES_TABS_TAG)) {
         MatchesTab.entries.forEach { tab ->
-            val selected = tab == selectedTab
-            val tabShape = RoundedCornerShape(VlrDimensions.Space1)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(32.dp)
-                    .testTag(matchTabTag(tab))
-                    .clip(tabShape)
-                    .then(
-                        if (selected) {
-                            Modifier
-                                .background(VlrTheme.colors.surface)
-                                .border(
-                                    VlrDimensions.OutlineWidth,
-                                    VlrTheme.colors.line,
-                                    tabShape,
-                                )
-                        } else {
-                            Modifier
-                        },
-                    )
-                    .selectable(
-                        selected = selected,
-                        role = Role.Tab,
-                        onClick = { onSelectTab(tab) },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = tab.label(),
-                    style = VlrTheme.typography.meta,
-                    color = if (selected) {
-                        VlrTheme.colors.accent
-                    } else {
-                        VlrTheme.colors.muted
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MatchesStateMessage(
-    message: String,
-    modifier: Modifier = Modifier,
-    actionText: String? = null,
-    actionTag: String? = null,
-    onAction: () -> Unit = {},
-) {
-    Column(
-        modifier = modifier.padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = message,
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.ink,
-            textAlign = TextAlign.Center,
-        )
-        actionText?.let { text ->
-            VlrButton(
-                text = text,
-                onClick = onAction,
-                modifier = Modifier
-                    .padding(top = VlrDimensions.Space4)
-                    .then(if (actionTag != null) Modifier.testTag(actionTag) else Modifier),
+            VlrTab(
+                label = tab.label(),
+                selected = tab == selectedTab,
+                onClick = { onSelectTab(tab) },
+                testTag = matchTabTag(tab),
             )
         }
     }
@@ -344,38 +220,28 @@ private fun MatchesPaginationFooter(
     hasError: Boolean,
     onRetry: () -> Unit,
 ) {
+    if (!isLoading && hasError) {
+        InlineRetry(
+            message = "경기를 더 불러오지 못했습니다.",
+            onRetry = onRetry,
+            actionTestTag = MATCHES_PAGINATION_RETRY_TAG,
+        )
+        return
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(VlrDimensions.Space4),
         contentAlignment = Alignment.Center,
     ) {
-        when {
-            isLoading -> CircularProgressIndicator(
+        if (isLoading) {
+            CircularProgressIndicator(
                 modifier = Modifier
                     .size(24.dp)
                     .testTag(MATCHES_PAGINATION_LOADING_TAG),
                 color = VlrTheme.colors.accent,
                 strokeWidth = 2.dp,
             )
-
-            hasError -> Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-            ) {
-                Text(
-                    text = "경기를 더 불러오지 못했습니다.",
-                    style = VlrTheme.typography.bodySm,
-                    color = VlrTheme.colors.muted,
-                    textAlign = TextAlign.Center,
-                )
-                VlrButton(
-                    text = "재시도",
-                    onClick = onRetry,
-                    variant = VlrButtonVariant.Text,
-                    modifier = Modifier.testTag(MATCHES_PAGINATION_RETRY_TAG),
-                )
-            }
         }
     }
 }

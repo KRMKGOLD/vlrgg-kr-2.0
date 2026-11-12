@@ -38,17 +38,16 @@ import coil3.compose.AsyncImage
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.series.SeriesDetail
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_arrow_back
-import vlrggmobile.app.shared.generated.resources.ic_error
 import vlrggmobile.app.shared.generated.resources.ic_trophy
 
 internal const val SERIES_DETAIL_LOADING_TAG = "series-detail-loading"
@@ -74,7 +73,7 @@ fun SeriesDetailContent(
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { SeriesDetailTopBar(onBack) },
+        topBar = { DetailHeader(onBack = onBack) },
     ) { contentPadding ->
         when (val contentState = uiState.contentState) {
             SeriesDetailContentState.Loading -> SeriesDetailLoading(
@@ -98,21 +97,6 @@ fun SeriesDetailContent(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun SeriesDetailTopBar(onBack: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxWidth().height(56.dp).background(VlrTheme.colors.surface),
-    ) {
-        VlrIconButton(
-            contentDescription = "뒤로 가기",
-            onClick = onBack,
-            modifier = Modifier.padding(start = VlrDimensions.Space1).weight(1f),
-            icon = { Icon(vectorResource(Res.drawable.ic_arrow_back), contentDescription = null) },
-        )
-        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
     }
 }
 
@@ -151,11 +135,6 @@ private fun SeriesIdentitySkeleton() {
         SkeletonBlock(Modifier.width(180.dp).height(34.dp))
         SkeletonBlock(Modifier.fillMaxWidth().height(20.dp))
     }
-}
-
-@Composable
-private fun SkeletonBlock(modifier: Modifier) {
-    Box(modifier = modifier.clip(RoundedCornerShape(VlrDimensions.CornerRadius)).background(VlrTheme.colors.skeleton))
 }
 
 @Composable
@@ -275,53 +254,31 @@ private fun EventMetadata(event: EventSummary) {
 
 @Composable
 private fun SectionEmpty(message: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = VlrDimensions.MinimumTouchTarget)
-            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space3),
-        horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(vectorResource(Res.drawable.ic_trophy), contentDescription = null, tint = VlrTheme.colors.muted)
-        Text(message, style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted)
-    }
-    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
+    SectionMessage(message = message)
 }
 
 @Composable
 private fun OverallEmpty() {
-    Column(
-        modifier = Modifier.fillMaxWidth().testTag(SERIES_DETAIL_EMPTY_TAG)
-            .padding(VlrDimensions.Space4)
-            .clip(RoundedCornerShape(VlrDimensions.CornerRadius))
-            .background(VlrTheme.colors.canvas)
-            .padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-    ) {
-        Icon(vectorResource(Res.drawable.ic_trophy), contentDescription = null, tint = VlrTheme.colors.muted)
-        Text("표시할 대회가 없습니다.", style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted)
-    }
+    StatePanel(
+        title = "표시할 대회가 없습니다.",
+        icon = Res.drawable.ic_trophy,
+        modifier = Modifier.fillMaxWidth().testTag(SERIES_DETAIL_EMPTY_TAG),
+    )
 }
 
 @Composable
 private fun SeriesDetailError(onRetry: () -> Unit, modifier: Modifier) {
-    Column(
-        modifier = modifier.testTag(SERIES_DETAIL_ERROR_TAG).padding(VlrDimensions.Space4),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(vectorResource(Res.drawable.ic_error), contentDescription = null, modifier = Modifier.size(48.dp), tint = VlrTheme.colors.muted)
-        Spacer(Modifier.height(VlrDimensions.Space4))
-        Text("시리즈 정보를 불러오지 못했습니다", style = VlrTheme.typography.title, color = VlrTheme.colors.ink, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(VlrDimensions.Space2))
-        Text("잠시 후 다시 시도해 주세요.", style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(VlrDimensions.Space6))
-        VlrButton(text = "재시도", onClick = onRetry)
-    }
+    StatePanel(
+        title = "시리즈 정보를 불러오지 못했습니다",
+        body = "잠시 후 다시 시도해 주세요.",
+        actionLabel = "재시도",
+        onAction = onRetry,
+        modifier = modifier.testTag(SERIES_DETAIL_ERROR_TAG),
+    )
 }
 
 private fun EventStatus.toChipStatus(): StatusChipStatus = when (this) {
-    EventStatus.ONGOING -> StatusChipStatus.Live
+    EventStatus.ONGOING -> StatusChipStatus.InProgress
     EventStatus.UPCOMING -> StatusChipStatus.Upcoming
     EventStatus.COMPLETED -> StatusChipStatus.Completed
     EventStatus.PAUSED -> StatusChipStatus.Postponed

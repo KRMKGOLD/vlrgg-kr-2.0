@@ -1,52 +1,59 @@
 package kr.co.cotton.vlrgg_mobile.ui.component
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.LocalContentColor
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kr.co.cotton.vlrgg_mobile.ui.theme.LocalVlrColors
 import kr.co.cotton.vlrgg_mobile.ui.theme.LocalVlrTypography
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrColors
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
+import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTypeScale
 import kotlin.math.pow
 
+/** Status chip variants from `DESIGN.md` 8.4. The label text always carries the status. */
 enum class StatusChipStatus {
+    /** `LIVE`: Saira `tag` on `accent`. */
     Live,
-    Loss,
+
+    /** `진행 중`: system 12 on `accent`. */
+    InProgress,
+
+    /** `예정` on a dark `panel` background. */
     Upcoming,
+
+    /** `완료됨` on a dark `panel` background. */
     Completed,
+
+    /** `연기됨`. */
     Postponed,
+
+    /** `취소됨` on a dark `panel` background. */
     Cancelled,
-    Partial,
-    Stale,
+
+    /** `정보 없음` on a dark `panel` background. */
     Unavailable,
+
+    /** Version label on light surfaces. */
+    Version,
+
+    /** v2 player result chips. Removed when the team match row replaces them (stage 2b). */
+    Loss,
+    Partial,
 }
 
 data class StatusChipColors(
     val container: Color,
     val content: Color,
-    val border: Color,
-    val usesDashedBorder: Boolean = false,
 )
 
 /** Status chips intentionally have no interaction role or click action. */
@@ -78,92 +85,32 @@ private fun Float.linearized(): Double =
         ((this + 0.055f) / 1.055f).toDouble().pow(2.4)
     }
 
-private fun accessibleStatusContent(
-    preferred: Color,
-    container: Color,
-    colors: VlrColors,
-): Color = if (contrastRatio(preferred, container) >= MinimumStatusTextContrast) {
-    preferred
-} else {
-    colors.ink
-}
-
 fun statusChipColors(
     status: StatusChipStatus,
     colors: VlrColors,
 ): StatusChipColors = when (status) {
-    StatusChipStatus.Live -> statusChipColors(
-        container = colors.accentSoft,
-        preferredContent = colors.accent,
-        border = colors.accent,
-        colors = colors,
-    )
+    StatusChipStatus.Live,
+    StatusChipStatus.InProgress,
+    -> StatusChipColors(container = colors.accent, content = colors.onPanel)
 
-    StatusChipStatus.Loss -> statusChipColors(
-        container = colors.accentSoft,
-        preferredContent = colors.accentPressed,
-        border = colors.accent,
-        colors = colors,
-    )
+    StatusChipStatus.Upcoming -> StatusChipColors(container = colors.panel2, content = colors.onPanel)
 
-    StatusChipStatus.Upcoming -> statusChipColors(
-        container = colors.statusUpcomingContainer,
-        preferredContent = colors.statusUpcoming,
-        border = colors.statusUpcoming,
-        colors = colors,
-    )
+    StatusChipStatus.Completed,
+    StatusChipStatus.Cancelled,
+    StatusChipStatus.Unavailable,
+    -> StatusChipColors(container = colors.panel2, content = colors.onPanelMuted)
 
-    StatusChipStatus.Completed -> statusChipColors(
-        container = colors.statusCompletedContainer,
-        preferredContent = colors.statusCompleted,
-        border = colors.statusCompleted,
-        colors = colors,
-    )
-
-    StatusChipStatus.Postponed -> statusChipColors(
-        container = colors.warnSoft,
-        preferredContent = colors.warn,
-        border = colors.warn,
-        colors = colors,
-    )
-
-    StatusChipStatus.Cancelled -> statusChipColors(
-        container = colors.canvas,
-        preferredContent = colors.statusCancelled,
-        border = colors.statusCancelled,
-        colors = colors,
-    )
-
-    StatusChipStatus.Partial,
-    StatusChipStatus.Stale,
-    -> statusChipColors(
-        container = colors.canvas,
-        preferredContent = colors.muted,
-        border = colors.muted,
-        colors = colors,
-    )
-
-    StatusChipStatus.Unavailable -> statusChipColors(
-        container = colors.surface,
-        preferredContent = colors.muted,
-        border = colors.line,
-        colors = colors,
-        usesDashedBorder = true,
-    )
+    StatusChipStatus.Postponed -> StatusChipColors(container = colors.warnSoft, content = colors.warn)
+    StatusChipStatus.Version -> StatusChipColors(container = colors.surfaceSunken, content = colors.ink2)
+    StatusChipStatus.Loss -> StatusChipColors(container = colors.accentSoft, content = colors.accentPressed)
+    StatusChipStatus.Partial -> StatusChipColors(container = colors.canvas, content = colors.muted)
 }
 
-private fun statusChipColors(
-    container: Color,
-    preferredContent: Color,
-    border: Color,
-    colors: VlrColors,
-    usesDashedBorder: Boolean = false,
-): StatusChipColors = StatusChipColors(
-    container = container,
-    content = accessibleStatusContent(preferredContent, container, colors),
-    border = border,
-    usesDashedBorder = usesDashedBorder,
-)
+internal fun statusChipTextStyle(status: StatusChipStatus, typography: VlrTypeScale): TextStyle = when (status) {
+    StatusChipStatus.Live -> typography.tag.copy(letterSpacing = 0.6.sp)
+    StatusChipStatus.Version -> typography.label.copy(fontWeight = FontWeight.SemiBold)
+    else -> typography.label.copy(fontWeight = FontWeight.Bold)
+}
 
 /** Informational-only status marker. Interactive status filters require a separately designed control. */
 @Composable
@@ -171,51 +118,14 @@ fun StatusChip(
     status: StatusChipStatus,
     label: String,
     modifier: Modifier = Modifier,
-    leadingIcon: (@Composable () -> Unit)? = null,
 ) {
     val colors = statusChipColors(status, LocalVlrColors.current)
-    val typography = LocalVlrTypography.current
-    val borderModifier = if (colors.usesDashedBorder) {
-        Modifier.dashedPillBorder(colors.border)
-    } else {
-        Modifier.border(VlrDimensions.OutlineWidth, colors.border, CircleShape)
-    }
-
-    Row(
+    Text(
+        text = label,
         modifier = modifier
-            .height(24.dp)
-            .background(colors.container, CircleShape)
-            .then(borderModifier)
-            .padding(horizontal = VlrDimensions.Space3),
-        horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        leadingIcon?.let {
-            CompositionLocalProvider(LocalContentColor provides colors.content) {
-                Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) { it() }
-            }
-        }
-        Text(
-            text = label,
-            color = colors.content,
-            style = typography.label.copy(fontWeight = FontWeight.Medium),
-        )
-    }
-}
-
-private fun Modifier.dashedPillBorder(color: Color): Modifier = drawBehind {
-    val strokeWidth = VlrDimensions.OutlineWidth.toPx()
-    val inset = strokeWidth / 2f
-    drawRoundRect(
-        color = color,
-        topLeft = androidx.compose.ui.geometry.Offset(inset, inset),
-        size = androidx.compose.ui.geometry.Size(size.width - strokeWidth, size.height - strokeWidth),
-        cornerRadius = CornerRadius((size.height - strokeWidth) / 2f),
-        style = Stroke(
-            width = strokeWidth,
-            pathEffect = PathEffect.dashPathEffect(
-                intervals = floatArrayOf(4.dp.toPx(), 2.dp.toPx()),
-            ),
-        ),
+            .background(colors.container, RoundedCornerShape(VlrDimensions.CornerRadius))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        color = colors.content,
+        style = statusChipTextStyle(status, LocalVlrTypography.current),
     )
 }

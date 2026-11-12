@@ -1,7 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.events.detail
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,19 +14,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
@@ -41,17 +34,21 @@ import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsColumn
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrTab
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrTabs
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrStatsTable
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsListItem
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_arrow_back
+import vlrggmobile.app.shared.generated.resources.ic_bar_chart
+import vlrggmobile.app.shared.generated.resources.ic_newspaper
+import vlrggmobile.app.shared.generated.resources.ic_scoreboard
+import org.jetbrains.compose.resources.DrawableResource
 
 internal const val EVENT_DETAIL_IDENTITY_RETRY_TAG = "event-detail-identity-retry"
 internal const val EVENT_DETAIL_TAB_RETRY_TAG = "event-detail-tab-retry"
@@ -83,7 +80,7 @@ fun EventDetailContent(
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { EventDetailTopBar(onBack) },
+        topBar = { DetailHeader(onBack = onBack) },
     ) { contentPadding ->
         when (val identity = uiState.identity) {
             EventIdentityContentState.Loading -> EventStateMessage(
@@ -98,10 +95,11 @@ fun EventDetailContent(
             EventIdentityContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
                 Box(Modifier.fillMaxSize().padding(contentPadding))
             } else {
-                EventStateMessage(
-                    message = "이벤트 정보를 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
-                    actionText = "재시도",
-                    actionTag = EVENT_DETAIL_IDENTITY_RETRY_TAG,
+                StatePanel(
+                    title = "이벤트 정보를 불러오지 못했습니다.",
+                    body = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+                    actionLabel = "재시도",
+                    actionTestTag = EVENT_DETAIL_IDENTITY_RETRY_TAG,
                     actionEnabled = retryEnabled,
                     onAction = onRetryIdentity,
                     modifier = Modifier
@@ -156,35 +154,6 @@ fun EventDetailContent(
 }
 
 @Composable
-private fun EventDetailTopBar(onBack: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(VlrTheme.colors.surface),
-    ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = VlrDimensions.Space1),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            VlrIconButton(
-                contentDescription = "뒤로 가기",
-                onClick = onBack,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_arrow_back),
-                        contentDescription = null,
-                    )
-                },
-            )
-        }
-        HorizontalDivider(color = VlrTheme.colors.line)
-    }
-}
-
-@Composable
 private fun EventIdentityHeader(event: EventDetail) {
     Column(
         modifier = Modifier
@@ -233,35 +202,14 @@ private fun EventDetailTabs(
     selectedTab: EventDetailTab,
     onSelectTab: (EventDetailTab) -> Unit,
 ) {
-    val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space2)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
-            .clip(shape),
-    ) {
+    VlrTabs {
         EventDetailTab.entries.forEach { tab ->
-            val selected = tab == selectedTab
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = VlrDimensions.MinimumTouchTarget)
-                    .testTag(eventDetailTabTag(tab))
-                    .background(if (selected) VlrTheme.colors.canvas else VlrTheme.colors.surface)
-                    .selectable(
-                        selected = selected,
-                        role = Role.Tab,
-                        onClick = { onSelectTab(tab) },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = tab.label(),
-                    style = VlrTheme.typography.meta,
-                    color = if (selected) VlrTheme.colors.accent else VlrTheme.colors.muted,
-                )
-            }
+            VlrTab(
+                label = tab.label(),
+                selected = tab == selectedTab,
+                onClick = { onSelectTab(tab) },
+                testTag = eventDetailTabTag(tab),
+            )
         }
     }
 }
@@ -277,7 +225,7 @@ private fun MatchesTabContent(
 ) {
     when (state) {
         EventMatchesContentState.Loading -> EventStateMessage("경기를 불러오는 중", loading = true)
-        EventMatchesContentState.Empty -> EventStateMessage("표시할 경기가 없어요.")
+        EventMatchesContentState.Empty -> TabStatePanel("표시할 경기가 없어요.", Res.drawable.ic_scoreboard)
         EventMatchesContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("경기를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventMatchesContentState.Content -> LazyColumn(
             state = listState,
@@ -307,7 +255,7 @@ private fun NewsTabContent(
 ) {
     when (state) {
         EventNewsContentState.Loading -> EventStateMessage("뉴스를 불러오는 중", loading = true)
-        EventNewsContentState.Empty -> EventStateMessage("표시할 뉴스가 없어요.")
+        EventNewsContentState.Empty -> TabStatePanel("표시할 뉴스가 없어요.", Res.drawable.ic_newspaper)
         EventNewsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("뉴스를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventNewsContentState.Content -> LazyColumn(
             state = listState,
@@ -341,7 +289,7 @@ private fun StatsTabContent(
 ) {
     when (state) {
         EventStatsContentState.Loading -> EventStateMessage("통계를 불러오는 중", loading = true)
-        EventStatsContentState.Empty -> EventStateMessage("아직 제공되는 통계가 없어요.")
+        EventStatsContentState.Empty -> TabStatePanel("아직 제공되는 통계가 없어요.", Res.drawable.ic_bar_chart)
         EventStatsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("통계를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventStatsContentState.Content -> VlrStatsTable(
             rows = state.stats.players,
@@ -372,13 +320,19 @@ private fun StatsTabContent(
 
 @Composable
 private fun EventTabError(message: String, onRetry: () -> Unit, enabled: Boolean) {
-    EventStateMessage(
-        message = message,
-        actionText = "재시도",
-        actionTag = EVENT_DETAIL_TAB_RETRY_TAG,
+    StatePanel(
+        title = message,
+        actionLabel = "재시도",
+        actionTestTag = EVENT_DETAIL_TAB_RETRY_TAG,
         actionEnabled = enabled,
         onAction = onRetry,
+        modifier = Modifier.fillMaxSize(),
     )
+}
+
+@Composable
+private fun TabStatePanel(title: String, icon: DrawableResource) {
+    StatePanel(title = title, icon = icon, modifier = Modifier.fillMaxSize())
 }
 
 @Composable
@@ -386,10 +340,6 @@ private fun EventStateMessage(
     message: String,
     modifier: Modifier = Modifier,
     loading: Boolean = false,
-    actionText: String? = null,
-    actionTag: String? = null,
-    actionEnabled: Boolean = true,
-    onAction: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -409,23 +359,13 @@ private fun EventStateMessage(
             color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
-        actionText?.let { text ->
-            VlrButton(
-                text = text,
-                onClick = onAction,
-                enabled = actionEnabled,
-                modifier = Modifier
-                    .padding(top = VlrDimensions.Space4)
-                    .then(if (actionTag != null) Modifier.testTag(actionTag) else Modifier),
-            )
-        }
     }
 }
 
 private fun EventDetailTab.label(): String = when (this) {
-    EventDetailTab.MATCHES -> "Matches"
-    EventDetailTab.NEWS -> "News"
-    EventDetailTab.STATS -> "Stats"
+    EventDetailTab.MATCHES -> "경기"
+    EventDetailTab.NEWS -> "뉴스"
+    EventDetailTab.STATS -> "통계"
 }
 
 private fun EventStatus.displayLabel(): String = when (this) {
@@ -436,7 +376,7 @@ private fun EventStatus.displayLabel(): String = when (this) {
 }
 
 private fun EventStatus.toChipStatus(): StatusChipStatus = when (this) {
-    EventStatus.ONGOING -> StatusChipStatus.Live
+    EventStatus.ONGOING -> StatusChipStatus.InProgress
     EventStatus.UPCOMING -> StatusChipStatus.Upcoming
     EventStatus.COMPLETED -> StatusChipStatus.Completed
     EventStatus.PAUSED -> StatusChipStatus.Unavailable

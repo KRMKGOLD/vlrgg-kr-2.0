@@ -3,19 +3,26 @@ package kr.co.cotton.vlrgg_mobile.ui.component
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kr.co.cotton.vlrgg_mobile.ui.theme.vlrTypeScale
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrLightColors
 
 class ComponentContractTest {
 
     @Test
-    fun buttonSizeContractKeepsVisualsInsideAccessibleTarget() {
-        assertEquals(40.dp, VlrButtonSize.Standard.visualHeight)
-        assertEquals(16.dp, VlrButtonSize.Standard.horizontalPadding)
-        assertEquals(32.dp, VlrButtonSize.Compact.visualHeight)
-        assertEquals(12.dp, VlrButtonSize.Compact.horizontalPadding)
+    fun buttonVariantsKeepV3HeightAndPadding() {
+        VlrButtonVariant.entries.forEach { variant ->
+            assertEquals(48.dp, variant.visualHeight, "$variant height")
+        }
+        assertEquals(24.dp, VlrButtonVariant.Primary.horizontalPadding)
+        assertEquals(24.dp, VlrButtonVariant.Secondary.horizontalPadding)
+        assertEquals(12.dp, VlrButtonVariant.Text.horizontalPadding)
     }
 
     @Test
@@ -31,14 +38,15 @@ class ComponentContractTest {
         assertEquals("로딩 중", loading.stateDescription)
         assertEquals(48.dp, loading.minimumTouchTarget)
         assertFalse(disabled.isInteractive)
+        assertEquals(0.5f, disabled.containerAlpha)
+        assertEquals(1f, loading.containerAlpha)
         assertTrue(enabled.isInteractive)
         assertEquals(VlrButtonContentPresentation.Visible, enabled.contentPresentation)
     }
 
     @Test
-    fun searchFieldVariantsPreserveSpecifiedVisualHeights() {
-        assertEquals(56.dp, VlrSearchFieldVariant.Standard.visualHeight)
-        assertEquals(40.dp, VlrSearchFieldVariant.Compact.visualHeight)
+    fun searchFieldKeepsV3VisualHeight() {
+        assertEquals(48.dp, VlrSearchFieldHeight)
     }
 
     @Test
@@ -65,23 +73,21 @@ class ComponentContractTest {
     }
 
     @Test
-    fun searchFocusAndErrorOutlinesDrawOutsideVisualBounds() {
-        val focused = searchFieldOutline(isFocused = true, errorMessage = null, colors = VlrLightColors)
+    fun searchOutlineFollowsFocusSubmittedValueAndError() {
+        val focused = searchFieldOutline(isFocused = true, hasValue = false, errorMessage = null, colors = VlrLightColors)
+        val submitted = searchFieldOutline(isFocused = false, hasValue = true, errorMessage = null, colors = VlrLightColors)
+        val empty = searchFieldOutline(isFocused = false, hasValue = false, errorMessage = null, colors = VlrLightColors)
         val error = searchFieldOutline(
-            isFocused = false,
+            isFocused = true,
+            hasValue = true,
             errorMessage = "검색어를 확인하세요",
             colors = VlrLightColors,
         )
-        val default = searchFieldOutline(isFocused = false, errorMessage = null, colors = VlrLightColors)
 
-        assertTrue(focused.isOutsideVisualBounds)
-        assertEquals(2.dp, focused.width)
-        assertEquals(VlrLightColors.focus, focused.color)
-        assertTrue(error.isOutsideVisualBounds)
-        assertEquals(2.dp, error.width)
-        assertEquals(VlrLightColors.accent, error.color)
-        assertFalse(default.isOutsideVisualBounds)
-        assertEquals(1.dp, default.width)
+        assertEquals(VlrSearchFieldOutline(VlrLightColors.ink, 2.dp), focused)
+        assertEquals(VlrSearchFieldOutline(VlrLightColors.lineStrong, 1.dp), submitted)
+        assertNull(empty)
+        assertEquals(VlrSearchFieldOutline(VlrLightColors.accent, 2.dp), error)
     }
 
     @Test
@@ -102,30 +108,30 @@ class ComponentContractTest {
     }
 
     @Test
-    fun statusColorsKeepStatusIdentityInContainersAndBorders() {
-        val live = statusChipColors(StatusChipStatus.Live, VlrLightColors)
-        val loss = statusChipColors(StatusChipStatus.Loss, VlrLightColors)
-        val upcoming = statusChipColors(StatusChipStatus.Upcoming, VlrLightColors)
-        val completed = statusChipColors(StatusChipStatus.Completed, VlrLightColors)
-        val postponed = statusChipColors(StatusChipStatus.Postponed, VlrLightColors)
-        val cancelled = statusChipColors(StatusChipStatus.Cancelled, VlrLightColors)
-        val unavailable = statusChipColors(StatusChipStatus.Unavailable, VlrLightColors)
+    fun statusColorsFollowV3ChipVariants() {
+        fun colors(status: StatusChipStatus) = statusChipColors(status, VlrLightColors)
 
-        assertEquals(VlrLightColors.accentSoft, live.container)
-        assertEquals(VlrLightColors.accent, live.border)
-        assertEquals(VlrLightColors.accentSoft, loss.container)
-        assertEquals(VlrLightColors.accentPressed, loss.content)
-        assertEquals(VlrLightColors.accent, loss.border)
-        assertEquals(VlrLightColors.statusUpcomingContainer, upcoming.container)
-        assertEquals(VlrLightColors.statusUpcoming, upcoming.border)
-        assertEquals(VlrLightColors.statusCompletedContainer, completed.container)
-        assertEquals(VlrLightColors.statusCompleted, completed.border)
-        assertEquals(VlrLightColors.warnSoft, postponed.container)
-        assertEquals(VlrLightColors.warn, postponed.border)
-        assertEquals(VlrLightColors.statusCancelled, cancelled.border)
-        assertEquals(VlrLightColors.surface, unavailable.container)
-        assertEquals(VlrLightColors.line, unavailable.border)
-        assertTrue(unavailable.usesDashedBorder)
-        assertFalse(live.usesDashedBorder)
+        assertEquals(StatusChipColors(VlrLightColors.accent, VlrLightColors.onPanel), colors(StatusChipStatus.Live))
+        assertEquals(StatusChipColors(VlrLightColors.accent, VlrLightColors.onPanel), colors(StatusChipStatus.InProgress))
+        assertEquals(StatusChipColors(VlrLightColors.panel2, VlrLightColors.onPanel), colors(StatusChipStatus.Upcoming))
+        listOf(StatusChipStatus.Completed, StatusChipStatus.Cancelled, StatusChipStatus.Unavailable).forEach {
+            assertEquals(StatusChipColors(VlrLightColors.panel2, VlrLightColors.onPanelMuted), colors(it), "$it")
+        }
+        assertEquals(StatusChipColors(VlrLightColors.warnSoft, VlrLightColors.warn), colors(StatusChipStatus.Postponed))
+        assertEquals(StatusChipColors(VlrLightColors.surfaceSunken, VlrLightColors.ink2), colors(StatusChipStatus.Version))
+    }
+
+    @Test
+    fun liveChipUsesSairaTagWhileInProgressUsesSystemLabel() {
+        val typography = vlrTypeScale(FontFamily.Monospace)
+
+        val live = statusChipTextStyle(StatusChipStatus.Live, typography)
+        val inProgress = statusChipTextStyle(StatusChipStatus.InProgress, typography)
+
+        assertEquals(FontFamily.Monospace, live.fontFamily)
+        assertEquals(13.sp, live.fontSize)
+        assertEquals(FontWeight.Bold, live.fontWeight)
+        assertEquals(typography.label.fontFamily, inProgress.fontFamily)
+        assertEquals(12.sp, inProgress.fontSize)
     }
 }

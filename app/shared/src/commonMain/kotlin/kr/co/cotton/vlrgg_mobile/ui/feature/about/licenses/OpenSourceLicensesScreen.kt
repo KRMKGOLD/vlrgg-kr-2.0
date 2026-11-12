@@ -25,7 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
@@ -68,19 +69,12 @@ internal fun OpenSourceLicensesContent(
         topBar = { OpenSourceLicensesTopBar(onBack) },
     ) { contentPadding ->
         if (uiState.isLoadFailed) {
-            Box(
+            StatePanel(
+                title = "오픈소스 라이선스 정보를 불러올 수 없습니다.",
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(contentPadding)
-                    .padding(VlrDimensions.Space4),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "오픈소스 라이선스 정보를 불러올 수 없습니다.",
-                    style = VlrTheme.typography.bodySm,
-                    color = VlrTheme.colors.muted,
-                )
-            }
+                    .padding(contentPadding),
+            )
         } else if (uiState.libraries == null) {
             Box(
                 modifier = Modifier
@@ -109,21 +103,5 @@ internal fun OpenSourceLicensesContent(
 
 @Composable
 private fun OpenSourceLicensesTopBar(onBack: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().background(VlrTheme.colors.surface)) {
-        Box(modifier = Modifier.fillMaxWidth().height(56.dp)) {
-            VlrIconButton(
-                contentDescription = "뒤로 가기",
-                onClick = onBack,
-                modifier = Modifier.align(Alignment.CenterStart).padding(start = VlrDimensions.Space1),
-                icon = { Icon(vectorResource(Res.drawable.ic_arrow_back), contentDescription = null) },
-            )
-            Text(
-                text = OPEN_SOURCE_LICENSES_TITLE,
-                modifier = Modifier.align(Alignment.Center).semantics { heading() },
-                style = VlrTheme.typography.title,
-                color = VlrTheme.colors.ink,
-            )
-        }
-        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
-    }
+    DetailHeader(onBack = onBack, title = OPEN_SOURCE_LICENSES_TITLE)
 }

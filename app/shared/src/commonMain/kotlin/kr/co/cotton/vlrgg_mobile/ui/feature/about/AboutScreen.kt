@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.about
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -30,17 +28,17 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalAccessibilityManager
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
+import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrSnackbar
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_chevron_right
-import vlrggmobile.app.shared.generated.resources.ic_search
 import kotlinx.coroutines.delay
 
 internal const val AboutLinkErrorBaseDurationMillis = 4_000L
@@ -124,7 +122,7 @@ internal fun AboutContent(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = VlrTheme.colors.surface,
-        topBar = { AboutTopAppBar(onSearch) },
+        topBar = { RootHeader(title = "정보", onSearch = onSearch) },
     ) { contentPadding ->
         Box(
             modifier = Modifier
@@ -148,46 +146,10 @@ internal fun AboutContent(
             uiState.failedLink?.let { link ->
                 VlrSnackbar(
                     message = link.openFailureMessage,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = VlrDimensions.Space3),
+                    modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun AboutTopAppBar(onSearch: () -> Unit) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = VlrDimensions.Space4),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "About",
-                modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.title,
-                color = VlrTheme.colors.accent,
-            )
-            VlrIconButton(
-                contentDescription = "검색",
-                onClick = onSearch,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_search),
-                        contentDescription = null,
-                    )
-                },
-            )
-        }
-        HorizontalDivider(
-            thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.line,
-        )
     }
 }
 
@@ -208,18 +170,7 @@ private fun AppIdentitySection(versionLabel: String?) {
             color = VlrTheme.colors.muted,
         )
         versionLabel?.let { label ->
-            Surface(
-                border = BorderStroke(VlrDimensions.OutlineWidth, VlrTheme.colors.line),
-                color = VlrTheme.colors.canvas,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
-            ) {
-                Text(
-                    text = label,
-                    modifier = Modifier.padding(horizontal = VlrDimensions.Space2, vertical = VlrDimensions.Space1),
-                    style = VlrTheme.typography.label,
-                    color = VlrTheme.colors.muted,
-                )
-            }
+            StatusChip(status = StatusChipStatus.Version, label = label)
         }
         HorizontalDivider(color = VlrTheme.colors.line)
     }
