@@ -2,7 +2,7 @@
 
 2026-09-27 기준 [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117)의 Android 내부 배포 검증은 완료됐다. `0.1.0(1)` 수동 설치 이후 `0.1.0(2)`의 [Actions 빌드·서명·Play internal 업로드](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/35855931943), 기존 앱의 Play 업데이트, 실기기 정상 동작과 실행 직후 crash·ANR 미발생을 확인했다. 동작·Crashlytics 확인은 #117에 기록된 사용자 확인이며 전체 접근성/E2E 검증 완료를 뜻하지 않는다.
 
-iOS signing·TestFlight는 Apple Developer Program/App Store Connect 계정 준비 전 보류하며 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 추적한다. 아래 내용은 후속 배포에도 유지할 절차이며, 완료된 Android 작업을 미완료로 다시 분류하지 않는다.
+iOS는 2026-11-12 Apple Developer Program 가입을 마치고 App ID와 App Store Connect 앱 record를 만들었다. signing 자료·API key·GitHub secret 구성과 첫 TestFlight 업로드는 아직 하지 않았으며 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 추적한다([iOS 재개 조건](#ios-재개-조건)). 아래 내용은 후속 배포에도 유지할 절차이며, 완료된 Android 작업을 미완료로 다시 분류하지 않는다.
 
 Android의 목표는 Google Play 프로덕션 공개다(2026-10-13 소유자 결정, [#160](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/160)). 자동화는 internal 업로드까지만 맡고, 비공개 테스트와 프로덕션 절차는 [Android 비공개 테스트와 프로덕션](#android-비공개-테스트와-프로덕션)에서 정한다. 이 문서의 나머지는 internal 배포와 공통 gate를 다룬다.
 
@@ -35,7 +35,7 @@ sh app/iosApp/Scripts/test_release_config.sh
 | Environment | Enable variable | Required secrets |
 | --- | --- | --- |
 | `android-internal` | `ANDROID_INTERNAL_DEPLOY_ENABLED=true` | `API_BASE_URL`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `FIREBASE_ANDROID_CONFIG_BASE64` |
-| `ios-testflight` | 계정 준비 전 `IOS_TESTFLIGHT_DEPLOY_ENABLED`를 켜지 않음 | `API_BASE_URL`, `IOS_TEAM_ID`, `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT_BASE64`, `FIREBASE_IOS_CONFIG_BASE64` |
+| `ios-testflight` | secret 8개와 첫 업로드 준비가 끝나기 전 `IOS_TESTFLIGHT_DEPLOY_ENABLED`를 켜지 않음 | `API_BASE_URL`, `IOS_TEAM_ID`, `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT_BASE64`, `FIREBASE_IOS_CONFIG_BASE64` |
 
 Android environment에는 `ANDROID_PLAY_WIF_PROVIDER`와 `ANDROID_PLAY_SERVICE_ACCOUNT` variables도 둔다. GitHub OIDC와 WIF로 Play 배포 Service Account를 impersonate하며 장기 service-account JSON key를 만들거나 저장하지 않는다. 권한은 대상 앱 조회와 testing release로 제한한다. Firebase config는 Play API credential과 별개다.
 
@@ -151,7 +151,53 @@ Console의 앱 콘텐츠에서 다음 항목을 완료해야 한다. 실제 답�
 
 ## iOS 재개 조건
 
-Apple Developer Program과 App Store Connect enrollment, `kr.co.cotton.vlrggmobile` 앱 소유권, distribution certificate/profile, App Store Connect API key와 internal tester가 준비된 뒤에만 iOS workflow를 켠다.
+### 현재 상태(2026-11-12)
+
+- 완료: Apple Developer Program 가입, explicit App ID `kr.co.cotton.vlrggmobile`(capability 없음), App Store Connect 앱 record(Apple ID `6833789569`, 이름 `VLR.GG Mobile (Unofficial)`, 기본 언어 한국어, SKU `kr.co.cotton.vlrggmobile`).
+- 소스: Release signing 설정에서 SPM 리소스 번들을 깨뜨리던 전역 `CODE_SIGN_IDENTITY`를 제거했다. 앱 소유 `PrivacyInfo.xcprivacy`, Android와 같은 스코어 윈도 1024px 아이콘, 홈 화면 이름 `VLR.GG Mobile`(`CFBundleDisplayName`)을 반영했다.
+- 미완료: Apple Distribution 인증서와 App Store profile, API key, `ios-testflight` secret 8개, internal tester group, 첫 업로드. credential 없이는 signed archive·export·upload를 검증할 수 없고 실제 업로드는 하지 않았다.
+- GitHub environment 이름은 `ios-testflight`다. [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에 남은 `ios-internal` 표기는 이전 이름이다.
+
+### 재개 checklist
+
+위에서부터 순서대로 진행한다. 7번은 마지막이다.
+
+1. Apple Distribution 인증서를 만든다. CSR의 개인키와 `.p12`는 비밀번호와 함께 복구 가능한 비공개 위치에 백업한다. 개인키를 잃으면 인증서를 새로 만들어야 한다.
+2. 위 인증서와 `kr.co.cotton.vlrggmobile`로 App Store distribution profile을 만든다. 인증서를 새로 만들면 profile도 다시 만든다.
+3. App Store Connect Team API key를 만들고 Key ID, Issuer ID와 `.p8`을 보관한다. `.p8`은 한 번만 내려받을 수 있다. 업로드와 build 조회가 되는 최소 역할은 화면에서 확인한다.
+4. TestFlight internal group과 tester를 만든다.
+5. `ios-testflight` environment secret 8개를 등록한다: `API_BASE_URL`, `IOS_TEAM_ID`, `IOS_CERTIFICATE_BASE64`, `IOS_CERTIFICATE_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT_BASE64`. `FIREBASE_IOS_CONFIG_BASE64`는 이미 등록돼 있다.
+6. 배포할 main SHA의 최신 CI `ios` job 성공을 확인하고 첫 marketing version과 build number를 정한다.
+7. 마지막으로 `IOS_TESTFLIGHT_DEPLOY_ENABLED=true`를 켜고 workflow를 수동 실행한다.
+
+첫 업로드 증빙으로 SHA, CI run, deploy run, version/build, App Store Connect receipt와 processing 상태, export compliance 답변, ITMS 메일 유무, 설치한 기기·OS와 Crashlytics dSYM UUID를 남긴다. 업로드 상태가 불명확하면 아래 [Uncertain upload and cleanup](#uncertain-upload-and-cleanup)을 따른다.
+
+`Info.plist`에는 `ITSAppUsesNonExemptEncryption`이 없어 build마다 export compliance 질문이 나오고, 답하기 전에는 tester가 설치할 수 없다. 법적 선언이라 소유자가 확인하기 전에는 key를 추가하지 않는다.
+
+### App Store Connect 정보
+
+Play에서 확정한 이름·설명·아이콘을 기준으로 한다. 한국어 설명과 짧은 소개는 [Play 게시 내용](play-console.md)과 같은 값을 쓰고, 부제는 `발로란트 e스포츠 경기·대회·팀·선수`, 카테고리는 스포츠로 한다. 개인정보처리방침은 [privacy-policy.md](privacy-policy.md)의 GitHub URL을 쓰며 출시 방식은 수동으로 둔다. 심사용 연락처는 이 문서에 쓰지 않는다. 실기기 스크린샷과 `TARGETED_DEVICE_FAMILY = "1,2"`가 요구하는 iPad 스크린샷은 App Store 제출 때 준비한다.
+
+현재 Apple 연령 등급은 계산값 9+를 16+로 수동 override한 상태다. 에이전트가 Play의 타깃 연령 문서를 근거로 설정했으며, 실제 Play 콘텐츠 등급과의 일치나 소유자의 승인된 정책을 뜻하지 않는다. 비현실적 폭력·무기의 빈도를 각각 드묾으로 답한 판단과 함께 제출 전에 재검증해야 한다.
+
+### Privacy manifest
+
+`app/iosApp/iosApp/PrivacyInfo.xcprivacy`는 앱 코드와 링크된 Kotlin/Skiko static framework가 쓰는 required-reason API만 선언하며, `iosApp` synchronized group이 앱 bundle 루트로 복사한다(pbxproj 변경 없음). Release arm64 앱 binary의 undefined symbol에는 `stat`·`fstat`·`lstat`가 있어 `NSPrivacyAccessedAPICategoryFileTimestamp`를 `C617.1`(앱 container 파일)로 선언했다. DataStore는 application support 디렉터리, Compose resource는 앱 bundle을 읽는다. `mach_absolute_time`은 Skiko archive 안에는 있으나 링크된 앱 binary에는 없어 선언하지 않았다.
+
+이번 앱 manifest 변경은 required-reason API만 다루며 수집 데이터 배열은 포함하지 않았다. 이는 앱과 운영 서버의 수집이 없다는 선언이 아니다. Firebase SDK manifest는 서버 요청 로그나 외부 이미지 요청의 데이터 처리를 대신 설명하지 않는다. App Store Connect의 App Privacy 설문은 아직 미저장·미게시 상태이며, [개인정보처리방침](privacy-policy.md)의 서버 로그(IP·요청 URL·검색어 등), Firebase SDK, 외부 이미지 전송을 포함해 선언을 검토해야 한다. 앱 manifest의 수집 데이터 항목 포함 여부도 이 검토에서 확정한다.
+
+의존성이나 Kotlin·Compose 버전을 올린 뒤에는 다시 확인한다.
+
+```sh
+./gradlew :app:shared:linkReleaseFrameworkIosArm64
+nm -u app/shared/build/bin/iosArm64/releaseFramework/Shared.framework/Shared
+```
+
+위 framework는 static archive라 링크되지 않는 객체도 보인다. 실제 선언 대상은 서명 없는 Release device build(`CODE_SIGNING_ALLOWED=NO`, Firebase 구성 필요)의 앱 executable `nm -u`로 정한다. 새 category가 나타나면 Apple [required reason API](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api) 목록에 맞춰 이유를 추가한다. KMP 문서는 stat·fstat에 `0A2A.1`, `mach_absolute_time`에 `35F9.1`을 예로 들지만, 이 앱의 stat 계열은 앱 container 파일 접근이라 `C617.1`을 쓴다([Kotlin 안내](https://kotlinlang.org/docs/multiplatform/multiplatform-privacy-manifest.html)). 업로드 뒤 ITMS-91053 메일과 Xcode Organizer의 privacy report로 최종 확인한다.
+
+### 앱 이름과 아이콘
+
+홈 화면 이름은 Android 런처와 같은 `VLR.GG Mobile`이며 `Info.plist`의 `CFBundleDisplayName`이 정한다. `PRODUCT_NAME`과 bundle 경로는 바꾸지 않는다. 아이콘은 Android·Play와 같은 [`app-icon.svg`](design/app-icon/app-icon.svg) 스코어 윈도이며 [`export.swift`](design/app-icon/export.swift)가 알파 채널 없는 1024px PNG를 `Assets.xcassets/AppIcon.appiconset`에 쓴다. App Store는 알파 채널과 투명 영역을 허용하지 않는다. 사이트 이름이 문제 되면 Play와 같은 방침으로 제목과 아이콘을 함께 재검토한다.
 
 iOS lane은 temporary keychain/profile/config를 만들고 archive와 dSYM을 처리한다. 기존 profile을 덮어쓰지 않으며 marker에 기록된 이번 실행의 자원만 삭제한다. cleanup marker가 불일치하거나 credential 삭제가 실패하면 임의 정리를 하지 않고 실패로 남긴다. 기존 사용자 keychain이나 인증서 디렉터리를 통째로 삭제하지 않는다.
 

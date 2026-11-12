@@ -111,7 +111,7 @@ Target Secret, registration token과 App Check token은 repository/environment v
 | --- | --- | --- |
 | Stage 1.1 notification server | Emulator contract/concurrency/security tests, build/installDist, notification-disabled packaged smoke GREEN | App·real Firebase/GCP/Cloud Run은 `NOT RUN — Stage 2` |
 | Query server | private validation, production promotion, rollback, public smoke와 cost-stop recovery PASS | 실제 invoice·Budget receipt·Spend cap 미확인; Monitoring 장애 수신은 #122에서 별도 검증 |
-| App release process | [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117): Android `0.1.0(2)` Actions 업로드·Play 업데이트·실기기 정상 동작·cleanup 확인 완료 | iOS account/signing/TestFlight는 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 보류 |
+| App release process | [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117): Android `0.1.0(2)` Actions 업로드·Play 업데이트·실기기 정상 동작·cleanup 확인 완료 | iOS는 Developer 가입·App ID·App Store Connect 앱 record 완료, signing·secret·첫 TestFlight 업로드는 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 미완료([재개 조건](app-release.md#ios-재개-조건)) |
 | Crashlytics | Android fatal·ANR, iOS fatal·dSYM 실수신 확인 | store release 안정성은 별도 운영 관측 |
 | #122 observability | 2026-09-29 KST: private O3~O9의 실제 알림 수신·독립 복원, 정상 production 배포와 영구 자원 4개·3개 지역 정상 지표 검증 완료. [단계별 실행 증거](architecture/server-container-deployment.md#122-observability-live-runbook) | D2 workflow `FAIL` 이력 보존. OOM은 검증한 768 MiB native 문구 계열에 한정하며, 다음 배포의 uptime 대상·정상 지표는 [다시 확인](architecture/server-container-deployment.md#production-permanent-policies) |
 
