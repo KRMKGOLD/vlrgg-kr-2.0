@@ -1,6 +1,6 @@
 # News
 
-News는 최신 기사 목록과 구조화된 본문을 제공하고 본문의 Team·Player를 앱 Detail로 연결하는 Phase 1 기능이다. 서버·앱 구현과 자동화 검증은 완료됐고 실기기 렌더·접근성 확인은 남아 있다. 공통 pagination·refresh·오류 계약은 [Feature Guide](../README.md#공통-상태와-오류-계약)를 따른다.
+News는 최신 기사 목록과 구조화된 본문을 제공하고 본문의 Team·Player를 앱 Detail로 연결하는 Phase 1 기능이다. 서버·앱 구현과 자동화 검증은 완료됐고, 앱 화면은 v3 디자인(`.pen` `10`·`11`)을 적용했다(2026-11-12). 목록 `publishedDate`는 앱만 받을 준비가 됐고 서버 구현은 남아 있다. 실기기 TalkBack·VoiceOver 확인은 남아 있다. 공통 pagination·refresh·오류 계약은 [Feature Guide](../README.md#공통-상태와-오류-계약)를 따른다.
 
 ## MVP 범위
 
@@ -15,9 +15,9 @@ Event·Match 본문 링크 이동, external link browsing 정책, embed 재생, 
 ## 상태와 인터랙션
 
 - 목록은 Initial Loading, Populated, Empty, Initial Error, Pagination Error를 구분한다.
-- 목록 끝 요청은 한 번만 실행하고 footer spinner를 사용한다. 실패 시 기존 항목을 유지하고 같은 page Retry를 제공한다.
+- 목록 끝 요청은 한 번만 실행하고 목록 끝에 기사 행 스켈레톤 한 줄을 둔다(v3, 진행 중 semantics 포함). 실패 시 기존 항목을 유지하고 같은 page Retry를 제공한다.
 - refresh는 기존 목록을 비우고 `page=1`만 요청한다. 진행 중 pagination을 취소하거나 이전 결과를 무시해 stale 항목 삽입을 막는다.
-- Detail은 Loading, Populated, Empty, Error를 구분한다. 필수 제목·본문 구조 실패는 Error다.
+- Detail은 Loading, Populated, Empty, Error를 구분한다. 필수 제목·본문 구조 실패는 Error다. Empty는 기사 제목 없이 본문 없음 State panel만 표시한다(v3 `11-3`).
 - 선택적 image·caption·unsupported embed가 원문에 없으면 해당 요소만 생략한다. 이미지 로딩이 실패해도 본문과 기존 caption은 유지하며 별도 Partial이나 전역 경고를 만들지 않는다.
 - 링크는 색상만으로 구분하지 않는다.
 

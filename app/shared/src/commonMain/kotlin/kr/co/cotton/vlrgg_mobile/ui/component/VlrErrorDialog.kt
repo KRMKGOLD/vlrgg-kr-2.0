@@ -28,6 +28,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kr.co.cotton.vlrgg_mobile.ui.theme.withKoreanWordBreak
 
 internal const val VLR_DIALOG_CONFIRM_TAG = "vlr-dialog-confirm"
 internal const val VLR_DIALOG_DISMISS_TAG = "vlr-dialog-dismiss"
@@ -114,12 +115,12 @@ internal fun VlrErrorDialogSurface(
             Text(
                 text = title,
                 modifier = Modifier.semantics { heading() },
-                style = VlrTheme.typography.section.copy(fontSize = 18.sp, lineHeight = 25.sp),
+                style = VlrTheme.typography.section.copy(fontSize = 18.sp, lineHeight = 25.sp).withKoreanWordBreak(),
                 color = VlrTheme.colors.ink,
             )
             Text(
                 text = message,
-                style = VlrTheme.typography.bodySm.copy(lineHeight = 21.sp),
+                style = VlrTheme.typography.bodySm.copy(lineHeight = 21.sp).withKoreanWordBreak(),
                 color = VlrTheme.colors.ink2,
             )
         }
