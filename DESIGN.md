@@ -152,6 +152,7 @@
 - [Google Material Symbols Outlined](https://fonts.google.com/icons) 원본을 굵기 400으로 쓴다. 패스 재작성, 라이브러리 혼용, 자체 제작 아이콘을 쓰지 않는다. 사용하는 글리프만 vector asset으로 가져온다.
 - 즐겨찾기 ON만 같은 사이트의 공식 `star` FILL 1을 쓴다. 다른 선택 상태는 선 아이콘에 색·막대·굵기를 함께 쓴다.
 - 크기: 기본 24dp, 행 trailing 20dp, 보조 16–18dp, 상태 패널 40dp. 아이콘 버튼은 48dp 영역을 갖는다.
+- RTL에서는 방향을 뜻하는 `arrow_back`·`chevron_right`·`arrow_outward`만 좌우 반전한다(vector `android:autoMirrored`, 패스는 원본 그대로). 위아래 화살표, 대칭인 `swap_horiz`, `search` 등 나머지는 반전하지 않는다.
 
 | 용도 | 아이콘 |
 | --- | --- |
