@@ -278,6 +278,40 @@ class MyPageContentUiTest {
         }
 
     @Test
+    fun favoritePlayersAreKeyedLazyItemsThatComposeOnlyWhenScrolledIntoView() =
+        runSkikoComposeUiTest(size = Size(360f, 600f)) {
+            val players = (1..40).map { index ->
+                FavoritePlayer(
+                    id = "player-$index",
+                    handle = "Player $index",
+                    realName = null,
+                    countryCode = null,
+                    countryName = null,
+                )
+            }
+            var removed: String? = null
+            setContent {
+                TestContent(
+                    uiState = MyPageUiState(
+                        favoriteTeams = FavoriteSectionState.Empty,
+                        favoritePlayers = FavoriteSectionState.Content(players),
+                    ),
+                    onRemovePlayer = { removed = it },
+                )
+            }
+
+            // Rows below the viewport are not composed until the list reaches them.
+            onNodeWithTag(myPagePlayerRowTag("player-1")).assertExists()
+            onNodeWithTag(myPagePlayerRowTag("player-40")).assertDoesNotExist()
+
+            onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(myPagePlayerRowTag("player-40")))
+            onNodeWithTag(myPagePlayerRowTag("player-40")).assertExists()
+            onNodeWithTag(myPagePlayerRowTag("player-1")).assertDoesNotExist()
+            onNodeWithContentDescription("Player 40 즐겨찾기 해제").performClick()
+            assertEquals("player-40", removed)
+        }
+
+    @Test
     fun fullErrorHidesSectionsAndUsesOnlyTheFullRetry() = runComposeUiTest {
         var fullRetries = 0
         setContent {

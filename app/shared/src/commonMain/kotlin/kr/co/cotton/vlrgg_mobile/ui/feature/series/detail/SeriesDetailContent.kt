@@ -43,6 +43,8 @@ import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotDefaults
 import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
 import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotSurface
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonHero
+import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
+import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 
 internal const val SERIES_DETAIL_LOADING_TAG = "series-detail-loading"
 internal const val SERIES_DETAIL_IDENTITY_TAG = "series-detail-identity"
@@ -218,13 +220,18 @@ private fun SeriesEventRow(event: EventSummary, onClick: () -> Unit) {
         },
         onClick = onClick,
         contentDescription = "이벤트 상세: ${event.name}",
+        badge = if (event.status == EventStatus.ONGOING) {
+            { StatusChip(StatusChipStatus.InProgress, OngoingLabel) }
+        } else {
+            null
+        },
         modifier = Modifier.testTag(seriesEventRowTag(event.id)),
     )
 }
 
 /**
- * Section titles carry the status. Only `일시 중지` is spelled out, because it shares the
- * completed section with finished events.
+ * Section titles carry the status. The mixed sections spell out the minority status: ongoing
+ * events get the `진행 중` chip among upcoming ones, and `일시 중지` leads the meta among finished ones.
  */
 private fun EventSummary.metadataLabel(): String {
     val labels = listOfNotNull(
@@ -236,6 +243,7 @@ private fun EventSummary.metadataLabel(): String {
 }
 
 private const val PausedLabel = "일시 중지"
+private const val OngoingLabel = "진행 중"
 
 @Composable
 private fun SectionEmpty(message: String) {

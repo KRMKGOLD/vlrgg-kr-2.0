@@ -27,6 +27,7 @@ import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_star
 import vlrggmobile.app.shared.generated.resources.ic_star_fill
+import androidx.compose.ui.text.style.TextOverflow
 
 /**
  * Top of the dark detail band (`DESIGN.md` 2·3): the status bar area and the dark [DetailHeader]
@@ -56,7 +57,8 @@ fun DetailTopBand(
 
 /**
  * Team, player, event and series hero on `panel` (`DESIGN.md` 8.3): a 72dp [LogoSlot], the
- * `display` name in `on-panel` and 13 `on-panel-muted` meta lines. [facts] holds the optional
+ * `display` name in `on-panel` and 13 `on-panel-muted` meta lines of at most
+ * [EntityHeroMetaMaxLines] lines each, so a long description cannot outgrow the band. [facts] holds the optional
  * row under the identity, such as the event status chip.
  */
 @Composable
@@ -95,7 +97,13 @@ fun EntityHero(
                     color = VlrTheme.colors.onPanel,
                 )
                 meta.filter(String::isNotBlank).forEach {
-                    Text(text = it, style = VlrTheme.typography.meta, color = VlrTheme.colors.onPanelMuted)
+                    Text(
+                        text = it,
+                        style = VlrTheme.typography.meta,
+                        color = VlrTheme.colors.onPanelMuted,
+                        maxLines = EntityHeroMetaMaxLines,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
@@ -108,6 +116,8 @@ fun EntityHero(
         }
     }
 }
+
+internal const val EntityHeroMetaMaxLines = 3
 
 /** Favorite star of the dark header: `on-panel` outline, `on-panel-accent` FILL when on. */
 @Composable

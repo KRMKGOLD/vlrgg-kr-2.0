@@ -51,7 +51,8 @@ sealed interface IdentityRowTrailing {
 /**
  * Team, player or event row: 40dp logo slot, `body` 700 title, 13 `muted` meta and a 48dp
  * trailing slot (`DESIGN.md` 8.2). [modifier] lands on the row target, so a test tag finds the
- * clickable node.
+ * clickable node. [badge] is an optional status chip before the meta, for a list that mixes
+ * statuses under one title (series `진행 중` among upcoming events).
  */
 @Composable
 fun IdentityRow(
@@ -61,6 +62,7 @@ fun IdentityRow(
     meta: String? = null,
     onClick: (() -> Unit)? = null,
     contentDescription: String? = null,
+    badge: (@Composable () -> Unit)? = null,
     trailing: IdentityRowTrailing = if (onClick != null) IdentityRowTrailing.Chevron else IdentityRowTrailing.None,
 ) {
     val interaction = if (onClick == null) {
@@ -96,8 +98,21 @@ fun IdentityRow(
                 style = VlrTheme.typography.body.copy(fontWeight = FontWeight.Bold),
                 color = VlrTheme.colors.ink,
             )
-            meta?.takeIf(String::isNotBlank)?.let {
-                Text(text = it, style = VlrTheme.typography.meta, color = VlrTheme.colors.muted)
+            val visibleMeta = meta?.takeIf(String::isNotBlank)
+            if (badge != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    badge()
+                    visibleMeta?.let {
+                        Text(text = it, style = VlrTheme.typography.meta, color = VlrTheme.colors.muted)
+                    }
+                }
+            } else {
+                visibleMeta?.let {
+                    Text(text = it, style = VlrTheme.typography.meta, color = VlrTheme.colors.muted)
+                }
             }
         }
         when (trailing) {

@@ -24,6 +24,11 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertCountEquals
 
 @OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class SeriesDetailContentUiTest {
@@ -57,16 +62,47 @@ class SeriesDetailContentUiTest {
         onNodeWithText("공식 글로벌 발로란트 챔피언십 시리즈 설명").assertExists()
         onNodeWithText("Sep 12 · INT").assertExists()
         onNodeWithText("정보 없음").assertExists()
-        // Section titles carry the status, so rows sit under their section without a status chip.
+        // The ongoing event keeps its `진행 중` chip among upcoming events; the completed section title
+        // already says `종료` for its rows.
+        onNode(
+            hasText("진행 중") and hasAnyAncestor(hasTestTag(seriesEventRowTag(UPCOMING_ID))),
+            useUnmergedTree = true,
+        ).assertExists()
         val upcomingRowTop = onNodeWithTag(seriesEventRowTag(UPCOMING_ID)).fetchSemanticsNode().boundsInRoot.top
         val completedRowTop = onNodeWithTag(seriesEventRowTag(COMPLETED_ID)).fetchSemanticsNode().boundsInRoot.top
         assertTrue(upcomingRowTop in upcomingTop..completedTop)
         assertTrue(completedRowTop > completedTop)
-        onNodeWithText("진행 중").assertDoesNotExist()
         onNodeWithText("종료됨").assertDoesNotExist()
         onNodeWithTag(seriesEventRowTag(UPCOMING_ID)).performClick()
         onNodeWithTag(seriesEventRowTag(COMPLETED_ID)).performClick()
         assertEquals(listOf(UPCOMING_ID, COMPLETED_ID), clickedIds)
+    }
+
+    @Test
+    fun onlyOngoingEventsCarryTheInProgressChipAmongUpcomingEvents() = runComposeUiTest {
+        val scheduledId = "scheduled"
+        val scheduled = EventSummary(
+            id = scheduledId,
+            name = "Masters London",
+            status = EventStatus.UPCOMING,
+            dateLabel = "Jun 7",
+            regionCode = "EU",
+        )
+        setContent {
+            Fixture(
+                content(
+                    populatedSeries.copy(upcomingEvents = populatedSeries.upcomingEvents + scheduled),
+                ),
+            )
+        }
+
+        onAllNodesWithText("진행 중", useUnmergedTree = true).assertCountEquals(1)
+        onNode(
+            hasText("진행 중") and hasAnyAncestor(hasTestTag(seriesEventRowTag(UPCOMING_ID))),
+            useUnmergedTree = true,
+        ).assertExists()
+        onNodeWithTag(seriesEventRowTag(scheduledId)).assertExists()
+        onNodeWithText("Jun 7 · EU", useUnmergedTree = true).assertExists()
     }
 
     @Test

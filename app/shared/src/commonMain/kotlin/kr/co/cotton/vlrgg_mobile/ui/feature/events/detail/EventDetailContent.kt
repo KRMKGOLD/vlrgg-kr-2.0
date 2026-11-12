@@ -50,6 +50,21 @@ import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
 import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotSurface
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonHero
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsMissingValue
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 
 internal const val EVENT_DETAIL_IDENTITY_RETRY_TAG = "event-detail-identity-retry"
 internal const val EVENT_DETAIL_TAB_RETRY_TAG = "event-detail-tab-retry"
@@ -110,48 +125,84 @@ fun EventDetailContent(
                 )
             }
 
-            is EventIdentityContentState.Content -> Column(
+            is EventIdentityContentState.Content -> EventDetailCollapsingBody(
+                hero = { EventIdentityHeader(identity.event) },
+                tabs = { EventDetailTabs(uiState.selectedTab, onSelectTab) },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(contentPadding),
             ) {
-                EventIdentityHeader(identity.event)
-                EventDetailTabs(uiState.selectedTab, onSelectTab)
-                Box(modifier = Modifier.weight(1f)) {
-                    when (uiState.selectedTab) {
-                        EventDetailTab.MATCHES -> MatchesTabContent(
-                            state = uiState.matches,
-                            listState = matchesListState,
-                            onMatchClick = onMatchClick,
-                            onRetry = onRetrySelectedTab,
-                            suppressError = uiState.busyRetry?.isDialogVisible == true,
-                            retryEnabled = retryEnabled,
-                        )
+                when (uiState.selectedTab) {
+                    EventDetailTab.MATCHES -> MatchesTabContent(
+                        state = uiState.matches,
+                        listState = matchesListState,
+                        onMatchClick = onMatchClick,
+                        onRetry = onRetrySelectedTab,
+                        suppressError = uiState.busyRetry?.isDialogVisible == true,
+                        retryEnabled = retryEnabled,
+                    )
 
-                        EventDetailTab.NEWS -> NewsTabContent(
-                            state = uiState.news,
-                            listState = newsListState,
-                            onNewsClick = onNewsClick,
-                            onRetry = onRetrySelectedTab,
-                            suppressError = uiState.busyRetry?.isDialogVisible == true,
-                            retryEnabled = retryEnabled,
-                        )
+                    EventDetailTab.NEWS -> NewsTabContent(
+                        state = uiState.news,
+                        listState = newsListState,
+                        onNewsClick = onNewsClick,
+                        onRetry = onRetrySelectedTab,
+                        suppressError = uiState.busyRetry?.isDialogVisible == true,
+                        retryEnabled = retryEnabled,
+                    )
 
-                        EventDetailTab.STATS -> StatsTabContent(
-                            state = uiState.stats,
-                            listState = statsListState,
-                            horizontalScrollState = statsHorizontalScrollState,
-                            sort = uiState.statsSort,
-                            onSortColumn = onSortStats,
-                            onPlayerClick = onPlayerClick,
-                            onRetry = onRetrySelectedTab,
-                            suppressError = uiState.busyRetry?.isDialogVisible == true,
-                            retryEnabled = retryEnabled,
-                        )
-                    }
+                    EventDetailTab.STATS -> StatsTabContent(
+                        state = uiState.stats,
+                        listState = statsListState,
+                        horizontalScrollState = statsHorizontalScrollState,
+                        sort = uiState.statsSort,
+                        onSortColumn = onSortStats,
+                        onPlayerClick = onPlayerClick,
+                        onRetry = onRetrySelectedTab,
+                        suppressError = uiState.busyRetry?.isDialogVisible == true,
+                        retryEnabled = retryEnabled,
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * Hero, tabs and the selected tab share one vertical scroll. Scrolling up collapses the hero
+ * before the tab list moves, and the tab content keeps the viewport height under the tabs, so a
+ * tall hero (long text, large font, short screen) never pushes the tabs out of reach.
+ */
+@Composable
+private fun EventDetailCollapsingBody(
+    hero: @Composable () -> Unit,
+    tabs: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    BoxWithConstraints(modifier) {
+        val scrollState = rememberScrollState()
+        val collapseHeroFirst = remember(scrollState) { CollapseHeroFirst(scrollState) }
+        var tabsHeight by remember { mutableIntStateOf(0) }
+        val contentHeight = (maxHeight - with(LocalDensity.current) { tabsHeight.toDp() }).coerceAtLeast(0.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(collapseHeroFirst)
+                .verticalScroll(scrollState),
+        ) {
+            hero()
+            Box(Modifier.fillMaxWidth().onSizeChanged { tabsHeight = it.height }) { tabs() }
+            Box(Modifier.fillMaxWidth().height(contentHeight)) { content() }
+        }
+    }
+}
+
+/** Lets the outer scroll take upward drags from the tab list until the hero is gone. */
+private class CollapseHeroFirst(private val outer: ScrollState) : NestedScrollConnection {
+    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+        if (available.y >= 0f || !outer.canScrollForward) return Offset.Zero
+        return Offset(0f, -outer.dispatchRawDelta(-available.y))
     }
 }
 
