@@ -3,11 +3,7 @@ package kr.co.cotton.vlrgg_mobile.ui.navigation
 data class DestinationDescriptor(
     val marker: String,
     val title: String,
-    val isRoot: Boolean,
-    val rootOrder: Int?,
     val showBottomBar: Boolean,
-    val searchAvailable: Boolean,
-    val requiresEntryScope: Boolean,
 )
 
 val AppNavKey.destinationDescriptor: DestinationDescriptor
@@ -15,35 +11,26 @@ val AppNavKey.destinationDescriptor: DestinationDescriptor
         NewsRoot -> rootDescriptor(
             marker = "news",
             title = "뉴스",
-            rootOrder = 0,
-            requiresEntryScope = true,
         )
 
         MatchesRoot -> rootDescriptor(
             marker = "matches",
             title = "경기",
-            rootOrder = 1,
-            requiresEntryScope = true,
         )
 
         MyPageRoot -> rootDescriptor(
             marker = "my_page",
             title = "마이페이지",
-            rootOrder = 2,
-            requiresEntryScope = true,
         )
 
         EventsRoot -> rootDescriptor(
             marker = "events",
             title = "대회",
-            rootOrder = 3,
-            requiresEntryScope = true,
         )
 
         AboutRoot -> rootDescriptor(
             marker = "about",
             title = "정보",
-            rootOrder = 4,
         )
 
         Search -> pushedDescriptor(
@@ -90,16 +77,10 @@ val AppNavKey.destinationDescriptor: DestinationDescriptor
 private fun rootDescriptor(
     marker: String,
     title: String,
-    rootOrder: Int,
-    requiresEntryScope: Boolean = false,
 ) = DestinationDescriptor(
     marker = marker,
     title = title,
-    isRoot = true,
-    rootOrder = rootOrder,
     showBottomBar = true,
-    searchAvailable = true,
-    requiresEntryScope = requiresEntryScope,
 )
 
 private fun pushedDescriptor(
@@ -108,9 +89,5 @@ private fun pushedDescriptor(
 ) = DestinationDescriptor(
     marker = marker,
     title = title,
-    isRoot = false,
-    rootOrder = null,
     showBottomBar = false,
-    searchAvailable = false,
-    requiresEntryScope = false,
 )

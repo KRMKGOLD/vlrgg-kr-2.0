@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -47,7 +46,7 @@ fun AppNavigation(
     AppNavigationRuntime(
         modifier = modifier,
         entryContent = { destination, onSearch, onPush, onBack ->
-            NavigationEntryContent(
+            NavigationContent(
                 destination = destination,
                 onSearch = onSearch,
                 onPush = onPush,
@@ -183,57 +182,13 @@ private fun appNavigationEntryProvider(
         onPush: (AppNavKey) -> Unit,
         onBack: () -> Unit,
     ) -> Unit,
-): (RootNavKey, NavKey) -> NavEntry<NavKey> {
-    val entries = entryProvider {
-        entry(NewsRoot) { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry(MatchesRoot) { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry(MyPageRoot) { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry(EventsRoot) { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry(AboutRoot) { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry(Search) { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry(OpenSourceLicenses) { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry<NewsDetail> { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry<MatchDetail> { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry<EventDetail> { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry<TeamDetail> { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry<PlayerDetail> { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-        entry<SeriesDetail> { destination ->
-            entryContent(destination, onSearch, onPush, onBack)
-        }
-    }
-    return { root, destination ->
-        val appDestination = destination.destination
-        val entry = entries(appDestination)
-        NavEntry(
-            key = destination,
-            contentKey = destination.contentKeyFor(root),
-        ) {
-            entry.Content()
-        }
+): (RootNavKey, NavKey) -> NavEntry<NavKey> = { root, destination ->
+    val appDestination = destination.destination
+    NavEntry(
+        key = destination,
+        contentKey = destination.contentKeyFor(root),
+    ) {
+        entryContent(appDestination, onSearch, onPush, onBack)
     }
 }
 
@@ -257,25 +212,6 @@ internal fun NavKey.contentKeyFor(root: RootNavKey): String =
             else -> error("Unexpected navigation key: $this")
         }
     }"
-
-@Composable
-private fun NavigationEntryContent(
-    destination: AppNavKey,
-    onSearch: () -> Unit,
-    onPush: (AppNavKey) -> Unit,
-    onBack: () -> Unit,
-    aboutPlatform: AboutPlatform,
-    readLicenseDefinitions: suspend () -> String,
-) {
-    NavigationContent(
-        destination = destination,
-        onSearch = onSearch,
-        onPush = onPush,
-        onBack = onBack,
-        aboutPlatform = aboutPlatform,
-        readLicenseDefinitions = readLicenseDefinitions,
-    )
-}
 
 private val selectedRootSaver = Saver<RootNavKey, String>(
     save = { selectedRoot -> selectedRoot.savedStateId() },
