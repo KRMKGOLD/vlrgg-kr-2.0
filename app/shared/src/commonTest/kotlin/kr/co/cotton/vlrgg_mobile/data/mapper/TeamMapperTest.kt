@@ -4,9 +4,12 @@ import kr.co.cotton.vlrgg_mobile.data.remote.model.team.TeamDetailResponseDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.team.TeamMatchDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.team.TeamNewsDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.team.TeamRosterMemberDto
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 
 class TeamMapperTest {
 
@@ -94,6 +97,55 @@ class TeamMapperTest {
     }
 
     @Test
+    fun scheduleDateAndTimeParseIsoValuesAndTimeNeedsADate() {
+        val parsed = teamDetailResponse(
+            upcomingMatches = listOf(match("1", scheduledDate = "2026-09-24", scheduledTime = "18:00")),
+            recentMatches = listOf(
+                match("2", scheduledDate = "2026-08-28", scheduledTime = null),
+                match("3", scheduledDate = null, scheduledTime = "18:00"),
+                match("4", scheduledDate = "2026/08/28", scheduledTime = "19:05"),
+                match("5", scheduledDate = "2026-02-30", scheduledTime = "19:05"),
+                match("6", scheduledDate = "2026-08-28", scheduledTime = "7:05 pm"),
+                match("7"),
+            ),
+        ).toDomain()
+
+        val upcoming = parsed.upcomingMatches.single()
+        assertEquals(LocalDate(2026, 9, 24), upcoming.scheduledDate)
+        assertEquals(LocalTime(18, 0), upcoming.scheduledTime)
+        assertEquals("2026-08-28 17:00", upcoming.scheduledAtText)
+        val recent = parsed.recentMatches
+        val (dateOnly, timeOnly, slashDate, impossibleDate, badTime) = recent
+        val absent = recent[5]
+        assertEquals(LocalDate(2026, 8, 28), dateOnly.scheduledDate)
+        assertNull(dateOnly.scheduledTime)
+        // The contract nulls both when the date is unreadable, so a lone time is dropped.
+        listOf(timeOnly, slashDate, impossibleDate, absent).forEach {
+            assertNull(it.scheduledDate)
+            assertNull(it.scheduledTime)
+        }
+        assertEquals(LocalDate(2026, 8, 28), badTime.scheduledDate)
+        assertNull(badTime.scheduledTime)
+    }
+
+    @Test
+    fun newsPublishedDateParsesIsoDatesAndKeepsTheSourceText() {
+        fun news(publishedDate: String?) = TeamNewsDto(
+            reference = "700755/kiwoom-drx-releases-rookie-hermes",
+            title = "KIWOOM DRX releases rookie Hermes",
+            publishedDateText = "2026/09/15",
+            publishedDate = publishedDate,
+        )
+        val parsed = teamDetailResponse(
+            news = listOf(news("2026-09-15"), news(null), news("2026-13-01"), news("2026/09/15")),
+        ).toDomain().news
+
+        assertEquals(LocalDate(2026, 9, 15), parsed[0].publishedDate)
+        assertEquals(listOf(null, null, null), parsed.drop(1).map { it.publishedDate })
+        assertEquals(List(4) { "2026/09/15" }, parsed.map { it.publishedDateText })
+    }
+
+    @Test
     fun malformedNewsReferenceIsRejected() {
         val response = teamDetailResponse(news = listOf(TeamNewsDto("invalid", "DRX news", null)))
 
@@ -136,6 +188,8 @@ class TeamMapperTest {
         eventStage: String? = "Stage 2",
         statusText: String? = "in 2d",
         scheduledAtText: String? = "2026-08-28 17:00",
+        scheduledDate: String? = null,
+        scheduledTime: String? = null,
     ) = TeamMatchDto(
         id = id,
         eventName = eventName,
@@ -144,6 +198,8 @@ class TeamMapperTest {
         opponentName = "Sentinels",
         statusText = statusText,
         scheduledAtText = scheduledAtText,
+        scheduledDate = scheduledDate,
+        scheduledTime = scheduledTime,
     )
 
     private fun rosterMember(

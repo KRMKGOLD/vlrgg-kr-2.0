@@ -25,6 +25,8 @@ internal data class TeamMatchDto(
     val opponentName: String,
     val statusText: String? = null,
     val scheduledAtText: String? = null,
+    val scheduledDate: String? = null,
+    val scheduledTime: String? = null,
 )
 
 @Serializable
@@ -41,4 +43,5 @@ internal data class TeamNewsDto(
     val reference: String,
     val title: String,
     val publishedDateText: String? = null,
+    val publishedDate: String? = null,
 )

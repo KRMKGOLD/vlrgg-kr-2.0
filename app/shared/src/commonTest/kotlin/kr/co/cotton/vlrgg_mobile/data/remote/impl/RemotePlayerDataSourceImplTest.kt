@@ -48,6 +48,9 @@ class RemotePlayerDataSourceImplTest {
             assertNull(response.recentMatches.last().eventStage)
             assertNull(response.recentMatches.last().teamAScore)
             assertNull(response.recentMatches.last().playedOn)
+            // `playedDate` (2026-11-10 contract) is read when present and null when omitted.
+            assertEquals("2026-07-12", response.recentMatches.first().playedDate)
+            assertNull(response.recentMatches.last().playedDate)
         } finally {
             client.close()
         }
@@ -185,7 +188,8 @@ class RemotePlayerDataSourceImplTest {
                   "id": "708427", "eventName": "EWC 2026", "eventStage": "Playoffs · CF",
                   "teamA": {"name": "Nongshim RedForce", "tag": "NS"},
                   "teamB": {"name": "BBL Esports", "tag": "BBL"},
-                  "teamAScore": 2, "teamBScore": 0, "outcome": "WIN", "playedOn": "2026-07-12"
+                  "teamAScore": 2, "teamBScore": 0, "outcome": "WIN", "playedOn": "2026-07-12",
+                  "playedDate": "2026-07-12"
                 },
                 {
                   "id": "708426", "eventName": "EWC 2026", "eventStage": null,
