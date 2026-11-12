@@ -2,6 +2,8 @@
 
 일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 배포·rollback·비용 중단과 복구를 확인했다. 2026-09-29 KST 기준 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)의 private 오류·가용성·native OOM 알림, 실제 이메일 수신과 독립 복원을 검증했고, 정상 production 배포와 영구 Monitoring 자원 4개의 적용·정상 상태 확인을 마쳤다. 앱 배포는 별도 범위이고 제품 경기 알림은 현재 범위 밖이다.
 
+배포 절차와 스크립트별 역할을 먼저 파악하려면 [서버 운영 스크립트 안내](server-ops-guide.md)를 읽는다. 이 문서는 그 뒤에 필요한 계약과 검증 기록을 담는다.
+
 ## Image and runtime contract
 
 - root `Dockerfile`은 Java 21 build stage에서 `:server:installDist`를 만들고 runtime에는 server distribution만 복사한다.
@@ -157,7 +159,7 @@ resource.labels.service_name="vlrgg-query"
 severity=ERROR
 ```
 
-안전한 이벤트는 총 frame 32개, cause 깊이 3, frame 후보 검사 128개, 개행 포함 UTF-8 16 KiB와 category별 프로세스당 4건/60초로 제한한다. 원본 exception 문구·HTML·query·token을 추가로 출력하지 않는다. Error Reporting occurrence는 수집된 sample 수이며 실제 실패 요청 수가 아니다. native 요청 지표와 emitted/suppressed 요약을 함께 보고, 프로세스 재시작과 무요청 시 요약 flush 한계를 고려한다.
+안전한 이벤트는 총 frame 32개, cause 깊이 3과 category별 프로세스당 4건/60초로 제한한다. stack에는 예외 종류와 코드 위치만 남긴다. packaged smoke가 한 이벤트가 stdout 한 줄 16 KiB 안에 들어가는지 확인한다. 원본 exception 문구·HTML·query·token을 추가로 출력하지 않는다. Error Reporting occurrence는 수집된 sample 수이며 실제 실패 요청 수가 아니다. native 요청 지표와 emitted/suppressed 요약을 함께 보고, 프로세스 재시작과 무요청 시 요약 flush 한계를 고려한다.
 
 재현 가능한 로컬 검증:
 
