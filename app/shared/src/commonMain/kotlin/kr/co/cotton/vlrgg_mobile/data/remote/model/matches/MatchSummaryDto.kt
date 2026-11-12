@@ -8,6 +8,7 @@ internal data class MatchSummaryDto(
     val status: MatchStatusDto,
     val timeLabel: String,
     val time: String? = null,
+    val date: String? = null,
     val relativeTimeLabel: String? = null,
     val homeTeam: MatchTeamDto,
     val awayTeam: MatchTeamDto,

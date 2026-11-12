@@ -59,7 +59,8 @@ fun DetailTopBand(
  * Team, player, event and series hero on `panel` (`DESIGN.md` 8.3): a 72dp [LogoSlot], the
  * `display` name in `on-panel` and 13 `on-panel-muted` meta lines of at most
  * [EntityHeroMetaMaxLines] lines each, so a long description cannot outgrow the band. [facts] holds the optional
- * row under the identity, such as the event status chip.
+ * row under the identity, such as the event status chip. [metaContentDescriptions] gives, by index of
+ * [meta], how a line is read when its symbols read poorly (event period `~`).
  */
 @Composable
 fun EntityHero(
@@ -67,6 +68,7 @@ fun EntityHero(
     logo: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     meta: List<String> = emptyList(),
+    metaContentDescriptions: List<String?> = emptyList(),
     facts: (@Composable RowScope.() -> Unit)? = null,
 ) {
     Column(
@@ -96,9 +98,11 @@ fun EntityHero(
                     style = VlrTheme.typography.display.copy(lineHeight = 1.2.em),
                     color = VlrTheme.colors.onPanel,
                 )
-                meta.filter(String::isNotBlank).forEach {
+                meta.forEachIndexed { index, line ->
+                    if (line.isBlank()) return@forEachIndexed
                     Text(
-                        text = it,
+                        text = line,
+                        modifier = Modifier.metaDescription(metaContentDescriptions.getOrNull(index)),
                         style = VlrTheme.typography.meta,
                         color = VlrTheme.colors.onPanelMuted,
                         maxLines = EntityHeroMetaMaxLines,
