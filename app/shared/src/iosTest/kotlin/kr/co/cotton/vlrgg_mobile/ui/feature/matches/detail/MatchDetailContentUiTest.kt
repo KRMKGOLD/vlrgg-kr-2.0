@@ -2,6 +2,10 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail
 
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import kotlin.test.assertFalse
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -568,6 +572,71 @@ class MatchDetailContentUiTest {
         val mapsTop = onNodeWithTag(MATCH_DETAIL_MAPS_SECTION_TAG).fetchSemanticsNode().boundsInRoot.top
         assertTrue(heroBottom < descriptionTop)
         assertTrue(descriptionTop < mapsTop)
+    }
+
+    @Test
+    fun scoreboardScoreIsNeverClippedOnNarrowScreensOrLargeFonts() {
+        listOf(320f, 360f, 411f).forEach { width ->
+            runSkikoComposeUiTest(size = Size(width, 1600f)) {
+                var fontScale by mutableStateOf(1f)
+                var match by mutableStateOf(completedMatch)
+                setContent {
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                        Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(match)))
+                    }
+                }
+
+                listOf(1f, 1.5f, 2f).forEach { scale ->
+                    // `0 : 2`와 한쪽 점수가 없는 `2 : —`(가장 넓은 점수)
+                    listOf(completedMatch, completedMatch.copy(homeScore = 2, awayScore = null)).forEach { case ->
+                        fontScale = scale
+                        match = case
+                        waitForIdle()
+                        val label = "width=$width fontScale=$scale score=${case.homeScore}:${case.awayScore}"
+                        val score = onNodeWithTag(MATCH_DETAIL_SCORE_TAG).fetchSemanticsNode().boundsInRoot
+                        listOf("home", "away").forEach { side ->
+                            val layout = onNodeWithTag(matchDetailScoreTag(side), useUnmergedTree = true).textLayout()
+                            // skiko는 문단을 최대 폭으로 배치해 `didOverflowWidth`가 늘 참이라, 필요한 폭과 실제 폭을 비교한다.
+                            assertTrue(
+                                layout.multiParagraph.maxIntrinsicWidth <= layout.size.width + 0.5f,
+                                "$label $side score is clipped: needs ${layout.multiParagraph.maxIntrinsicWidth}, has ${layout.size.width}",
+                            )
+                            assertEquals(1, layout.lineCount, "$label $side score wraps")
+                        }
+                        assertTrue(score.left >= 0f && score.right <= width, "$label score leaves the screen: $score")
+                        listOf("home", "away").forEach { side ->
+                            val team = onNodeWithTag(matchDetailTeamTag(side)).fetchSemanticsNode().boundsInRoot
+                            assertFalse(team.overlaps(score), "$label score overlaps $side team: $score / $team")
+                            assertTrue(team.left >= 0f && team.right <= width, "$label $side team leaves the screen")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun scoreboardKeepsSymmetricHundredDpTeamColumnsAtDefaultSize() =
+        runSkikoComposeUiTest(size = Size(360f, 1600f)) {
+            setContent { Fixture(MatchDetailUiState(contentState = MatchDetailContentState.Content(completedMatch))) }
+
+            val home = onNodeWithTag(matchDetailTeamTag("home")).fetchSemanticsNode().boundsInRoot
+            val away = onNodeWithTag(matchDetailTeamTag("away")).fetchSemanticsNode().boundsInRoot
+            val score = onNodeWithTag(MATCH_DETAIL_SCORE_TAG).fetchSemanticsNode().boundsInRoot
+            assertEquals(100f, home.width)
+            assertEquals(100f, away.width)
+            assertEquals(16f, home.left)
+            assertEquals(344f, away.right)
+            assertEquals(home.top, away.top)
+            // 점수는 두 팀 사이 가운데(같은 행)에 있다.
+            assertTrue(score.top < home.bottom)
+            assertEquals(180f, score.center.x, 1f)
+        }
+
+    private fun SemanticsNodeInteraction.textLayout(): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.first()
     }
 
     private fun ComposeUiTest.teamName(side: String): SemanticsNodeInteraction =

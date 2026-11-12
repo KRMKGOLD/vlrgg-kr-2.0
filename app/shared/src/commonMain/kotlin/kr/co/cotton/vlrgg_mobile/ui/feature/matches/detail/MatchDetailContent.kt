@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -34,6 +35,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -224,7 +226,7 @@ private fun LazyListScope.sectionItem(key: String, content: @Composable () -> Un
 }
 
 /**
- * Scoreboard hero (`DESIGN.md` 8.3, `.pen` `C / Scoreboard`): event link, symmetric 100dp team
+ * Scoreboard hero (`DESIGN.md` 8.3, `.pen` `C / Scoreboard`): event link, symmetric (up to 100dp) team
  * columns with the score or `VS` and the status chip between them, then the schedule.
  */
 @Composable
@@ -245,26 +247,25 @@ private fun Scoreboard(
     ) {
         EventLink(match.event, onEventClick)
         Spacer(Modifier.height(6.dp))
-        // 위 정렬: 한쪽 팀 이름이 두 줄이어도 두 로고와 점수 높이가 어긋나지 않는다.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top,
-        ) {
-            ScoreboardTeam(
-                team = match.homeTeam,
-                side = HomeSide,
-                isLoser = winner == MatchSide.Away,
-                onTeamClick = onTeamClick,
-            )
-            ScoreboardResult(match, winner, Modifier.weight(1f))
-            ScoreboardTeam(
-                team = match.awayTeam,
-                side = AwaySide,
-                isLoser = winner == MatchSide.Home,
-                onTeamClick = onTeamClick,
-            )
-        }
+        ScoreboardMatchup(
+            home = {
+                ScoreboardTeam(
+                    team = match.homeTeam,
+                    side = HomeSide,
+                    isLoser = winner == MatchSide.Away,
+                    onTeamClick = onTeamClick,
+                )
+            },
+            result = { ScoreboardResult(match, winner) },
+            away = {
+                ScoreboardTeam(
+                    team = match.awayTeam,
+                    side = AwaySide,
+                    isLoser = winner == MatchSide.Home,
+                    onTeamClick = onTeamClick,
+                )
+            },
+        )
         Spacer(Modifier.height(VlrDimensions.Space4))
         match.scheduleLines(timeZone).forEach { line ->
             Text(
@@ -274,6 +275,47 @@ private fun Scoreboard(
                 color = VlrTheme.colors.onPanelMuted,
                 textAlign = TextAlign.Center,
             )
+        }
+    }
+}
+
+/**
+ * Places the two team columns and the result. The result keeps its full width first; the team
+ * columns take up to 100dp each of what is left, so the default size is the symmetric `.pen` 21-1
+ * row. When a narrow screen or a large font leaves less than [ScoreboardTeamMinWidth] per team,
+ * the result moves under the two teams instead of being clipped. Everything is top-aligned, so a
+ * two-line team name does not shift the logos.
+ */
+@Composable
+private fun ScoreboardMatchup(
+    home: @Composable () -> Unit,
+    result: @Composable () -> Unit,
+    away: @Composable () -> Unit,
+) {
+    Layout(
+        contents = listOf(home, result, away),
+        modifier = Modifier.fillMaxWidth(),
+    ) { (homeMeasurables, resultMeasurables, awayMeasurables), constraints ->
+        val width = constraints.maxWidth
+        val gap = VlrDimensions.Space2.roundToPx()
+        val resultPlaceable = resultMeasurables.single().measure(Constraints(maxWidth = width))
+        val sideRoom = (width - resultPlaceable.width - gap * 2) / 2
+        val inline = sideRoom >= ScoreboardTeamMinWidth.roundToPx()
+        val teamWidth = if (inline) {
+            minOf(ScoreboardTeamWidth.roundToPx(), sideRoom)
+        } else {
+            minOf(ScoreboardTeamWidth.roundToPx(), (width - gap) / 2)
+        }
+        val teamConstraints = Constraints.fixedWidth(teamWidth)
+        val homePlaceable = homeMeasurables.single().measure(teamConstraints)
+        val awayPlaceable = awayMeasurables.single().measure(teamConstraints)
+        val teamsHeight = maxOf(homePlaceable.height, awayPlaceable.height)
+        val resultTop = if (inline) 0 else teamsHeight + VlrDimensions.Space3.roundToPx()
+        val height = if (inline) maxOf(teamsHeight, resultPlaceable.height) else resultTop + resultPlaceable.height
+        layout(width, height) {
+            homePlaceable.place(0, 0)
+            awayPlaceable.place(width - teamWidth, 0)
+            resultPlaceable.place((width - resultPlaceable.width) / 2, resultTop)
         }
     }
 }
@@ -326,7 +368,7 @@ private fun ScoreboardTeam(
     } ?: Modifier
     Column(
         modifier = Modifier
-            .width(ScoreboardTeamWidth)
+            .fillMaxWidth()
             .heightIn(min = VlrDimensions.MinimumTouchTarget)
             .testTag(matchDetailTeamTag(side))
             .then(clickModifier),
@@ -352,9 +394,8 @@ private fun ScoreboardTeam(
 }
 
 @Composable
-private fun ScoreboardResult(match: MatchDetail, winner: MatchSide?, modifier: Modifier = Modifier) {
+private fun ScoreboardResult(match: MatchDetail, winner: MatchSide?) {
     Column(
-        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -685,6 +726,8 @@ internal enum class MatchSide(val tag: String) {
 private const val HomeSide = "home"
 private const val AwaySide = "away"
 private val ScoreboardTeamWidth = 100.dp
+/** Logo slot plus a little room for the wrapped name; narrower team columns stack the result below. */
+private val ScoreboardTeamMinWidth = 72.dp
 private val ScoreboardLogoSize = 56.dp
 private val MapScoreColumnWidth = 56.dp
 
