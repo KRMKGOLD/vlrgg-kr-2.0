@@ -1,6 +1,0 @@
-package kr.co.cotton.vlrgg_mobile.plugins;
-
-public final class OversizedFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrame extends RuntimeException {
-    public OversizedFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrameFrame(Throwable cause) { super(null, cause); }
-    public static void methodSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegmentSegment() {}
-}
