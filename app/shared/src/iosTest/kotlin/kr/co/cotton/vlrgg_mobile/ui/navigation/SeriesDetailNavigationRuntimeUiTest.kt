@@ -79,8 +79,8 @@ class SeriesDetailNavigationRuntimeUiTest {
         runOnIdle { requireNotNull(navigationState).push(Search) }
         onNodeWithContentDescription("검색어", useUnmergedTree = true).performTextInput("Champions")
         onNodeWithContentDescription("검색").performClick()
-        scrollToTag("search-row-Series:$SERIES_ID")
-        onNodeWithTag("search-row-Series:$SERIES_ID").performClick()
+        scrollToTag("search-row-series:$SERIES_ID")
+        onNodeWithTag("search-row-series:$SERIES_ID").performClick()
         onNodeWithTag(seriesEventRowTag(FIRST_EVENT_ID)).performClick()
         assertEquals(EventDetail(FIRST_EVENT_ID), (runOnIdle {
             (requireNotNull(navigationState).currentBackStack.last() as OverlayNavEntry).destination
@@ -103,7 +103,7 @@ class SeriesDetailNavigationRuntimeUiTest {
         assertEquals(1, repository.requestedIds.count { it == SERIES_ID })
         onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithContentDescription("검색어", useUnmergedTree = true).assertTextContains("Champions")
-        onNodeWithTag("search-row-Series:$SERIES_ID").assertIsDisplayed()
+        onNodeWithTag("search-row-series:$SERIES_ID").assertIsDisplayed()
     }
 
     private fun androidx.compose.ui.test.ComposeUiTest.scrollToTag(tag: String) {

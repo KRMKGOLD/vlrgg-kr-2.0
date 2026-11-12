@@ -259,21 +259,21 @@ class TeamDetailNavigationRuntimeUiTest {
         runOnIdle { requireNotNull(navigationState).push(Search) }
         onNodeWithContentDescription("검색어", useUnmergedTree = true).performTextInput(TEAM_NAME)
         onNodeWithContentDescription("검색").performClick()
-        onNodeWithTag("search-row-Team:$TEAM_ID").performClick()
+        onNodeWithTag("search-row-team:$TEAM_ID").performClick()
         assertTopDestination(navigationState, TeamDetail(TEAM_ID))
         onNodeWithTag(TEAM_DETAIL_HEADER_TAG).assertExists()
         onNodeWithContentDescription("뒤로 가기").performClick()
-        onNodeWithTag("search-row-Team:$TEAM_ID").assertExists()
+        onNodeWithTag("search-row-team:$TEAM_ID").assertExists()
         runOnIdle { requireNotNull(navigationState).popOverlay() }
 
         runOnIdle { requireNotNull(navigationState).push(Search) }
         onNodeWithContentDescription("검색어", useUnmergedTree = true).performTextInput("Player")
         onNodeWithContentDescription("검색").performClick()
-        onNodeWithTag("search-row-Player:$SOURCE_PLAYER_ID").performClick()
+        onNodeWithTag("search-row-player:$SOURCE_PLAYER_ID").performClick()
         assertTopDestination(navigationState, PlayerDetail(SOURCE_PLAYER_ID))
         onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
         onNodeWithContentDescription("뒤로 가기").performClick()
-        onNodeWithTag("search-row-Player:$SOURCE_PLAYER_ID").assertExists()
+        onNodeWithTag("search-row-player:$SOURCE_PLAYER_ID").assertExists()
         runOnIdle { requireNotNull(navigationState).popOverlay() }
 
         runOnIdle { requireNotNull(navigationState).push(NewsDetail(SOURCE_ARTICLE_ID, SOURCE_ARTICLE_SLUG)) }
