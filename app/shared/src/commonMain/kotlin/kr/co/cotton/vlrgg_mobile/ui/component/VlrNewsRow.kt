@@ -49,7 +49,7 @@ fun NewsRow(
                 top = if (headline) VlrDimensions.Space5 else 14.dp,
                 bottom = if (headline) 18.dp else 14.dp,
             ),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(if (headline) VlrDimensions.Space2 else 6.dp),
     ) {
         Text(
             text = title,
@@ -84,13 +84,13 @@ private fun NewsRowPreview() {
         Column {
             NewsRow(
                 title = "KIWOOM DRX advance to the Pacific playoffs",
-                byline = "jenopelle · September 19, 2026",
+                byline = "jenopelle · 2026년 9월 19일",
                 onClick = {},
                 headline = true,
             )
             NewsRow(
                 title = "purp0 searching for new team following Team Liquid benching",
-                byline = "jenopelle · September 19, 2026",
+                byline = "jenopelle · 2026년 9월 19일",
                 onClick = {},
             )
         }
