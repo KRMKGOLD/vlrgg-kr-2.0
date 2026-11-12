@@ -264,12 +264,15 @@ class MyPageContentUiTest {
             onNodeWithText(longTeamName).assertExists()
 
             onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(myPagePlayerRowTag(favoritePlayer.id)))
+            // Player favorites are full-width identity rows; the 48dp remove star keeps the 4dp end inset.
             onNodeWithTag(myPagePlayerRowTag(favoritePlayer.id))
-                .assertLeftPositionInRootIsEqualTo(16.dp)
-                .assertWidthIsEqualTo(328.dp)
+                .assertLeftPositionInRootIsEqualTo(0.dp)
+                .assertWidthIsEqualTo(360.dp)
                 .assertHeightIsAtLeast(48.dp)
             onNodeWithContentDescription("$longPlayerHandle 즐겨찾기 해제")
                 .assertHeightIsAtLeast(48.dp)
+                .assertWidthIsEqualTo(48.dp)
+                .assertLeftPositionInRootIsEqualTo(308.dp)
             onNodeWithText(longPlayerHandle).assertExists()
             onNodeWithContentDescription("검색").assertHeightIsAtLeast(48.dp)
         }

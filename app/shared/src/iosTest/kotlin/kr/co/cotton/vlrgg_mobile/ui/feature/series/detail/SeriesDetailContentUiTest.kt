@@ -57,8 +57,13 @@ class SeriesDetailContentUiTest {
         onNodeWithText("공식 글로벌 발로란트 챔피언십 시리즈 설명").assertExists()
         onNodeWithText("Sep 12 · INT").assertExists()
         onNodeWithText("정보 없음").assertExists()
-        onNodeWithText("진행 중").assertExists()
-        onNodeWithText("종료됨").assertExists()
+        // Section titles carry the status, so rows sit under their section without a status chip.
+        val upcomingRowTop = onNodeWithTag(seriesEventRowTag(UPCOMING_ID)).fetchSemanticsNode().boundsInRoot.top
+        val completedRowTop = onNodeWithTag(seriesEventRowTag(COMPLETED_ID)).fetchSemanticsNode().boundsInRoot.top
+        assertTrue(upcomingRowTop in upcomingTop..completedTop)
+        assertTrue(completedRowTop > completedTop)
+        onNodeWithText("진행 중").assertDoesNotExist()
+        onNodeWithText("종료됨").assertDoesNotExist()
         onNodeWithTag(seriesEventRowTag(UPCOMING_ID)).performClick()
         onNodeWithTag(seriesEventRowTag(COMPLETED_ID)).performClick()
         assertEquals(listOf(UPCOMING_ID, COMPLETED_ID), clickedIds)
@@ -142,9 +147,10 @@ class SeriesDetailContentUiTest {
                     Fixture(content(populatedSeries))
                 }
 
-                onNodeWithTag(seriesEventImageTag(UPCOMING_ID), useUnmergedTree = true).assertExists()
                 assertTrue(imageRequestCount > 0)
                 assertEquals(IMAGE_URL, requestedImageData)
+                // The failed image falls back to the `trophy` slot instead of an empty image.
+                onNodeWithTag(seriesEventImageTag(UPCOMING_ID), useUnmergedTree = true).assertDoesNotExist()
 
                 val minimumTargetPx = 48f * density
                 listOf(

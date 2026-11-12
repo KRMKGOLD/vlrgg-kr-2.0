@@ -170,7 +170,11 @@ class EventDetailNavigationRuntimeUiTest {
 
             runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
             runOnIdle { requireNotNull(navigationState).selectRoot(EventsRoot) }
-            onNodeWithText("Rating ↓").assertExists()
+            assertEquals(
+                "내림차순",
+                onNodeWithTag(eventStatsMetricHeaderTag(EventStatsSortColumn.RATING))
+                    .fetchSemanticsNode().config[SemanticsProperties.StateDescription],
+            )
             assertEquals(1, repository.statsRequests)
         }
     }

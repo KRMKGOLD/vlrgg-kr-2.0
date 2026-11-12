@@ -95,13 +95,19 @@ class EventsContentUiTest {
         onNodeWithText(longEventName).assertIsDisplayed()
         onNodeWithText("AUG 20 - SEP 4 · KR").assertIsDisplayed()
         onNodeWithText("AUG 18").assertIsDisplayed()
-        onNodeWithText("PACIFIC").assertIsDisplayed()
         onNodeWithText("날짜 미정").assertDoesNotExist()
         onNodeWithText("지역 미정").assertDoesNotExist()
 
-        onNodeWithText("진행 중").assertIsDisplayed()
-        onNodeWithText("종료").assertIsDisplayed()
-        onNodeWithText("중단").assertIsDisplayed()
+        // Group headers carry the status; only a paused event, which shares the
+        // `Completed / Paused` group with finished ones, spells it out in its meta line.
+        onNodeWithText("중단 · PACIFIC").assertIsDisplayed()
+        onNodeWithText("진행 중").assertDoesNotExist()
+        onNodeWithText("종료").assertDoesNotExist()
+        val ongoingRowTop = onNodeWithTag(eventRowTag(ongoingEvent.id)).fetchSemanticsNode().boundsInRoot.top
+        val completedRowTop = onNodeWithTag(eventRowTag(completedEvent.id)).fetchSemanticsNode().boundsInRoot.top
+        val pausedRowTop = onNodeWithTag(eventRowTag(pausedEvent.id)).fetchSemanticsNode().boundsInRoot.top
+        assertTrue(ongoingRowTop in ongoingTop..upcomingTop)
+        assertTrue(completedRowTop > completedTop && pausedRowTop > completedTop)
     }
 
     @Test
@@ -135,7 +141,9 @@ class EventsContentUiTest {
         }
 
         onNodeWithText(upcomingEventWithoutMetadata.name).assertIsDisplayed()
-        onNodeWithText("예정").assertIsDisplayed()
+        // The `Upcoming` group header is the status; the row adds no status or meta text.
+        onNodeWithText("Upcoming").assertIsDisplayed()
+        onNodeWithText("예정").assertDoesNotExist()
         onNodeWithText("날짜 미정").assertDoesNotExist()
         onNodeWithText("지역 미정").assertDoesNotExist()
     }

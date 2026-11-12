@@ -52,6 +52,8 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.initializeVlrMaterial3
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertTouchHeightIsEqualTo
 
 @OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class PlayerDetailContentUiTest {
@@ -59,7 +61,8 @@ class PlayerDetailContentUiTest {
     fun loadingHasCenteredCircularHeaderAndSectionSkeletonsWithoutSampleContent() = runComposeUiTest {
         setContent { Fixture() }
 
-        onNodeWithText("Player Profile").assertIsDisplayed()
+        // The dark band header has no title; Back stays reachable while the hero skeleton loads.
+        onNodeWithText("Player Profile").assertDoesNotExist()
         onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
         onNodeWithTag(PLAYER_DETAIL_LOADING_TAG).assertExists()
         onNodeWithTag(PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG).assertExists()
@@ -139,9 +142,11 @@ class PlayerDetailContentUiTest {
                         ),
                     )
                 }
-                onNodeWithTag(playerTeamLogoTag(TEAM_ID), useUnmergedTree = true).assertExists()
                 assertTrue(imageRequestCount > 0, "AsyncImage did not request the provided team image URL")
                 assertEquals(TEAM_IMAGE_URL, requestedImageData)
+                // A failed logo falls back to the initials placeholder (`DESIGN.md` 8.3 Logo slot).
+                onNodeWithTag(playerTeamLogoTag(TEAM_ID), useUnmergedTree = true).assertDoesNotExist()
+                onNodeWithTag(playerTeamLogoPlaceholderTag(TEAM_ID), useUnmergedTree = true).assertTextEquals("T1")
 
                 setContent {
                     Fixture(
@@ -287,7 +292,7 @@ class PlayerDetailContentUiTest {
         PlayerAgentStatsSortColumn.entries.forEach { column ->
             onNodeWithTag(playerAgentMetricHeaderTag(column.label))
                 .assert(hasClickAction())
-                .assertHeightIsAtLeast(48.dp)
+                .assertTouchHeightIsEqualTo(48.dp)
                 .performClick()
         }
         assertEquals(PlayerAgentStatsSortColumn.entries.toList(), clickedColumns)
@@ -588,6 +593,8 @@ class PlayerDetailContentUiTest {
         onNodeWithText("Nongshim RedForce Official Esports Organization").assertExists()
         onNodeWithText("Kim Gu-taek Official International Championship Name · Korea · KR").assertExists()
         onNodeWithText("승리").assertExists()
+        onNodeWithText("T1 vs GEN").assertExists()
+        onNodeWithTag(playerMatchScoreTag(MATCH_ID), useUnmergedTree = true).assertTextEquals("— : 0")
         onNodeWithText("WIN").assertDoesNotExist()
         onNodeWithContentDescription("즐겨찾기").assertDoesNotExist()
         onNodeWithContentDescription("선수 이미지").assertDoesNotExist()
@@ -609,7 +616,8 @@ class PlayerDetailContentUiTest {
         assertMinimumTarget("뒤로 가기")
         assertMinimumTarget("팀 상세: Nongshim RedForce Official Esports Organization")
         onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(playerMatchCardTag(MATCH_ID)))
-        assertMinimumTarget("경기 상세: VCT Pacific")
+        // Without both scores the row names the teams instead of a partial score.
+        assertMinimumTarget("경기 상세: T1 대 GEN")
     }
 
     @Composable
