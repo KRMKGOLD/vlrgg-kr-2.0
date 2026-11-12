@@ -1,8 +1,8 @@
 # Design System: VLR.GG Mobile v3 — Scoreline
 
-> **코드 적용:** 이 문서와 `.pen`은 v3 디자인 계약이다. 기반(토큰·서체·아이콘), chrome·컨트롤·피드백·목록·상세 공통 컴포넌트, 화면 12계열 배치를 `feat/v3-design`에 적용했다. 남은 검증은 [적용 순서](#11-적용-순서와-범위-밖)를 따른다.
+> **코드 적용:** 이 문서와 `.pen`은 v3 디자인 계약이고, 앱(`feat/v3-design`)에 모두 적용했다(2026-11-12). 서버 날짜 field와 완료 경기 점수(`sp-hide`) 수정은 아직 없어 그 값은 원문(점수는 `VS`)으로 보인다. 남은 기기 검증은 [적용 순서](#11-적용-순서와-범위-밖)를 따른다.
 
-- **Status:** Active — v3 채택 (2026-11-05). 기반·공통 컴포넌트·화면 배치는 `feat/v3-design`에 적용했다([구현 상태](#1-구현-상태) 참조).
+- **Status:** Active — v3 채택 (2026-11-05), 앱 적용 완료 (2026-11-12, `feat/v3-design`, [구현 상태](#1-구현-상태) 참조).
 - **Design source:** [`docs/design/pen/vlrgg-mobile-v3.pen`](docs/design/pen/vlrgg-mobile-v3.pen) (Pencil). 작업 기록과 캔버스 구성은 [v3 디자인 기록](docs/design/v3-redesign.md)에 있다.
 - **Applies to:** `app/shared/src/commonMain`의 Compose Multiplatform UI. Android·iOS 모바일, 라이트 테마.
 - **소유 범위:** 이 문서는 시각·컴포넌트·상호작용·접근성 계약을 소유한다. 데이터, 흐름, 화면 문구는 [기능 문서](docs/feature/README.md)가, 배치와 런타임 경계는 [앱 아키텍처](docs/app-arch/app-arch.md)가 소유한다. 기능 문서와 시각 규칙이 충돌하면 이 문서를 따른다.
@@ -10,9 +10,11 @@
 
 ## 1. 구현 상태
 
-기반(토큰·서체·아이콘, 2026-11-11)과 chrome·컨트롤·피드백·목록·상세 공통 컴포넌트, 화면별 배치(2026-11-12)를 `feat/v3-design`에 적용했다. 한국어 날짜 중 서버 field가 아직 없는 곳은 원문을 쓴다.
+v3를 `feat/v3-design`에 모두 적용했다. 기반(토큰·서체·아이콘)은 2026-11-11, chrome·컨트롤·피드백·목록·상세 공통 컴포넌트와 화면 12계열 배치는 2026-11-12에 적용했다. 앱 쪽 한국어 날짜 포맷은 구현했지만 서버 날짜 field(`publishedDate`, `startDate`·`endDate`, Event Matches `date`, `scheduledDate`·`scheduledTime`, `playedDate`)는 아직 없어 실서버에서는 원문 날짜가 보인다. 서버 `sp-hide` 수정 전에는 완료 경기 점수가 null로 와 경기 상세 hero가 `VS`로 보인다.
 
-- 공통 컴포넌트 적용 전에는 화면 하나만 부분적으로 v3 배치로 바꾸지 않는다. 시각 변경은 v3 적용 작업 안에서만 한다.
+- `.pen`은 앱·기능 계약을 따르도록 고쳤다(2026-11-12, [v3 디자인 기록](docs/design/v3-redesign.md#상태-case-결정)): 경기 상세 취소·부분 정보의 맵 문구, 팀·선수 로딩 중 즐겨찾기 별 숨김, 선수 hero 메타(실명 · 국가명 · 국가 코드, 다음 줄 별칭), `결과 미정` 점수 `—`.
+
+- 새 시각 변경은 이 문서와 `.pen`을 먼저 고친 뒤 공통 컴포넌트를 거쳐 적용한다.
 - 기능 문서의 동작은 v3에서도 바뀌지 않는다. 문구는 루트 제목·하단 탭 라벨만 한국어(`뉴스`·`경기`·`마이페이지`·`대회`·`정보`)로 바꾸며(2026-11-05 결정, 기능 문서 반영), 상태 문구는 현재 앱 구현 문구를 그대로 쓴다.
 - 루트 제목·하단 탭 라벨과 대회 상세 탭 라벨(`경기`·`뉴스`·`통계`)은 한국어로 바꿨다(2026-11-12).
 - 공통 컴포넌트(`ui/component`): `RootHeader`, `DetailHeader`(Light·Dark), `VlrBottomNavigation`, `VlrTabs`, `VlrButton`(Primary·Secondary·Text), `VlrIconButton`, `StatusChip`, `VlrSearchField`, `StatePanel`, `InlineRetry`, `SectionMessage`, `SectionHeader`, `SkeletonBlock`·`SkeletonRow`·`SkeletonMatchRow`·`SkeletonHero`, `VlrSnackbar`, `VlrErrorDialog`(`BusyRetryDialog`가 사용). 화면의 같은 역할 구현은 이 컴포넌트로 바꿨다.
@@ -45,7 +47,8 @@
 | `on-panel`, `on-panel-muted`, `on-panel-accent` | `onPanel`, `onPanelMuted`, `onPanelAccent` | `inverseOnSurface`·`onActionPrimary`, —, `inversePrimary` |
 | `warn`, `warn-soft` | `warn`, `warnSoft` | `statusPostponed`, `statusPostponedContainer` |
 | `disabled` | `disabled` | — |
-| — | `statusUpcoming*`, `statusCompleted*`, `statusCancelled` | v3에서 상태는 텍스트로 표시한다. 해당 화면 적용 단계에서 제거한다 |
+
+- v2 상태 색(`statusUpcoming*`·`statusCompleted*`·`statusCancelled`)은 v3에서 상태를 텍스트로 표시하면서 제거했다. `accentPressed`·`focus`는 [8.4](#84-컨트롤) 조건(기본 ripple·포커스 표시가 부족할 때)에서만 쓰는 계약 토큰이라 아직 기능 코드에서 쓰지 않는다.
 
 ## 2. 화면 계약
 
@@ -277,7 +280,7 @@
 
 1. [x] 기반: `ui/theme` 토큰을 v3 값으로 교체하고 신규 토큰을 추가한다. Saira Condensed와 Material Symbols 글리프를 가져오고 공통 컴포넌트를 v3 계약으로 맞춘다. 토큰·서체·아이콘(2026-11-11)과 chrome·컨트롤·피드백·목록·상세 컴포넌트(2026-11-12)를 `feat/v3-design`에 적용했다.
 2. [x] 화면: 기능 묶음별로 v3를 적용한다. 상세 상단의 어두운 띠와 상태바 아이콘 색은 공통 컴포넌트 단계에서 처리했다. 뉴스(`10`·`11`), 경기(`20`·`21`), 마이페이지(`30`), 대회·시리즈(`40`·`41`·`42`), 팀·선수(`50`·`51`), 검색(`60`), 정보(`70`)를 적용했다(2026-11-12).
-3. [ ] 검증: UI 테스트를 갱신하고 Android·iOS에서 주요 상태, 글꼴 확대, TalkBack·VoiceOver를 확인한다.
-4. [x] 정리: 코드에 남은 이전 디자인 흔적을 v3 기준으로 바꿨다. 뉴스 상세 미리보기의 Stitch placeholder 이미지 URL은 v3 샘플로, `TeamDetailContentUiTest`의 Stitch marker 테스트 이름은 v3 섹션 기준으로 바꿨다(2026-11-12).
+3. [ ] 검증: UI 테스트를 갱신하고 Android·iOS에서 주요 상태, 글꼴 확대, TalkBack·VoiceOver를 확인한다. UI 테스트는 화면 단계마다 갱신했고, 2026-11-12에 Android 에뮬레이터(411dp)·로컬 서버로 QA `90-1`~`90-5`, 글꼴 130%(루트 5개·상세 3개), TalkBack(하단 탭, 경기 행, 상세 헤더 Back·별, 오류 다이얼로그 포커스)을 확인했다. TalkBack은 목록 행의 묶은 설명 뒤에 자식 텍스트(팀 이름·점수 등)를 한 번 더 읽는다. 이 반복 낭독 정리와 iOS 화면 조작·VoiceOver, 실기기 검증은 #49에서 추적한다.
+4. [x] 정리: 코드에 남은 이전 디자인 흔적을 v3 기준으로 바꿨다. 뉴스 상세 미리보기의 Stitch placeholder 이미지 URL은 v3 샘플로, `TeamDetailContentUiTest`의 Stitch marker 테스트 이름은 v3 섹션 기준으로 바꿨다(2026-11-12). 2026-11-12 `grep -ri stitch` 결과 코드·리소스에는 남은 것이 없고(이 문서의 이력 문장과 `.gitignore`의 `.stitch/`만 남음), v2 상태 색도 제거되어 있다.
 
 범위 밖: 다크 모드, 태블릿 전용 레이아웃, 별도 애니메이션 시스템, 플랫폼별로 다른 시각, 경기 알림(Stage 2) 화면. 새 색, 새 상호작용 컴포넌트, 파괴적 action 표현은 이 문서와 `.pen`을 먼저 갱신한 뒤 도입한다.
