@@ -170,6 +170,36 @@ class PlayerDetailV3UiTest {
     }
 
     @Test
+    fun otherYearDateWrapsBesideTheMatchInsteadOfSqueezingIt() {
+        val dateText = "${YEAR - 1}년 12월 24일"
+        val match = player.recentMatches.first().copy(playedDate = LocalDate(YEAR - 1, 12, 24))
+        listOf(320f, 360f).forEach { width ->
+            listOf(1f, 1.5f, 2f).forEach { scale ->
+                runSkikoComposeUiTest(size = Size(width, 4000f)) {
+                    setContent {
+                        CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
+                            Fixture(player.copy(recentMatches = listOf(match)))
+                        }
+                    }
+                    val label = "width=$width fontScale=$scale"
+                    val row = onNodeWithTag(playerMatchCardTag(WIN_ID)).fetchSemanticsNode().boundsInRoot
+                    listOf("Nongshim RedForce vs BBL Esports", "Esports World Cup 2026 · Playoffs").forEach { text ->
+                        val node = rowNode(text, WIN_ID)
+                        assertWholeNode(node, text, label, width)
+                        // The match identity keeps a readable share of the row next to the result and date.
+                        val oneLine = node.textLayout().multiParagraph.intrinsics.maxIntrinsicWidth
+                        val wanted = minOf(oneLine, row.width * 0.3f)
+                        assertTrue(node.boundsInRoot.width >= wanted - 0.5f, "$label '$text' is squeezed: ${node.boundsInRoot}")
+                    }
+                    listOf("승리", "2 : 0", dateText).forEach { text ->
+                        assertWholeNode(rowNode(text, WIN_ID), text, label, width)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun rtlMirrorsTheHeroSectionTitlesAndResultColumn() =
         runSkikoComposeUiTest(size = Size(360f, 2400f)) {
             setContent {
@@ -244,6 +274,18 @@ class PlayerDetailV3UiTest {
             assertTrue(layout.multiParagraph.height <= layout.size.height + 0.5f, "$label '$text' is cut vertically")
             assertTrue(node.boundsInRoot.right <= width + 0.5f, "$label '$text' leaves the screen")
         }
+    }
+
+    private fun ComposeUiTest.rowNode(text: String, matchId: String) =
+        onNode(hasText(text) and hasAnyAncestor(hasTestTag(playerMatchCardTag(matchId))), useUnmergedTree = true)
+            .fetchSemanticsNode()
+
+    private fun assertWholeNode(node: SemanticsNode, text: String, label: String, width: Float) {
+        val layout = node.textLayout()
+        assertEquals(text.length, layout.getLineEnd(layout.lineCount - 1), "$label '$text' is truncated")
+        assertFalse(layout.isLineEllipsized(layout.lineCount - 1), "$label '$text' is ellipsized")
+        assertTrue(layout.multiParagraph.height <= layout.size.height + 0.5f, "$label '$text' is cut vertically")
+        assertTrue(node.boundsInRoot.right <= width + 0.5f, "$label '$text' leaves the screen")
     }
 
     private fun SemanticsNode.textLayout(): TextLayoutResult {

@@ -175,6 +175,40 @@ class TeamDetailV3UiTest {
     }
 
     @Test
+    fun otherYearScheduleWrapsBesideTheMatchInsteadOfSqueezingIt() {
+        val dateText = "${YEAR - 1}년 12월 24일 오후 12:00"
+        val match = team.upcomingMatches.first().copy(
+            opponentName = "Paper Rex",
+            scheduledDate = LocalDate(YEAR - 1, 12, 24),
+            scheduledTime = LocalTime(12, 0),
+        )
+        listOf(320f, 360f).forEach { width ->
+            listOf(1f, 1.5f, 2f).forEach { scale ->
+                runSkikoComposeUiTest(size = Size(width, 4000f)) {
+                    setContent {
+                        CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
+                            Fixture(TeamDetailUiState(TeamDetailContentState.Content(team.copy(upcomingMatches = listOf(match)))))
+                        }
+                    }
+                    val label = "width=$width fontScale=$scale"
+                    val row = onNodeWithTag(teamMatchCardTag(UPCOMING_ID)).fetchSemanticsNode().boundsInRoot
+                    listOf("vs Paper Rex", "VCT Pacific 2026 · Playoffs–Upper Final").forEach { text ->
+                        val node = rowNode(text, UPCOMING_ID)
+                        assertWholeNode(node, text, label, width)
+                        // The match identity keeps a readable share of the row next to the schedule.
+                        val oneLine = node.textLayout().multiParagraph.intrinsics.maxIntrinsicWidth
+                        val wanted = minOf(oneLine, row.width * 0.4f)
+                        assertTrue(node.boundsInRoot.width >= wanted - 0.5f, "$label '$text' is squeezed: ${node.boundsInRoot}")
+                    }
+                    listOf("1일 6시간 후", dateText).forEach { text ->
+                        assertWholeNode(rowNode(text, UPCOMING_ID), text, label, width)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun rtlMirrorsTheHeroSectionTitlesAndMatchRows() =
         runSkikoComposeUiTest(size = Size(360f, 2400f)) {
             setContent {
@@ -279,6 +313,18 @@ class TeamDetailV3UiTest {
 
     private fun ComposeUiTest.scrollToTag(tag: String) {
         onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(tag))
+    }
+
+    private fun ComposeUiTest.rowNode(text: String, matchId: String) =
+        onNode(hasText(text) and hasAnyAncestor(hasTestTag(teamMatchCardTag(matchId))), useUnmergedTree = true)
+            .fetchSemanticsNode()
+
+    private fun assertWholeNode(node: SemanticsNode, text: String, label: String, width: Float) {
+        val layout = node.textLayout()
+        assertEquals(text.length, layout.getLineEnd(layout.lineCount - 1), "$label '$text' is truncated")
+        assertFalse(layout.isLineEllipsized(layout.lineCount - 1), "$label '$text' is ellipsized")
+        assertTrue(layout.multiParagraph.height <= layout.size.height + 0.5f, "$label '$text' is cut vertically")
+        assertTrue(node.boundsInRoot.right <= width + 0.5f, "$label '$text' leaves the screen")
     }
 
     private fun ComposeUiTest.assertWhole(text: String, label: String, width: Float) {
