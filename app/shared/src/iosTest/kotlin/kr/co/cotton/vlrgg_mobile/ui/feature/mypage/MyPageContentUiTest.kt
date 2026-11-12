@@ -19,6 +19,8 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Size
@@ -424,6 +426,49 @@ class MyPageContentUiTest {
         onNode(hasScrollToNodeAction()).performScrollToNode(hasText("즐겨찾기는 이 기기에만 저장됩니다."))
         onNodeWithText("즐겨찾기는 이 기기에만 저장됩니다.").assertExists()
     }
+
+    @Test
+    fun tilesOfARowStayEqualWhenAnOddPixelWidthSplitsTheColumnsUnevenly() =
+        runSkikoComposeUiTest(size = Size(355f, 800f)) {
+            // At density 1 and 355px the two grid columns differ by one pixel, so the name areas
+            // differ too. A name that fits on one line only in the wider area must still leave
+            // both tiles of the row with the same height.
+            fun uiState(first: String, second: String) = MyPageUiState(
+                favoriteTeams = FavoriteSectionState.Content(
+                    listOf(team("left").copy(name = first), team("right").copy(name = second)),
+                ),
+                favoritePlayers = FavoriteSectionState.Empty,
+            )
+            val candidates = (0..24).flatMap { thin ->
+                (0..8).flatMap { wide -> (0..4).map { "Team " + "i".repeat(thin) + "W".repeat(wide) + "m".repeat(it) } }
+            }
+            var candidateWidths: List<Float> = emptyList()
+            var state by mutableStateOf(uiState("T1", "T1"))
+            setContent {
+                val measurer = rememberTextMeasurer()
+                val style = VlrTheme.typography.body.copy(fontWeight = FontWeight.ExtraBold)
+                candidateWidths = candidates.map { measurer.measure(it, style).multiParagraph.maxIntrinsicWidth }
+                TestContent(uiState = state)
+            }
+            // `GridCells.Fixed(2)` splits 355px into 178 + 177. Without equal cells the name areas
+            // would be the cell minus 16 + 4 (cell insets), 14 + 4 (tile padding) and 10 (copy end).
+            val wider = (355 + 1) / 2 - 48f
+            val narrower = 355 / 2 - 48f
+            val boundaryName = candidates.indices
+                .first { candidateWidths[it] > narrower && candidateWidths[it] <= wider }
+                .let(candidates::get)
+
+            listOf(boundaryName to "T1", "T1" to boundaryName).forEach { (first, second) ->
+                state = uiState(first, second)
+                waitForIdle()
+                val left = onNodeWithTag(myPageTeamRowTag("left")).fetchSemanticsNode().boundsInRoot
+                val right = onNodeWithTag(myPageTeamRowTag("right")).fetchSemanticsNode().boundsInRoot
+                assertEquals(left.height, right.height, "'$first' | '$second' tiles differ in height")
+                assertEquals(left.width, right.width, "'$first' | '$second' tiles differ in width")
+                // The neighbour is measured, not drawn: each name has exactly one text node.
+                assertEquals(1, onAllNodes(hasText(boundaryName), useUnmergedTree = true).fetchSemanticsNodes().size)
+            }
+        }
 
     @Test
     fun teamTilesFillTwoColumnsInStoredOrderWithEqualRowHeights() =

@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,13 +16,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam
@@ -44,9 +46,9 @@ import vlrggmobile.app.shared.generated.resources.ic_star_fill
  * 48dp star is a separate removal target. Text wraps instead of truncating, so the tile grows
  * with the font scale; [modifier] lands on the tile target.
  *
- * Lazy grid lines do not stretch their items, so [rowPartner], the tile beside this one, is laid
- * out invisibly under this tile's copy. Both copies take the taller of the two texts and the
- * tiles of a row stay the same height.
+ * Lazy grid lines do not stretch their items. The tile measures the copy of [rowPartner], the
+ * tile beside it, at its own copy width and grows to the taller of the two, so both tiles of a row
+ * keep the same height. The grid gives both columns the same width (see `TeamTileCell`).
  */
 @Composable
 internal fun FavoriteTeamTile(
@@ -59,9 +61,35 @@ internal fun FavoriteTeamTile(
     val openDetail = remember(favorite.id, onClick) { { onClick(favorite.id) } }
     val removeFavorite = remember(favorite.id, onRemove) { { onRemove(favorite.id) } }
     val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
+    val textMeasurer = rememberTextMeasurer()
+    val nameStyle = favoriteTeamNameStyle()
+    val metaStyle = favoriteTeamMetaStyle()
 
     Column(
         modifier = modifier
+            .layout { measurable, constraints ->
+                // Copy width: tile width minus the tile's 14/4dp and the copy's 10dp end padding.
+                val copyWidth = constraints.maxWidth -
+                    14.dp.roundToPx() - VlrDimensions.Space1.roundToPx() - 10.dp.roundToPx()
+                fun copyHeight(team: FavoriteTeam): Int {
+                    val textConstraints = Constraints(maxWidth = copyWidth.coerceAtLeast(0))
+                    val name = textMeasurer.measure(team.name, nameStyle, constraints = textConstraints)
+                    val meta = favoriteTeamMeta(team)?.let {
+                        textMeasurer.measure(it, metaStyle, constraints = textConstraints)
+                    }
+                    return name.size.height + (meta?.let { 2.dp.roundToPx() + it.size.height } ?: 0)
+                }
+                val extra = rowPartner
+                    ?.let { (copyHeight(it) - copyHeight(favorite)).coerceAtLeast(0) }
+                    ?: 0
+                val placeable = if (extra == 0) {
+                    measurable.measure(constraints)
+                } else {
+                    val height = measurable.maxIntrinsicHeight(constraints.maxWidth) + extra
+                    measurable.measure(constraints.copy(minHeight = height.coerceAtMost(constraints.maxHeight)))
+                }
+                layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
+            }
             .clip(shape)
             .background(VlrTheme.colors.surface)
             .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
@@ -90,45 +118,25 @@ internal fun FavoriteTeamTile(
                 icon = { Icon(vectorResource(Res.drawable.ic_star_fill), contentDescription = null) },
             )
         }
-        Box(Modifier.fillMaxWidth()) {
-            rowPartner?.let {
-                FavoriteTeamTileCopy(
-                    favorite = it,
-                    modifier = Modifier
-                        .alpha(0f)
-                        .clearAndSetSemantics {},
-                )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(end = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(text = favorite.name, style = nameStyle, color = VlrTheme.colors.ink)
+            favoriteTeamMeta(favorite)?.let {
+                Text(text = it, style = metaStyle, color = VlrTheme.colors.muted)
             }
-            FavoriteTeamTileCopy(favorite)
         }
     }
 }
 
 @Composable
-private fun FavoriteTeamTileCopy(
-    favorite: FavoriteTeam,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(end = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(
-            text = favorite.name,
-            style = VlrTheme.typography.body.copy(fontWeight = FontWeight.ExtraBold),
-            color = VlrTheme.colors.ink,
-        )
-        favoriteTeamMeta(favorite)?.let {
-            Text(
-                text = it,
-                style = VlrTheme.typography.label.copy(fontWeight = FontWeight.Normal),
-                color = VlrTheme.colors.muted,
-            )
-        }
-    }
-}
+private fun favoriteTeamNameStyle(): TextStyle = VlrTheme.typography.body.copy(fontWeight = FontWeight.ExtraBold)
+
+@Composable
+private fun favoriteTeamMetaStyle(): TextStyle = VlrTheme.typography.label.copy(fontWeight = FontWeight.Normal)
 
 private fun favoriteTeamMeta(favorite: FavoriteTeam): String? =
     listOfNotNull(favorite.tag, favorite.country).joinToString(" · ").ifBlank { null }

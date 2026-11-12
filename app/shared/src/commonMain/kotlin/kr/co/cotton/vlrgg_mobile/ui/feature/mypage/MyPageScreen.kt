@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.mypage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -147,34 +149,40 @@ internal fun MyPageContent(
                         .testTag(MY_PAGE_FULL_ERROR_TAG),
                 )
             } else {
-                // White sections on the canvas, 8dp apart (`.pen` 30-1). A two-column grid keeps
-                // every team tile and player row its own keyed item, so removing a favorite above
-                // the viewport does not move the tiles being viewed. Only team tiles take one cell.
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(TeamTilesPerRow),
-                    state = gridState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag(MY_PAGE_LIST_TAG),
-                    contentPadding = PaddingValues(bottom = VlrDimensions.Space6),
-                ) {
-                    favoriteTeamsSection(
-                        teams = uiState.favoriteTeams,
-                        onTeamClick = onTeamClick,
-                        onRemoveTeam = onRemoveTeam,
-                        onRetryTeams = onRetryTeams,
-                    )
-                    fullWidthItem(key = "favorite_sections_gap") {
-                        Spacer(Modifier.height(VlrDimensions.Space2))
-                    }
-                    favoritePlayersSection(
-                        players = uiState.favoritePlayers,
-                        onPlayerClick = onPlayerClick,
-                        onRemovePlayer = onRemovePlayer,
-                        onRetryPlayers = onRetryPlayers,
-                    )
-                    fullWidthItem(key = "favorite_storage_note") {
-                        StorageNote()
+                // Both team columns get the same pixel width: `GridCells.Fixed` gives an odd pixel to
+                // the first column, which would wrap the two tiles' names differently.
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val teamCellWidth = constraints.maxWidth / TeamTilesPerRow
+                    // White sections on the canvas, 8dp apart (`.pen` 30-1). A two-column grid keeps
+                    // every team tile and player row its own keyed item, so removing a favorite above
+                    // the viewport does not move the tiles being viewed. Only team tiles take one cell.
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(TeamTilesPerRow),
+                        state = gridState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag(MY_PAGE_LIST_TAG),
+                        contentPadding = PaddingValues(bottom = VlrDimensions.Space6),
+                    ) {
+                        favoriteTeamsSection(
+                            teams = uiState.favoriteTeams,
+                        teamCellWidth = teamCellWidth,
+                            onTeamClick = onTeamClick,
+                            onRemoveTeam = onRemoveTeam,
+                            onRetryTeams = onRetryTeams,
+                        )
+                        fullWidthItem(key = "favorite_sections_gap") {
+                            Spacer(Modifier.height(VlrDimensions.Space2))
+                        }
+                        favoritePlayersSection(
+                            players = uiState.favoritePlayers,
+                            onPlayerClick = onPlayerClick,
+                            onRemovePlayer = onRemovePlayer,
+                            onRetryPlayers = onRetryPlayers,
+                        )
+                        fullWidthItem(key = "favorite_storage_note") {
+                            StorageNote()
+                        }
                     }
                 }
             }
@@ -193,6 +201,7 @@ internal fun MyPageContent(
 
 private fun LazyGridScope.favoriteTeamsSection(
     teams: FavoriteSectionState<FavoriteTeam>,
+    teamCellWidth: Int,
     onTeamClick: (String) -> Unit,
     onRemoveTeam: (String) -> Unit,
     onRetryTeams: () -> Unit,
@@ -240,7 +249,7 @@ private fun LazyGridScope.favoriteTeamsSection(
                 key = { _, favorite -> "favorite_team_${favorite.id}" },
                 span = { index, _ -> GridItemSpan(if (isAloneInRow(index, favorites.size)) maxLineSpan else 1) },
             ) { index, favorite ->
-                TeamTileCell(index = index, count = favorites.size) {
+                TeamTileCell(index = index, count = favorites.size, cellWidth = teamCellWidth) {
                     FavoriteTeamTile(
                         favorite = favorite,
                         onClick = onTeamClick,
@@ -327,12 +336,15 @@ private fun isAloneInRow(index: Int, count: Int): Boolean =
 
 /**
  * Grid cell around one team tile: 16dp screen insets, 8dp between the two columns (4dp on each
- * inner side), 4dp under the header for the first line and 8dp between later lines.
+ * inner side), 4dp under the header for the first line and 8dp between later lines. A cell wider
+ * than [cellWidth] (the first column on an odd pixel width) moves the extra pixel into its outer
+ * inset, so the tiles of a row are laid out at the same width.
  */
 @Composable
 private fun TeamTileCell(
     index: Int,
     count: Int,
+    cellWidth: Int,
     tile: @Composable RowScope.() -> Unit,
 ) {
     val alone = isAloneInRow(index, count)
@@ -342,6 +354,7 @@ private fun TeamTileCell(
         modifier = Modifier
             .fillMaxWidth()
             .background(VlrTheme.colors.surface)
+            .then(if (alone) Modifier else Modifier.evenCellWidth(cellWidth))
             .padding(
                 start = if (isStartColumn) VlrDimensions.Space4 else halfGap,
                 end = if (isStartColumn && !alone) halfGap else VlrDimensions.Space4,
@@ -352,6 +365,14 @@ private fun TeamTileCell(
         tile()
         if (alone) Spacer(Modifier.weight(1f))
     }
+}
+
+/** Lays the cell content out at [width] and leaves any extra pixels on the start (outer) side. */
+private fun Modifier.evenCellWidth(width: Int): Modifier = layout { measurable, constraints ->
+    val contentWidth = width.coerceIn(constraints.minWidth.coerceAtMost(width), constraints.maxWidth)
+    val placeable = measurable.measure(constraints.copy(minWidth = contentWidth, maxWidth = contentWidth))
+    val extra = constraints.maxWidth - contentWidth
+    layout(constraints.maxWidth, placeable.height) { placeable.placeRelative(extra, 0) }
 }
 
 /** Section skeletons keep the existing loading description and announce indeterminate progress. */
