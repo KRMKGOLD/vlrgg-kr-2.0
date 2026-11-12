@@ -14,7 +14,8 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyDescendant
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -42,24 +43,26 @@ class AboutContentUiTest {
 
         val orderedTops = listOf(
             "VLR.GG Mobile (Unofficial)",
+            "프로젝트",
             "소스 코드",
             "개인정보처리방침",
             "문의",
             "오픈소스 라이선스",
-            "현재 테마 · 라이트",
-            "데이터 출처: VLR.GG",
+            "화면 테마",
+            "라이트",
+            "출처와 고지",
+            "데이터 출처 · VLR.GG",
             "비공식 앱 고지",
             "상표 고지",
-        ).map { text -> onNodeWithText(text).fetchSemanticsNode().boundsInRoot.top }
+        ).map { text -> onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y }
         assertEquals(orderedTops.sorted(), orderedTops)
         assertEquals(orderedTops.size, orderedTops.toSet().size)
-        onNodeWithText("v2.0.4").assertExists()
+        onNodeWithText("버전 2.0.4").assertExists()
         onNodeWithText(ABOUT_INTRODUCTION).assertExists()
-        onNodeWithText("github.com/KRMKGOLD/vlrgg-kr-2.0").assertExists()
-        onNodeWithText("GitHub · docs/privacy-policy.md").assertExists()
+        onAllNodesWithText("GitHub에서 보기").assertCountEquals(2)
         onNodeWithText("teamcotton124@gmail.com").assertExists()
-        onNodeWithText("앱에 포함된 라이브러리와 라이선스 전문").assertExists()
-        onNodeWithText("다크 모드는 추후 업데이트될 예정입니다.").assertExists()
+        onNodeWithText("앱에 포함된 라이브러리").assertExists()
+        onNodeWithText(ABOUT_THEME_NOTE).assertExists()
         onNodeWithText("경기·대회·팀·선수 정보는 VLR.GG에 공개된 데이터를 가져와 정리합니다.").assertExists()
         onNodeWithText(ABOUT_UNAFFILIATED_NOTICE).assertExists()
         onNodeWithText(ABOUT_RIOT_TRADEMARK_NOTICE).assertExists()
@@ -129,7 +132,7 @@ class AboutContentUiTest {
             }
         }
 
-        onNodeWithText("github.com/KRMKGOLD/vlrgg-kr-2.0").assertExists()
+        onNodeWithText("소스 코드").assertExists()
         mainClock.autoAdvance = false
         onNodeWithContentDescription("소스 코드 외부 링크 열기")
             .assertHeightIsAtLeast(48.dp)
@@ -342,10 +345,12 @@ class AboutContentUiTest {
             }
         }
 
-        onAllNodesWithText("↗").assertCountEquals(AboutLink.entries.size)
-        onNodeWithContentDescription(ABOUT_OPEN_SOURCE_LICENSES_LABEL)
+        onAllNodesWithTag(ABOUT_EXTERNAL_LINK_ICON_TAG, useUnmergedTree = true)
+            .assertCountEquals(AboutLink.entries.size)
+        onNodeWithContentDescription(ABOUT_OPEN_SOURCE_LICENSES_LABEL, useUnmergedTree = true)
             .performScrollTo()
-            .assert(hasAnyDescendant(hasText("↗")).not())
+            .assert(hasAnyDescendant(hasTestTag(ABOUT_EXTERNAL_LINK_ICON_TAG)).not())
+            .assert(hasAnyDescendant(hasTestTag(ABOUT_INTERNAL_LINK_ICON_TAG)))
             .performClick()
 
         assertEquals(1, licenseClicks)
