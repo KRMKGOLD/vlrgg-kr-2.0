@@ -32,7 +32,7 @@ GET /api/v1/series/{seriesId}
 - request마다 `https://www.vlr.gg/series/{seriesId}`를 한 번 조회하며 cache, retry, stale-success fallback이 없다.
 - identity/container 누락, unknown status, 필수 Event 값 누락과 구조 변경은 `SOURCE_PARSING_FAILURE`다. 검증된 빈 섹션만 빈 list이며 optional row field만 `null`이다.
 
-대표 fixture는 Upcoming-only, Completed-only, 전체 Empty를 포함하고 상태·일정 정보로 그룹을 검증한다. `CancellationException`은 public failure로 바꾸지 않는다.
+대표 fixture는 Upcoming-only, Completed-only, 전체 Empty와 실제 vlr.gg DOM 형태(`real-dom.html`)를 포함하고 상태·일정 정보로 그룹을 검증한다. `CancellationException`은 public failure로 바꾸지 않는다.
 
 ## 수용 기준
 

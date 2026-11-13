@@ -138,10 +138,10 @@ internal class SeriesParser {
 
     private companion object {
         const val VLR_PRIMARY_ORIGIN = "https://www.vlr.gg/"
-        const val SERIES_HEADER_SELECTOR = "#wf-container .event-header"
+        const val SERIES_HEADER_SELECTOR = "#wrapper .col.mod-1 .event-header"
         const val SERIES_NAME_SELECTOR = ".wf-title"
         const val SERIES_DESCRIPTION_SELECTOR = ".event-header-main-desc, .series-description"
-        const val SERIES_EVENTS_CONTAINER_SELECTOR = "#wf-container .events-container"
+        const val SERIES_EVENTS_CONTAINER_SELECTOR = "#wrapper .col.mod-1 .events-container"
         const val SERIES_SECTION_CLASS = "events-container-col"
         const val SERIES_SECTION_LABEL_CLASS = "wf-label"
         const val UPCOMING_SECTION_CLASS = "mod-upcoming"
