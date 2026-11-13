@@ -58,7 +58,19 @@ for (name, content) in [
 // The launcher shows the inner 72dp of an adaptive icon's 108dp canvas.
 let cropped = source.replacingOccurrences(of: "viewBox=\"0 0 108 108\"", with: "viewBox=\"18 18 72 72\"")
 let image = NSImage(data: Data(cropped.utf8))!
-func png(size: Int, shape: String, destination: URL) throws {
+// App Store icons must not have an alpha channel, so the opaque variant is re-encoded as RGB.
+func opaquePNG(_ bitmap: NSBitmapImageRep) -> Data {
+    let width = bitmap.pixelsWide, height = bitmap.pixelsHigh
+    let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+    context.draw(bitmap.cgImage!, in: CGRect(x: 0, y: 0, width: width, height: height))
+    let output = NSMutableData()
+    let destination = CGImageDestinationCreateWithData(output, "public.png" as CFString, 1, nil)!
+    CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+    precondition(CGImageDestinationFinalize(destination), "PNG encoding failed")
+    return output as Data
+}
+
+func png(size: Int, shape: String, opaque: Bool = false, destination: URL) throws {
     let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 32)!
     let rect = NSRect(x: 0, y: 0, width: size, height: size)
     NSGraphicsContext.saveGraphicsState()
@@ -68,7 +80,7 @@ func png(size: Int, shape: String, destination: URL) throws {
     if shape == "legacy" { NSBezierPath(roundedRect: rect, xRadius: CGFloat(size) * 0.22, yRadius: CGFloat(size) * 0.22).addClip() }
     image.draw(in: rect)
     NSGraphicsContext.restoreGraphicsState()
-    let data = bitmap.representation(using: .png, properties: [:])!
+    let data = opaque ? opaquePNG(bitmap) : bitmap.representation(using: .png, properties: [:])!
     precondition(data.count < 1_048_576, "PNG exceeds 1MB")
     try data.write(to: destination)
 }
@@ -79,4 +91,6 @@ for (density, size) in [("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 14
     }
 }
 try png(size: 512, shape: "square", destination: directory.appendingPathComponent("play-icon-512.png"))
-print("Exported 4 VectorDrawables, 10 legacy icons and the 512px Play icon.")
+// iOS applies its own mask to the full-bleed square, so the Play crop is reused without rounding.
+try png(size: 1024, shape: "square", opaque: true, destination: root.appendingPathComponent("app/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png"))
+print("Exported 4 VectorDrawables, 10 legacy icons, the 512px Play icon and the 1024px iOS icon.")

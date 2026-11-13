@@ -31,7 +31,7 @@ IOS_TEAM_ID=ABCDE12345 \
 
 test "$(stat -f %Lp "$release_config")" = 600
 grep -F 'API_BASE_URL=https:$(SLASH)$(SLASH)example.invalid' "$release_config" >/dev/null
-! grep -F 'https://' "$release_config" >/dev/null
+expect_failure grep -F 'https://' "$release_config"
 
 build_settings="$temp_dir/build-settings"
 xcodebuild \
@@ -51,6 +51,49 @@ test "$(setting MARKETING_VERSION)" = 1.2.3
 test "$(setting CURRENT_PROJECT_VERSION)" = 42
 test "$(setting PRODUCT_BUNDLE_IDENTIFIER)" = kr.co.cotton.vlrggmobile
 
+# Reuse the signing settings that fastlane appends so a regression in the lane fails here.
+repository_dir=$(CDPATH= cd -- "$project_dir/../.." && pwd)
+profile_uuid=00000000-0000-0000-0000-000000000000
+signing_config="$temp_dir/Signing.xcconfig"
+cp "$release_config" "$signing_config"
+sed -n 's/^[[:space:]]*file\.puts("\(.*\)")$/\1/p' "$repository_dir/fastlane/Fastfile" |
+    sed "s/#{profile_uuid}/$profile_uuid/" >>"$signing_config"
+grep -Fx 'CODE_SIGN_STYLE=Manual' "$signing_config" >/dev/null
+grep -Fx "PROVISIONING_PROFILE_SPECIFIER=$profile_uuid" "$signing_config" >/dev/null
+expect_failure grep -E '^(CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM)=' "$signing_config"
+
+signing_settings="$temp_dir/signing-settings"
+xcodebuild \
+    -project "$project_dir/iosApp.xcodeproj" \
+    -scheme iosApp \
+    -configuration Release \
+    -destination 'generic/platform=iOS' \
+    -xcconfig "$signing_config" \
+    -showBuildSettings >"$signing_settings" 2>"$temp_dir/signing-settings-stderr"
+signing_setting() {
+    awk -F ' = ' -v key="$1" '$1 ~ "^[[:space:]]*" key "$" { value = $2 } END { print value }' "$signing_settings"
+}
+test "$(signing_setting CODE_SIGN_IDENTITY)" = 'Apple Distribution'
+test "$(signing_setting CODE_SIGN_STYLE)" = Manual
+test "$(signing_setting DEVELOPMENT_TEAM)" = ABCDE12345
+
+# Package resource bundles take every global signing override, so planning must fail only on the missing app profile.
+if FIREBASE_ALLOW_UNCONFIGURED=YES xcodebuild \
+    -project "$project_dir/iosApp.xcodeproj" \
+    -scheme iosApp \
+    -configuration Release \
+    -destination 'generic/platform=iOS' \
+    -xcconfig "$signing_config" \
+    -derivedDataPath "$temp_dir/SigningDerivedData" \
+    -skipPackageUpdates \
+    build >"$temp_dir/signing-plan" 2>&1; then
+    echo "expected the signing probe to stop at the missing profile" >&2
+    exit 1
+fi
+grep -F "No profile for team 'ABCDE12345' matching '$profile_uuid'" "$temp_dir/signing-plan" >/dev/null
+expect_failure grep -E 'requires a development team|does not support provisioning profiles' "$temp_dir/signing-plan"
+test "$(grep -c 'error: ' "$temp_dir/signing-plan")" = 1
+
 for origin in 'https://example.invalid:1' 'https://example.invalid:65535' 'https://[::1]' 'https://[::1]:443'; do
     API_BASE_URL="$origin" APP_VERSION=1.0 APP_BUILD_NUMBER=1 \
         /usr/bin/xcrun swift "$script_dir/release_config.swift" generate "$temp_dir/valid-origin.xcconfig"
@@ -63,7 +106,7 @@ xcodebuild \
     -configuration Release \
     -destination 'generic/platform=iOS' \
     -showBuildSettings >"$default_release_settings" 2>"$temp_dir/default-release-stderr"
-! grep -E '^[[:space:]]*(API_BASE_URL|MARKETING_VERSION|CURRENT_PROJECT_VERSION) = .+' "$default_release_settings" >/dev/null
+expect_failure grep -E '^[[:space:]]*(API_BASE_URL|MARKETING_VERSION|CURRENT_PROJECT_VERSION) = .+' "$default_release_settings"
 
 debug_settings="$temp_dir/debug-settings"
 xcodebuild \
@@ -129,7 +172,18 @@ expect_failure env API_BASE_URL=https://example.invalid "APP_VERSION=1.2
 expect_failure env API_BASE_URL=https://example.invalid APP_VERSION=1.0 APP_BUILD_NUMBER=1 IOS_TEAM_ID=invalid \
     /usr/bin/xcrun swift "$script_dir/release_config.swift" generate "$temp_dir/team.xcconfig"
 
-plutil -lint "$project_dir/iosApp/Info.plist" "$project_dir/iosApp.xcodeproj/project.pbxproj" >/dev/null
+plutil -lint "$project_dir/iosApp/Info.plist" "$project_dir/iosApp.xcodeproj/project.pbxproj" "$project_dir/iosApp/PrivacyInfo.xcprivacy" >/dev/null
+test "$(plutil -extract CFBundleDisplayName raw "$project_dir/iosApp/Info.plist")" = 'VLR.GG Mobile'
+
+privacy_manifest="$project_dir/iosApp/PrivacyInfo.xcprivacy"
+test "$(plutil -extract NSPrivacyTracking raw "$privacy_manifest")" = false
+test "$(plutil -extract NSPrivacyAccessedAPITypes raw "$privacy_manifest")" = 1
+test "$(plutil -extract NSPrivacyAccessedAPITypes.0.NSPrivacyAccessedAPIType raw "$privacy_manifest")" = NSPrivacyAccessedAPICategoryFileTimestamp
+test "$(plutil -extract NSPrivacyAccessedAPITypes.0.NSPrivacyAccessedAPITypeReasons.0 raw "$privacy_manifest")" = C617.1
+
+icon="$project_dir/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png"
+test "$(sips -g pixelWidth -g pixelHeight "$icon" | awk '/pixel(Width|Height):/ { print $2 }' | tr '\n' x)" = 1024x1024x
+test "$(sips -g hasAlpha "$icon" | awk '/hasAlpha:/ { print $2 }')" = no
 grep -F '$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)' "$project_dir/iosApp.xcodeproj/project.pbxproj" >/dev/null
 grep -F '/usr/bin/env -u SDKROOT /usr/bin/xcrun --sdk macosx swift' "$project_dir/iosApp.xcodeproj/project.pbxproj" >/dev/null
 

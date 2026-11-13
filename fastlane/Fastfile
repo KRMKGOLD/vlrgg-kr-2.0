@@ -150,7 +150,6 @@ platform :ios do
       )
       File.open(xcconfig_path, "a") do |file|
         file.puts("CODE_SIGN_STYLE=Manual")
-        file.puts("CODE_SIGN_IDENTITY=Apple Distribution")
         file.puts("PROVISIONING_PROFILE_SPECIFIER=#{profile_uuid}")
       end
       output_directory = File.join(ROOT, "app/iosApp/build/export")

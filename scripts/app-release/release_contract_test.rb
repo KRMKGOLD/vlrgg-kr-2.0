@@ -314,6 +314,10 @@ class ReleaseContractTest < Minitest::Test
     fastfile = File.read(File.join(ROOT, "fastlane/Fastfile"))
     assert_includes fastfile, "ReleaseContract.validate_workflow_source!"
     assert_includes fastfile, "ReleaseContract.ensure_absent!(installed_profile"
+    assert_includes fastfile, 'file.puts("CODE_SIGN_STYLE=Manual")'
+    assert_includes fastfile, 'file.puts("PROVISIONING_PROFILE_SPECIFIER=#{profile_uuid}")'
+    # A global identity forces signing onto SPM resource bundles; test_release_config.sh probes the effect.
+    refute_includes fastfile, "CODE_SIGN_IDENTITY"
     refute_includes File.read(File.join(ROOT, "scripts/app-release/release_contract.rb")), ".appstoreconnect/private_keys"
   end
 
