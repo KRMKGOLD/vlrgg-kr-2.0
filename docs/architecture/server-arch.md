@@ -41,7 +41,7 @@ OpenAPI와 Swagger route는 `VLRGG_ENABLE_API_DOCUMENTATION=true`인 local 개�
 
 config와 secret은 source code에 넣지 않는다.
 
-일반 조회 서버는 서울 Cloud Run에 배포돼 있다. root `Dockerfile`은 repository root의 Gradle 설정, `core`, `server`를 사용해 `:server:installDist`를 만들며 runtime은 `0.0.0.0`, provider `PORT`, `/health`를 지원한다. exact SHA 검증, private validation, promotion, rollback과 비용 중단은 [배포 runbook](server-container-deployment.md)이 소유한다.
+일반 조회 서버는 서울 Cloud Run에 배포돼 있다. root `Dockerfile`은 repository root의 Gradle 설정과 `server`를 사용해 `:server:installDist`를 만들며 runtime은 `0.0.0.0`, provider `PORT`, `/health`를 지원한다. exact SHA 검증, private validation, promotion, rollback과 비용 중단은 [배포 runbook](server-container-deployment.md)이 소유한다.
 
 ## Verification
 

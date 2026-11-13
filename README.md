@@ -20,7 +20,6 @@ VLR.GG의 Valorant e-sports 정보를 Android와 iOS에서 탐색하는 Compose 
 | `app/shared` | 공통 Compose UI, Navigation 3, Metro DI, ViewModel·Domain·Data |
 | `app/androidApp`, `app/iosApp` | 플랫폼 진입점과 OS 통합 |
 | `server` | Ktor/Netty API, Jsoup parser, 요청 시점 scraping |
-| `core` | 앱·서버가 공유하는 순수 Kotlin 코드 |
 
 앱은 `StateFlow<UiState>`와 callback으로 상태를 관리하며 root별 navigation stack을 복원합니다. 서버는 HTML 의존성을 parser에 격리하고 안전한 응답만 노출합니다. 상세 계약은 [앱 아키텍처](docs/app-arch/app-arch.md)와 [서버 아키텍처](docs/architecture/server-arch.md), 정확한 의존성 버전은 [version catalog](gradle/libs.versions.toml)를 따릅니다.
 

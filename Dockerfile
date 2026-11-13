@@ -8,8 +8,6 @@ COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY gradle ./gradle
 COPY app/androidApp/build.gradle.kts ./app/androidApp/build.gradle.kts
 COPY app/shared/build.gradle.kts ./app/shared/build.gradle.kts
-COPY core/build.gradle.kts ./core/build.gradle.kts
-COPY core/src ./core/src
 COPY server/build.gradle.kts ./server/build.gradle.kts
 COPY server/src/main ./server/src/main
 

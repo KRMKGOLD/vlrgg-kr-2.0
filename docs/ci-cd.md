@@ -20,7 +20,7 @@ PR과 `main` push는 credential-free CI를 실행한다. 서버와 앱 배포는
 | macOS `ios` | iOS release/Firebase scripts, shared simulator tests·compile, unsigned Release simulator app |
 | Linux `verify` | `always()`로 detector·선택된 job 성공과 의도한 skip 확인, changed-lines whitespace |
 
-단일 경로 규칙은 `scripts/ci/ci_contract.rb`가 소유한다. `server/src/**`는 server, Android source/scripts는 android, iOS 디렉터리는 ios, shared source는 android+ios를 실행한다. core, 각 모듈의 Gradle build script, root/settings/Gradle wrapper·catalog·JDK 설정, 공통 CI/script와 알 수 없는 경로는 모두 실행한다. 서버 Docker build도 Android/shared Gradle 설정을 읽으므로 app 디렉터리 전체를 앱 전용으로 취급하지 않는다. 문서 Markdown만 바뀌면 세 build job을 생략할 수 있다.
+단일 경로 규칙은 `scripts/ci/ci_contract.rb`가 소유한다. `server/src/**`는 server, Android source/scripts는 android, iOS 디렉터리는 ios, shared source는 android+ios를 실행한다. 각 모듈의 Gradle build script, root/settings/Gradle wrapper·catalog·JDK 설정, 공통 CI/script와 알 수 없는 경로는 모두 실행한다. 서버 Docker build도 Android/shared Gradle 설정을 읽으므로 app 디렉터리 전체를 앱 전용으로 취급하지 않는다. 문서 Markdown만 바뀌면 세 build job을 생략할 수 있다.
 
 PR은 base와 PR head의 merge-base부터 PR head까지, main push는 event의 `before`부터 `after`까지 비교한다. rename의 이전·이후 경로와 삭제를 포함하며 diff·identity를 확인할 수 없으면 모두 실행한다. PR 빌드는 기존처럼 GitHub merge checkout을 사용한다. `verify`는 detector 실패, 선택된 job의 실패·취소·예상하지 못한 skip을 거부한다. detector가 명시적으로 제외한 job만 skip을 인정하며 aggregate 성공 자체는 배포 증거가 아니다.
 
