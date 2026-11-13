@@ -7,7 +7,7 @@
 - root `Dockerfile`은 Java 21 build stage에서 `:server:installDist`를 만들고 runtime에는 server distribution만 복사한다.
 - runtime은 non-root `app` 사용자로 launcher를 PID 1로 실행하며 provider `PORT`와 `0.0.0.0`을 사용한다.
 - Cloud Run은 CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling과 production startup CPU boost를 사용한다. `JAVA_OPTS=-Xms128m -Xmx384m -XX:+ExitOnOutOfMemoryError`는 Java heap만 제한하며 전체 RSS 보장이 아니다.
-- `.dockerignore`는 allowlist다. build에 필요한 root Gradle 설정과 `server` source만 포함하고 VCS/IDE/Gradle state, build output, test/iOS source, local config, Firebase/service-account/signing files와 logs를 제외한다.
+- `.dockerignore`는 allowlist다. build에 필요한 root Gradle 설정, `app/androidApp/build.gradle.kts`, `app/shared/build.gradle.kts`, `server` source만 포함하고 VCS/IDE/Gradle state, build output, test/iOS source, local config, Firebase/service-account/signing files와 logs를 제외한다.
 - 파일명 denylist는 임의 secret 탐지를 보장하지 않는다. build input을 늘릴 때 packaging 필요성과 secret/output 배제를 함께 검토한다.
 
 ## Deployment and rollback
