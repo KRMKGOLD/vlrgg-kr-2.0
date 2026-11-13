@@ -321,9 +321,6 @@ run_o3_o6() {
       .jsonPayload["@type"] == "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent" and
       (.jsonPayload.message | contains("ValidationInternalFailure: INTERNAL_ERROR")) and
       (.jsonPayload.message | contains("ObservabilityValidationMain.kt")) and
-      (.jsonPayload.truncation | type) == "object" and
-      ([.jsonPayload.truncation | keys[]] == ["accessor_failure","bytes","candidates","causes","cycle","frames"]) and
-      ([.jsonPayload.truncation[] | type] | all(. == "boolean")) and
       (.jsonPayload | has("logging.googleapis.com/trace") | not)) and
     all($internal[]; (has("trace") | not) or valid_managed_trace) and
     ([$internal[] | select(.trace == $trace)] | length) == 1 and

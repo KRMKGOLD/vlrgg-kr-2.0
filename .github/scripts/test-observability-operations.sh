@@ -1661,7 +1661,7 @@ jq -n --arg internal "$internal_message" --arg parsing "$parsing_message" '
        serviceContext:{service:"vlrgg-query-check",version:"vlrgg-query-check-o123-1"},
        canonical_upstream:(if $category == "INTERNAL" then "none" else "https://www.vlr.gg/" end),
        "@type":"type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent",
-       message:$message,truncation:{accessor_failure:false,bytes:false,candidates:false,causes:false,cycle:false,frames:false}}};
+       message:$message}};
   {entries:([range(0;4) as $index | event("INTERNAL";"INTERNAL_ERROR";500;$internal) +
      (if $index == 0 then {trace:"projects/test-project/traces/0123456789abcdef0123456789abcdef"}
       elif $index == 2 then {trace:"projects/test-project/traces/abcdef0123456789abcdef0123456789"} else {} end)] +
