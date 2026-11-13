@@ -130,6 +130,7 @@ python3 -B .github/scripts/test-observability-runtime-proof.py
 
 지우면 잃는 것은 알림을 자동으로 다시 증명하는 수단이다. 지운다면 다음을 함께 바꾼다.
 
+- 먼저 실행 중인 `observability-validate`가 없고 확인 서비스에 복구 journal이 남아 있지 않은지 확인한다. 남아 있으면 `observability-restore`로 복원한 뒤에 진행한다. 복원 도구와 `guard`를 지운 뒤에는 남은 journal을 되돌릴 수단이 없다.
 - `deploy-server.yml`에서 validate·restore 단계와 `guard` 단계를 뺀다. 남는 것은 위 배포 절차의 1~3번과 5~11번이다.
 - CI `server` job에서 `test-observability-operations.sh`, `test-observability-runtime-proof.py`, `test-observability-runtime-container.sh`와 `:server:observabilityValidationJar`를 뺀다. `smoke-observability.sh`는 테스트 전용 서버에 기대는 부분을 덜어 내거나 `smoke-query-server.sh --local`로 대체한다.
 - `server/build.gradle.kts`의 `observabilityValidationJar` task와 `observability/validation` 테스트 소스를 뺀다.
