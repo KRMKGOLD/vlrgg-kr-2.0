@@ -19,7 +19,6 @@ VLR.GG Mobile 2.0은 Compose Multiplatform 클라이언트다. 화면, 상태, V
 | `app/shared` | 공통 UI, 상태, navigation, domain/data, API client |
 | `app/androidApp` | Android entry와 Android 전용 integration |
 | `app/iosApp` | iOS entry, SwiftUI host와 iOS 전용 integration |
-| `core` | 앱과 서버가 함께 쓰는 framework-free Kotlin 코드 |
 | `server` | scraping, 서버 가공, 앱용 API 응답 |
 
 동일 기능을 플랫폼별로 복제하기 전에 `commonMain`에서 해결할 수 있는지 먼저 확인한다. 플랫폼 entry에는 비즈니스 로직을 두지 않는다.
@@ -36,10 +35,6 @@ Screen/Content -> ViewModel -> Repository 또는 의미 있는 UseCase
 - Data는 DTO/storage model 변환, remote/local 접근과 repository 구현을 소유한다.
 - UseCase는 여러 repository 조합이나 재사용할 정책이 있을 때만 만든다.
 - 앱 graph는 플랫폼이 Compose recomposition 밖에서 만들며, Navigation 3 entry가 ViewModel instance scope를 소유한다.
-
-## `core` 사용 기준
-
-`core`에는 앱과 서버가 실제로 함께 사용하며 Compose, Android/iOS API, Ktor server와 transport contract에 의존하지 않는 value object·검증·작은 utility만 둔다. 한 기능에서만 쓰거나 request/response DTO인 코드는 원래 모듈에 둔다.
 
 ## 변경 원칙
 

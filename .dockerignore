@@ -23,14 +23,6 @@
 !app/shared/
 !app/shared/build.gradle.kts
 
-!core/
-!core/build.gradle.kts
-!core/src/
-!core/src/commonMain/
-!core/src/commonMain/**
-!core/src/jvmMain/
-!core/src/jvmMain/**
-
 !server/
 !server/build.gradle.kts
 !server/src/

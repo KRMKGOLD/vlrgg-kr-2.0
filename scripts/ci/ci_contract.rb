@@ -15,7 +15,7 @@ module CiContract
     paths.flat_map do |path|
       case path
       when /\A(?:README|AGENTS|DESIGN)\.md\z/, /\Adocs\/.*\.md\z/,
-           /\A(?:server|core|app\/(?:androidApp|shared|iosApp))\/AGENTS\.md\z/
+           /\A(?:server|app\/(?:androidApp|shared|iosApp))\/AGENTS\.md\z/
         []
       # Gradle configures all included projects, including the app build scripts in Docker.
       when /(?:\A|\/)(?:build|settings)\.gradle(?:\.kts)?\z/
