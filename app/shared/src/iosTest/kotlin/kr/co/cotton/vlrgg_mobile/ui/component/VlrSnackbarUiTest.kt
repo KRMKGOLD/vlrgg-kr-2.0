@@ -6,7 +6,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertWidthIsAtLeast
@@ -48,6 +52,7 @@ class VlrSnackbarUiTest {
             assertTrue(snackbarBounds.right <= rootBounds.right - 16f * density + 1f)
             onNodeWithText("일시적인 안내입니다.").assertIsDisplayed()
             onNodeWithText("재시도").assertDoesNotExist()
+            onNodeWithTag(VLR_SNACKBAR_ACTION_TAG).assertDoesNotExist()
         }
     }
 
@@ -66,7 +71,10 @@ class VlrSnackbarUiTest {
                 }
             }
 
-            val action = onNodeWithText("재시도")
+            onNodeWithText("다시 시도해 주세요.").assert(
+                SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite),
+            )
+            val action = onNodeWithTag(VLR_SNACKBAR_ACTION_TAG)
                 .assertIsDisplayed()
                 .assertWidthIsAtLeast(48.dp)
                 .assertHeightIsAtLeast(48.dp)

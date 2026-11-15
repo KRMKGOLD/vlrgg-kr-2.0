@@ -5,13 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.HorizontalDivider
@@ -31,25 +28,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.domain.model.search.EventSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.PlayerSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.SearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.SeriesSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.TeamSearchResult
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonSize
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrSearchField
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrSearchFieldVariant
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
+import vlrggmobile.app.shared.generated.resources.ic_progress_activity
 import vlrggmobile.app.shared.generated.resources.ic_search
 
 internal const val SEARCH_LOADING_TAG = "search-loading"
@@ -124,8 +119,13 @@ private fun SearchTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(VlrDimensions.MinimumTouchTarget + VlrDimensions.Space4)
-                .padding(horizontal = VlrDimensions.Space2, vertical = VlrDimensions.Space2),
+                .padding(
+                    start = VlrDimensions.Space1,
+                    end = VlrDimensions.Space1,
+                    top = VlrDimensions.Space1,
+                    bottom = VlrDimensions.Space3,
+                ),
+            horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             VlrIconButton(
@@ -141,7 +141,6 @@ private fun SearchTopBar(
             VlrSearchField(
                 value = query,
                 onValueChange = onQueryChange,
-                variant = VlrSearchFieldVariant.Compact,
                 isLoading = isLoading,
                 label = "검색어",
                 focusRequester = focusRequester,
@@ -152,7 +151,6 @@ private fun SearchTopBar(
                 text = "검색",
                 onClick = onSubmit,
                 variant = VlrButtonVariant.Text,
-                size = VlrButtonSize.Compact,
                 enabled = canSubmit,
             )
         }
@@ -165,36 +163,33 @@ private fun SearchTopBar(
 
 @Composable
 private fun SearchInitialState(modifier: Modifier = Modifier) {
-    SearchMessage(
+    StatePanel(
         title = "검색어를 입력해 주세요",
         body = "팀, 선수, 대회, 시리즈를 검색할 수 있습니다.",
-        modifier = modifier,
-        icon = {
-            Icon(
-                imageVector = vectorResource(Res.drawable.ic_search),
-                contentDescription = null,
-                modifier = Modifier.size(32.dp),
-                tint = VlrTheme.colors.muted,
-            )
-        },
+        icon = Res.drawable.ic_search,
+        modifier = modifier.fillMaxSize(),
     )
 }
 
 @Composable
 private fun SearchLoadingState(query: String, modifier: Modifier = Modifier) {
-    SearchMessage(
+    StatePanel(
         title = "$query 검색 중…",
         body = "잠시만 기다려 주세요.",
-        modifier = modifier.testTag(SEARCH_LOADING_TAG),
+        icon = Res.drawable.ic_progress_activity,
+        modifier = modifier
+            .fillMaxSize()
+            .testTag(SEARCH_LOADING_TAG),
     )
 }
 
 @Composable
 private fun SearchEmptyState(query: String, modifier: Modifier = Modifier) {
-    SearchMessage(
+    StatePanel(
         title = "${query}에 대한 검색 결과가 없어요.",
         body = "검색어를 바꿔 다시 시도해 주세요.",
-        modifier = modifier,
+        icon = Res.drawable.ic_search,
+        modifier = modifier.fillMaxSize(),
     )
 }
 
@@ -203,65 +198,14 @@ private fun SearchErrorState(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "검색 결과를 불러오지 못했습니다.",
-            style = VlrTheme.typography.section,
-            color = VlrTheme.colors.ink,
-        )
-        Spacer(Modifier.size(VlrDimensions.Space2))
-        Text(
-            text = "네트워크 상태를 확인하고 다시 시도해 주세요.",
-            color = VlrTheme.colors.muted,
-            style = VlrTheme.typography.bodySm,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.size(VlrDimensions.Space4))
-        VlrButton(
-            text = "다시 시도",
-            onClick = onRetry,
-            variant = VlrButtonVariant.Secondary,
-            modifier = Modifier.testTag(SEARCH_RETRY_TAG),
-        )
-    }
-}
-
-@Composable
-private fun SearchMessage(
-    title: String,
-    body: String,
-    modifier: Modifier = Modifier,
-    icon: (@Composable () -> Unit)? = null,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        icon?.invoke()
-        if (icon != null) Spacer(Modifier.size(VlrDimensions.Space3))
-        Text(
-            text = title,
-            style = VlrTheme.typography.section,
-            color = VlrTheme.colors.ink,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.size(VlrDimensions.Space2))
-        Text(
-            text = body,
-            style = VlrTheme.typography.bodySm,
-            color = VlrTheme.colors.muted,
-            textAlign = TextAlign.Center,
-        )
-    }
+    StatePanel(
+        title = "검색 결과를 불러오지 못했습니다.",
+        body = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+        actionLabel = "다시 시도",
+        onAction = onRetry,
+        actionTestTag = SEARCH_RETRY_TAG,
+        modifier = modifier.fillMaxSize(),
+    )
 }
 
 @Composable

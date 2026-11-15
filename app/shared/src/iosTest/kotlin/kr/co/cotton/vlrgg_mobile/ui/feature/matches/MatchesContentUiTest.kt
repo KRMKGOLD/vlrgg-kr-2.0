@@ -347,8 +347,8 @@ class MatchesContentUiTest {
         }
 
         onNodeWithText("Paper Rex").assertDoesNotExist()
-        onNodeWithText("경기 목록을 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.")
-            .assertIsDisplayed()
+        onNodeWithText("경기 목록을 불러오지 못했습니다.").assertIsDisplayed()
+        onNodeWithText("네트워크 상태를 확인하고 다시 시도해 주세요.").assertIsDisplayed()
         waitForIdle()
         assertEquals(0, loadMoreRequests)
         onNodeWithTag(MATCHES_INITIAL_RETRY_TAG).performClick()

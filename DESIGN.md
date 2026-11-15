@@ -1,8 +1,8 @@
 # Design System: VLR.GG Mobile v3 — Scoreline
 
-> **코드 일부 적용:** 이 문서와 `.pen`은 v3 디자인 계약이다. 기반(토큰·서체·아이콘)은 `feat/v3-design`에 적용했고, 공통 컴포넌트·화면은 [적용 순서](#11-적용-순서와-범위-밖)에 따른 후속 작업이다.
+> **코드 일부 적용:** 이 문서와 `.pen`은 v3 디자인 계약이다. 기반(토큰·서체·아이콘)과 chrome·컨트롤·피드백 공통 컴포넌트는 `feat/v3-design`에 적용했고, 목록·상세 공통 컴포넌트(2b)와 화면은 [적용 순서](#11-적용-순서와-범위-밖)에 따른 후속 작업이다.
 
-- **Status:** Active — v3 채택 (2026-11-05). 기반은 `feat/v3-design`에 적용, 공통 컴포넌트·화면은 후속이다([구현 상태](#1-구현-상태) 참조).
+- **Status:** Active — v3 채택 (2026-11-05). 기반과 chrome·컨트롤·피드백 컴포넌트는 `feat/v3-design`에 적용, 목록·상세 컴포넌트와 화면은 후속이다([구현 상태](#1-구현-상태) 참조).
 - **Design source:** [`docs/design/pen/vlrgg-mobile-v3.pen`](docs/design/pen/vlrgg-mobile-v3.pen) (Pencil). 작업 기록과 캔버스 구성은 [v3 디자인 기록](docs/design/v3-redesign.md)에 있다.
 - **Applies to:** `app/shared/src/commonMain`의 Compose Multiplatform UI. Android·iOS 모바일, 라이트 테마.
 - **소유 범위:** 이 문서는 시각·컴포넌트·상호작용·접근성 계약을 소유한다. 데이터, 흐름, 화면 문구는 [기능 문서](docs/feature/README.md)가, 배치와 런타임 경계는 [앱 아키텍처](docs/app-arch/app-arch.md)가 소유한다. 기능 문서와 시각 규칙이 충돌하면 이 문서를 따른다.
@@ -10,11 +10,14 @@
 
 ## 1. 구현 상태
 
-기반(토큰·서체·아이콘)은 `feat/v3-design`에 적용했고, 공통 컴포넌트·화면은 후속 작업이다(2026-11-11). Compose theme(`Colors.kt`, `Typography.kt`, `Dimensions.kt`)은 v3 값과 이름을 쓰지만 공통 컴포넌트와 화면 배치는 아직 v3 이전 구조라서, 다음 단계 전까지 화면에 v2와 v3가 섞여 보인다.
+기반(토큰·서체·아이콘, 2026-11-11)과 chrome·컨트롤·피드백 공통 컴포넌트(2026-11-12)는 `feat/v3-design`에 적용했다. 목록·상세 공통 컴포넌트(Logo slot, Match row, News row 등)와 화면 배치(어두운 hero 띠, 카드→행)는 후속 작업이라, 그 전까지 화면에 v2와 v3가 섞여 보인다.
 
 - 공통 컴포넌트 적용 전에는 화면 하나만 부분적으로 v3 배치로 바꾸지 않는다. 시각 변경은 v3 적용 작업 안에서만 한다.
 - 기능 문서의 동작은 v3에서도 바뀌지 않는다. 문구는 루트 제목·하단 탭 라벨만 한국어(`뉴스`·`경기`·`마이페이지`·`대회`·`정보`)로 바꾸며(2026-11-05 결정, 기능 문서 반영), 상태 문구는 현재 앱 구현 문구를 그대로 쓴다.
-- 현재 앱은 아직 영어 라벨(`News`·`Matches`·`My Page`·`Events`·`About`)을 쓴다. 라벨 변경은 v3 화면 적용 작업에 포함한다.
+- 루트 제목·하단 탭 라벨과 대회 상세 탭 라벨(`경기`·`뉴스`·`통계`)은 한국어로 바꿨다(2026-11-12).
+- 공통 컴포넌트(`ui/component`): `RootHeader`, `DetailHeader`(Light·Dark), `VlrBottomNavigation`, `VlrTabs`, `VlrButton`(Primary·Secondary·Text), `VlrIconButton`, `StatusChip`, `VlrSearchField`, `StatePanel`, `InlineRetry`, `SectionMessage`, `SectionHeader`, `SkeletonBlock`·`SkeletonRow`·`SkeletonMatchRow`·`SkeletonHero`, `VlrSnackbar`, `VlrErrorDialog`(`BusyRetryDialog`가 사용). 화면의 같은 역할 구현은 이 컴포넌트로 바꿨고, 어두운 `DetailHeader`·`SkeletonMatchRow`·`SkeletonHero`는 화면 단계에서 쓴다.
+- 하단 탭은 시스템 navigation inset을 아래에 더하고 `.pen`의 16dp Gesture area를 고정값으로 두지 않는다. 글꼴 확대로 `마이페이지`가 칸을 넘으면 `마이`/`페이지`로 줄바꿈한다.
+- 다이얼로그 뒤 배경은 플랫폼 Dialog의 기본 scrim을 쓴다(`scrim` 토큰 값과 다를 수 있다).
 - 타이포그래피: `VlrTypeScale`은 [5절](#5-타이포그래피) 역할을 camelCase로 쓴다(`bodySm`, `scoreXl`, `scoreL`, `scoreM`, `stat`, `tag`). 숫자 역할은 `VlrTheme` 안에서 번들 Saira Condensed로 만든다. 굵기 범위가 있는 역할은 가장 낮은 굵기가 기본이고 화면에서 `copy(fontWeight = …)`로 올린다. 이전 이름은 `pageTitle`→`title`, `sectionTitle`→`section`, `body`→`bodySm`, `bodyStrong`→`body`, `label`→`meta`, `labelSmall`→`label`이다.
 - 형태·간격: `VlrDimensions`에 `Space5`(20dp), `CornerRadius`(2dp), `ButtonCornerRadius`(10dp), `OverlayCornerRadius`(4dp, Snackbar·다이얼로그), `HeaderHeight`(56dp)를 둔다. 이전 `DefaultCornerRadius`·`CardCornerRadius` 사용처는 `CornerRadius`로, 버튼은 `ButtonCornerRadius`로 옮겼다.
 - 서체: Saira Condensed SemiBold·Bold 원본 TTF를 subset 없이 `composeResources/font/`에 번들한다. `Saira`가 OFL Reserved Font Name이라 subset한 수정본은 이름을 바꿔야 하기 때문이다(OFL FAQ 2.6).
@@ -260,7 +263,7 @@
 
 ## 11. 적용 순서와 범위 밖
 
-1. [ ] 기반: `ui/theme` 토큰을 v3 값으로 교체하고 신규 토큰을 추가한다. Saira Condensed와 Material Symbols 글리프를 가져오고 공통 컴포넌트를 v3 계약으로 맞춘다. 토큰·서체·아이콘은 `feat/v3-design`에 적용했고(2026-11-11), 공통 컴포넌트가 남았다.
+1. [ ] 기반: `ui/theme` 토큰을 v3 값으로 교체하고 신규 토큰을 추가한다. Saira Condensed와 Material Symbols 글리프를 가져오고 공통 컴포넌트를 v3 계약으로 맞춘다. 토큰·서체·아이콘(2026-11-11)과 chrome·컨트롤·피드백 컴포넌트(2026-11-12)를 `feat/v3-design`에 적용했고, 목록·상세 컴포넌트가 남았다.
 2. [ ] 화면: 기능 묶음별로 v3를 적용한다. 상세 상단의 어두운 띠에 맞는 상태바 아이콘 색은 플랫폼별로 처리한다.
 3. [ ] 검증: UI 테스트를 갱신하고 Android·iOS에서 주요 상태, 글꼴 확대, TalkBack·VoiceOver를 확인한다.
 4. [ ] 정리: 코드에 남은 이전 디자인 흔적(뉴스 상세 미리보기의 Stitch placeholder 이미지 URL, `TeamDetailContentUiTest`의 Stitch marker 테스트 이름)을 v3 기준으로 바꾼다.

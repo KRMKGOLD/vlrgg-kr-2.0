@@ -1,8 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.events
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,10 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -31,25 +27,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_search
+import vlrggmobile.app.shared.generated.resources.ic_trophy
 
 internal const val EVENTS_LOADING_TAG = "events-loading"
 internal const val EVENTS_REFRESHING_TAG = "events-refreshing"
@@ -72,7 +67,7 @@ fun EventsContent(
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { EventsTopBar(onSearch = onSearch) },
+        topBar = { RootHeader(title = "대회", onSearch = onSearch) },
     ) { contentPadding ->
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
@@ -165,54 +160,9 @@ private fun LazyListScope.sectionHeading(
     isFirst: Boolean,
 ) {
     item(key = "section-$key") {
-        Text(
-            text = title,
-            modifier = Modifier.padding(
-                start = VlrDimensions.Space4,
-                end = VlrDimensions.Space4,
-                top = if (isFirst) VlrDimensions.Space4 else VlrDimensions.Space6,
-                bottom = VlrDimensions.Space2,
-            ),
-            style = VlrTheme.typography.section,
-            color = VlrTheme.colors.muted,
-        )
-    }
-}
-
-@Composable
-private fun EventsTopBar(onSearch: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = VlrDimensions.Space4),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Events",
-                modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.title,
-                color = VlrTheme.colors.ink,
-            )
-            VlrIconButton(
-                contentDescription = "검색",
-                onClick = onSearch,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_search),
-                        contentDescription = null,
-                    )
-                },
-            )
-        }
-        HorizontalDivider(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.line,
+        SectionHeader(
+            title = title,
+            modifier = if (isFirst) Modifier else Modifier.padding(top = VlrDimensions.Space2),
         )
     }
 }
@@ -276,21 +226,7 @@ private fun EventListItem(
 
 @Composable
 private fun EmptySectionRow() {
-    Text(
-        text = "현재 이벤트가 없어요.",
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space3,
-            ),
-        style = VlrTheme.typography.bodySm,
-        color = VlrTheme.colors.muted,
-    )
-    HorizontalDivider(
-        thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.line,
-    )
+    SectionMessage(message = "현재 이벤트가 없어요.")
 }
 
 private fun LazyListScope.eventsSkeleton() {
@@ -332,59 +268,16 @@ private fun LazyListScope.skeletonSection(
 
 @Composable
 private fun EventsSkeletonRow() {
-    val placeholderShape = RoundedCornerShape(VlrDimensions.Space1)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space3,
-            )
-            .clearAndSetSemantics {},
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.72f)
-                    .height(20.dp)
-                    .background(VlrTheme.colors.skeleton, placeholderShape),
-            )
-            Spacer(Modifier.height(VlrDimensions.Space1))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.42f)
-                    .height(VlrDimensions.Space3)
-                    .background(VlrTheme.colors.skeleton, placeholderShape),
-            )
-        }
-        Spacer(Modifier.width(VlrDimensions.Space2))
-        Box(
-            modifier = Modifier
-                .width(56.dp)
-                .height(24.dp)
-                .background(VlrTheme.colors.skeleton, CircleShape),
-        )
-    }
-    HorizontalDivider(
-        thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.line,
-    )
+    SkeletonRow()
 }
 
 @Composable
 private fun EventsEmptyState(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.padding(VlrDimensions.Space6),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "표시할 이벤트가 없어요.",
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.ink,
-            textAlign = TextAlign.Center,
-        )
-    }
+    StatePanel(
+        title = "표시할 이벤트가 없어요.",
+        icon = Res.drawable.ic_trophy,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -392,51 +285,14 @@ private fun EventsErrorState(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier.padding(VlrDimensions.Space6),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space6),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(VlrTheme.colors.canvas, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = vectorResource(Res.drawable.ic_error),
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = VlrTheme.colors.muted,
-                )
-            }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-            ) {
-                Text(
-                    text = "이벤트를 불러오지 못했습니다.",
-                    style = VlrTheme.typography.section,
-                    color = VlrTheme.colors.ink,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = "네트워크 상태를 확인하고 다시 시도해 주세요.",
-                    style = VlrTheme.typography.bodySm,
-                    color = VlrTheme.colors.muted,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            VlrButton(
-                text = "재시도",
-                onClick = onRetry,
-                modifier = Modifier.testTag(EVENTS_INITIAL_RETRY_TAG),
-            )
-        }
-    }
+    StatePanel(
+        title = "이벤트를 불러오지 못했습니다.",
+        body = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+        actionLabel = "재시도",
+        onAction = onRetry,
+        actionTestTag = EVENTS_INITIAL_RETRY_TAG,
+        modifier = modifier,
+    )
 }
 
 private fun EventSummary.metadataLabel(): String? = listOfNotNull(dateLabel, regionCode)
@@ -444,7 +300,7 @@ private fun EventSummary.metadataLabel(): String? = listOfNotNull(dateLabel, reg
     ?.joinToString(" · ")
 
 private fun EventStatus.toChipStatus(): StatusChipStatus = when (this) {
-    EventStatus.ONGOING -> StatusChipStatus.Live
+    EventStatus.ONGOING -> StatusChipStatus.InProgress
     EventStatus.UPCOMING -> StatusChipStatus.Upcoming
     EventStatus.COMPLETED -> StatusChipStatus.Completed
     EventStatus.PAUSED -> StatusChipStatus.Postponed

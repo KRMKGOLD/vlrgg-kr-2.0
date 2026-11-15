@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -32,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -46,18 +46,17 @@ import kotlinx.coroutines.delay
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerAgentStat
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrErrorDialog
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_arrow_back
-import vlrggmobile.app.shared.generated.resources.ic_scoreboard
-import vlrggmobile.app.shared.generated.resources.ic_person
 import vlrggmobile.app.shared.generated.resources.ic_star_fill
 import vlrggmobile.app.shared.generated.resources.ic_star
 import kotlin.time.Duration.Companion.ZERO
@@ -162,12 +161,14 @@ fun PlayerDetailContent(
         uiState.busyRetry?.isDialogVisible != true &&
         !isBusyCooldownActive
     ) {
-        AlertDialog(
+        VlrErrorDialog(
+            title = "정보를 불러오지 못했습니다",
+            message = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+            confirmLabel = "재시도",
+            onConfirm = onRetry,
+            dismissLabel = "뒤로가기",
+            onDismiss = onBack,
             onDismissRequest = {},
-            title = { Text("정보를 불러오지 못했습니다") },
-            text = { Text("네트워크 상태를 확인하고 다시 시도해 주세요.") },
-            confirmButton = { VlrButton("재시도", onClick = onRetry) },
-            dismissButton = { VlrButton("뒤로가기", variant = VlrButtonVariant.Secondary, onClick = onBack) },
             properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
         )
     }
@@ -179,30 +180,20 @@ private fun PlayerDetailTopBar(
     onBack: () -> Unit,
     onFavoriteClick: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().height(56.dp).background(VlrTheme.colors.surface)) {
-        Box(Modifier.fillMaxWidth().weight(1f)) {
-            VlrIconButton(
-                contentDescription = "뒤로 가기", onClick = onBack,
-                modifier = Modifier.align(Alignment.CenterStart).padding(start = VlrDimensions.Space1),
-                icon = { Icon(vectorResource(Res.drawable.ic_arrow_back), null) },
-            )
-            PlayerFavoriteButton(
-                favorite = favorite,
-                onClick = onFavoriteClick,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = VlrDimensions.Space1),
-            )
-            Text("Player Profile", Modifier.align(Alignment.Center), style = VlrTheme.typography.title, color = VlrTheme.colors.ink)
-        }
-        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
-    }
+    DetailHeader(
+        onBack = onBack,
+        title = "Player Profile",
+        actions = { iconColor ->
+            PlayerFavoriteButton(favorite = favorite, onClick = onFavoriteClick, iconColor = iconColor)
+        },
+    )
 }
 
 @Composable
 private fun PlayerFavoriteButton(
     favorite: PlayerFavoriteUiState,
     onClick: () -> Unit,
+    iconColor: Color,
     modifier: Modifier = Modifier,
 ) {
     if (!favorite.isRestored) return
@@ -211,6 +202,7 @@ private fun PlayerFavoriteButton(
         contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
         onClick = onClick,
         enabled = !favorite.isMutationInProgress,
+        tint = if (favorite.isFavorite) VlrTheme.colors.accent else iconColor,
         modifier = modifier.testTag(
             if (favorite.isFavorite) {
                 PLAYER_DETAIL_FAVORITE_FILLED_TAG
@@ -224,7 +216,6 @@ private fun PlayerFavoriteButton(
                     if (favorite.isFavorite) Res.drawable.ic_star_fill else Res.drawable.ic_star,
                 ),
                 contentDescription = null,
-                tint = if (favorite.isFavorite) VlrTheme.colors.accent else VlrTheme.colors.muted,
             )
         },
     )
@@ -313,7 +304,7 @@ private fun CurrentTeamSection(player: PlayerDetail, onTeamClick: (String) -> Un
     Section(PLAYER_DETAIL_TEAM_SECTION_TAG, "현재 소속 팀") {
         player.currentTeam?.let { team ->
             PlayerCurrentTeamCard(team = team, onClick = { onTeamClick(team.id) })
-        } ?: SectionEmpty("소속 팀 정보가 없습니다", Res.drawable.ic_person)
+        } ?: SectionEmpty("소속 팀 정보가 없습니다")
     }
 }
 
@@ -341,7 +332,7 @@ private fun AgentStatsSection(
 @Composable
 private fun RecentMatchesSection(matches: List<PlayerRecentMatch>, onMatchClick: (String) -> Unit) {
     Section(PLAYER_DETAIL_MATCHES_SECTION_TAG, "최근 경기") {
-        if (matches.isEmpty()) SectionEmpty("최근 경기 기록이 없습니다", Res.drawable.ic_scoreboard)
+        if (matches.isEmpty()) SectionEmpty("최근 경기 기록이 없습니다")
         else Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
             matches.forEach { match ->
                 PlayerRecentMatchCard(match = match, onClick = { onMatchClick(match.id) })
@@ -360,17 +351,8 @@ private fun Section(tag: String, title: String, content: @Composable () -> Unit)
 }
 
 @Composable
-private fun SectionEmpty(
-    message: String,
-    icon: org.jetbrains.compose.resources.DrawableResource? = null,
-) = Column(
-    Modifier.fillMaxWidth().heightIn(min = 96.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-) {
-    icon?.let {
-        Icon(vectorResource(it), null, Modifier.height(40.dp), tint = VlrTheme.colors.line)
-        Spacer(Modifier.height(VlrDimensions.Space2))
-    }
-    Text(message, style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted, textAlign = TextAlign.Center)
+private fun SectionEmpty(message: String) {
+    SectionMessage(message = message, horizontalPadding = 0.dp)
 }
 
 @Composable
@@ -434,9 +416,6 @@ private fun LoadingAgentStatsTable() = Column(verticalArrangement = Arrangement.
 private fun LoadingRecentMatchCard() = Skeleton(width = null, height = 96.dp)
 
 @Composable
-private fun Skeleton(width: androidx.compose.ui.unit.Dp?, height: androidx.compose.ui.unit.Dp) = Box(
-    (if (width == null) Modifier.fillMaxWidth() else Modifier.width(width))
-        .height(height)
-        .clip(RoundedCornerShape(VlrDimensions.Space1))
-        .background(VlrTheme.colors.canvas),
+private fun Skeleton(width: androidx.compose.ui.unit.Dp?, height: androidx.compose.ui.unit.Dp) = SkeletonBlock(
+    (if (width == null) Modifier.fillMaxWidth() else Modifier.width(width)).height(height),
 )

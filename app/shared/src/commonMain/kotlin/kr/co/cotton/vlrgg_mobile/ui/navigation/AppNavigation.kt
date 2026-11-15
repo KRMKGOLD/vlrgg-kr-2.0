@@ -6,11 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.key
@@ -28,8 +24,9 @@ import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrBottomNavigation
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrBottomNavigationItem
 import kr.co.cotton.vlrgg_mobile.ui.feature.about.AboutPlatform
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_trophy
 import vlrggmobile.app.shared.generated.resources.ic_info
@@ -290,32 +287,29 @@ internal fun rootNavKeyFromSavedStateId(savedRootId: String): RootNavKey? = when
     else -> null
 }
 
+internal fun rootNavigationItemTag(root: RootNavKey): String = "bottom-nav-${root.savedStateId()}"
+
 @Composable
 private fun RootNavigationBar(
     selectedRoot: RootNavKey,
     onSelectRoot: (RootNavKey) -> Unit,
 ) {
-    NavigationBar {
+    VlrBottomNavigation {
         rootNavKeys.forEach { root ->
             val descriptor = root.destinationDescriptor
-            NavigationBarItem(
+            VlrBottomNavigationItem(
+                label = descriptor.title,
+                wrappedLabel = if (root == MyPageRoot) "마이\n페이지" else null,
+                icon = when (root) {
+                    EventsRoot -> Res.drawable.ic_trophy
+                    MatchesRoot -> Res.drawable.ic_scoreboard
+                    MyPageRoot -> Res.drawable.ic_person
+                    NewsRoot -> Res.drawable.ic_newspaper
+                    AboutRoot -> Res.drawable.ic_info
+                },
                 selected = root == selectedRoot,
                 onClick = { onSelectRoot(root) },
-                icon = {
-                    val icon = when (root) {
-                        EventsRoot -> vectorResource(Res.drawable.ic_trophy)
-                        MatchesRoot -> vectorResource(Res.drawable.ic_scoreboard)
-                        MyPageRoot -> vectorResource(Res.drawable.ic_person)
-                        NewsRoot -> vectorResource(Res.drawable.ic_newspaper)
-                        AboutRoot -> vectorResource(Res.drawable.ic_info)
-                    }
-
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                    )
-                },
-                label = { Text(descriptor.title) },
+                testTag = rootNavigationItemTag(root),
             )
         }
     }

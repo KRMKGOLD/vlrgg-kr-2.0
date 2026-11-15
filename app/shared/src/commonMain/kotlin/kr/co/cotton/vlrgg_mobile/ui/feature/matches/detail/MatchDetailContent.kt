@@ -47,11 +47,12 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchMap
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.RelatedMatch
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItem
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemModel
@@ -59,9 +60,6 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemS
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
-import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 
 internal const val MATCH_DETAIL_LOADING_TAG = "match-detail-loading"
 internal const val MATCH_DETAIL_HERO_TAG = "match-detail-hero"
@@ -90,7 +88,7 @@ fun MatchDetailContent(
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { MatchDetailTopBar(onBack) },
+        topBar = { DetailHeader(onBack = onBack) },
     ) { contentPadding ->
         when (val state = uiState.contentState) {
             MatchDetailContentState.Loading -> MatchDetailLoading(
@@ -125,39 +123,6 @@ fun MatchDetailContent(
 }
 
 @Composable
-private fun MatchDetailTopBar(onBack: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(VlrTheme.colors.surface),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(start = VlrDimensions.Space1),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            VlrIconButton(
-                contentDescription = "뒤로 가기",
-                onClick = onBack,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_arrow_back),
-                        contentDescription = null,
-                    )
-                },
-            )
-        }
-        HorizontalDivider(
-            thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.line,
-        )
-    }
-}
-
-@Composable
 private fun MatchDetailLoading(modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = modifier.testTag(MATCH_DETAIL_LOADING_TAG),
@@ -169,17 +134,17 @@ private fun MatchDetailLoading(modifier: Modifier = Modifier) {
     ) {
         item(key = "loading-hero") {
             Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space3)) {
-                SkeletonBlock(88.dp)
+                LoadingBlock(88.dp)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     SkeletonCircle()
-                    SkeletonBlock(28.dp, Modifier.width(72.dp))
+                    LoadingBlock(28.dp, Modifier.width(72.dp))
                     SkeletonCircle()
                 }
-                SkeletonBlock(20.dp, Modifier.fillMaxWidth(0.7f))
+                LoadingBlock(20.dp, Modifier.fillMaxWidth(0.7f))
             }
         }
         item(key = "loading-maps") { LoadingSection("Maps", rowCount = 2) }
@@ -195,29 +160,18 @@ private fun LoadingSection(title: String, rowCount: Int) {
             style = VlrTheme.typography.section,
             color = VlrTheme.colors.ink,
         )
-        repeat(rowCount) { SkeletonBlock(VlrDimensions.MinimumTouchTarget) }
+        repeat(rowCount) { LoadingBlock(VlrDimensions.MinimumTouchTarget) }
     }
 }
 
 @Composable
 private fun SkeletonCircle() {
-    Box(
-        modifier = Modifier
-            .size(64.dp)
-            .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(VlrTheme.colors.skeleton),
-    )
+    SkeletonBlock(Modifier.size(64.dp).clip(androidx.compose.foundation.shape.CircleShape))
 }
 
 @Composable
-private fun SkeletonBlock(height: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.CornerRadius))
-            .background(VlrTheme.colors.skeleton),
-    )
+private fun LoadingBlock(height: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    SkeletonBlock(modifier.fillMaxWidth().height(height))
 }
 
 @Composable
@@ -579,53 +533,18 @@ private fun FlatOutlinedRow(modifier: Modifier = Modifier, content: @Composable 
 
 @Composable
 private fun SectionEmpty(message: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = VlrDimensions.MinimumTouchTarget)
-            .border(
-                VlrDimensions.OutlineWidth,
-                VlrTheme.colors.line,
-                androidx.compose.foundation.shape.RoundedCornerShape(VlrDimensions.CornerRadius),
-            )
-            .padding(horizontal = VlrDimensions.Space3),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Text(
-            text = message,
-            style = VlrTheme.typography.bodySm,
-            color = VlrTheme.colors.muted,
-        )
-    }
+    SectionMessage(message = message, horizontalPadding = 0.dp)
 }
 
 @Composable
 private fun MatchDetailError(onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(horizontal = VlrDimensions.Space4),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "경기 정보를 불러오지 못했습니다",
-            style = VlrTheme.typography.title,
-            color = VlrTheme.colors.ink,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(VlrDimensions.Space2))
-        Text(
-            text = "잠시 후 다시 시도해 주세요.",
-            style = VlrTheme.typography.bodySm,
-            color = VlrTheme.colors.muted,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(VlrDimensions.Space6))
-        VlrButton(
-            text = "재시도",
-            onClick = onRetry,
-            variant = VlrButtonVariant.Primary,
-        )
-    }
+    StatePanel(
+        title = "경기 정보를 불러오지 못했습니다",
+        body = "잠시 후 다시 시도해 주세요.",
+        actionLabel = "재시도",
+        onAction = onRetry,
+        modifier = modifier,
+    )
 }
 
 private fun Int?.scoreText(): String = this?.toString() ?: "—"

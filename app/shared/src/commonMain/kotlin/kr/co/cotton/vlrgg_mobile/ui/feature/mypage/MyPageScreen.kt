@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -41,7 +40,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,15 +48,16 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoritePlayer
 import kr.co.cotton.vlrgg_mobile.domain.model.favorite.FavoriteTeam
 import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
+import kr.co.cotton.vlrgg_mobile.ui.component.InlineRetry
+import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_search
 import vlrggmobile.app.shared.generated.resources.ic_star_fill
 
 internal const val MY_PAGE_LIST_TAG = "my_page_list"
@@ -121,7 +120,13 @@ internal fun MyPageContent(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = VlrTheme.colors.surface,
-        topBar = { MyPageTopAppBar(onSearch) },
+        topBar = {
+            RootHeader(
+                title = "마이페이지",
+                onSearch = onSearch,
+                modifier = Modifier.testTag(MY_PAGE_TOP_APP_BAR_TAG),
+            )
+        },
     ) { contentPadding ->
         Box(
             modifier = Modifier
@@ -129,8 +134,10 @@ internal fun MyPageContent(
                 .padding(contentPadding),
         ) {
             if (uiState.isFullError) {
-                FullError(
-                    onRetry = onRetry,
+                StatePanel(
+                    title = "즐겨찾기를 불러오지 못했습니다.",
+                    actionLabel = "재시도",
+                    onAction = onRetry,
                     modifier = Modifier
                         .fillMaxSize()
                         .testTag(MY_PAGE_FULL_ERROR_TAG),
@@ -141,19 +148,16 @@ internal fun MyPageContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .testTag(MY_PAGE_LIST_TAG),
-                    contentPadding = PaddingValues(
-                        horizontal = VlrDimensions.Space4,
-                        vertical = VlrDimensions.Space6,
-                    ),
+                    contentPadding = PaddingValues(bottom = VlrDimensions.Space6),
                     verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
                 ) {
                     item(key = "favorite_teams_header") {
-                        SectionHeader("Favorite Teams", MY_PAGE_TEAM_SECTION_TAG)
+                        SectionHeader("Favorite Teams", Modifier.testTag(MY_PAGE_TEAM_SECTION_TAG))
                     }
                     when (val teams = uiState.favoriteTeams) {
                         FavoriteSectionState.Loading -> item(key = "favorite_teams_loading") {
                             SectionCard(
-                                modifier = Modifier.semantics {
+                                modifier = Modifier.padding(horizontal = VlrDimensions.Space4).semantics {
                                     contentDescription = "즐겨찾기한 팀을 불러오는 중"
                                 },
                             ) { SectionLoading("즐겨찾기한 팀을 불러오는 중") }
@@ -164,15 +168,10 @@ internal fun MyPageContent(
                         }
 
                         FavoriteSectionState.Error -> item(key = "favorite_teams_error") {
-                            SectionMessage(
+                            InlineRetry(
                                 message = "즐겨찾기한 팀을 불러오지 못했습니다.",
-                                action = {
-                                    VlrButton(
-                                        text = "재시도",
-                                        onClick = onRetryTeams,
-                                        variant = VlrButtonVariant.Secondary,
-                                    )
-                                },
+                                onRetry = onRetryTeams,
+                                showBottomDivider = false,
                             )
                         }
 
@@ -180,7 +179,7 @@ internal fun MyPageContent(
                             items = teams.favorites,
                             key = { favorite -> "favorite_team_${favorite.id}" },
                         ) { favorite ->
-                            SectionCard {
+                            SectionCard(Modifier.padding(horizontal = VlrDimensions.Space4)) {
                                 FavoriteTeamRow(
                                     favorite = favorite,
                                     onClick = onTeamClick,
@@ -193,12 +192,12 @@ internal fun MyPageContent(
                         Spacer(Modifier.height(VlrDimensions.Space2))
                     }
                     item(key = "favorite_players_header") {
-                        SectionHeader("Favorite Players", MY_PAGE_PLAYER_SECTION_TAG)
+                        SectionHeader("Favorite Players", Modifier.testTag(MY_PAGE_PLAYER_SECTION_TAG))
                     }
                     when (val players = uiState.favoritePlayers) {
                         FavoriteSectionState.Loading -> item(key = "favorite_players_loading") {
                             SectionCard(
-                                modifier = Modifier.semantics {
+                                modifier = Modifier.padding(horizontal = VlrDimensions.Space4).semantics {
                                     contentDescription = "즐겨찾기한 선수를 불러오는 중"
                                 },
                             ) { SectionLoading("즐겨찾기한 선수를 불러오는 중") }
@@ -209,15 +208,10 @@ internal fun MyPageContent(
                         }
 
                         FavoriteSectionState.Error -> item(key = "favorite_players_error") {
-                            SectionMessage(
+                            InlineRetry(
                                 message = "즐겨찾기한 선수를 불러오지 못했습니다.",
-                                action = {
-                                    VlrButton(
-                                        text = "재시도",
-                                        onClick = onRetryPlayers,
-                                        variant = VlrButtonVariant.Secondary,
-                                    )
-                                },
+                                onRetry = onRetryPlayers,
+                                showBottomDivider = false,
                             )
                         }
 
@@ -225,7 +219,7 @@ internal fun MyPageContent(
                             items = players.favorites,
                             key = { favorite -> "favorite_player_${favorite.id}" },
                         ) { favorite ->
-                            SectionCard {
+                            SectionCard(Modifier.padding(horizontal = VlrDimensions.Space4)) {
                                 FavoritePlayerRow(
                                     favorite = favorite,
                                     onClick = onPlayerClick,
@@ -247,53 +241,6 @@ internal fun MyPageContent(
             }
         }
     }
-}
-
-@Composable
-private fun MyPageTopAppBar(onSearch: () -> Unit) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .testTag(MY_PAGE_TOP_APP_BAR_TAG)
-                .padding(horizontal = VlrDimensions.Space4),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "MyPage",
-                modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.title,
-                color = VlrTheme.colors.ink,
-            )
-            VlrIconButton(
-                contentDescription = "검색",
-                onClick = onSearch,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_search),
-                        contentDescription = null,
-                    )
-                },
-            )
-        }
-        HorizontalDivider(
-            thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.line,
-        )
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String, testTag: String) {
-    Text(
-        text = title,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(testTag),
-        style = VlrTheme.typography.section,
-        color = VlrTheme.colors.ink,
-    )
 }
 
 @Composable
@@ -438,6 +385,7 @@ private fun FavoriteRow(
         VlrIconButton(
             contentDescription = removalDescription,
             onClick = removeFavorite,
+            tint = VlrTheme.colors.accent,
             icon = {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_star_fill),
@@ -460,60 +408,4 @@ private fun SectionCard(
         border = BorderStroke(VlrDimensions.OutlineWidth, VlrTheme.colors.line),
         content = content,
     )
-}
-
-@Composable
-private fun SectionMessage(
-    message: String,
-    action: (@Composable () -> Unit)? = null,
-) {
-    SectionCard {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 112.dp)
-                .padding(VlrDimensions.Space4),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = message,
-                style = VlrTheme.typography.bodySm,
-                color = VlrTheme.colors.muted,
-                textAlign = TextAlign.Center,
-            )
-            action?.let {
-                Spacer(Modifier.height(VlrDimensions.Space3))
-                it()
-            }
-        }
-    }
-}
-
-@Composable
-private fun FullError(
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            imageVector = vectorResource(Res.drawable.ic_error),
-            contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            tint = VlrTheme.colors.muted,
-        )
-        Spacer(Modifier.height(VlrDimensions.Space4))
-        Text(
-            text = "즐겨찾기를 불러오지 못했습니다.",
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.ink,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(VlrDimensions.Space4))
-        VlrButton(text = "재시도", onClick = onRetry)
-    }
 }
