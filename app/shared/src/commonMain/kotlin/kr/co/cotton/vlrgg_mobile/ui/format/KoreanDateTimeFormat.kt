@@ -7,6 +7,7 @@ import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
+import kr.co.cotton.vlrgg_mobile.domain.model.events.EventMonthDay
 
 /**
  * 화면에 보이는 날짜·시각 문자열을 한 곳에서 만든다.
@@ -38,6 +39,37 @@ internal object KoreanDateTimeFormat {
 
     /** [date]가 있으면 `2026년 9월 19일`, 없으면(서버 미제공·파싱 실패) [source] 원문이다. */
     fun dateOrSource(date: LocalDate?, source: String): String = date?.let(::date) ?: source
+
+    /**
+     * 대회 기간: `9월 12일 ~ 10월 4일`, 같은 달 `11월 20일 ~ 23일`, 하루 `12월 17일`, 끝 미정 `11월 1일 ~ 미정`.
+     * [start]가 없으면(서버 미제공·파싱 실패) [source] 원문이다.
+     */
+    fun period(start: EventMonthDay?, end: EventMonthDay?, source: String?): String? {
+        start ?: return source
+        val startText = monthDay(start)
+        return when {
+            end == null -> "$startText ~ $UndecidedEnd"
+            end == start -> startText
+            end.month == start.month -> "$startText ~ ${end.day}일"
+            else -> "$startText ~ ${monthDay(end)}"
+        }
+    }
+
+    /** [period]의 낭독 문구. `~` 대신 `부터`·`까지`를 쓴다: `9월 12일부터 10월 4일까지`, `11월 1일부터, 종료일 미정`. */
+    fun periodSpoken(start: EventMonthDay?, end: EventMonthDay?, source: String?): String? {
+        start ?: return source
+        val startText = monthDay(start)
+        return when {
+            end == null -> "${startText}부터, 종료일 $UndecidedEnd"
+            end == start -> startText
+            end.month == start.month -> "${startText}부터 ${end.day}일까지"
+            else -> "${startText}부터 ${monthDay(end)}까지"
+        }
+    }
+
+    private fun monthDay(value: EventMonthDay): String = "${value.month}월 ${value.day}일"
+
+    private const val UndecidedEnd = "미정"
 
     /** `2026년 10월 26일 오전 12:09`. [timeZone] 기준으로 변환한다. */
     fun dateTime(instant: Instant, timeZone: TimeZone): String {

@@ -106,6 +106,41 @@ class RemoteEventDataSourceImplTest {
             assertEquals(null, news.items.single().author)
             assertEquals(EventStatsAvailabilityDto.AVAILABLE, stats.availability)
             assertEquals(null, stats.players.single().rating)
+            // Responses from a server without the 2026-11-10 fields still decode, with the fields null.
+            assertEquals(null to null, detail.startDate to detail.endDate)
+            assertEquals(null, matches.items.single().date)
+            assertEquals(null, news.items.single().publishedDate)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun koreanDisplayFieldsDeserializeWhenTheServerSendsThem() = runTest {
+        val client = createClient(
+            MockEngine { request ->
+                respondJson(
+                    when (request.url.encodedPath) {
+                        "/api/v1/events" -> EVENTS_WITH_PERIOD_JSON
+                        "/api/v1/events/100" -> EVENT_DETAIL_WITH_PERIOD_JSON
+                        "/api/v1/events/100/matches" -> EVENT_MATCHES_WITH_DATE_JSON
+                        "/api/v1/events/100/news" -> EVENT_NEWS_WITH_DATE_JSON
+                        else -> error("Unexpected path: ${request.url.encodedPath}")
+                    },
+                )
+            },
+        )
+
+        try {
+            val dataSource = RemoteEventDataSourceImpl(client)
+
+            val events = dataSource.getEvents()
+            assertEquals("--09-12" to "--10-04", events.ongoing.single().let { it.startDate to it.endDate })
+            assertEquals("--11-01" to null, events.upcoming.single().let { it.startDate to it.endDate })
+            assertEquals(null to null, events.completedOrPaused.single().let { it.startDate to it.endDate })
+            assertEquals("--09-13" to "--12-25", dataSource.getEventDetail("100").let { it.startDate to it.endDate })
+            assertEquals("2026-09-13", dataSource.getEventMatches("100").items.single().date)
+            assertEquals("2026-09-15", dataSource.getEventNews("100").items.single().publishedDate)
         } finally {
             client.close()
         }
@@ -201,6 +236,57 @@ class RemoteEventDataSourceImplTest {
                 "title": "Masters Seoul begins",
                 "author": null,
                 "publishedAt": "2026-08-25"
+              }]
+            }
+            """.trimIndent()
+
+        val EVENTS_WITH_PERIOD_JSON =
+            """
+            {
+              "ongoing": [{ "id": "100", "name": "VCT Pacific 2026", "status": "ongoing",
+                "dateLabel": "Sep 12—Oct 4", "startDate": "--09-12", "endDate": "--10-04" }],
+              "upcoming": [{ "id": "200", "name": "Open", "status": "upcoming",
+                "dateLabel": "Nov 1—TBD", "startDate": "--11-01", "endDate": null }],
+              "completedOrPaused": [{ "id": "300", "name": "Kickoff", "status": "completed",
+                "dateLabel": "Season", "startDate": null, "endDate": null }]
+            }
+            """.trimIndent()
+
+        val EVENT_DETAIL_WITH_PERIOD_JSON =
+            """
+            {
+              "id": "100",
+              "name": "Masters Seoul",
+              "dateLabel": "Sep 13 – Dec 25, 2026",
+              "startDate": "--09-13",
+              "endDate": "--12-25"
+            }
+            """.trimIndent()
+
+        val EVENT_MATCHES_WITH_DATE_JSON =
+            """
+            {
+              "items": [{
+                "id": "match-1",
+                "status": "completed",
+                "timeLabel": "6:00 PM",
+                "time": "18:00",
+                "date": "2026-09-13",
+                "homeTeam": {"name": "Alpha"},
+                "awayTeam": {"name": "Beta"},
+                "event": {"name": "Masters Seoul", "series": "Playoffs", "id": "100"}
+              }]
+            }
+            """.trimIndent()
+
+        val EVENT_NEWS_WITH_DATE_JSON =
+            """
+            {
+              "items": [{
+                "reference": "101/masters-seoul",
+                "title": "Masters Seoul begins",
+                "publishedAt": "2026/09/15",
+                "publishedDate": "2026-09-15"
               }]
             }
             """.trimIndent()

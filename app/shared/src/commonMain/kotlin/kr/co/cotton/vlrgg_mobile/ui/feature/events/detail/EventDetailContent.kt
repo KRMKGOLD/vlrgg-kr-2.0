@@ -1,7 +1,17 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.events.detail
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonMatchRow
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MATCHES_TIME_ZONE_LABEL
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,16 +21,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.ScrollState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextAlign
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventPlayerStats
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
@@ -99,14 +104,16 @@ fun EventDetailContent(
         topBar = { DetailTopBand(onBack = onBack) },
     ) { contentPadding ->
         when (val identity = uiState.identity) {
+            // `.pen` 41-2: dark hero skeleton and list-row skeletons, without tabs.
             EventIdentityContentState.Loading -> Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(contentPadding)
-                    .testTag(EVENT_DETAIL_LOADING_TAG),
+                    .testTag(EVENT_DETAIL_LOADING_TAG)
+                    .loadingSemantics("이벤트 정보를 불러오는 중"),
             ) {
                 SkeletonHero()
-                EventStateMessage(message = "이벤트 정보를 불러오는 중", loading = true)
+                repeat(TabSkeletonRows) { SkeletonRow() }
             }
 
             EventIdentityContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
@@ -214,14 +221,17 @@ private class CollapseHeroFirst(private val outer: ScrollState) : NestedScrollCo
 
 @Composable
 private fun EventIdentityHeader(event: EventDetail) {
+    // The period is Korean when the server sends `startDate`, otherwise the source `dateLabel`.
+    val factsLine = listOfNotNull(event.series, event.periodLabel(spoken = false), event.location)
+        .joinToString(" · ")
+        .takeIf(String::isNotEmpty)
+    val spokenFactsLine = listOfNotNull(event.series, event.periodLabel(spoken = true), event.location)
+        .joinToString(" · ")
+        .takeIf(String::isNotEmpty)
     EntityHero(
         name = event.name,
-        meta = listOfNotNull(
-            listOfNotNull(event.series, event.dateLabel, event.location)
-                .joinToString(" · ")
-                .takeIf(String::isNotEmpty),
-            event.description,
-        ),
+        meta = listOfNotNull(factsLine, event.description),
+        metaContentDescriptions = listOfNotNull(factsLine?.let { spokenFactsLine }),
         logo = {
             LogoSlot(
                 imageUrl = event.imageUrl,
@@ -263,21 +273,53 @@ private fun MatchesTabContent(
     retryEnabled: Boolean,
 ) {
     when (state) {
-        EventMatchesContentState.Loading -> EventStateMessage("경기를 불러오는 중", loading = true)
+        EventMatchesContentState.Loading -> TabSkeleton("경기를 불러오는 중") { SkeletonMatchRow() }
         EventMatchesContentState.Empty -> TabStatePanel("표시할 경기가 없어요.", Res.drawable.ic_scoreboard)
         EventMatchesContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("경기를 불러오지 못했습니다.", onRetry, retryEnabled)
-        is EventMatchesContentState.Content -> LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(state.matches, key = { it.id }) { match ->
-                MatchCard(
-                    match = match,
-                    onClick = { onMatchClick(match.id) },
-                    showEventName = false,
-                )
+        is EventMatchesContentState.Content -> {
+            val days = remember(state.matches) { state.matches.groupByConsecutiveDate() }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().background(VlrTheme.colors.canvas),
+                contentPadding = PaddingValues(bottom = VlrDimensions.Space6),
+            ) {
+                days.forEachIndexed { index, day -> matchDay(index, day, onMatchClick) }
             }
         }
+    }
+}
+
+/**
+ * Date group of the matches tab (`.pen` 41-1), the same date header as the match list: a white
+ * section under `9월 13일 (일)` + `한국 시간`, 8dp `canvas` from the previous group. Matches without
+ * a date have no header. Header keys carry the group index, because a date can repeat after
+ * another date in the source order.
+ */
+private fun LazyListScope.matchDay(
+    index: Int,
+    day: EventMatchDay,
+    onMatchClick: (String) -> Unit,
+) {
+    if (index > 0) {
+        item(key = "match-day-gap-$index") {
+            Spacer(Modifier.fillMaxWidth().height(VlrDimensions.Space2).background(VlrTheme.colors.canvas))
+        }
+    }
+    day.date?.let { date ->
+        item(key = "match-day-$index-$date") {
+            SectionHeader(
+                title = KoreanDateTimeFormat.monthDay(date),
+                meta = MATCHES_TIME_ZONE_LABEL,
+                modifier = Modifier.background(VlrTheme.colors.surface),
+            )
+        }
+    }
+    items(day.matches, key = { it.id }) { match ->
+        MatchCard(
+            match = match,
+            onClick = { onMatchClick(match.id) },
+            showEventName = false,
+        )
     }
 }
 
@@ -291,12 +333,12 @@ private fun NewsTabContent(
     retryEnabled: Boolean,
 ) {
     when (state) {
-        EventNewsContentState.Loading -> EventStateMessage("뉴스를 불러오는 중", loading = true)
+        EventNewsContentState.Loading -> TabSkeleton("뉴스를 불러오는 중") { SkeletonRow() }
         EventNewsContentState.Empty -> TabStatePanel("표시할 뉴스가 없어요.", Res.drawable.ic_newspaper)
         EventNewsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("뉴스를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventNewsContentState.Content -> LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().background(VlrTheme.colors.canvas),
         ) {
             items(state.news, key = { "${it.articleId}/${it.slug}" }) { news ->
                 NewsListItem(
@@ -321,13 +363,13 @@ private fun StatsTabContent(
     retryEnabled: Boolean,
 ) {
     when (state) {
-        EventStatsContentState.Loading -> EventStateMessage("통계를 불러오는 중", loading = true)
+        EventStatsContentState.Loading -> TabSkeleton("통계를 불러오는 중") { SkeletonRow() }
         EventStatsContentState.Empty -> TabStatePanel("아직 제공되는 통계가 없어요.", Res.drawable.ic_bar_chart)
         EventStatsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("통계를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventStatsContentState.Content -> VlrStatsTable(
             rows = state.stats.players,
             rowKey = EventPlayerStats::playerId,
-            identityHeader = "Player",
+            identityHeader = "선수",
             identityText = EventPlayerStats::playerName,
             identitySupportingText = EventPlayerStats::teamAbbreviation,
             rowSemanticsLabel = "player",
@@ -362,31 +404,33 @@ private fun TabStatePanel(title: String, icon: DrawableResource) {
     StatePanel(title = title, icon = icon, modifier = Modifier.fillMaxSize())
 }
 
+/** Tab-area loading (`.pen` 41-4·41-8·41-12): four placeholders of the tab's rows on `surface`. */
 @Composable
-private fun EventStateMessage(
-    message: String,
-    modifier: Modifier = Modifier,
-    loading: Boolean = false,
+private fun TabSkeleton(
+    description: String,
+    row: @Composable () -> Unit,
 ) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .then(if (loading) Modifier.semantics { stateDescription = message } else Modifier)
-            .padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .background(VlrTheme.colors.surface)
+            .loadingSemantics(description),
     ) {
-        if (loading) {
-            CircularProgressIndicator(color = VlrTheme.colors.accent)
-            Spacer(Modifier.height(VlrDimensions.Space3))
-        }
-        Text(
-            text = message,
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.ink,
-            textAlign = TextAlign.Center,
-        )
+        repeat(TabSkeletonRows) { row() }
     }
+}
+
+private fun Modifier.loadingSemantics(description: String): Modifier = clearAndSetSemantics {
+    stateDescription = description
+    progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+}
+
+private const val TabSkeletonRows = 4
+
+private fun EventDetail.periodLabel(spoken: Boolean): String? = if (spoken) {
+    KoreanDateTimeFormat.periodSpoken(startDate, endDate, dateLabel)
+} else {
+    KoreanDateTimeFormat.period(startDate, endDate, dateLabel)
 }
 
 private fun EventDetailTab.label(): String = when (this) {

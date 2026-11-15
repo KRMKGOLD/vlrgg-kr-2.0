@@ -7,6 +7,7 @@ import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kr.co.cotton.vlrgg_mobile.domain.model.events.EventMonthDay
 
 class KoreanDateTimeFormatTest {
 
@@ -116,6 +117,33 @@ class KoreanDateTimeFormatTest {
         ).forEach { label ->
             assertNull(KoreanDateTimeFormat.remainingTime(label), "'$label' must not be shown")
         }
+    }
+
+    @Test
+    fun periodFormatsEveryEventPeriodShape() {
+        assertEquals("9월 12일 ~ 10월 4일", KoreanDateTimeFormat.period(EventMonthDay(9, 12), EventMonthDay(10, 4), "Sep 12—Oct 4"))
+        assertEquals("11월 20일 ~ 23일", KoreanDateTimeFormat.period(EventMonthDay(11, 20), EventMonthDay(11, 23), "Nov 20—23"))
+        assertEquals("12월 17일", KoreanDateTimeFormat.period(EventMonthDay(12, 17), EventMonthDay(12, 17), "Dec 17"))
+        assertEquals("11월 1일 ~ 미정", KoreanDateTimeFormat.period(EventMonthDay(11, 1), null, "Nov 1—TBD"))
+        // A period that crosses the new year keeps both months.
+        assertEquals("12월 28일 ~ 1월 4일", KoreanDateTimeFormat.period(EventMonthDay(12, 28), EventMonthDay(1, 4), "Dec 28—Jan 4"))
+    }
+
+    @Test
+    fun periodWithoutStructuredStartKeepsTheSourceLabel() {
+        assertEquals("Sep 13 – Dec 25, 2026", KoreanDateTimeFormat.period(null, null, "Sep 13 – Dec 25, 2026"))
+        assertEquals("Nov 5—16", KoreanDateTimeFormat.period(null, EventMonthDay(11, 16), "Nov 5—16"))
+        assertNull(KoreanDateTimeFormat.period(null, null, null))
+    }
+
+    @Test
+    fun spokenPeriodReadsTheRangeWithoutTheTilde() {
+        assertEquals("9월 12일부터 10월 4일까지", KoreanDateTimeFormat.periodSpoken(EventMonthDay(9, 12), EventMonthDay(10, 4), "x"))
+        assertEquals("11월 20일부터 23일까지", KoreanDateTimeFormat.periodSpoken(EventMonthDay(11, 20), EventMonthDay(11, 23), "x"))
+        assertEquals("12월 17일", KoreanDateTimeFormat.periodSpoken(EventMonthDay(12, 17), EventMonthDay(12, 17), "x"))
+        assertEquals("11월 1일부터, 종료일 미정", KoreanDateTimeFormat.periodSpoken(EventMonthDay(11, 1), null, "x"))
+        assertEquals("Nov 5—16", KoreanDateTimeFormat.periodSpoken(null, null, "Nov 5—16"))
+        assertNull(KoreanDateTimeFormat.periodSpoken(null, null, null))
     }
 
     private companion object {

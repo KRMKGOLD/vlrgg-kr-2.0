@@ -32,6 +32,9 @@ import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_chevron_right
 import vlrggmobile.app.shared.generated.resources.ic_star_fill
 
+internal fun Modifier.metaDescription(description: String?): Modifier =
+    if (description == null) this else semantics { contentDescription = description }
+
 /** Trailing slot of an [IdentityRow]: 48dp wide, or absent for rows that do not navigate. */
 sealed interface IdentityRowTrailing {
     /** Decorative `chevron_right`; the whole row opens the detail. */
@@ -52,7 +55,8 @@ sealed interface IdentityRowTrailing {
  * Team, player or event row: 40dp logo slot, `body` 700 title, 13 `muted` meta and a 48dp
  * trailing slot (`DESIGN.md` 8.2). [modifier] lands on the row target, so a test tag finds the
  * clickable node. [badge] is an optional status chip before the meta, for a list that mixes
- * statuses under one title (series `진행 중` among upcoming events).
+ * statuses under one title (series `진행 중` among upcoming events). [metaContentDescription] replaces
+ * how the meta line is read, for meta whose symbols read poorly (`9월 12일 ~ 10월 4일`).
  */
 @Composable
 fun IdentityRow(
@@ -60,6 +64,7 @@ fun IdentityRow(
     leading: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     meta: String? = null,
+    metaContentDescription: String? = null,
     onClick: (() -> Unit)? = null,
     contentDescription: String? = null,
     badge: (@Composable () -> Unit)? = null,
@@ -106,12 +111,22 @@ fun IdentityRow(
                 ) {
                     badge()
                     visibleMeta?.let {
-                        Text(text = it, style = VlrTheme.typography.meta, color = VlrTheme.colors.muted)
+                        Text(
+                            text = it,
+                            modifier = Modifier.metaDescription(metaContentDescription),
+                            style = VlrTheme.typography.meta,
+                            color = VlrTheme.colors.muted,
+                        )
                     }
                 }
             } else {
                 visibleMeta?.let {
-                    Text(text = it, style = VlrTheme.typography.meta, color = VlrTheme.colors.muted)
+                    Text(
+                        text = it,
+                        modifier = Modifier.metaDescription(metaContentDescription),
+                        style = VlrTheme.typography.meta,
+                        color = VlrTheme.colors.muted,
+                    )
                 }
             }
         }

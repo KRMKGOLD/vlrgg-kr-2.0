@@ -8,7 +8,7 @@ Events 기능은 사용자가 Valorant 대회의 현재 진행 상태를 훑고,
 
 ## 구현 상태
 
-목록·상세·Matches·News·Stats 서버 API와 앱 화면, 탭별 상태·복원, Matches/Search 진입 경로가 구현되어 있다. 자동화 검증은 완료됐지만 Android/iOS 실기기 시각·접근성 검증은 남아 있다.
+목록·상세·Matches·News·Stats 서버 API와 앱 화면, 탭별 상태·복원, Matches/Search 진입 경로가 구현되어 있다. v3 화면(`.pen` `40`·`41`)을 적용했다(2026-11-12): 한국어 그룹 제목과 개수, 로딩 스켈레톤, 경기 탭 날짜 헤더, 한국어 기간·게시일. 앱은 2026-11-10 계약 field(`startDate`·`endDate`, Event Matches `date`, Event News `publishedDate`)를 받아 표시하지만 서버 구현 전까지는 원문을 표시한다. 자동화 검증은 완료됐지만 Android/iOS 실기기 접근성 검증은 남아 있다.
 
 ## MVP 범위
 
@@ -17,7 +17,7 @@ Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 ### Event List
 
 - VLR.GG Events의 `All` 기준 첫 페이지만 제공한다.
-- Event를 `Ongoing`, `Upcoming`, `Completed / Paused` 상태 그룹으로 구분한다.
+- Event를 `진행 중`, `예정`, `종료 · 중단` 상태 그룹으로 구분한다.
 - 각 항목은 Event를 식별하고 상태를 판단하는 데 필요한 요약 정보를 제공한다.
 - 항목 선택 시 Event Detail로 이동한다.
 
@@ -66,10 +66,12 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 ### Event List
 
 1. 공유 Top App Bar와 Search 액션
-2. `Ongoing`
-3. `Upcoming`
-4. `Completed / Paused`
+2. `진행 중`
+3. `예정`
+4. `종료 · 중단`
 5. 각 상태 그룹의 Event 요약 목록
+
+그룹 제목 옆에는 그룹의 Event 수를 표시하고, 빈 그룹은 개수 없이 제목과 빈 안내를 둔다. Event 행의 기간은 `9월 12일 ~ 10월 4일`처럼 표시하고 낭독은 `9월 12일부터 10월 4일까지`로 한다.
 
 세 상태 그룹은 항상 표시한다. 비어 있는 상태 그룹은 빈 안내를 표시하고 다른 그룹에 데이터가 있다면 화면 전체 오류로 취급하지 않으며, 전체 목록이 비었는지는 명확하게 구분한다.
 
@@ -207,14 +209,14 @@ https://www.vlr.gg/event/stats/2955/esports-world-cup-2026-pacific-qualifier
 
 - MVP Event List는 `All` 첫 페이지를 대상으로 하며 `?page=2`는 향후 페이지네이션 분석용 예시다.
 - Event 상태와 섹션 존재 여부는 표시 텍스트만 가정하지 말고 대표 fixture로 검증한다.
-- `Ongoing`, `Upcoming`, `Completed / Paused` 분류 규칙을 parser/mapper 테스트에서 고정한다.
+- `진행 중`(`ongoing`), `예정`(`upcoming`), `종료 · 중단`(`completedOrPaused`) 분류 규칙을 parser/mapper 테스트에서 고정한다.
 - Event Detail의 기본 정보, Matches, News, 통계는 DOM 경계가 다를 수 있으므로 parser 내부에서 책임을 분리한다.
 - selector, DOM 보정, slug는 server-internal 세부사항이다. 앱 식별과 내비게이션은 안정적인 Event ID를 기준으로 한다.
 - 대표 fixture에는 진행 중, 예정, 종료, 중단 Event와 일부 섹션이 없는 Event를 포함한다.
 
 ## 수용 기준
 
-- [x] Event List가 `All` 첫 페이지의 Event를 `Ongoing`, `Upcoming`, `Completed / Paused`로 구분해 표시한다.
+- [x] Event List가 `All` 첫 페이지의 Event를 `진행 중`, `예정`, `종료 · 중단`으로 구분해 표시한다.
 - [x] 하단 `Events` 탭의 Event List row에서 Event Detail에 진입할 수 있다.
 - [x] Matches의 Event 참조에서 Event Detail에 진입할 수 있다.
 - [x] Search의 Event 결과에서 Event Detail에 진입할 수 있다.

@@ -1,6 +1,10 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.events
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,6 +17,9 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
@@ -23,6 +30,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
 import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import vlrggmobile.app.shared.generated.resources.Res
@@ -73,17 +81,19 @@ fun EventsContent(
         ) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(VlrTheme.colors.canvas),
             ) {
                 when (contentState) {
-                    EventsContentState.Loading -> eventsSkeleton()
+                    EventsContentState.Loading -> item(key = "skeleton") { EventsSkeleton() }
                     EventsContentState.Empty -> item(key = "empty") {
                         EventsEmptyState(modifier = Modifier.fillParentMaxSize())
                     }
 
                     EventsContentState.Error -> item(key = "error") {
                         if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
-                            Box(Modifier.fillParentMaxSize())
+                            Box(Modifier.fillParentMaxSize().background(VlrTheme.colors.surface))
                         } else {
                             EventsErrorState(
                                 onRetry = onRetry,
@@ -93,22 +103,22 @@ fun EventsContent(
                     }
 
                     is EventsContentState.Content -> {
-                        eventSection(
+                        eventGroup(
                             key = "ongoing",
-                            title = "Ongoing",
+                            title = "진행 중",
                             events = contentState.events.ongoing,
                             isFirst = true,
                             onEventClick = onEventClick,
                         )
-                        eventSection(
+                        eventGroup(
                             key = "upcoming",
-                            title = "Upcoming",
+                            title = "예정",
                             events = contentState.events.upcoming,
                             onEventClick = onEventClick,
                         )
-                        eventSection(
+                        eventGroup(
                             key = "completed-paused",
-                            title = "Completed / Paused",
+                            title = "종료 · 중단",
                             events = contentState.events.completedOrPaused,
                             onEventClick = onEventClick,
                         )
@@ -119,14 +129,30 @@ fun EventsContent(
     }
 }
 
-private fun LazyListScope.eventSection(
+/**
+ * Status group (`.pen` 40-1): a white section whose header shows the count of visible events,
+ * separated from the previous group by 8dp `canvas`. An empty group keeps its title without a
+ * count and shows a Section message (`.pen` 40-5).
+ */
+private fun LazyListScope.eventGroup(
     key: String,
     title: String,
     events: List<EventSummary>,
     isFirst: Boolean = false,
     onEventClick: (String) -> Unit,
 ) {
-    sectionHeading(key = key, title = title, isFirst = isFirst)
+    if (!isFirst) {
+        item(key = "gap-$key") {
+            Spacer(Modifier.fillMaxWidth().height(VlrDimensions.Space2).background(VlrTheme.colors.canvas))
+        }
+    }
+    item(key = "section-$key") {
+        SectionHeader(
+            title = title,
+            count = events.size.takeIf { it > 0 }?.toString(),
+            modifier = Modifier.background(VlrTheme.colors.surface),
+        )
+    }
     if (events.isEmpty()) {
         item(key = "section-$key-empty") { EmptySectionRow() }
     } else {
@@ -139,19 +165,6 @@ private fun LazyListScope.eventSection(
     }
 }
 
-private fun LazyListScope.sectionHeading(
-    key: String,
-    title: String,
-    isFirst: Boolean,
-) {
-    item(key = "section-$key") {
-        SectionHeader(
-            title = title,
-            modifier = if (isFirst) Modifier else Modifier.padding(top = VlrDimensions.Space2),
-        )
-    }
-}
-
 @Composable
 private fun EventListItem(
     event: EventSummary,
@@ -160,7 +173,8 @@ private fun EventListItem(
 ) {
     IdentityRow(
         title = event.name,
-        meta = event.metadataLabel(),
+        meta = event.metadataLabel(spoken = false),
+        metaContentDescription = event.metadataLabel(spoken = true),
         leading = { LogoSlot(imageUrl = event.imageUrl, kind = LogoSlotKind.Event) },
         onClick = onClick,
         modifier = modifier.testTag(eventRowTag(event.id)),
@@ -169,49 +183,28 @@ private fun EventListItem(
 
 @Composable
 private fun EmptySectionRow() {
-    SectionMessage(message = "현재 이벤트가 없어요.")
-}
-
-private fun LazyListScope.eventsSkeleton() {
-    skeletonSection(
-        key = "ongoing",
-        title = "Ongoing",
-        isFirst = true,
-        loadingTag = EVENTS_LOADING_TAG,
+    SectionMessage(
+        message = "현재 이벤트가 없어요.",
+        modifier = Modifier.background(VlrTheme.colors.surface),
     )
-    skeletonSection(key = "upcoming", title = "Upcoming")
-    skeletonSection(key = "completed-paused", title = "Completed / Paused")
 }
 
-private fun LazyListScope.skeletonSection(
-    key: String,
-    title: String,
-    isFirst: Boolean = false,
-    loadingTag: String? = null,
-) {
-    sectionHeading(key = "skeleton-$key", title = title, isFirst = isFirst)
-    item(key = "skeleton-row-$key") {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (loadingTag != null) {
-                        Modifier
-                            .testTag(loadingTag)
-                            .semantics { stateDescription = "이벤트를 불러오는 중" }
-                    } else {
-                        Modifier
-                    },
-                ),
-        ) {
-            EventsSkeletonRow()
-        }
-    }
-}
-
+/** First-load placeholder (`.pen` 40-2): six list-row skeletons under an 8dp top inset, without group headers. */
 @Composable
-private fun EventsSkeletonRow() {
-    SkeletonRow()
+private fun EventsSkeleton() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(VlrTheme.colors.surface)
+            .padding(top = VlrDimensions.Space2)
+            .testTag(EVENTS_LOADING_TAG)
+            .clearAndSetSemantics {
+                stateDescription = "이벤트를 불러오는 중"
+                progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+            },
+    ) {
+        repeat(6) { SkeletonRow() }
+    }
 }
 
 @Composable
@@ -219,7 +212,7 @@ private fun EventsEmptyState(modifier: Modifier = Modifier) {
     StatePanel(
         title = "표시할 이벤트가 없어요.",
         icon = Res.drawable.ic_trophy,
-        modifier = modifier,
+        modifier = modifier.background(VlrTheme.colors.surface),
     )
 }
 
@@ -234,17 +227,24 @@ private fun EventsErrorState(
         actionLabel = "재시도",
         onAction = onRetry,
         actionTestTag = EVENTS_INITIAL_RETRY_TAG,
-        modifier = modifier,
+        modifier = modifier.background(VlrTheme.colors.surface),
     )
 }
 
 /**
  * Group headers carry the status. Only `중단` is spelled out, because it shares the
- * `Completed / Paused` group with finished events.
+ * `종료 · 중단` group with finished events. The period is Korean when the server sends
+ * `startDate`, otherwise the source `dateLabel`; [spoken] reads `~` as `부터`·`까지`.
  */
-private fun EventSummary.metadataLabel(): String? =
-    listOfNotNull(PausedLabel.takeIf { status == EventStatus.PAUSED }, dateLabel, regionCode)
+private fun EventSummary.metadataLabel(spoken: Boolean): String? {
+    val period = if (spoken) {
+        KoreanDateTimeFormat.periodSpoken(startDate, endDate, dateLabel)
+    } else {
+        KoreanDateTimeFormat.period(startDate, endDate, dateLabel)
+    }
+    return listOfNotNull(PausedLabel.takeIf { status == EventStatus.PAUSED }, period, regionCode)
         .takeIf { it.isNotEmpty() }
         ?.joinToString(" · ")
+}
 
 private const val PausedLabel = "중단"

@@ -29,7 +29,25 @@ import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsSortDirection
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.matchCardTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescriptionExactly
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.unit.LayoutDirection
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
+import kr.co.cotton.vlrgg_mobile.domain.model.events.EventMonthDay
+import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TestTimeSource
@@ -272,7 +290,8 @@ class EventDetailContentUiTest {
     @Test
     fun eachTabRestoresItsOwnHeroCollapseAndListPositionAfterSwitchingTabs() =
         runSkikoComposeUiTest(size = Size(360f, 640f)) {
-            val matches = (1..30).map { match.copy(id = "match-$it") }
+            // Three matches a day, so date headers and canvas gaps sit between the restored rows.
+            val matches = (1..30).map { match.copy(id = "match-$it", date = LocalDate(2026, 9, 1 + (it - 1) / 3)) }
             val newsItems = (1..30).map { news.copy(articleId = "${200 + it}", slug = "news-$it", title = "News $it") }
             var state by mutableStateOf(
                 populatedState.copy(
@@ -310,6 +329,224 @@ class EventDetailContentUiTest {
             assertEquals(collapsedTabsTop, tabsTop(), 1f)
             assertEquals(matchTop, onNodeWithTag(matchCardTag(matchId)).fetchSemanticsNode().boundsInRoot.top, 1f)
         }
+
+    @Test
+    fun identityLoadingIsAHeroSkeletonWithRowSkeletonsAndNoTabs() = runComposeUiTest {
+        setContent { Fixture(uiState = EventDetailUiState()) }
+
+        val loading = onNodeWithTag(EVENT_DETAIL_LOADING_TAG).fetchSemanticsNode()
+        assertEquals("이벤트 정보를 불러오는 중", loading.config[SemanticsProperties.StateDescription])
+        assertEquals(ProgressBarRangeInfo.Indeterminate, loading.config[SemanticsProperties.ProgressBarRangeInfo])
+        EventDetailTab.entries.forEach { onNodeWithTag(eventDetailTabTag(it)).assertDoesNotExist() }
+        onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)).assertCountEquals(1)
+    }
+
+    @Test
+    fun eachTabLoadingIsASkeletonWithProgressSemanticsInsteadOfASpinner() = runComposeUiTest {
+        var state by mutableStateOf(
+            populatedState.copy(
+                matches = EventMatchesContentState.Loading,
+                news = EventNewsContentState.Loading,
+                stats = EventStatsContentState.Loading,
+            ),
+        )
+        setContent { Fixture(uiState = state) }
+
+        listOf(
+            EventDetailTab.MATCHES to "경기를 불러오는 중",
+            EventDetailTab.NEWS to "뉴스를 불러오는 중",
+            EventDetailTab.STATS to "통계를 불러오는 중",
+        ).forEach { (tab, description) ->
+            state = state.copy(selectedTab = tab)
+            waitForIdle()
+            // One progress node per tab: the skeleton, with no extra indeterminate spinner.
+            val progress = onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+                .fetchSemanticsNodes()
+            assertEquals(1, progress.size, "$tab progress nodes")
+            assertEquals(description, progress.single().config[SemanticsProperties.StateDescription])
+            onNodeWithText("Masters Seoul").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun matchesTabGroupsConsecutiveDatesUnderKoreanDateHeadersInResponseOrder() =
+        runSkikoComposeUiTest(size = Size(360f, 1600f)) {
+            val finished = match.copy(
+                id = "finished",
+                status = MatchStatus.COMPLETED,
+                time = LocalTime(18, 0),
+                timeLabel = "6:00 PM",
+                homeScore = 2,
+                awayScore = 0,
+                date = LocalDate(2026, 9, 13),
+            )
+            val matches = listOf(
+                finished,
+                match.copy(id = "same-day", date = LocalDate(2026, 9, 13)),
+                match.copy(id = "next-day", date = LocalDate(2026, 9, 14)),
+            )
+            setContent { Fixture(uiState = populatedState.copy(matches = EventMatchesContentState.Content(matches))) }
+
+            val firstHeader = onNode(hasText("9월 13일 (일)") and isHeading(), useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot
+            val secondHeader = onNode(hasText("9월 14일 (월)") and isHeading(), useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot
+            onAllNodesWithText("한국 시간", useUnmergedTree = true).assertCountEquals(2)
+            val rows = matches.map { onNodeWithTag(matchCardTag(it.id)).fetchSemanticsNode().boundsInRoot }
+            assertTrue(firstHeader.bottom <= rows[0].top && rows[0].bottom <= rows[1].top)
+            assertTrue(rows[1].bottom < secondHeader.top && secondHeader.bottom <= rows[2].top)
+            // 8dp canvas gap, then the 20dp top padding of the next header.
+            assertEquals(rows[1].bottom + 8f + 20f, secondHeader.top, 1f)
+            // A finished match shows its Korean start time with `종료`, as in the match list results.
+            onNode(hasText("오후 6:00") and hasAnyAncestor(hasTestTag(matchCardTag("finished"))), useUnmergedTree = true)
+                .assertExists()
+            onNode(hasText("종료") and hasAnyAncestor(hasTestTag(matchCardTag("finished"))), useUnmergedTree = true)
+                .assertExists()
+        }
+
+    @Test
+    fun matchesWithoutDatesKeepTheHeaderlessList() = runComposeUiTest {
+        setContent { Fixture(uiState = populatedState) }
+
+        onNodeWithTag(matchCardTag(match.id)).assertIsDisplayed()
+        onNodeWithText("한국 시간").assertDoesNotExist()
+        onAllNodes(isHeading()).fetchSemanticsNodes().forEach {
+            assertEquals(listOf("Masters Seoul"), it.config[SemanticsProperties.Text].map { text -> text.text })
+        }
+    }
+
+    @Test
+    fun newsTabShowsTheKoreanPublishedDateWhenStructured() = runComposeUiTest {
+        val dated = news.copy(articleId = "102", publishedAt = "2026/09/15", publishedDate = LocalDate(2026, 9, 15))
+        setContent {
+            Fixture(
+                uiState = populatedState.copy(
+                    selectedTab = EventDetailTab.NEWS,
+                    news = EventNewsContentState.Content(listOf(dated, news)),
+                ),
+            )
+        }
+
+        onNodeWithText("2026년 9월 15일", substring = true, useUnmergedTree = true).assertExists()
+        onNodeWithText("2026/09/15", substring = true, useUnmergedTree = true).assertDoesNotExist()
+        // Without the structured date the source text stays.
+        onNodeWithText(news.publishedAt, substring = true, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun statsUseTheKoreanPlayerColumnAndTheScrollHint() =
+        runSkikoComposeUiTest(size = Size(360f, 900f)) {
+            setContent { Fixture(uiState = populatedState.copy(selectedTab = EventDetailTab.STATS)) }
+
+            onNodeWithText("선수").assertExists()
+            onNodeWithText("Player").assertDoesNotExist()
+            onNodeWithText("옆으로 밀어 지표 더 보기 · — 는 기록 없음").assertExists()
+        }
+
+    @Test
+    fun heroShowsTheKoreanPeriodReadAsARangeAndTheStatusChip() = runComposeUiTest {
+        setContent {
+            Fixture(
+                uiState = populatedState.copy(
+                    identity = EventIdentityContentState.Content(
+                        event.copy(
+                            status = EventStatus.ONGOING,
+                            startDate = EventMonthDay(8, 20),
+                            endDate = EventMonthDay(9, 4),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithText("VCT 2026 · 8월 20일 ~ 9월 4일 · Seoul", useUnmergedTree = true)
+            .assert(hasContentDescriptionExactly("VCT 2026 · 8월 20일부터 9월 4일까지 · Seoul"))
+        onNodeWithText("Aug 20—Sep 4", substring = true, useUnmergedTree = true).assertDoesNotExist()
+        onNodeWithText("진행 중", useUnmergedTree = true).assertExists()
+        onNode(hasText("Masters Seoul") and isHeading(), useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun heroWithoutStructuredPeriodKeepsTheSourceLabel() = runComposeUiTest {
+        setContent { Fixture(uiState = populatedState) }
+
+        onNodeWithText("VCT 2026 · Aug 20—Sep 4 · Seoul", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun heroDateHeaderAndTabsFitWithoutClippingOnNarrowScreensAndDoubleFonts() {
+        val longEvent = event.copy(
+            name = "VCT 2027: EMEA Kickoff - Türkiye Qualifier Presented by Example",
+            startDate = EventMonthDay(12, 28),
+            endDate = EventMonthDay(1, 14),
+        )
+        val dated = match.copy(date = LocalDate(2026, 12, 30))
+        listOf(320f, 360f).forEach { width ->
+            listOf(1f, 2f).forEach { scale ->
+                runSkikoComposeUiTest(size = Size(width, 2400f)) {
+                    setContent {
+                        CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
+                            Fixture(
+                                uiState = populatedState.copy(
+                                    identity = EventIdentityContentState.Content(longEvent),
+                                    matches = EventMatchesContentState.Content(listOf(dated)),
+                                ),
+                            )
+                        }
+                    }
+
+                    val label = "width=$width fontScale=$scale"
+                    listOf(
+                        longEvent.name,
+                        "VCT 2026 · 12월 28일 ~ 1월 14일 · Seoul",
+                        "12월 30일 (수)",
+                        "한국 시간",
+                        "경기",
+                        "뉴스",
+                        "통계",
+                    ).forEach { text ->
+                        val node = onNode(hasText(text), useUnmergedTree = true).fetchSemanticsNode()
+                        val layout = node.textLayout()
+                        assertEquals(text.length, layout.getLineEnd(layout.lineCount - 1), "$label '$text' is truncated")
+                        assertFalse(layout.isLineEllipsized(layout.lineCount - 1), "$label '$text' is ellipsized")
+                        assertTrue(layout.multiParagraph.height <= layout.size.height + 0.5f, "$label '$text' is cut vertically")
+                        assertTrue(node.boundsInRoot.left >= -0.5f && node.boundsInRoot.right <= width + 0.5f, "$label '$text' leaves the screen")
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun rtlMirrorsTheHeroDateHeaderAndTabs() =
+        runSkikoComposeUiTest(size = Size(360f, 1200f)) {
+            setContent {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    Fixture(
+                        uiState = populatedState.copy(
+                            matches = EventMatchesContentState.Content(listOf(match.copy(date = LocalDate(2026, 9, 13)))),
+                        ),
+                    )
+                }
+            }
+
+            val name = onNode(hasText("Masters Seoul") and isHeading(), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            // The 72dp logo slot leads on the right with a 16dp inset and 16dp gap.
+            assertEquals(360f - 16f - 72f - 16f, name.right, 1f)
+            val header = onNode(hasText("9월 13일 (일)") and isHeading(), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            val timeZone = onNodeWithText("한국 시간", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            assertEquals(360f - 16f, header.right, 1f)
+            assertTrue(timeZone.right < header.left, "time zone meta is not on the trailing (left) side")
+            val matchesTab = onNodeWithTag(eventDetailTabTag(EventDetailTab.MATCHES)).fetchSemanticsNode().boundsInRoot
+            val statsTab = onNodeWithTag(eventDetailTabTag(EventDetailTab.STATS)).fetchSemanticsNode().boundsInRoot
+            assertTrue(matchesTab.left > statsTab.left, "the first tab is not on the right")
+        }
+
+    private fun SemanticsNode.textLayout(): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.first()
+    }
 
     @androidx.compose.runtime.Composable
     private fun Fixture(
