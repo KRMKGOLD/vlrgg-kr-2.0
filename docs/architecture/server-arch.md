@@ -4,7 +4,7 @@
 
 `server`는 Ktor 3·Netty 기반의 VLR.GG 전용 backend다. VLR.GG HTML을 요청하고 Jsoup으로 해석해 앱이 사용하는 JSON API로 변환한다. 앱에는 CSS selector, Jsoup type, 원본 HTML과 scraping 보정을 노출하지 않는다.
 
-서버는 단일 `:server` Gradle module 안에서 feature 단위로 구성한다. 각 feature는 route, service, scraper, parser, mapper와 app-facing response의 흐름을 소유한다. 공통 HTTP contract와 scraping transport만 feature 밖에 둔다. `Application.kt`는 plugin과 feature dependency를 조립하며 route handler 안에서 client나 scraper를 만들지 않는다. 별도 DI framework나 Gradle module은 실제 복잡성이 필요할 때만 추가한다.
+서버는 단일 `:server` Gradle module 안에서 feature 단위로 구성한다. 각 feature는 route, service, scraper, parser, mapper와 app-facing response의 흐름을 소유한다. 공통 HTTP contract, scraping transport와 feature에 독립적인 parser 헬퍼만 feature 밖에 둔다. `Application.kt`는 plugin과 feature dependency를 조립하며 route handler 안에서 client나 scraper를 만들지 않는다. 별도 DI framework나 Gradle module은 실제 복잡성이 필요할 때만 추가한다.
 
 ## Scraping and freshness
 
@@ -22,7 +22,7 @@
 
 - network와 parsing 실패를 구분한다.
 - exception message, stack trace, raw HTML, selector와 upstream URL을 public response에 넣지 않는다.
-- parsing failure의 제한된 canonical origin과 cause는 서버 내부에 보존한다. cancellation과 JVM `Error`는 일반 실패로 바꾸지 않는다.
+- parsing failure의 cause는 서버 내부에 보존하고, 로그에는 고정된 canonical origin만 기록한다. cancellation과 JVM `Error`는 일반 실패로 바꾸지 않는다.
 - 앱 Data Layer는 인식된 429/`RATE_LIMITED`와 503/`SERVER_BUSY`만 `AppResult.Busy(retryDelay)`로 변환한다. 그 밖의 실패는 generic failure이며 UI가 HTTP status나 server code를 직접 해석하지 않는다. 자세한 보호·재시도 계약은 [공개 API 보호 계약](server-public-api-protection.md)을 따른다.
 
 OpenAPI와 Swagger route는 `VLRGG_ENABLE_API_DOCUMENTATION=true`인 local 개발에서만 켠다. 문서에는 public path, request validation, response DTO와 stable error만 포함하며 production 공개 전에는 접근 정책과 asset pinning을 별도로 정한다.

@@ -59,7 +59,7 @@ Team·Player 즐겨찾기는 계정이나 서버 사용자 DB 없이 기기 로�
 
 - 서버는 `Scraper → Parser → SourceModel → Mapper → Response`, 앱은 remote DTO → Domain Model → UiState 경계를 지킨다.
 - ID는 기능별 API가 정의한 canonical String을 그대로 navigation에 사용하며 UI에서 합성하지 않는다.
-- nullable/empty는 source가 실제로 제공하지 않는 값에만 사용한다. parser drift와 필수 값 누락은 `SOURCE_PARSING_FAILURE`, upstream 통신 실패는 `UPSTREAM_NETWORK_FAILURE`다.
+- nullable/empty는 source가 실제로 제공하지 않거나, 기능 문서가 정한 선택 값을 안전하게 해석할 수 없을 때만 사용한다. parser drift와 필수 값 누락은 `SOURCE_PARSING_FAILURE`, upstream 통신 실패는 `UPSTREAM_NETWORK_FAILURE`다.
 - public response는 안전한 status/code/message만 제공하고 raw HTML, selector, canonical upstream URL, 내부 예외를 노출하지 않는다.
 - 기능 문서는 UX, 필드 의미, 상태·이동·제외·수용 기준을 소유한다. CSS selector와 세부 traversal은 parser와 테스트가 소유한다.
 

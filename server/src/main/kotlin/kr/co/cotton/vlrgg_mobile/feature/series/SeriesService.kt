@@ -7,7 +7,7 @@ internal class SeriesService(
     private val mapper: SeriesMapper,
 ) {
     suspend fun get(seriesId: SeriesId): SeriesResponse {
-        val page = scraper.fetch(seriesId)
-        return mapper.map(parser.parse(page, seriesId))
+        val html = scraper.fetch(seriesId)
+        return mapper.map(parser.parse(html, seriesId))
     }
 }

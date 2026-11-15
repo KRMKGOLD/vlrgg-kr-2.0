@@ -3,34 +3,19 @@ package kr.co.cotton.vlrgg_mobile.feature.matches
 import io.ktor.http.*
 import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 
-internal data class ScrapedMatchesPage(
-    val upstreamUrl: Url,
-    val html: String,
-)
-
-internal data class ScrapedMatchDetail(
-    val upstreamUrl: Url,
-    val html: String,
-)
-
 internal interface MatchesScraper {
-    suspend fun fetchList(category: MatchListCategory, page: Int): ScrapedMatchesPage
+    suspend fun fetchList(category: MatchListCategory, page: Int): String
 
-    suspend fun fetchDetail(matchId: String): ScrapedMatchDetail
+    suspend fun fetchDetail(matchId: String): String
 }
 
 internal class VlrMatchesScraper(
     private val transport: UpstreamHtmlTransport,
 ) : MatchesScraper {
-    override suspend fun fetchList(category: MatchListCategory, page: Int): ScrapedMatchesPage {
-        val upstreamUrl = buildListUrl(category, page)
-        return ScrapedMatchesPage(upstreamUrl, transport.get(upstreamUrl))
-    }
+    override suspend fun fetchList(category: MatchListCategory, page: Int): String =
+        transport.get(buildListUrl(category, page))
 
-    override suspend fun fetchDetail(matchId: String): ScrapedMatchDetail {
-        val upstreamUrl = buildDetailUrl(matchId)
-        return ScrapedMatchDetail(upstreamUrl, transport.get(upstreamUrl))
-    }
+    override suspend fun fetchDetail(matchId: String): String = transport.get(buildDetailUrl(matchId))
 
     private fun buildListUrl(category: MatchListCategory, page: Int): Url = URLBuilder(
         protocol = URLProtocol.HTTPS,

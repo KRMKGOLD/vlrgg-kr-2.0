@@ -82,10 +82,9 @@ class MatchesRoutesTest {
             configureMatchesRoutes(
                 FakeMatchesService(
                     detailFailure = SourceParsingFailure(
-                        Url("https://www.vlr.gg/private?token=secret"),
                         IllegalStateException("selector details"),
                     ),
-                    listFailure = UpstreamNetworkFailure(Url("https://www.vlr.gg/matches?token=secret")),
+                    listFailure = UpstreamNetworkFailure(),
                 ),
             )
         }

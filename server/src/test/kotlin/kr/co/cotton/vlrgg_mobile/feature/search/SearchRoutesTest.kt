@@ -87,7 +87,7 @@ class SearchRoutesTest {
 
     @Test
     fun `route maps upstream failure to the safe common envelope`() = withSearchApplication(
-        scraper = FailingSearchScraper(UpstreamNetworkFailure(Url("https://www.vlr.gg/search/?q=private"))),
+        scraper = FailingSearchScraper(UpstreamNetworkFailure()),
     ) {
         val response = client.get("/api/v1/search?q=Sentinels")
 

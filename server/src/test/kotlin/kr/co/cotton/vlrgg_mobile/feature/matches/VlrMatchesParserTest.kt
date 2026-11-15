@@ -1,18 +1,15 @@
 package kr.co.cotton.vlrgg_mobile.feature.matches
 
-import io.ktor.http.*
 import kotlinx.coroutines.CancellationException
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kotlin.test.*
 
 class VlrMatchesParserTest {
     private val parser = VlrMatchesParser()
-    private val listUrl = Url("https://www.vlr.gg/matches")
-    private val detailUrl = Url("https://www.vlr.gg/709685")
 
     @Test
     fun `parses scheduled groups and excludes match-like markup outside the list`() {
-        val page = parser.parseList(fixtureHtml("upcoming.html"), listUrl)
+        val page = parser.parseList(fixtureHtml("upcoming.html"))
 
         assertEquals(1, page.groups.size)
         assertEquals("Mon, July 13, 2026 Today", page.groups.single().dateLabel)
@@ -37,10 +34,10 @@ class VlrMatchesParserTest {
 
     @Test
     fun `accepts an empty normal list and absent optional result values`() {
-        val empty = parser.parseList(fixtureHtml("empty.html"), listUrl)
+        val empty = parser.parseList(fixtureHtml("empty.html"))
         assertTrue(empty.groups.isEmpty())
 
-        val result = parser.parseList(fixtureHtml("results-with-missing-optionals.html"), listUrl)
+        val result = parser.parseList(fixtureHtml("results-with-missing-optionals.html"))
         val match = result.groups.single().matches.single()
 
         assertEquals("2026-07-13", result.groups.single().date)
@@ -55,7 +52,7 @@ class VlrMatchesParserTest {
 
     @Test
     fun `parses complete detail while treating absent maps and related sections as normal optional data`() {
-        val detail = parser.parseDetail(fixtureHtml("detail-completed.html"), detailUrl, "709685")
+        val detail = parser.parseDetail(fixtureHtml("detail-completed.html"), "709685")
 
         assertEquals("709685", detail.summary.id)
         assertEquals(MatchStatusSource.COMPLETED, detail.summary.status)
@@ -81,7 +78,7 @@ class VlrMatchesParserTest {
         assertTrue(detail.headToHead.isEmpty())
         assertTrue(detail.pastMatches.isEmpty())
 
-        val limited = parser.parseDetail(fixtureHtml("detail-limited.html"), detailUrl, "709685")
+        val limited = parser.parseDetail(fixtureHtml("detail-limited.html"), "709685")
         assertTrue(limited.maps.isEmpty())
         assertNull(limited.summary.homeScore)
         assertNull(limited.summary.awayScore)
@@ -89,7 +86,7 @@ class VlrMatchesParserTest {
 
     @Test
     fun `structures list date and time labels and leaves unparseable values null`() {
-        val page = parser.parseList(fixtureHtml("list-datetime-variants.html"), listUrl)
+        val page = parser.parseList(fixtureHtml("list-datetime-variants.html"))
 
         val (today, mismatchedWeekday, tagOnly) = page.groups
         assertEquals("Tue, October 27, 2026 Today", today.dateLabel)
@@ -117,9 +114,9 @@ class VlrMatchesParserTest {
         assertNotEquals(completed, missing)
 
         // 04:20 EST is 09:20 UTC, verified against VLR.GG's own `6:20 PM KST` rendering.
-        assertEquals("2025-01-09T09:20:00Z", parser.parseDetail(standardTime, detailUrl, "709685").scheduledAt)
-        assertNull(parser.parseDetail(unixSeconds, detailUrl, "709685").scheduledAt)
-        assertNull(parser.parseDetail(missing, detailUrl, "709685").scheduledAt)
+        assertEquals("2025-01-09T09:20:00Z", parser.parseDetail(standardTime, "709685").scheduledAt)
+        assertNull(parser.parseDetail(unixSeconds, "709685").scheduledAt)
+        assertNull(parser.parseDetail(missing, "709685").scheduledAt)
     }
 
     @Test
@@ -127,7 +124,6 @@ class VlrMatchesParserTest {
         val completed = fixtureHtml("detail-completed.html")
         fun parsed(timestamp: String) = parser.parseDetail(
             completed.replace(UPSTREAM_TIMESTAMP_ATTRIBUTE, "data-utc-ts=\"$timestamp\""),
-            detailUrl,
             "709685",
         ).scheduledAt
 
@@ -147,7 +143,6 @@ class VlrMatchesParserTest {
         val completed = fixtureHtml("detail-completed.html")
         fun parsed(timestamp: String) = parser.parseDetail(
             completed.replace(UPSTREAM_TIMESTAMP_ATTRIBUTE, "data-utc-ts=\"$timestamp\""),
-            detailUrl,
             "709685",
         ).scheduledAt
 
@@ -187,7 +182,7 @@ class VlrMatchesParserTest {
 
         sources.forEach { (source, expected) ->
             val html = fixtureHtml("detail-completed.html").replace("//owcdn.net/img/6399bb707aacb.png", source)
-            val detail = parser.parseDetail(html, detailUrl, "709685")
+            val detail = parser.parseDetail(html, "709685")
 
             assertEquals(expected, detail.summary.homeTeam.imageUrl, source)
             assertEquals("https://owcdn.net/img/6a353ee73ab25.png", detail.summary.awayTeam.imageUrl, source)
@@ -207,7 +202,7 @@ class VlrMatchesParserTest {
                 "<a href=\"/event/2955/esports-world-cup-2026-pacific-qualifier/stage-2\" class=\"match-header-event\"><img src=\"//owcdn.net/img/event.png\">",
             )
 
-        val detail = parser.parseDetail(html, detailUrl, "709685")
+        val detail = parser.parseDetail(html, "709685")
 
         assertNull(detail.summary.homeTeam.imageUrl)
         assertEquals("https://owcdn.net/img/6a353ee73ab25.png", detail.summary.awayTeam.imageUrl)
@@ -215,7 +210,7 @@ class VlrMatchesParserTest {
 
     @Test
     fun `uses only mod prefixed status classes and reads unclassed score slots in team order`() {
-        val detail = parser.parseDetail(fixtureHtml("detail-upcoming-unclassed-score.html"), detailUrl, "709685")
+        val detail = parser.parseDetail(fixtureHtml("detail-upcoming-unclassed-score.html"), "709685")
 
         assertEquals(MatchStatusSource.UPCOMING, detail.summary.status)
         assertEquals(12, detail.summary.homeScore)
@@ -224,7 +219,7 @@ class VlrMatchesParserTest {
 
     @Test
     fun `ignores blank detail notes and accepts canonical VLR link query fragments`() {
-        val detail = parser.parseDetail(fixtureHtml("detail-parser-boundaries.html"), detailUrl, "709685")
+        val detail = parser.parseDetail(fixtureHtml("detail-parser-boundaries.html"), "709685")
 
         assertEquals(MatchStatusSource.COMPLETED, detail.summary.status)
         assertEquals("Bo3", detail.seriesFormat)
@@ -237,7 +232,7 @@ class VlrMatchesParserTest {
 
     @Test
     fun `parses linked related sections in source order and skips rows without a stable match reference`() {
-        val detail = parser.parseDetail(fixtureHtml("detail-related-matches.html"), detailUrl, "709685")
+        val detail = parser.parseDetail(fixtureHtml("detail-related-matches.html"), "709685")
 
         assertEquals(listOf("700001", "700002"), detail.headToHead.map { it.id })
         assertEquals(listOf("Alpha", "Alpha"), detail.headToHead.map { it.homeTeamName })
@@ -254,7 +249,7 @@ class VlrMatchesParserTest {
 
     @Test
     fun `uses the past match first marker instead of section order while preserving row order`() {
-        val detail = parser.parseDetail(fixtureHtml("detail-past-reversed-history-order.html"), detailUrl, "709685")
+        val detail = parser.parseDetail(fixtureHtml("detail-past-reversed-history-order.html"), "709685")
 
         assertEquals(listOf("700501", "700601"), detail.pastMatches.map { it.id })
         assertEquals(listOf("Bravo", "Alpha"), detail.pastMatches.map { it.homeTeamName })
@@ -265,7 +260,7 @@ class VlrMatchesParserTest {
 
     @Test
     fun `keeps linked H2H rows when their score markup is absent or malformed`() {
-        val detail = parser.parseDetail(fixtureHtml("detail-h2h-without-score.html"), detailUrl, "709685")
+        val detail = parser.parseDetail(fixtureHtml("detail-h2h-without-score.html"), "709685")
 
         assertEquals(listOf("700301", "700302"), detail.headToHead.map { it.id })
         assertEquals(listOf("Alpha", "Alpha"), detail.headToHead.map { it.homeTeamName })
@@ -276,7 +271,7 @@ class VlrMatchesParserTest {
 
     @Test
     fun `keeps linked past rows when their score markup is absent or malformed`() {
-        val detail = parser.parseDetail(fixtureHtml("detail-past-without-score.html"), detailUrl, "709685")
+        val detail = parser.parseDetail(fixtureHtml("detail-past-without-score.html"), "709685")
 
         assertEquals(listOf("700401", "700402"), detail.pastMatches.map { it.id })
         assertEquals(listOf("Alpha", "Alpha"), detail.pastMatches.map { it.homeTeamName })
@@ -297,7 +292,7 @@ class VlrMatchesParserTest {
         )
 
         cases.forEach { case ->
-            val detail = parser.parseDetail(fixtureHtml(case.fixture), detailUrl, "709685")
+            val detail = parser.parseDetail(fixtureHtml(case.fixture), "709685")
 
             assertEquals(MatchStatusSource.COMPLETED, detail.summary.status, case.fixture)
             assertEquals(case.seriesFormat, detail.seriesFormat, case.fixture)
@@ -310,10 +305,9 @@ class VlrMatchesParserTest {
     @Test
     fun `fails safely when a required match structure is broken`() {
         val failure = assertFailsWith<SourceParsingFailure> {
-            parser.parseDetail(fixtureHtml("detail-broken.html"), detailUrl, "709685")
+            parser.parseDetail(fixtureHtml("detail-broken.html"), "709685")
         }
 
-        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         assertNotNull(failure.cause)
     }
 
@@ -323,7 +317,7 @@ class VlrMatchesParserTest {
         val cancellingParser = VlrMatchesParser { throw cancellation }
 
         val thrown = assertFailsWith<CancellationException> {
-            cancellingParser.parseList("<html></html>", listUrl)
+            cancellingParser.parseList("<html></html>")
         }
 
         assertSame(cancellation, thrown)

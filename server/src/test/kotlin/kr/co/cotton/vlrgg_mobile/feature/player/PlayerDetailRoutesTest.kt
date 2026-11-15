@@ -137,7 +137,7 @@ class PlayerDetailRoutesTest {
 
     @Test
     fun `route maps network and parser failures to safe common envelopes`() {
-        withPlayerApplication(FixtureTransport(failure = { throw UpstreamNetworkFailure(Url("https://www.vlr.gg/private")) })) {
+        withPlayerApplication(FixtureTransport(failure = { throw UpstreamNetworkFailure() })) {
             assertError(client.get("/api/v1/players/488"), HttpStatusCode.BadGateway, ApiErrorCode.UPSTREAM_NETWORK_FAILURE)
         }
         withPlayerApplication(FixtureTransport(html = fixture("player-detail-required-structure-missing.html"))) {

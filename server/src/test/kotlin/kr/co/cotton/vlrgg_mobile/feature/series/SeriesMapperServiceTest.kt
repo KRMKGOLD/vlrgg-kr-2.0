@@ -40,7 +40,7 @@ class SeriesMapperServiceTest {
         val seriesId = SeriesId.fromPath("85")
 
         assertEquals("85", service.get(seriesId).id)
-        transport.failure = UpstreamNetworkFailure(Url("https://www.vlr.gg/series/85"))
+        transport.failure = UpstreamNetworkFailure()
         assertFailsWith<UpstreamNetworkFailure> { service.get(seriesId) }
         assertEquals(2, transport.requestedUrls.size)
         assertTrue(transport.requestedUrls.all { it.toString() == "https://www.vlr.gg/series/85" })

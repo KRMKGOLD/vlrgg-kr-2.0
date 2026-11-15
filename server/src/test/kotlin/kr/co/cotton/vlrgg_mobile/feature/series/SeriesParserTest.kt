@@ -1,12 +1,10 @@
 package kr.co.cotton.vlrgg_mobile.feature.series
 
-import io.ktor.http.*
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kotlin.test.*
 
 class SeriesParserTest {
     private val parser = SeriesParser()
-    private val pageUrl = Url("https://www.vlr.gg/series/85")
     private val seriesId = SeriesId.fromPath("85")
 
     @Test
@@ -81,12 +79,11 @@ class SeriesParserTest {
 
     private fun assertParsingFailure(fixture: String) {
         val failure = assertFailsWith<SourceParsingFailure> { parse(fixture) }
-        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         assertIs<IllegalStateException>(failure.cause)
     }
 
     private fun parse(fixture: String): SeriesSource = parser.parse(
-        page = SeriesHtmlPage(pageUrl, fixture(fixture)),
+        html = fixture(fixture),
         seriesId = seriesId,
     )
 
