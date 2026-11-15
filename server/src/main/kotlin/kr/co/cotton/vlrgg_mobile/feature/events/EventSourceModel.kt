@@ -1,7 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.feature.events
 
-import io.ktor.http.*
-
 internal data class EventListSource(
     val events: List<EventSummarySource>,
 )
@@ -98,9 +96,4 @@ internal data class EventPlayerStatsSource(
     val killDeathRatio: Double?,
     val averageDamagePerRound: Double?,
     val killAssistSurvivedTradedPercentage: Double?,
-)
-
-internal data class EventHtmlPage(
-    val upstreamUrl: Url,
-    val html: String,
 )

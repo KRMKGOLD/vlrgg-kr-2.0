@@ -1,13 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.feature.player
 
-import io.ktor.http.*
-
-/** Raw feature-local material fetched before the parser crosses the HTML boundary. */
-internal data class PlayerDetailUpstreamContent(
-    val html: String,
-    val upstreamUrl: Url,
-)
-
 /** Server-internal representation of a VLR player page. It is never serialized. */
 internal data class PlayerDetailSource(
     val profile: PlayerProfileSource,

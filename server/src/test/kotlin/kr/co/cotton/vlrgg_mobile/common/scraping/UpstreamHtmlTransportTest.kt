@@ -45,7 +45,6 @@ class UpstreamHtmlTransportTest {
                 runBlocking { transport.get(UPSTREAM_URL) }
             }
 
-            assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
             assertIs<Exception>(failure.cause)
             assertTrue(body.wasCancelled)
         }
@@ -139,18 +138,17 @@ class UpstreamHtmlTransportTest {
                 "https://user:secret@www.vlr.gg/matches",
                 "https://untrusted.example/request-derived?token=secret#fragment",
             ).forEach { target ->
-                val failure = assertFailsWith<UpstreamNetworkFailure> {
+                assertFailsWith<UpstreamNetworkFailure> {
                     runBlocking { transport.get(Url(target)) }
                 }
 
-                assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
             }
         }
         assertEquals(1, requestCount)
     }
 
     @Test
-    fun `composition root reuses one non closeable transport and closes it on shutdown`() {
+    fun `composition root owns a non closeable transport and closes it on shutdown`() {
         var requestCount = 0
         val engine = MockEngine {
             requestCount += 1
@@ -160,8 +158,7 @@ class UpstreamHtmlTransportTest {
 
         testApplication {
             application {
-                transport = createUpstreamHtmlTransportForTesting(engine)
-                assertSame(transport, createUpstreamHtmlTransportForTesting(engine))
+                transport = createUpstreamHtmlTransport(engine)
                 assertFalse(transport is AutoCloseable)
             }
 
@@ -182,7 +179,7 @@ class UpstreamHtmlTransportTest {
     ) = testApplication {
         lateinit var transport: UpstreamHtmlTransport
         application {
-            transport = createUpstreamHtmlTransportForTesting(engine, config)
+            transport = createUpstreamHtmlTransport(engine, config)
         }
 
         startApplication()

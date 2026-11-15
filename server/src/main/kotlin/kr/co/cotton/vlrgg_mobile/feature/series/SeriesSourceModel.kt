@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.feature.series
 
-import io.ktor.http.*
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.http.POSITIVE_DECIMAL_ID_REGEX
 
@@ -18,12 +17,6 @@ internal value class SeriesId private constructor(
             ?: throw InvalidInputFailure()
     }
 }
-
-/** Raw feature-local material fetched before the parser crosses the HTML boundary. */
-internal data class SeriesHtmlPage(
-    val upstreamUrl: Url,
-    val html: String,
-)
 
 /** Server-internal VLR series representation. It is never serialized directly. */
 internal data class SeriesSource(

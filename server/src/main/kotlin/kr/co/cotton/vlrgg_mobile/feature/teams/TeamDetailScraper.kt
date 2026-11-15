@@ -11,15 +11,11 @@ internal class TeamDetailScraper(
 ) {
     /** Fetches the current overview and news pages as sibling requests; failure and cancellation propagate structurally. */
     suspend fun scrape(teamId: TeamId): TeamDetailUpstreamContent = coroutineScope {
-        val overviewUrl = teamOverviewUrl(teamId)
-        val newsUrl = teamNewsUrl(teamId)
-        val overviewHtml = async { transport.get(overviewUrl) }
-        val newsHtml = async { transport.get(newsUrl) }
+        val overviewHtml = async { transport.get(teamOverviewUrl(teamId)) }
+        val newsHtml = async { transport.get(teamNewsUrl(teamId)) }
         TeamDetailUpstreamContent(
             overviewHtml = overviewHtml.await(),
             newsHtml = newsHtml.await(),
-            overviewUrl = overviewUrl,
-            newsUrl = newsUrl,
         )
     }
 }
