@@ -35,6 +35,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
 import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotDefaults
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberTextSlotHeight
 import kr.co.cotton.vlrgg_mobile.ui.component.rowDivider
 import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
@@ -217,7 +218,7 @@ private fun EventsSkeleton() {
 
 /**
  * Placeholder for an [EventListItem] (`DESIGN.md` 8.2 Identity row): the same paddings, 40dp logo
- * slot, title and meta lines at their `body`·`meta` line heights, and the empty 48dp trailing slot,
+ * slot, title and meta lines at their scaled `body`·`meta` line heights, and the empty 48dp trailing slot,
  * so the rows keep their height and title start when the events arrive.
  */
 @Composable
@@ -236,9 +237,13 @@ private fun EventRowSkeleton() {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            // `body` 22 and `meta` 19 line heights around 14dp and 10dp bars.
-            SkeletonBlock(Modifier.padding(vertical = 4.dp).fillMaxWidth(0.72f).height(14.dp))
-            SkeletonBlock(Modifier.padding(vertical = 4.5.dp).fillMaxWidth(0.5f).height(10.dp))
+            // 14dp and 10dp bars centered in `body` and `meta` line slots that follow the font scale.
+            Box(Modifier.height(rememberTextSlotHeight(VlrTheme.typography.body)), contentAlignment = Alignment.CenterStart) {
+                SkeletonBlock(Modifier.fillMaxWidth(0.72f).height(14.dp))
+            }
+            Box(Modifier.height(rememberTextSlotHeight(VlrTheme.typography.meta)), contentAlignment = Alignment.CenterStart) {
+                SkeletonBlock(Modifier.fillMaxWidth(0.5f).height(10.dp))
+            }
         }
         Spacer(Modifier.size(VlrDimensions.MinimumTouchTarget))
     }

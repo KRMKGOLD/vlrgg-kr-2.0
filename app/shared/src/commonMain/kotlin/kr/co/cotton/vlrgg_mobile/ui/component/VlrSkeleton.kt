@@ -16,11 +16,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
@@ -33,6 +39,23 @@ fun SkeletonBlock(
     color: Color = VlrTheme.colors.skeleton,
 ) {
     Box(modifier = modifier.background(color, RoundedCornerShape(VlrDimensions.CornerRadius)))
+}
+
+/**
+ * Height [text] in [style] takes within [maxWidth] at the current density and font scale, for the
+ * slot a skeleton bar sits in so the placeholder grows with the text it stands for (`DESIGN.md` 6).
+ * The default blank text gives the height of one line.
+ */
+@Composable
+internal fun rememberTextSlotHeight(style: TextStyle, text: String = " ", maxWidth: Dp = Dp.Infinity): Dp {
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer(cacheSize = 1)
+    return remember(measurer, style, text, maxWidth, density) {
+        with(density) {
+            val constraints = if (maxWidth == Dp.Infinity) Constraints() else Constraints(maxWidth = maxWidth.roundToPx())
+            measurer.measure(text, style, constraints = constraints).size.height.toDp()
+        }
+    }
 }
 
 /** Placeholder for a text list row: title, short second line, meta. */

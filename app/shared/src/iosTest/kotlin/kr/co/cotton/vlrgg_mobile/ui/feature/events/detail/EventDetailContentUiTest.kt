@@ -358,22 +358,41 @@ class EventDetailContentUiTest {
     }
 
     @Test
-    fun statsLoadingSkeletonKeepsTheHeaderAndRowHeightsOfTheTable() = runComposeUiTest {
-        var state by mutableStateOf(
-            populatedState.copy(selectedTab = EventDetailTab.STATS, stats = EventStatsContentState.Loading),
-        )
-        setContent { Fixture(uiState = state) }
+    fun statsLoadingSkeletonKeepsTheHeaderAndRowHeightsOfTheTableAtEachFontScale() {
+        listOf(1f, 2f).forEach { scale ->
+            runComposeUiTest {
+                // A name that stays on one line at double fonts, as the skeleton cannot know a wrapping name.
+                val shortName = player.copy(playerName = "Ace")
+                var state by mutableStateOf(
+                    populatedState.copy(selectedTab = EventDetailTab.STATS, stats = EventStatsContentState.Loading),
+                )
+                setContent {
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
+                        Fixture(uiState = state)
+                    }
+                }
 
-        val skeletonHeight = onNodeWithTag(EVENT_STATS_LOADING_TAG).getUnclippedBoundsInRoot().height
-        state = populatedState.copy(selectedTab = EventDetailTab.STATS)
-        waitForIdle()
-        val headerHeight = onNodeWithTag(eventStatsMetricHeaderTag(EventStatsSortColumn.ACS)).getUnclippedBoundsInRoot().height
-        val rowHeight = onNodeWithTag(eventStatsPlayerTag(player.playerId)).getUnclippedBoundsInRoot().height
+                val label = "fontScale=$scale"
+                val skeletonHeight = onNodeWithTag(EVENT_STATS_LOADING_TAG).getUnclippedBoundsInRoot().height
+                state = populatedState.copy(
+                    selectedTab = EventDetailTab.STATS,
+                    stats = EventStatsContentState.Content(EventStats(EventStatsAvailability.AVAILABLE, listOf(shortName))),
+                )
+                waitForIdle()
+                val headerHeight = onNodeWithTag(eventStatsMetricHeaderTag(EventStatsSortColumn.ACS)).getUnclippedBoundsInRoot().height
+                val rowHeight = onNodeWithTag(eventStatsPlayerTag(player.playerId)).getUnclippedBoundsInRoot().height
 
-        assertEquals(40f, headerHeight.value, 0.5f)
-        assertEquals(52f, rowHeight.value, 0.5f)
-        // The 40dp header and four 52dp rows of the table that replaces it.
-        assertEquals(headerHeight.value + rowHeight.value * 4, skeletonHeight.value, 1f)
+                if (scale == 1f) {
+                    assertEquals(40f, headerHeight.value, 0.5f, label)
+                    assertEquals(52f, rowHeight.value, 0.5f, label)
+                } else {
+                    // Doubled text outgrows the 40dp and 52dp minimums.
+                    assertTrue(rowHeight.value > 52f, "$label row stays at its minimum")
+                }
+                // The header and four rows of the table that replaces it.
+                assertEquals(headerHeight.value + rowHeight.value * 4, skeletonHeight.value, 1f, label)
+            }
+        }
     }
 
     @Test

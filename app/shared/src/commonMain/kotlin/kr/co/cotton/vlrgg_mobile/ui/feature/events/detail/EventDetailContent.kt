@@ -11,6 +11,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonMatchRow
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberTextSlotHeight
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsTableDefaults
 import kr.co.cotton.vlrgg_mobile.ui.component.rowDivider
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.font.FontWeight
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MATCHES_TIME_ZONE_LABEL
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.format.rememberDeviceToday
@@ -387,7 +389,7 @@ private fun StatsTabContent(
         is EventStatsContentState.Content -> VlrStatsTable(
             rows = state.stats.players,
             rowKey = EventPlayerStats::playerId,
-            identityHeader = "선수",
+            identityHeader = EventStatsIdentityHeader,
             identityText = EventPlayerStats::playerName,
             identitySupportingText = EventPlayerStats::teamAbbreviation,
             rowSemanticsLabel = "선수",
@@ -442,9 +444,27 @@ private fun TabSkeleton(
  * Stats tab loading (`.pen` 41-12): the [VlrStatsTable] frame on `surface`, a 40dp `surface-sunken`
  * header and [TabSkeletonRows] 52dp rows, each with the pinned 120dp identity column and its right
  * 1dp line followed by 68dp metric columns, so the table does not shift when the stats arrive.
+ * Like the table, the header and rows grow past those minimums with the scaled text: the header to
+ * the `label` identity header and the `tag` column labels wrapped in their columns, a row to the
+ * one-line `bodySm` name, 1dp gap and `label` team, or a [StatsSkeletonSampleValue] `stat` value.
+ * A name that wraps at a large font scale still makes its row taller, as the name is not known yet.
  */
 @Composable
 private fun StatsTableSkeleton() {
+    val typography = VlrTheme.typography
+    val identityTextWidth = StatsTableDefaults.IdentityWidth - VlrDimensions.Space4 - VlrDimensions.Space2
+    val metricTextWidth = StatsTableDefaults.ColumnWidth - VlrDimensions.Space3
+    val headerHeight = maxOf(
+        StatsTableDefaults.HeaderHeight,
+        rememberTextSlotHeight(typography.label.copy(fontWeight = FontWeight.Bold), EventStatsIdentityHeader, identityTextWidth),
+        eventStatsColumns.maxOf { rememberTextSlotHeight(typography.tag, it.label, metricTextWidth) },
+    )
+    val rowHeight = maxOf(
+        StatsTableDefaults.RowHeight,
+        rememberTextSlotHeight(typography.bodySm.copy(fontWeight = FontWeight.Bold)) + 1.dp +
+            rememberTextSlotHeight(typography.label.copy(fontWeight = FontWeight.Normal)),
+        rememberTextSlotHeight(typography.stat, StatsSkeletonSampleValue, metricTextWidth),
+    )
     Box(modifier = Modifier.fillMaxSize().background(VlrTheme.colors.surface)) {
         Column(
             modifier = Modifier
@@ -452,9 +472,9 @@ private fun StatsTableSkeleton() {
                 .testTag(EVENT_STATS_LOADING_TAG)
                 .loadingSemantics("통계를 불러오는 중"),
         ) {
-            StatsSkeletonRow(StatsTableDefaults.HeaderHeight, VlrTheme.colors.surfaceSunken, header = true)
+            StatsSkeletonRow(headerHeight, VlrTheme.colors.surfaceSunken, header = true)
             repeat(TabSkeletonRows) {
-                StatsSkeletonRow(StatsTableDefaults.RowHeight, VlrTheme.colors.surface, header = false)
+                StatsSkeletonRow(rowHeight, VlrTheme.colors.surface, header = false)
             }
         }
     }
@@ -512,6 +532,11 @@ private fun Modifier.loadingSemantics(description: String): Modifier = clearAndS
 }
 
 private const val TabSkeletonRows = 4
+
+private const val EventStatsIdentityHeader = "선수"
+
+/** A KAST value, the widest stats value format, sizing the skeleton rows for values that wrap. */
+private const val StatsSkeletonSampleValue = "00.0%"
 
 private fun EventDetail.periodLabel(spoken: Boolean): String? = if (spoken) {
     KoreanDateTimeFormat.periodSpoken(startDate, endDate, dateLabel)

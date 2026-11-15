@@ -68,17 +68,25 @@ class EventsContentUiTest {
     }
 
     @Test
-    fun loadingRowsKeepTheHeightOfTheEventRowsThatReplaceThem() = runComposeUiTest {
-        var uiState by mutableStateOf(EventsUiState())
-        setContent { EventsContentFixture(uiState = uiState) }
+    fun loadingRowsKeepTheHeightOfTheEventRowsThatReplaceThemAtEachFontScale() {
+        listOf(1f, 2f).forEach { scale ->
+            runComposeUiTest {
+                var uiState by mutableStateOf(EventsUiState())
+                setContent {
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
+                        EventsContentFixture(uiState = uiState)
+                    }
+                }
 
-        val skeletonHeight = onNodeWithTag(EVENTS_LOADING_TAG).getUnclippedBoundsInRoot().height
-        uiState = populatedState
-        waitForIdle()
-        val rowHeight = onNodeWithTag(eventRowTag(completedEvent.id)).getUnclippedBoundsInRoot().height
+                val skeletonHeight = onNodeWithTag(EVENTS_LOADING_TAG).getUnclippedBoundsInRoot().height
+                uiState = populatedState
+                waitForIdle()
+                val rowHeight = onNodeWithTag(eventRowTag(completedEvent.id)).getUnclippedBoundsInRoot().height
 
-        // Six rows as tall as a one-line Identity row with meta (the tag sits inside the 8dp top inset).
-        assertEquals(rowHeight.value * 6, skeletonHeight.value, 1f)
+                // Six rows as tall as a one-line Identity row with meta (the tag sits inside the 8dp top inset).
+                assertEquals(rowHeight.value * 6, skeletonHeight.value, 1f, "fontScale=$scale")
+            }
+        }
     }
 
     @Test
