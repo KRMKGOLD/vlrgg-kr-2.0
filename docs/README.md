@@ -11,6 +11,7 @@
 | [UI](app-arch/ui-layer.md) · [Domain](app-arch/domain-layer.md) · [Data](app-arch/data-layer.md) | 각 레이어의 구현 규칙 |
 | [서버 구조](architecture/server-arch.md) | scraping·API·오류 경계 |
 | [공개 조회 보호](architecture/server-public-api-protection.md) | 요청 제한과 앱 Busy 처리 |
+| [서버 운영 스크립트 안내](architecture/server-ops-guide.md) | 배포 절차와 남는 기록, workflow·스크립트별 역할, 함께 바꿔야 하는 것 |
 | [서버 배포·복구](architecture/server-container-deployment.md) | Cloud Run 배포, rollback, 비용 중단, 운영 알림 검증·복구 |
 | [CI/CD](ci-cd.md) | 검증 gate와 로컬 benchmark |
 | [앱 배포](app-release.md) | Android internal·비공개 테스트·프로덕션 절차, iOS TestFlight와 계정·서명 gate |

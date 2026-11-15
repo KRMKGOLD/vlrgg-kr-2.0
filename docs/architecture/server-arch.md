@@ -32,9 +32,9 @@ OpenAPI와 Swagger route는 `VLRGG_ENABLE_API_DOCUMENTATION=true`인 local 개�
 공개 조회는 요청마다 raw 정보를 기록하지 않고 고정 route/status/error/latency bucket과 bounded failure sample만 남긴다.
 
 - `INTERNAL_ERROR`와 `SOURCE_PARSING_FAILURE`만 Error Reporting용 ERROR event다.
-- 로그에 request path/query/IP/header, token, exception message, raw HTML, selector와 임의 stack 문자열을 넣지 않는다.
-- trace는 신뢰된 project 환경과 형식이 모두 유효한 단일 `X-Cloud-Trace-Context`에서만 연결한다.
-- failure event와 stack은 고정 크기·깊이·빈도 제한을 적용한다. 출력 sample 수를 전체 실패 수로 해석하지 않는다.
+- 로그에 request path/query/IP/header, token, exception message, raw HTML과 selector를 넣지 않는다. ERROR event의 stack에는 예외 종류와 코드 위치만 남긴다.
+- trace는 project 환경 값이 있고 형식이 유효한 단일 `X-Cloud-Trace-Context`에서만 연결한다.
+- failure event의 stack은 frame 32개와 cause 깊이 3으로 제한하고, event 수는 category별로 프로세스당 60초에 4건으로 제한한다. 출력 sample 수를 전체 실패 수로 해석하지 않는다.
 - 운영 정책, 장애 주입, 권한과 복원 절차는 [서버 컨테이너 배포 경로](server-container-deployment.md)의 #122 runbook이 소유한다. Crashlytics는 이 운영 관측과 별개다.
 
 ## Configuration and deployment
