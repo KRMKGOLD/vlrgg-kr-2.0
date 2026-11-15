@@ -3,10 +3,9 @@ package kr.co.cotton.vlrgg_mobile.routing
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 import kr.co.cotton.vlrgg_mobile.feature.events.EventsService
 import kr.co.cotton.vlrgg_mobile.feature.events.configureEventsRoutes
-import kr.co.cotton.vlrgg_mobile.feature.matches.configureMatchesFeature
+import kr.co.cotton.vlrgg_mobile.feature.matches.configureMatchesRoutes
 import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesService
 import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
 import kr.co.cotton.vlrgg_mobile.feature.news.configureNewsRoutes
@@ -20,14 +19,13 @@ import kr.co.cotton.vlrgg_mobile.feature.teams.TeamDetailService
 import kr.co.cotton.vlrgg_mobile.feature.teams.configureTeamDetailRoutes
 
 internal fun Application.configureRouting(
-    upstreamHtmlTransport: UpstreamHtmlTransport,
     newsService: NewsService,
     eventsService: EventsService,
     searchService: SearchService,
     seriesService: SeriesService,
     teamDetailService: TeamDetailService,
     playerDetailService: PlayerDetailService,
-    matchesService: MatchesService? = null,
+    matchesService: MatchesService,
     enableApiDocumentation: Boolean,
 ) {
     if (enableApiDocumentation) {
@@ -43,6 +41,6 @@ internal fun Application.configureRouting(
         configureSeriesRoutes(seriesService)
         configureTeamDetailRoutes(teamDetailService)
         configurePlayerDetailRoutes(playerDetailService)
+        configureMatchesRoutes(matchesService)
     }
-    configureMatchesFeature(upstreamHtmlTransport, matchesService)
 }
