@@ -64,6 +64,9 @@ import androidx.compose.ui.unit.Density
 import kotlin.test.assertTrue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import kr.co.cotton.vlrgg_mobile.ui.format.LocalDeviceClock
+import kotlin.time.Clock
+import kotlin.time.Instant
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.swipeDown
 
@@ -405,6 +408,24 @@ class EventDetailContentUiTest {
         }
 
     @Test
+    fun matchesTabDateHeaderAddsTheYearOnlyWhenTheDeviceYearDiffers() = runComposeUiTest {
+        val matches = listOf(
+            match.copy(id = "last-year", date = LocalDate(2025, 12, 31)),
+            match.copy(id = "this-year", date = LocalDate(2026, 1, 1)),
+        )
+        setContent {
+            Fixture(
+                uiState = populatedState.copy(matches = EventMatchesContentState.Content(matches)),
+                clock = FixedClock(Instant.parse("2026-01-01T12:00:00Z")),
+            )
+        }
+
+        onNode(hasText("2025년 12월 31일 (수)") and isHeading(), useUnmergedTree = true).assertExists()
+        onNode(hasText("1월 1일 (목)") and isHeading(), useUnmergedTree = true).assertExists()
+        onNodeWithText("2026년 1월 1일 (목)").assertDoesNotExist()
+    }
+
+    @Test
     fun matchesWithoutDatesKeepTheHeaderlessList() = runComposeUiTest {
         setContent { Fixture(uiState = populatedState) }
 
@@ -558,24 +579,32 @@ class EventDetailContentUiTest {
         onSortStats: (EventStatsSortColumn) -> Unit = {},
         onRetryIdentity: () -> Unit = {},
         onRetrySelectedTab: () -> Unit = {},
+        clock: Clock = FixedClock(Instant.parse("2026-11-15T12:00:00Z")),
     ) {
-        VlrTheme {
-            EventDetailContent(
-                uiState = uiState,
-                matchesListState = rememberLazyListState(),
-                newsListState = rememberLazyListState(),
-                statsListState = rememberLazyListState(),
-                statsHorizontalScrollState = rememberScrollState(),
-                onBack = {},
-                onSelectTab = onSelectTab,
-                onMatchClick = onMatchClick,
-                onNewsClick = onNewsClick,
-                onPlayerClick = onPlayerClick,
-                onSortStats = onSortStats,
-                onRetryIdentity = onRetryIdentity,
-                onRetrySelectedTab = onRetrySelectedTab,
-            )
+        CompositionLocalProvider(LocalDeviceClock provides clock) {
+            VlrTheme {
+                EventDetailContent(
+                    uiState = uiState,
+                    matchesListState = rememberLazyListState(),
+                    newsListState = rememberLazyListState(),
+                    statsListState = rememberLazyListState(),
+                    statsHorizontalScrollState = rememberScrollState(),
+                    onBack = {},
+                    onSelectTab = onSelectTab,
+                    onMatchClick = onMatchClick,
+                    onNewsClick = onNewsClick,
+                    onPlayerClick = onPlayerClick,
+                    onSortStats = onSortStats,
+                    onRetryIdentity = onRetryIdentity,
+                    onRetrySelectedTab = onRetrySelectedTab,
+                )
+            }
         }
+    }
+
+    /** Device clock for the date header year; fixtures default to a 2026 date so 2026 headers omit the year. */
+    private class FixedClock(private val now: Instant) : Clock {
+        override fun now(): Instant = now
     }
 
     private companion object {

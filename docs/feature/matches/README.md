@@ -406,9 +406,9 @@ v3 디자인 적용에 맞춰 한국어 UI를 기준으로 모든 날짜·시각
 
 | 화면 | 사용 값 | 표시 형식 | 값이 없을 때 |
 |---|---|---|---|
-| Matches 목록 날짜 헤더 | group `date` | `10월 27일 (화)` | `dateLabel` 원문 (`Tue, October 27, 2026`) |
+| Matches 목록 날짜 헤더 | group `date` | `10월 27일 (화)`, 기기 날짜와 연도가 다르면 `2025년 12월 31일 (수)` | `dateLabel` 원문 (`Tue, October 27, 2026`) |
 | Matches 목록·Event Matches 경기 시각 | summary `time` | `오전 3:00`, `오후 7:05`. 종료 경기는 아래 줄에 `종료`를 둔다(2026-11-10) | `timeLabel` 원문 (`3:00 AM`, `TBD`) |
-| Event Matches 날짜 헤더 | item `date` | `9월 13일 (일)`. 연속한 같은 날짜를 묶는다 | 날짜 헤더 없이 표시 |
+| Event Matches 날짜 헤더 | item `date` | `9월 13일 (일)`, 기기 날짜와 연도가 다르면 `2025년 12월 31일 (수)`. 연속한 같은 날짜를 묶는다 | 날짜 헤더 없이 표시 |
 | News 목록·Event News·Team News 게시일 | `publishedDate` | `2026년 9월 19일` | `publishedAt`·`publishedDateText` 원문 |
 | Events 목록·Event Detail·Series 기간 | `startDate`·`endDate`. Domain 타입은 `LocalDate`가 아니라 `EventMonthDay(month, day)`다(연도 없음, 2월 29일 허용) | `9월 12일 ~ 10월 4일`, 같은 달 `11월 20일 ~ 23일`, 하루 `12월 17일`, 끝 미정 `11월 1일 ~ 미정` | `dateLabel` 원문 |
 | Team Detail 경기 날짜·시각 | `scheduledDate`·`scheduledTime` | `9월 24일 오후 6:00`, `scheduledTime`만 null(원문에 시각이 없음)이면 `9월 24일` | `scheduledDate`가 null(날짜 형식이 다르거나 시각 부분을 읽지 못함)이면 `scheduledAtText` 원문 |
@@ -420,7 +420,7 @@ v3 디자인 적용에 맞춰 한국어 UI를 기준으로 모든 날짜·시각
 | News 기사 게시 시각 | `publishedAtUtc` | 기기 시간대 기준 `2026년 10월 26일 오전 12:09` | `publishedAt` 원문 (`16 hours ago`) |
 
 - 시간대 변환은 instant(`scheduledAtUtc`, `publishedAtUtc`)에만 적용하고 기기 시스템 시간대를 쓴다. 목록의 `date`·`time`은 이미 vlr.gg 표시 시간대(KST) 값이라 변환하지 않는다.
-- 연도: 기사 날짜는 항상 연도를 쓴다. 경기 날짜(Team·Player)는 기기 날짜와 연도가 다를 때만 `2025년 9월 24일 오후 6:00`처럼 붙인다. 대회 기간은 원본에 연도가 없는 경우가 있어 쓰지 않는다.
+- 연도: 기사 날짜는 항상 연도를 쓴다. 경기 날짜(Team·Player)와 경기 날짜 헤더(Matches 목록·Event Matches)는 기기 날짜와 연도가 다를 때만 `2025년 9월 24일 오후 6:00`, `2025년 12월 31일 (수)`처럼 붙인다. 대회 기간은 원본에 연도가 없는 경우가 있어 쓰지 않는다.
 - 요일(`월`~`일`)과 `오전`/`오후`는 플랫폼 locale을 쓰지 않고 직접 만든다. Android와 iOS의 결과가 같다. 12시간제이며 00시는 `오전 12:00`, 12시는 `오후 12:00`이다.
 - 남은 시간은 `status = upcoming`인 경기에만 표시한다. 종료 경기 ETA는 시작 후 지난 시간이라 표시하지 않고 스코어를 보여준다. Live·연기·취소·정보 없음 경기는 상태 chip만 표시한다.
 - 남은 시간 원문은 `d`→`h`→`m` 순서의 1~3개 토큰(`22m`, `3h`, `2d`, `10h 32m`, `1d 1h`, `1d 2h 3m`)만 인식한다. 대문자, 순서가 다른 단위, `ago`·`LIVE` 같은 문구, 이미 번역된 문자열처럼 형식을 알 수 없는 원문은 표시하지 않는다.

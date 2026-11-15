@@ -21,6 +21,13 @@ internal object KoreanDateTimeFormat {
     fun monthDay(date: LocalDate): String =
         "${date.month.number}월 ${date.day}일 (${date.dayOfWeek.koreanShortName()})"
 
+    /**
+     * Match day header (match list, event matches tab): `10월 27일 (화)`, or `2025년 12월 31일 (수)`
+     * when [date] is not in [currentYear], the device year ([rememberDeviceToday]).
+     */
+    fun matchDayHeader(date: LocalDate, currentYear: Int): String =
+        if (date.year == currentYear) monthDay(date) else "${date.year}년 ${monthDay(date)}"
+
     /** `오전 3:00`, `오후 7:05`. 00시는 `오전 12:00`, 12시는 `오후 12:00`이다. */
     fun time(time: LocalTime): String {
         val period = if (time.hour < 12) "오전" else "오후"

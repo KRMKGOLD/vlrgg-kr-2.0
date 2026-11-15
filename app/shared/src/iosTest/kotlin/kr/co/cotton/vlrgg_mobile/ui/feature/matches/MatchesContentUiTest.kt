@@ -37,6 +37,10 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
+import androidx.compose.runtime.CompositionLocalProvider
+import kr.co.cotton.vlrgg_mobile.ui.format.LocalDeviceClock
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.test.assertEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextEquals
@@ -269,6 +273,26 @@ class MatchesContentUiTest {
         onNodeWithText("종료").assertIsDisplayed()
         onNodeWithText("10h 43m").assertDoesNotExist()
         onNodeWithText("10시간 43분 후").assertDoesNotExist()
+    }
+
+    @Test
+    fun dateHeaderAddsTheYearOnlyWhenTheDeviceYearDiffers() = runComposeUiTest {
+        val groups = listOf(
+            MatchDateGroup("Wed, December 31, 2025", listOf(completedMatch), LocalDate(2025, 12, 31)),
+            MatchDateGroup("Thu, January 1, 2026", listOf(upcomingMatch), LocalDate(2026, 1, 1)),
+        )
+        setContent {
+            MatchesContentFixture(
+                uiState = MatchesUiState(
+                    upcomingLive = MatchesFeedUiState(contentState = MatchesFeedContentState.Content(groups)),
+                ),
+                clock = FixedClock(Instant.parse("2026-01-01T12:00:00Z")),
+            )
+        }
+
+        onNodeWithText("2025년 12월 31일 (수)").assertIsDisplayed()
+        onNodeWithText("1월 1일 (목)").assertIsDisplayed()
+        onNodeWithText("2026년 1월 1일 (목)").assertDoesNotExist()
     }
 
     @Test
@@ -631,21 +655,29 @@ class MatchesContentUiTest {
         onRetryInitial: () -> Unit = {},
         onLoadMore: () -> Unit = {},
         onRetryLoadMore: () -> Unit = {},
+        clock: Clock = FixedClock(Instant.parse("2026-11-15T12:00:00Z")),
     ) {
-        VlrTheme {
-            MatchesContent(
-                uiState = uiState,
-                upcomingLiveListState = rememberLazyListState(),
-                resultsListState = rememberLazyListState(),
-                onSearch = onSearch,
-                onSelectTab = onSelectTab,
-                onMatchClick = onMatchClick,
-                onRefresh = onRefresh,
-                onRetryInitial = onRetryInitial,
-                onLoadMore = onLoadMore,
-                onRetryLoadMore = onRetryLoadMore,
-            )
+        CompositionLocalProvider(LocalDeviceClock provides clock) {
+            VlrTheme {
+                MatchesContent(
+                    uiState = uiState,
+                    upcomingLiveListState = rememberLazyListState(),
+                    resultsListState = rememberLazyListState(),
+                    onSearch = onSearch,
+                    onSelectTab = onSelectTab,
+                    onMatchClick = onMatchClick,
+                    onRefresh = onRefresh,
+                    onRetryInitial = onRetryInitial,
+                    onLoadMore = onLoadMore,
+                    onRetryLoadMore = onRetryLoadMore,
+                )
+            }
         }
+    }
+
+    /** Device clock for the date header year; fixtures default to a 2026 date so 2026 headers omit the year. */
+    private class FixedClock(private val now: Instant) : Clock {
+        override fun now(): Instant = now
     }
 
     private fun contentState(match: MatchSummary) = MatchesUiState(

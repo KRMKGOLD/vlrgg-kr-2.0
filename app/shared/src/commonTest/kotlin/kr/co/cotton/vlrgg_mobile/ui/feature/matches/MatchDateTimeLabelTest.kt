@@ -24,8 +24,17 @@ class MatchDateTimeLabelTest {
     fun dateHeaderUsesKoreanDateAndFallsBackToSourceLabel() {
         val group = MatchDateGroup(dateLabel = "Tue, October 27, 2026", matches = emptyList(), date = LocalDate(2026, 10, 27))
 
-        assertEquals("10월 27일 (화)", group.displayDateLabel())
-        assertEquals("Tue, October 27, 2026", group.copy(date = null).displayDateLabel())
+        assertEquals("10월 27일 (화)", group.displayDateLabel(currentYear = 2026))
+        assertEquals("Tue, October 27, 2026", group.copy(date = null).displayDateLabel(currentYear = 2026))
+    }
+
+    @Test
+    fun dateHeaderAddsTheYearOnlyOutsideTheDeviceYear() {
+        val group = MatchDateGroup(dateLabel = "Wed, December 31, 2025", matches = emptyList(), date = LocalDate(2025, 12, 31))
+
+        assertEquals("2025년 12월 31일 (수)", group.displayDateLabel(currentYear = 2026))
+        assertEquals("12월 31일 (수)", group.displayDateLabel(currentYear = 2025))
+        assertEquals("Wed, December 31, 2025", group.copy(date = null).displayDateLabel(currentYear = 2026))
     }
 
     @Test

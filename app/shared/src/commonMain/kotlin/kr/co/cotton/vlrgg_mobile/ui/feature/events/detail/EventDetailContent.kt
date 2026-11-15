@@ -12,6 +12,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonMatchRow
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MATCHES_TIME_ZONE_LABEL
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
+import kr.co.cotton.vlrgg_mobile.ui.format.rememberDeviceToday
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -278,12 +279,13 @@ private fun MatchesTabContent(
         EventMatchesContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("경기를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventMatchesContentState.Content -> {
             val days = remember(state.matches) { state.matches.groupByConsecutiveDate() }
+            val currentYear = rememberDeviceToday().year
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().background(VlrTheme.colors.canvas),
                 contentPadding = PaddingValues(bottom = VlrDimensions.Space6),
             ) {
-                days.forEachIndexed { index, day -> matchDay(index, day, onMatchClick) }
+                days.forEachIndexed { index, day -> matchDay(index, day, currentYear, onMatchClick) }
             }
         }
     }
@@ -291,13 +293,14 @@ private fun MatchesTabContent(
 
 /**
  * Date group of the matches tab (`.pen` 41-1), the same date header as the match list: a white
- * section under `9월 13일 (일)` + `한국 시간`, 8dp `canvas` from the previous group. Matches without
- * a date have no header. Header keys carry the group index, because a date can repeat after
- * another date in the source order.
+ * section under `9월 13일 (일)` (with the year outside the device year) + `한국 시간`, 8dp `canvas`
+ * from the previous group. Matches without a date have no header. Header keys carry the group
+ * index, because a date can repeat after another date in the source order.
  */
 private fun LazyListScope.matchDay(
     index: Int,
     day: EventMatchDay,
+    currentYear: Int,
     onMatchClick: (String) -> Unit,
 ) {
     if (index > 0) {
@@ -308,7 +311,7 @@ private fun LazyListScope.matchDay(
     day.date?.let { date ->
         item(key = "match-day-$index-$date") {
             SectionHeader(
-                title = KoreanDateTimeFormat.monthDay(date),
+                title = KoreanDateTimeFormat.matchDayHeader(date, currentYear),
                 meta = MATCHES_TIME_ZONE_LABEL,
                 modifier = Modifier.background(VlrTheme.colors.surface),
             )
