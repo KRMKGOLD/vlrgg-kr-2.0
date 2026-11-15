@@ -1726,6 +1726,21 @@
                               "fontFamily": "$font-text",
                               "fontSize": "$type-meta",
                               "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "XIHe2",
+                              "x": 0,
+                              "y": 0,
+                              "name": "Meta 2",
+                              "enabled": false,
+                              "fill": "$on-panel-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container(0)",
+                              "content": "Aliases",
+                              "fontFamily": "$font-text",
+                              "fontSize": "$type-meta",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -6828,7 +6843,11 @@
               "content": "Rb"
             },
             "t5IV96": {
-              "content": "Goo Sang-min · 대한민국"
+              "content": "Goo Sang-min · SOUTH KOREA · KR"
+            },
+            "XIHe2": {
+              "enabled": true,
+              "content": "Rbb"
             }
           }
         },
@@ -7215,7 +7234,7 @@
                       "content": "VCT Pacific 2026 · Stage 2"
                     },
                     "eonln": {
-                      "content": "–",
+                      "content": "—",
                       "fill": "$muted"
                     },
                     "p0Ls9": {
@@ -12589,6 +12608,44 @@
           "children": [
             {
               "type": "frame",
+              "id": "htvVV",
+              "name": "Limited notice",
+              "width": "fill_container",
+              "fill": "$surface",
+              "gap": 8,
+              "padding": [
+                14,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "pwzT4",
+                  "name": "Info icon",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "info",
+                  "library": "Material Symbols Outlined",
+                  "weight": 400,
+                  "fill": "$muted"
+                },
+                {
+                  "type": "text",
+                  "id": "J4Roz",
+                  "name": "Limited notice",
+                  "fill": "$ink-2",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "이 경기는 제한된 정보만 제공됩니다",
+                  "fontFamily": "$font-text",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
               "id": "S164B",
               "name": "Maps",
               "width": "fill_container",
@@ -12622,7 +12679,7 @@
                   "width": "fill_container",
                   "descendants": {
                     "V5oqwx": {
-                      "content": "맵 정보가 없습니다"
+                      "content": "이 경기의 맵 정보는 제공되지 않습니다"
                     }
                   }
                 }
@@ -12663,7 +12720,7 @@
                   "width": "fill_container",
                   "descendants": {
                     "V5oqwx": {
-                      "content": "상대 전적이 없습니다"
+                      "content": "이 경기의 상대 전적은 제공되지 않습니다"
                     }
                   }
                 }
@@ -13107,7 +13164,7 @@
                   "width": "fill_container",
                   "descendants": {
                     "V5oqwx": {
-                      "content": "이 경기의 맵 정보는 제공되지 않습니다"
+                      "content": "맵 정보가 없습니다"
                     }
                   }
                 }
@@ -20586,8 +20643,11 @@
             "b5WYXc": {
               "content": ""
             },
+            "X6QLQs": {
+              "enabled": false
+            },
             "MD8Qn": {
-              "fill": "$on-panel-muted",
+              "fill": "$on-panel",
               "icon": "star"
             }
           }
@@ -22169,7 +22229,11 @@
               "content": "Rb"
             },
             "t5IV96": {
-              "content": "Goo Sang-min · 대한민국"
+              "content": "Goo Sang-min · SOUTH KOREA · KR"
+            },
+            "XIHe2": {
+              "enabled": true,
+              "content": "Rbb"
             }
           }
         },
@@ -22556,7 +22620,7 @@
                       "content": "VCT Pacific 2026 · Stage 2"
                     },
                     "eonln": {
-                      "content": "–",
+                      "content": "—",
                       "fill": "$muted"
                     },
                     "p0Ls9": {
@@ -22618,8 +22682,11 @@
             "b5WYXc": {
               "content": ""
             },
+            "X6QLQs": {
+              "enabled": false
+            },
             "MD8Qn": {
-              "fill": "$on-panel-muted",
+              "fill": "$on-panel",
               "icon": "star"
             }
           }
@@ -22779,7 +22846,7 @@
               "content": "MaKo"
             },
             "t5IV96": {
-              "content": "대한민국"
+              "content": "SOUTH KOREA · KR"
             }
           }
         },
@@ -23155,7 +23222,11 @@
               "content": "Rb"
             },
             "t5IV96": {
-              "content": "Goo Sang-min · 대한민국"
+              "content": "Goo Sang-min · SOUTH KOREA · KR"
+            },
+            "XIHe2": {
+              "enabled": true,
+              "content": "Rbb"
             }
           }
         },
@@ -23542,7 +23613,7 @@
                       "content": "VCT Pacific 2026 · Stage 2"
                     },
                     "eonln": {
-                      "content": "–",
+                      "content": "—",
                       "fill": "$muted"
                     },
                     "p0Ls9": {
@@ -23650,7 +23721,11 @@
               "content": "Rb"
             },
             "t5IV96": {
-              "content": "Goo Sang-min · 대한민국"
+              "content": "Goo Sang-min · SOUTH KOREA · KR"
+            },
+            "XIHe2": {
+              "enabled": true,
+              "content": "Rbb"
             }
           }
         },
@@ -24037,7 +24112,7 @@
                       "content": "VCT Pacific 2026 · Stage 2"
                     },
                     "eonln": {
-                      "content": "–",
+                      "content": "—",
                       "fill": "$muted"
                     },
                     "p0Ls9": {
@@ -26775,7 +26850,11 @@
               "content": "Rb"
             },
             "t5IV96": {
-              "content": "Goo Sang-min · 대한민국"
+              "content": "Goo Sang-min · SOUTH KOREA · KR"
+            },
+            "XIHe2": {
+              "enabled": true,
+              "content": "Rbb"
             }
           }
         },
@@ -27163,7 +27242,7 @@
                       "content": "VCT Pacific 2026 · Stage 2"
                     },
                     "eonln": {
-                      "content": "–",
+                      "content": "—",
                       "fill": "$muted"
                     },
                     "p0Ls9": {

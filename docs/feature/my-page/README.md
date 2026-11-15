@@ -1,6 +1,6 @@
 # MyPage
 
-MyPage는 앱의 기본 root이며 기기에 저장한 Team·Player 즐겨찾기를 다시 찾고 해제하는 화면이다. 구현과 자동화 검증은 완료됐고 v3 화면(`.pen` `30`)을 적용했다(2026-11-12). Android 기기 시각 확인은 했고, TalkBack·VoiceOver와 iOS 시각 확인은 남아 있다. 공통 즐겨찾기 계약은 [Feature Guide](../README.md#즐겨찾기-계약)를 따른다.
+MyPage는 앱의 기본 root이며 기기에 저장한 Team·Player 즐겨찾기를 다시 찾고 해제하는 화면이다. 구현과 자동화 검증은 완료됐고 v3 화면(`.pen` `30`)을 적용했다(2026-11-12). Android 에뮬레이터와 iOS simulator 화면 확인은 했고(2026-11-12), 실기기 확인은 남아 있다. 접근성 상세 확인은 사용자 결정으로 가벼운 범위만 한다. 공통 즐겨찾기 계약은 [Feature Guide](../README.md#즐겨찾기-계약)를 따른다.
 
 ## MVP 범위
 
@@ -60,4 +60,4 @@ MyPage 목록과 persistence는 앱이 소유하며 전용 서버 API는 없다.
 - [x] 제거는 대상만 숨기고 실패 시 최신 snapshot 기준으로 rollback하며 이미 사라진 대상을 복원하지 않는다.
 - [x] 360dp에서 inset, app bar, minimum target과 긴 문자열 배치를 자동 검증한다. 320·360·411dp와 글꼴 2배에서 타일 글자가 잘리지 않는지도 검증한다.
 - [x] Team·Player 이외의 개인화 섹션을 표시하지 않는다.
-- [ ] 실기기 screenshot·접근성 검증을 완료한다. Android 에뮬레이터 화면(411dp, 글꼴 2배)은 확인했고(2026-11-12), TalkBack·VoiceOver와 iOS 화면은 남아 있다.
+- [ ] 실기기 screenshot·기본 접근성 확인을 완료한다. Android 에뮬레이터(411dp, 글꼴 2배)와 iOS simulator 화면은 확인했고(2026-11-12), 실기기 확인은 남아 있다.
