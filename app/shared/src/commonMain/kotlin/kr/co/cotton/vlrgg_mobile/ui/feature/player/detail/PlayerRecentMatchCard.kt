@@ -40,14 +40,14 @@ internal fun PlayerRecentMatchCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
+    val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
     Column(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = VlrDimensions.MinimumTouchTarget)
             .testTag(playerRecentMatchCardTag(match.id))
             .clip(shape)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape)
+            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
             .semantics { contentDescription = "경기 상세: ${match.eventName}" }
             .clickable(role = Role.Button, onClick = onClick)
             .padding(VlrDimensions.Space3),
@@ -68,8 +68,8 @@ internal fun PlayerRecentMatchCard(
             ) {
                 Text(
                     text = match.eventName,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                     textAlign = TextAlign.End,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -77,8 +77,8 @@ internal fun PlayerRecentMatchCard(
                 match.metadataLabel()?.let { metadata ->
                     Text(
                         text = metadata,
-                        style = VlrTheme.typography.labelSmall,
-                        color = VlrTheme.colors.textSecondary,
+                        style = VlrTheme.typography.label,
+                        color = VlrTheme.colors.muted,
                         textAlign = TextAlign.End,
                     )
                 }
@@ -97,8 +97,8 @@ internal fun PlayerRecentMatchCard(
             Text(
                 text = "${match.teamAScore ?: "—"} - ${match.teamBScore ?: "—"}",
                 modifier = Modifier.testTag(playerMatchScoreTag(match.id)),
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.body,
+                color = VlrTheme.colors.ink,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.width(VlrDimensions.Space2))
@@ -121,8 +121,8 @@ private fun TeamNameAndTag(
     Text(
         text = label,
         modifier = modifier,
-        style = VlrTheme.typography.bodyStrong,
-        color = VlrTheme.colors.textPrimary,
+        style = VlrTheme.typography.body,
+        color = VlrTheme.colors.ink,
         textAlign = textAlign,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

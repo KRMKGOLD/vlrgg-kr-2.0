@@ -65,14 +65,14 @@ internal fun MatchContentItem(
     testTag: String,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
+    val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
     Column(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = VlrDimensions.MinimumTouchTarget)
             .testTag(testTag)
             .clip(shape)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape)
+            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
             .semantics {
                 contentDescription = "경기 상세: ${item.homeTeamName} 대 ${item.awayTeamName}"
                 item.stateDescription?.let { description -> stateDescription = description }
@@ -94,11 +94,11 @@ internal fun MatchContentItem(
                 text = item.scoreLabel,
                 modifier = item.scoreTestTag?.let { scoreTestTag -> Modifier.testTag(scoreTestTag) } ?: Modifier,
                 style = when (item.scoreStyle) {
-                    MatchContentItemScoreStyle.LABEL -> VlrTheme.typography.label
-                    MatchContentItemScoreStyle.BODY_STRONG -> VlrTheme.typography.bodyStrong
+                    MatchContentItemScoreStyle.LABEL -> VlrTheme.typography.meta
+                    MatchContentItemScoreStyle.BODY_STRONG -> VlrTheme.typography.body
                     MatchContentItemScoreStyle.DISPLAY -> VlrTheme.typography.display
                 },
-                color = VlrTheme.colors.textPrimary,
+                color = VlrTheme.colors.ink,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -122,9 +122,9 @@ private fun MatchContentItemMetadata(item: MatchContentItemModel) {
         Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1)) {
             when (val leading = item.leadingContent) {
                 is MatchContentItemLeading.Time -> {
-                    Text(leading.timeLabel, style = VlrTheme.typography.label, color = VlrTheme.colors.textSecondary)
+                    Text(leading.timeLabel, style = VlrTheme.typography.meta, color = VlrTheme.colors.muted)
                     leading.relativeTimeLabel?.let { relativeTimeLabel ->
-                        Text(relativeTimeLabel, style = VlrTheme.typography.labelSmall, color = VlrTheme.colors.textSecondary)
+                        Text(relativeTimeLabel, style = VlrTheme.typography.label, color = VlrTheme.colors.muted)
                     }
                 }
 
@@ -141,8 +141,8 @@ private fun MatchContentItemMetadata(item: MatchContentItemModel) {
             item.eventName?.let { eventName ->
                 Text(
                     text = eventName,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -150,8 +150,8 @@ private fun MatchContentItemMetadata(item: MatchContentItemModel) {
             item.eventSeries?.let { eventSeries ->
                 Text(
                     text = eventSeries,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -169,8 +169,8 @@ private fun TeamName(
     Text(
         text = name,
         modifier = modifier,
-        style = VlrTheme.typography.bodyStrong,
-        color = VlrTheme.colors.textPrimary,
+        style = VlrTheme.typography.body,
+        color = VlrTheme.colors.ink,
         textAlign = textAlign,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

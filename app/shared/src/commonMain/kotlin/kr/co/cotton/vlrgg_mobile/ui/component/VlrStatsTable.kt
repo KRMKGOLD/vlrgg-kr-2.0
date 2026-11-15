@@ -116,9 +116,9 @@ internal fun <T, K : Any> VlrStatsTable(
     metricValueTestTag: ((T, K) -> String)? = null,
 ) {
     val displayedRows = if (onSortColumn == null) rows else stableSortedRows(rows, columns, sort)
-    val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
+    val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
     val tableModifier = modifier
-        .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape)
+        .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
         .clip(shape)
         .background(VlrTheme.colors.surface)
 
@@ -139,7 +139,7 @@ internal fun <T, K : Any> VlrStatsTable(
                 )
             }
             items(displayedRows, key = rowKey) { row ->
-                HorizontalDivider(color = VlrTheme.colors.outline)
+                HorizontalDivider(color = VlrTheme.colors.line)
                 StatsValueRow(
                     row,
                     identityText,
@@ -173,7 +173,7 @@ internal fun <T, K : Any> VlrStatsTable(
             )
             displayedRows.forEach { row ->
                 key(rowKey(row)) {
-                    HorizontalDivider(color = VlrTheme.colors.outline)
+                    HorizontalDivider(color = VlrTheme.colors.line)
                     StatsValueRow(
                         row,
                         identityText,
@@ -212,7 +212,7 @@ private fun <T, K : Any> StatsHeaderRow(
         modifier = Modifier.fillMaxHeight().fillMaxWidth().padding(horizontal = VlrDimensions.Space4),
         contentAlignment = Alignment.CenterStart,
     ) {
-        Text(identityHeader, style = textStyle, color = VlrTheme.colors.textSecondary)
+        Text(identityHeader, style = textStyle, color = VlrTheme.colors.muted)
     }
 }) {
     columns.forEach { column ->
@@ -249,7 +249,7 @@ private fun <T, K : Any> StatsHeaderRow(
                         null -> ""
                     },
                     style = textStyle,
-                    color = VlrTheme.colors.textSecondary,
+                    color = VlrTheme.colors.muted,
                     textAlign = column.textAlign,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -288,9 +288,9 @@ private fun <T, K : Any> StatsValueRow(
                 .padding(horizontal = VlrDimensions.Space4),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         ) {
-            Text(identity, style = identityTextStyle, color = VlrTheme.colors.textPrimary)
+            Text(identity, style = identityTextStyle, color = VlrTheme.colors.ink)
             identitySupportingText(row)?.let {
-                Text(it, style = VlrTheme.typography.labelSmall, color = VlrTheme.colors.textSecondary)
+                Text(it, style = VlrTheme.typography.label, color = VlrTheme.colors.muted)
             }
         }
     }) {
@@ -310,7 +310,7 @@ private fun <T, K : Any> StatsValueRow(
                     Text(
                         text = value,
                         style = valueTextStyle,
-                        color = VlrTheme.colors.textPrimary,
+                        color = VlrTheme.colors.ink,
                         textAlign = column.textAlign,
                         modifier = Modifier.fillMaxWidth(),
                     )

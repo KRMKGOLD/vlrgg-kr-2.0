@@ -39,7 +39,7 @@ internal fun TeamMatchCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(VlrDimensions.CardCornerRadius)
+    val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
     val fallbackStatus = when (section) {
         TeamMatchSection.Upcoming -> "예정"
         TeamMatchSection.Recent -> "종료"
@@ -55,7 +55,7 @@ internal fun TeamMatchCard(
             .heightIn(min = 48.dp)
             .testTag(teamMatchCardTag(match.id))
             .clip(shape)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape)
+            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
             .semantics {
                 contentDescription = "경기 상세: ${match.teamName} 대 ${match.opponentName}"
             }
@@ -76,8 +76,8 @@ internal fun TeamMatchCard(
                 Text(
                     text = scheduledAtText,
                     modifier = Modifier.weight(1f),
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                 )
             }
             Column(
@@ -88,16 +88,16 @@ internal fun TeamMatchCard(
                 match.eventName?.takeIf(String::isNotBlank)?.let { eventName ->
                     Text(
                         text = eventName,
-                        style = VlrTheme.typography.labelSmall,
-                        color = VlrTheme.colors.textSecondary,
+                        style = VlrTheme.typography.label,
+                        color = VlrTheme.colors.muted,
                         textAlign = TextAlign.End,
                     )
                 }
                 match.eventStage?.takeIf(String::isNotBlank)?.let { eventStage ->
                     Text(
                         text = eventStage,
-                        style = VlrTheme.typography.labelSmall,
-                        color = VlrTheme.colors.textSecondary,
+                        style = VlrTheme.typography.label,
+                        color = VlrTheme.colors.muted,
                         textAlign = TextAlign.End,
                     )
                 }
@@ -112,20 +112,20 @@ internal fun TeamMatchCard(
             Text(
                 text = match.teamName,
                 modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.body,
+                color = VlrTheme.colors.ink,
             )
             Text(
                 text = "VS",
-                style = VlrTheme.typography.label,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.meta,
+                color = VlrTheme.colors.muted,
                 textAlign = TextAlign.Center,
             )
             Text(
                 text = match.opponentName,
                 modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.body,
+                color = VlrTheme.colors.ink,
                 textAlign = TextAlign.End,
             )
         }

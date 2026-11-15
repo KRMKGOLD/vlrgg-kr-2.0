@@ -196,8 +196,8 @@ private fun RootContent(
                     Text(
                         text = destination.destinationDescriptor.title,
                         modifier = Modifier.weight(1f),
-                        style = VlrTheme.typography.pageTitle,
-                        color = VlrTheme.colors.textPrimary,
+                        style = VlrTheme.typography.title,
+                        color = VlrTheme.colors.ink,
                     )
                     VlrIconButton(
                         contentDescription = "검색",
@@ -212,7 +212,7 @@ private fun RootContent(
                 }
                 HorizontalDivider(
                     thickness = VlrDimensions.OutlineWidth,
-                    color = VlrTheme.colors.outline,
+                    color = VlrTheme.colors.line,
                 )
             }
         },

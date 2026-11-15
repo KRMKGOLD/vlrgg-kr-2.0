@@ -94,7 +94,7 @@ fun VlrButton(
     val isPressed = interactionSource.collectIsPressedAsState().value
     val isFocused = interactionSource.collectIsFocusedAsState().value
     val visual = buttonVisuals(variant, isPressed, colors)
-    val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
+    val shape = RoundedCornerShape(VlrDimensions.ButtonCornerRadius)
     val state = VlrButtonState(enabled = enabled, isLoading = isLoading)
 
     Box(
@@ -148,7 +148,7 @@ fun VlrButton(
                             Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { it() }
                             androidx.compose.foundation.layout.Spacer(Modifier.size(VlrDimensions.Space2))
                         }
-                        Text(text = text, style = typography.label)
+                        Text(text = text, style = typography.meta)
                     }
                     if (state.showsProgress) {
                         CircularProgressIndicator(
@@ -177,7 +177,7 @@ fun VlrIconButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed = interactionSource.collectIsPressedAsState().value
     val isFocused = interactionSource.collectIsFocusedAsState().value
-    val container = if (isPressed) colors.surfaceSubtle else Color.Transparent
+    val container = if (isPressed) colors.canvas else Color.Transparent
     val state = VlrButtonState(enabled = enabled, isLoading = isLoading)
 
     Box(
@@ -209,11 +209,11 @@ fun VlrIconButton(
                     .then(if (enabled) Modifier else Modifier.alpha(0.5f)),
                 contentAlignment = Alignment.Center,
             ) {
-                CompositionLocalProvider(LocalContentColor provides colors.actionPrimary) {
+                CompositionLocalProvider(LocalContentColor provides colors.accent) {
                     if (isLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = colors.actionPrimary,
+                            color = colors.accent,
                             strokeWidth = 2.dp,
                         )
                     } else {
@@ -236,7 +236,7 @@ private fun FocusOutline(
         modifier = Modifier
             .border(
                 VlrDimensions.FocusOutlineWidth,
-                if (isFocused) colors.focusOutline else Color.Transparent,
+                if (isFocused) colors.focus else Color.Transparent,
                 shape,
             )
             .padding(VlrDimensions.FocusOutlineWidth),
@@ -259,20 +259,20 @@ private fun buttonVisuals(
     VlrButtonVariant.Primary,
     VlrButtonVariant.Destructive,
     -> ButtonVisuals(
-        container = if (isPressed) colors.actionPrimaryPressed else colors.actionPrimary,
-        content = colors.onActionPrimary,
+        container = if (isPressed) colors.accentPressed else colors.accent,
+        content = colors.onPanel,
         border = null,
     )
 
     VlrButtonVariant.Secondary -> ButtonVisuals(
-        container = if (isPressed) colors.surfaceSubtle else colors.surface,
-        content = colors.actionPrimary,
-        border = colors.outline,
+        container = if (isPressed) colors.canvas else colors.surface,
+        content = colors.accent,
+        border = colors.line,
     )
 
     VlrButtonVariant.Text -> ButtonVisuals(
-        container = if (isPressed) colors.surfaceSubtle else Color.Transparent,
-        content = colors.actionPrimary,
+        container = if (isPressed) colors.canvas else Color.Transparent,
+        content = colors.accent,
         border = null,
     )
 }

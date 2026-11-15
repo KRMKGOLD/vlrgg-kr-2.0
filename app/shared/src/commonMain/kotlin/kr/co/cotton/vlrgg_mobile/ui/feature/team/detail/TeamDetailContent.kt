@@ -62,11 +62,11 @@ import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_match
-import vlrggmobile.app.shared.generated.resources.ic_news
+import vlrggmobile.app.shared.generated.resources.ic_scoreboard
+import vlrggmobile.app.shared.generated.resources.ic_newspaper
 import vlrggmobile.app.shared.generated.resources.ic_person
-import vlrggmobile.app.shared.generated.resources.ic_star_filled
-import vlrggmobile.app.shared.generated.resources.ic_star_outline
+import vlrggmobile.app.shared.generated.resources.ic_star_fill
+import vlrggmobile.app.shared.generated.resources.ic_star
 import kotlin.time.Duration.Companion.ZERO
 
 internal const val TEAM_DETAIL_LOADING_TAG = "team-detail-loading"
@@ -224,8 +224,8 @@ private fun TeamDetailTopBar(
             Text(
                 text = "Team Detail",
                 modifier = Modifier.align(Alignment.Center),
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.title,
+                color = VlrTheme.colors.ink,
             )
             if (favorite.isRestored) {
                 VlrIconButton(
@@ -245,13 +245,13 @@ private fun TeamDetailTopBar(
                     icon = {
                         Icon(
                             imageVector = vectorResource(
-                                if (favorite.isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star_outline,
+                                if (favorite.isFavorite) Res.drawable.ic_star_fill else Res.drawable.ic_star,
                             ),
                             contentDescription = null,
                             tint = if (favorite.isFavorite) {
-                                VlrTheme.colors.actionPrimary
+                                VlrTheme.colors.accent
                             } else {
-                                VlrTheme.colors.textPrimary
+                                VlrTheme.colors.ink
                             },
                         )
                     },
@@ -260,7 +260,7 @@ private fun TeamDetailTopBar(
         }
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }
@@ -330,7 +330,7 @@ private fun LazyListScope.divider(key: String) {
     item(key = key) {
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }
@@ -360,8 +360,8 @@ private fun TeamHeader(
             modifier = Modifier
                 .size(96.dp)
                 .clip(CircleShape)
-                .background(VlrTheme.colors.surfaceSubtle)
-                .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, CircleShape),
+                .background(VlrTheme.colors.canvas)
+                .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             if (imageUrl != null && !imageFailed) {
@@ -379,7 +379,7 @@ private fun TeamHeader(
                     text = team.tag?.takeIf(String::isNotBlank) ?: team.name.stableInitials(),
                     modifier = Modifier.testTag(teamHeaderLogoPlaceholderTag(team.id)),
                     style = VlrTheme.typography.display,
-                    color = VlrTheme.colors.textBrand,
+                    color = VlrTheme.colors.ink,
                 )
             }
         }
@@ -387,15 +387,15 @@ private fun TeamHeader(
         Text(
             text = team.name,
             style = VlrTheme.typography.display,
-            color = VlrTheme.colors.textPrimary,
+            color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
         if (metadata.isNotEmpty()) {
             Spacer(Modifier.height(VlrDimensions.Space1))
             Text(
                 text = metadata,
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.bodySm,
+                color = VlrTheme.colors.muted,
                 textAlign = TextAlign.Center,
             )
         }
@@ -428,7 +428,7 @@ private fun TeamMatchesSection(
         if (matches.isEmpty()) {
             SectionEmpty(
                 message = emptyMessage,
-                icon = Res.drawable.ic_match,
+                icon = Res.drawable.ic_scoreboard,
             )
         } else {
             matches.forEach { match ->
@@ -503,8 +503,8 @@ private fun RosterGroupTitle(title: String) {
     Text(
         text = title,
         modifier = Modifier.padding(horizontal = VlrDimensions.Space4),
-        style = VlrTheme.typography.label,
-        color = VlrTheme.colors.textSecondary,
+        style = VlrTheme.typography.meta,
+        color = VlrTheme.colors.muted,
     )
     Spacer(Modifier.height(VlrDimensions.Space2))
 }
@@ -543,7 +543,7 @@ private fun TeamRosterRow(
             modifier = Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(VlrTheme.colors.surfaceSubtle),
+                .background(VlrTheme.colors.canvas),
             contentAlignment = Alignment.Center,
         ) {
             if (imageUrl != null && !imageFailed) {
@@ -560,8 +560,8 @@ private fun TeamRosterRow(
                 Text(
                     text = member.handle.firstOrNull()?.uppercaseChar()?.toString().orEmpty(),
                     modifier = Modifier.testTag(teamRosterImagePlaceholderTag(member.id)),
-                    style = VlrTheme.typography.label,
-                    color = VlrTheme.colors.textBrand,
+                    style = VlrTheme.typography.meta,
+                    color = VlrTheme.colors.ink,
                 )
             }
         }
@@ -571,29 +571,29 @@ private fun TeamRosterRow(
         ) {
             Text(
                 text = member.handle,
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.body,
+                color = VlrTheme.colors.ink,
             )
             member.realName?.takeIf(String::isNotBlank)?.let { realName ->
                 Text(
                     text = realName,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                 )
             }
         }
         member.roleLabels.takeIf { it.isNotEmpty() }?.joinToString(" · ")?.let { roles ->
             Text(
                 text = roles,
-                style = VlrTheme.typography.labelSmall,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.label,
+                color = VlrTheme.colors.muted,
                 textAlign = TextAlign.End,
             )
         }
     }
     HorizontalDivider(
         thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.outline,
+        color = VlrTheme.colors.line,
     )
 }
 
@@ -616,7 +616,7 @@ private fun TeamNewsSection(
         if (news.isEmpty()) {
             SectionEmpty(
                 message = "관련 뉴스가 없습니다",
-                icon = Res.drawable.ic_news,
+                icon = Res.drawable.ic_newspaper,
                 modifier = Modifier.padding(horizontal = VlrDimensions.Space4),
             )
         } else {
@@ -650,21 +650,21 @@ private fun TeamNewsRow(
     ) {
         Text(
             text = news.title,
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
         )
         news.publishedDateText?.takeIf(String::isNotBlank)?.let { publishedDateText ->
             Text(
                 text = publishedDateText,
                 modifier = Modifier.testTag(teamNewsPublishedDateTag(news.articleId, news.slug)),
-                style = VlrTheme.typography.labelSmall,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.label,
+                color = VlrTheme.colors.muted,
             )
         }
     }
     HorizontalDivider(
         thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.outline,
+        color = VlrTheme.colors.line,
     )
 }
 
@@ -676,8 +676,8 @@ private fun SectionTitle(
     Text(
         text = title,
         modifier = modifier.semantics { heading() },
-        style = VlrTheme.typography.sectionTitle,
-        color = VlrTheme.colors.textPrimary,
+        style = VlrTheme.typography.section,
+        color = VlrTheme.colors.ink,
     )
 }
 
@@ -698,13 +698,13 @@ private fun SectionEmpty(
             imageVector = vectorResource(icon),
             contentDescription = null,
             modifier = Modifier.size(48.dp),
-            tint = VlrTheme.colors.outline,
+            tint = VlrTheme.colors.line,
         )
         Spacer(Modifier.height(VlrDimensions.Space2))
         Text(
             text = message,
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.bodySm,
+            color = VlrTheme.colors.muted,
             textAlign = TextAlign.Center,
         )
     }
@@ -721,8 +721,8 @@ private fun InlineEmpty(message: String) {
     ) {
         Text(
             text = message,
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.bodySm,
+            color = VlrTheme.colors.muted,
         )
     }
 }
@@ -773,14 +773,14 @@ private fun TeamDetailLoading(
                 Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
                     Text(
                         text = "선수",
-                        style = VlrTheme.typography.label,
-                        color = VlrTheme.colors.textSecondary,
+                        style = VlrTheme.typography.meta,
+                        color = VlrTheme.colors.muted,
                     )
                     repeat(2) { LoadingRosterRow() }
                     Text(
                         text = "스태프",
-                        style = VlrTheme.typography.label,
-                        color = VlrTheme.colors.textSecondary,
+                        style = VlrTheme.typography.meta,
+                        color = VlrTheme.colors.muted,
                     )
                     LoadingRosterRow()
                 }
@@ -826,7 +826,7 @@ private fun LoadingMatchCard(shape: RoundedCornerShape) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape)
+            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
             .padding(VlrDimensions.Space3),
         verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
     ) {
@@ -889,29 +889,29 @@ private fun TeamDetailErrorDialog(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(VlrTheme.colors.surfaceSelected),
+                    .background(VlrTheme.colors.accentSoft),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_error),
                     contentDescription = null,
-                    tint = VlrTheme.colors.actionPrimary,
+                    tint = VlrTheme.colors.accent,
                 )
             }
         },
         title = {
             Text(
                 text = "정보를 불러오지 못했습니다",
-                style = VlrTheme.typography.sectionTitle,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.section,
+                color = VlrTheme.colors.ink,
                 textAlign = TextAlign.Center,
             )
         },
         text = {
             Text(
                 text = "네트워크 상태를 확인하고 다시 시도해 주세요.",
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.bodySm,
+                color = VlrTheme.colors.muted,
                 textAlign = TextAlign.Center,
             )
         },

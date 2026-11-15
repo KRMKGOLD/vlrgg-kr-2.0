@@ -57,7 +57,7 @@ import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
 import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_news
+import vlrggmobile.app.shared.generated.resources.ic_newspaper
 
 @Composable
 fun NewsDetailContent(
@@ -140,7 +140,7 @@ private fun NewsDetailTopBar(
         }
         HorizontalDivider(
             thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }
@@ -199,7 +199,7 @@ private fun NewsArticleHeader(
         Text(
             text = article.title,
             style = VlrTheme.typography.display,
-            color = VlrTheme.colors.textPrimary,
+            color = VlrTheme.colors.ink,
         )
         Spacer(Modifier.height(VlrDimensions.Space3))
         // 게시 시각이 길어지거나 font scale이 커지면 다음 줄로 넘겨 잘리지 않게 한다.
@@ -208,25 +208,25 @@ private fun NewsArticleHeader(
         ) {
             Text(
                 text = "작성자: ${article.author}",
-                style = VlrTheme.typography.labelSmall,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.label,
+                color = VlrTheme.colors.muted,
             )
             Text(
                 text = " · ",
-                style = VlrTheme.typography.labelSmall,
-                color = VlrTheme.colors.outline,
+                style = VlrTheme.typography.label,
+                color = VlrTheme.colors.line,
             )
             Text(
                 text = article.publishedLabel(timeZone),
-                style = VlrTheme.typography.labelSmall,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.label,
+                color = VlrTheme.colors.muted,
             )
         }
         if (showDivider) {
             Spacer(Modifier.height(VlrDimensions.Space3))
             HorizontalDivider(
                 thickness = VlrDimensions.OutlineWidth,
-                color = VlrTheme.colors.outline,
+                color = VlrTheme.colors.line,
             )
         } else {
             Spacer(Modifier.height(VlrDimensions.Space6))
@@ -257,18 +257,18 @@ private fun NewsArticleBlockContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(192.dp)
-                    .clip(RoundedCornerShape(VlrDimensions.DefaultCornerRadius))
+                    .clip(RoundedCornerShape(VlrDimensions.CornerRadius))
                     .border(
                         width = VlrDimensions.OutlineWidth,
-                        color = VlrTheme.colors.outline,
-                        shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius),
+                        color = VlrTheme.colors.line,
+                        shape = RoundedCornerShape(VlrDimensions.CornerRadius),
                     ),
             )
             block.caption?.let { caption ->
                 Text(
                     text = caption,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -287,8 +287,8 @@ private fun NewsArticleBlockContent(
                 ) {
                     Text(
                         text = newsDetailListMarker(ordered = block.ordered, index = index),
-                        style = VlrTheme.typography.body,
-                        color = VlrTheme.colors.actionPrimary,
+                        style = VlrTheme.typography.bodySm,
+                        color = VlrTheme.colors.accent,
                         modifier = Modifier.width(VlrDimensions.Space6),
                     )
                     InlineArticleText(
@@ -315,10 +315,10 @@ private fun InlineArticleText(
             content = content,
             onTeamClick = onTeamClick,
             onPlayerClick = onPlayerClick,
-            linkColor = VlrTheme.colors.actionPrimary,
+            linkColor = VlrTheme.colors.accent,
         ),
-        style = VlrTheme.typography.body,
-        color = VlrTheme.colors.textPrimary,
+        style = VlrTheme.typography.bodySm,
+        color = VlrTheme.colors.ink,
         modifier = modifier,
     )
 }
@@ -340,23 +340,23 @@ private fun NewsArticleEmpty(
             verticalArrangement = Arrangement.Center,
         ) {
             Icon(
-                imageVector = vectorResource(Res.drawable.ic_news),
+                imageVector = vectorResource(Res.drawable.ic_newspaper),
                 contentDescription = null,
                 modifier = Modifier.size(48.dp),
-                tint = VlrTheme.colors.outline,
+                tint = VlrTheme.colors.line,
             )
             Spacer(Modifier.height(VlrDimensions.Space3))
             Text(
                 text = "기사 내용을 불러올 수 없습니다.",
-                style = VlrTheme.typography.sectionTitle,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.section,
+                color = VlrTheme.colors.ink,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(VlrDimensions.Space1))
             Text(
                 text = "본문 내용이 비어 있거나 유효하지 않습니다.",
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textSecondary,
+                style = VlrTheme.typography.bodySm,
+                color = VlrTheme.colors.muted,
                 textAlign = TextAlign.Center,
             )
         }
@@ -384,12 +384,12 @@ private fun NewsDetailError(
                     imageVector = vectorResource(Res.drawable.ic_error),
                     contentDescription = null,
                     modifier = Modifier.size(48.dp),
-                    tint = VlrTheme.colors.outline,
+                    tint = VlrTheme.colors.line,
                 )
                 Text(
                     text = "기사 내용을 불러올 수 없습니다.",
-                    style = VlrTheme.typography.body,
-                    color = VlrTheme.colors.textPrimary,
+                    style = VlrTheme.typography.bodySm,
+                    color = VlrTheme.colors.ink,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -447,7 +447,7 @@ private fun NewsDetailSkeleton(
                 }
                 HorizontalDivider(
                     thickness = VlrDimensions.OutlineWidth,
-                    color = VlrTheme.colors.outline,
+                    color = VlrTheme.colors.line,
                     modifier = Modifier.padding(vertical = VlrDimensions.Space3),
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
@@ -469,8 +469,8 @@ private fun NewsDetailSkeleton(
                         .fillMaxWidth()
                         .border(
                             width = VlrDimensions.OutlineWidth,
-                            color = VlrTheme.colors.outline,
-                            shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius),
+                            color = VlrTheme.colors.line,
+                            shape = RoundedCornerShape(VlrDimensions.CornerRadius),
                         )
                         .padding(VlrDimensions.Space4),
                     verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),

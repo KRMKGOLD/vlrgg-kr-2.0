@@ -86,9 +86,9 @@ internal fun searchFieldOutline(
     val hasError = !errorMessage.isNullOrBlank()
     return VlrSearchFieldOutline(
         color = when {
-            hasError -> colors.actionPrimary
-            isFocused -> colors.focusOutline
-            else -> colors.outline
+            hasError -> colors.accent
+            isFocused -> colors.focus
+            else -> colors.line
         },
         width = if (hasError || isFocused) {
             VlrDimensions.FocusOutlineWidth
@@ -133,11 +133,11 @@ fun VlrSearchField(
     val shape = when (variant) {
         VlrSearchFieldVariant.Standard -> androidx.compose.foundation.shape.CircleShape
         VlrSearchFieldVariant.Compact -> androidx.compose.foundation.shape.RoundedCornerShape(
-            VlrDimensions.DefaultCornerRadius,
+            VlrDimensions.CornerRadius,
         )
     }
     val container = when (variant) {
-        VlrSearchFieldVariant.Standard -> colors.surfaceSubtle
+        VlrSearchFieldVariant.Standard -> colors.canvas
         VlrSearchFieldVariant.Compact -> colors.surface
     }
     val outline = searchFieldOutline(isFocused, errorMessage, colors)
@@ -171,8 +171,8 @@ fun VlrSearchField(
                 },
             enabled = state.enabled,
             singleLine = true,
-            textStyle = typography.body.copy(color = colors.textPrimary),
-            cursorBrush = SolidColor(colors.actionPrimary),
+            textStyle = typography.bodySm.copy(color = colors.ink),
+            cursorBrush = SolidColor(colors.accent),
             keyboardOptions = KeyboardOptions(imeAction = state.imeAction),
             keyboardActions = KeyboardActions(onSearch = { submitSearch(state.value, onSearch) }),
             interactionSource = interactionSource,
@@ -196,7 +196,7 @@ fun VlrSearchField(
                             .padding(horizontal = VlrDimensions.Space3),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        CompositionLocalProvider(LocalContentColor provides colors.textSecondary) {
+                        CompositionLocalProvider(LocalContentColor provides colors.muted) {
                             SearchGlyph(modifier = Modifier.size(24.dp))
                         }
                         Spacer(Modifier.width(VlrDimensions.Space2))
@@ -207,8 +207,8 @@ fun VlrSearchField(
                             if (value.isEmpty()) {
                                 Text(
                                     text = placeholder,
-                                    color = colors.textSecondary,
-                                    style = typography.body,
+                                    color = colors.muted,
+                                    style = typography.bodySm,
                                 )
                             }
                             innerTextField()
@@ -216,7 +216,7 @@ fun VlrSearchField(
                         when {
                             state.isLoading -> CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
-                                color = colors.actionPrimary,
+                                color = colors.accent,
                                 strokeWidth = 2.dp,
                             )
 
@@ -236,8 +236,8 @@ fun VlrSearchField(
                     start = VlrDimensions.Space3,
                     top = VlrDimensions.Space1,
                 ),
-                color = colors.actionPrimary,
-                style = typography.labelSmall,
+                color = colors.accent,
+                style = typography.label,
             )
         }
     }
@@ -255,7 +255,7 @@ private fun Modifier.outsideOutline(
         val radius = if (variant.isPill) {
             outlineHeight / 2f
         } else {
-            VlrDimensions.DefaultCornerRadius.toPx() + halfStroke
+            VlrDimensions.CornerRadius.toPx() + halfStroke
         }
         drawRoundRect(
             color = color,
@@ -279,7 +279,7 @@ private fun ClearSearchButton(
             .clickable(role = Role.Button, onClick = onClear),
         contentAlignment = Alignment.Center,
     ) {
-        CompositionLocalProvider(LocalContentColor provides colors.textSecondary) {
+        CompositionLocalProvider(LocalContentColor provides colors.muted) {
             ClearGlyph(modifier = Modifier.size(20.dp))
         }
     }

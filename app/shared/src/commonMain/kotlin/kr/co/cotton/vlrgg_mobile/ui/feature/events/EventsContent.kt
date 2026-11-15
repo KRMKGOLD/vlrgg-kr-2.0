@@ -173,8 +173,8 @@ private fun LazyListScope.sectionHeading(
                 top = if (isFirst) VlrDimensions.Space4 else VlrDimensions.Space6,
                 bottom = VlrDimensions.Space2,
             ),
-            style = VlrTheme.typography.sectionTitle,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.section,
+            color = VlrTheme.colors.muted,
         )
     }
 }
@@ -195,8 +195,8 @@ private fun EventsTopBar(onSearch: () -> Unit) {
             Text(
                 text = "Events",
                 modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.title,
+                color = VlrTheme.colors.ink,
             )
             VlrIconButton(
                 contentDescription = "검색",
@@ -212,7 +212,7 @@ private fun EventsTopBar(onSearch: () -> Unit) {
         HorizontalDivider(
             modifier = Modifier.align(Alignment.BottomCenter),
             thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
+            color = VlrTheme.colors.line,
         )
     }
 }
@@ -223,7 +223,7 @@ private fun EventListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val imageShape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
+    val imageShape = RoundedCornerShape(VlrDimensions.CornerRadius)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -249,15 +249,15 @@ private fun EventListItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = event.name,
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.body,
+                color = VlrTheme.colors.ink,
             )
             event.metadataLabel()?.let { metadata ->
                 Spacer(Modifier.height(VlrDimensions.Space1))
                 Text(
                     text = metadata,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.label,
+                    color = VlrTheme.colors.muted,
                 )
             }
         }
@@ -270,7 +270,7 @@ private fun EventListItem(
     }
     HorizontalDivider(
         thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.outline,
+        color = VlrTheme.colors.line,
     )
 }
 
@@ -284,12 +284,12 @@ private fun EmptySectionRow() {
                 horizontal = VlrDimensions.Space4,
                 vertical = VlrDimensions.Space3,
             ),
-        style = VlrTheme.typography.body,
-        color = VlrTheme.colors.textSecondary,
+        style = VlrTheme.typography.bodySm,
+        color = VlrTheme.colors.muted,
     )
     HorizontalDivider(
         thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.outline,
+        color = VlrTheme.colors.line,
     )
 }
 
@@ -368,7 +368,7 @@ private fun EventsSkeletonRow() {
     }
     HorizontalDivider(
         thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.outline,
+        color = VlrTheme.colors.line,
     )
 }
 
@@ -380,8 +380,8 @@ private fun EventsEmptyState(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = "표시할 이벤트가 없어요.",
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
     }
@@ -403,14 +403,14 @@ private fun EventsErrorState(
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .background(VlrTheme.colors.surfaceSubtle, CircleShape),
+                    .background(VlrTheme.colors.canvas, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = vectorResource(Res.drawable.ic_error),
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = VlrTheme.colors.textSecondary,
+                    tint = VlrTheme.colors.muted,
                 )
             }
             Column(
@@ -419,14 +419,14 @@ private fun EventsErrorState(
             ) {
                 Text(
                     text = "이벤트를 불러오지 못했습니다.",
-                    style = VlrTheme.typography.sectionTitle,
-                    color = VlrTheme.colors.textPrimary,
+                    style = VlrTheme.typography.section,
+                    color = VlrTheme.colors.ink,
                     textAlign = TextAlign.Center,
                 )
                 Text(
                     text = "네트워크 상태를 확인하고 다시 시도해 주세요.",
-                    style = VlrTheme.typography.body,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.bodySm,
+                    color = VlrTheme.colors.muted,
                     textAlign = TextAlign.Center,
                 )
             }

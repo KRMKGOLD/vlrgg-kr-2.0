@@ -124,7 +124,7 @@ fun NewsContent(
                             )
                             HorizontalDivider(
                                 thickness = VlrDimensions.OutlineWidth,
-                                color = VlrTheme.colors.outline,
+                                color = VlrTheme.colors.line,
                             )
                         }
 
@@ -152,8 +152,8 @@ private fun NewsTopBar(
         title = {
             Text(
                 text = "News",
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.title,
+                color = VlrTheme.colors.ink,
             )
         },
         actions = {
@@ -188,8 +188,8 @@ private fun NewsStateMessage(
     ) {
         Text(
             text = message,
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
         actionText?.let { text ->
@@ -217,7 +217,7 @@ private fun NewsPaginationFooter(
         when {
             isLoading -> CircularProgressIndicator(
                 modifier = Modifier.size(24.dp),
-                color = VlrTheme.colors.actionPrimary,
+                color = VlrTheme.colors.accent,
                 strokeWidth = 2.dp,
             )
 
@@ -227,8 +227,8 @@ private fun NewsPaginationFooter(
             ) {
                 Text(
                     text = "뉴스 소식을 더 불러오지 못했습니다.",
-                    style = VlrTheme.typography.body,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.bodySm,
+                    color = VlrTheme.colors.muted,
                     textAlign = TextAlign.Center,
                 )
                 VlrButton(

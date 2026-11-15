@@ -77,8 +77,8 @@ internal fun OpenSourceLicensesContent(
             ) {
                 Text(
                     text = "오픈소스 라이선스 정보를 불러올 수 없습니다.",
-                    style = VlrTheme.typography.body,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.bodySm,
+                    color = VlrTheme.colors.muted,
                 )
             }
         } else if (uiState.libraries == null) {
@@ -91,7 +91,7 @@ internal fun OpenSourceLicensesContent(
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
-                    color = VlrTheme.colors.actionPrimary,
+                    color = VlrTheme.colors.accent,
                     strokeWidth = 2.dp,
                 )
             }
@@ -120,10 +120,10 @@ private fun OpenSourceLicensesTopBar(onBack: () -> Unit) {
             Text(
                 text = OPEN_SOURCE_LICENSES_TITLE,
                 modifier = Modifier.align(Alignment.Center).semantics { heading() },
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.title,
+                color = VlrTheme.colors.ink,
             )
         }
-        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
+        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.line)
     }
 }

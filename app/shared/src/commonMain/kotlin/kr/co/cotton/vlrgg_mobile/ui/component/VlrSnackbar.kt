@@ -40,9 +40,9 @@ internal fun VlrSnackbar(
             modifier = snackbarModifier
                 .widthIn(max = VlrDimensions.SnackbarMaxWidth)
                 .fillMaxWidth(),
-            containerColor = VlrTheme.colors.inverseSurface,
-            contentColor = VlrTheme.colors.inverseOnSurface,
-            actionContentColor = VlrTheme.colors.inversePrimary,
+            containerColor = VlrTheme.colors.panel,
+            contentColor = VlrTheme.colors.onPanel,
+            actionContentColor = VlrTheme.colors.onPanelAccent,
             action = action?.let { snackbarAction ->
                 {
                     TextButton(
@@ -51,7 +51,7 @@ internal fun VlrSnackbar(
                             .widthIn(min = VlrDimensions.MinimumTouchTarget)
                             .heightIn(min = VlrDimensions.MinimumTouchTarget),
                         colors = ButtonDefaults.textButtonColors(
-                            contentColor = VlrTheme.colors.inversePrimary,
+                            contentColor = VlrTheme.colors.onPanelAccent,
                         ),
                     ) {
                         Text(snackbarAction.label)

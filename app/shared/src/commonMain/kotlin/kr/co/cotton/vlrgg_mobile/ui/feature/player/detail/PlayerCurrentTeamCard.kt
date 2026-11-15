@@ -40,15 +40,15 @@ internal fun PlayerCurrentTeamCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
+    val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = VlrDimensions.MinimumTouchTarget)
             .testTag(playerCurrentTeamCardTag(team.id))
             .clip(shape)
-            .background(VlrTheme.colors.surfaceSubtle, shape)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape)
+            .background(VlrTheme.colors.canvas, shape)
+            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
             .semantics { contentDescription = "팀 상세: ${team.name}" }
             .clickable(role = Role.Button, onClick = onClick)
             .padding(VlrDimensions.Space3),
@@ -59,16 +59,16 @@ internal fun PlayerCurrentTeamCard(
         Text(
             text = team.name,
             modifier = Modifier.weight(1f),
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.width(VlrDimensions.Space2))
         Text(
             text = "›",
-            style = VlrTheme.typography.sectionTitle,
-            color = VlrTheme.colors.textSecondary,
+            style = VlrTheme.typography.section,
+            color = VlrTheme.colors.muted,
             textAlign = TextAlign.Center,
         )
     }
@@ -76,13 +76,13 @@ internal fun PlayerCurrentTeamCard(
 
 @Composable
 private fun TeamLogoFrame(team: PlayerCurrentTeam) {
-    val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
+    val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
     Box(
         modifier = Modifier
             .size(48.dp)
             .clip(shape)
             .background(VlrTheme.colors.surface)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape),
+            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape),
         contentAlignment = Alignment.Center,
     ) {
         val imageUrl = team.imageUrl?.takeIf(String::isNotBlank)
@@ -97,8 +97,8 @@ private fun TeamLogoFrame(team: PlayerCurrentTeam) {
             Text(
                 text = team.name.stableTeamPlaceholder(),
                 modifier = Modifier.testTag(playerTeamLogoPlaceholderTag(team.id)),
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textBrand,
+                style = VlrTheme.typography.body,
+                color = VlrTheme.colors.ink,
             )
         }
     }

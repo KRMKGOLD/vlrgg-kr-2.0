@@ -197,8 +197,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
                 top = VlrDimensions.Space2,
                 bottom = VlrDimensions.Space2,
             ),
-            style = VlrTheme.typography.sectionTitle,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.section,
+            color = VlrTheme.colors.ink,
         )
     }
     items(
@@ -223,8 +223,8 @@ private fun MatchesTopBar(onSearch: () -> Unit) {
         title = {
             Text(
                 text = "Matches",
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
+                style = VlrTheme.typography.title,
+                color = VlrTheme.colors.ink,
             )
         },
         actions = {
@@ -250,7 +250,7 @@ private fun MatchesTabs(
     selectedTab: MatchesTab,
     onSelectTab: (MatchesTab) -> Unit,
 ) {
-    val controlShape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
+    val controlShape = RoundedCornerShape(VlrDimensions.CornerRadius)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -259,9 +259,9 @@ private fun MatchesTabs(
                 vertical = VlrDimensions.Space3,
             )
             .testTag(MATCHES_TABS_TAG)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, controlShape)
+            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, controlShape)
             .clip(controlShape)
-            .background(VlrTheme.colors.surfaceSubtle)
+            .background(VlrTheme.colors.canvas)
             .padding(2.dp),
     ) {
         MatchesTab.entries.forEach { tab ->
@@ -279,7 +279,7 @@ private fun MatchesTabs(
                                 .background(VlrTheme.colors.surface)
                                 .border(
                                     VlrDimensions.OutlineWidth,
-                                    VlrTheme.colors.outline,
+                                    VlrTheme.colors.line,
                                     tabShape,
                                 )
                         } else {
@@ -295,11 +295,11 @@ private fun MatchesTabs(
             ) {
                 Text(
                     text = tab.label(),
-                    style = VlrTheme.typography.label,
+                    style = VlrTheme.typography.meta,
                     color = if (selected) {
-                        VlrTheme.colors.actionPrimary
+                        VlrTheme.colors.accent
                     } else {
-                        VlrTheme.colors.textSecondary
+                        VlrTheme.colors.muted
                     },
                 )
             }
@@ -322,8 +322,8 @@ private fun MatchesStateMessage(
     ) {
         Text(
             text = message,
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
+            style = VlrTheme.typography.body,
+            color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
         actionText?.let { text ->
@@ -355,7 +355,7 @@ private fun MatchesPaginationFooter(
                 modifier = Modifier
                     .size(24.dp)
                     .testTag(MATCHES_PAGINATION_LOADING_TAG),
-                color = VlrTheme.colors.actionPrimary,
+                color = VlrTheme.colors.accent,
                 strokeWidth = 2.dp,
             )
 
@@ -365,8 +365,8 @@ private fun MatchesPaginationFooter(
             ) {
                 Text(
                     text = "경기를 더 불러오지 못했습니다.",
-                    style = VlrTheme.typography.body,
-                    color = VlrTheme.colors.textSecondary,
+                    style = VlrTheme.typography.bodySm,
+                    color = VlrTheme.colors.muted,
                     textAlign = TextAlign.Center,
                 )
                 VlrButton(
