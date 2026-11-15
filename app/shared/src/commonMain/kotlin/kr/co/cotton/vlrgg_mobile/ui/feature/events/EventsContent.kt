@@ -1,40 +1,22 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.events
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
-import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
-import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
@@ -45,6 +27,9 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_trophy
+import kr.co.cotton.vlrgg_mobile.ui.component.IdentityRow
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
 
 internal const val EVENTS_LOADING_TAG = "events-loading"
 internal const val EVENTS_REFRESHING_TAG = "events-refreshing"
@@ -173,54 +158,12 @@ private fun EventListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val imageShape = RoundedCornerShape(VlrDimensions.CornerRadius)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = VlrDimensions.MinimumTouchTarget)
-            .testTag(eventRowTag(event.id))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space3,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        event.imageUrl?.let { imageUrl ->
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(imageShape),
-            )
-            Spacer(Modifier.width(VlrDimensions.Space3))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = event.name,
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.ink,
-            )
-            event.metadataLabel()?.let { metadata ->
-                Spacer(Modifier.height(VlrDimensions.Space1))
-                Text(
-                    text = metadata,
-                    style = VlrTheme.typography.label,
-                    color = VlrTheme.colors.muted,
-                )
-            }
-        }
-        Spacer(Modifier.width(VlrDimensions.Space2))
-        StatusChip(
-            status = event.status.toChipStatus(),
-            label = event.status.label(),
-            modifier = Modifier.align(Alignment.Top),
-        )
-    }
-    HorizontalDivider(
-        thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.line,
+    IdentityRow(
+        title = event.name,
+        meta = event.metadataLabel(),
+        leading = { LogoSlot(imageUrl = event.imageUrl, kind = LogoSlotKind.Event) },
+        onClick = onClick,
+        modifier = modifier.testTag(eventRowTag(event.id)),
     )
 }
 
@@ -295,20 +238,13 @@ private fun EventsErrorState(
     )
 }
 
-private fun EventSummary.metadataLabel(): String? = listOfNotNull(dateLabel, regionCode)
-    .takeIf { it.isNotEmpty() }
-    ?.joinToString(" · ")
+/**
+ * Group headers carry the status. Only `중단` is spelled out, because it shares the
+ * `Completed / Paused` group with finished events.
+ */
+private fun EventSummary.metadataLabel(): String? =
+    listOfNotNull(PausedLabel.takeIf { status == EventStatus.PAUSED }, dateLabel, regionCode)
+        .takeIf { it.isNotEmpty() }
+        ?.joinToString(" · ")
 
-private fun EventStatus.toChipStatus(): StatusChipStatus = when (this) {
-    EventStatus.ONGOING -> StatusChipStatus.InProgress
-    EventStatus.UPCOMING -> StatusChipStatus.Upcoming
-    EventStatus.COMPLETED -> StatusChipStatus.Completed
-    EventStatus.PAUSED -> StatusChipStatus.Postponed
-}
-
-private fun EventStatus.label(): String = when (this) {
-    EventStatus.ONGOING -> "진행 중"
-    EventStatus.UPCOMING -> "예정"
-    EventStatus.COMPLETED -> "종료"
-    EventStatus.PAUSED -> "중단"
-}
+private const val PausedLabel = "중단"

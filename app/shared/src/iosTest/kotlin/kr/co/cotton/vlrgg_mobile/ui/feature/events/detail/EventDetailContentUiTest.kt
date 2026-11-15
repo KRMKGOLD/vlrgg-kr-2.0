@@ -33,6 +33,21 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TestTimeSource
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.v2.runSkikoComposeUiTest
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import kotlin.test.assertTrue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.swipeDown
 
 @OptIn(ExperimentalTestApi::class)
 class EventDetailContentUiTest {
@@ -201,9 +216,105 @@ class EventDetailContentUiTest {
         assertEquals(1, retries)
     }
 
+    @Test
+    fun tallHeroAtDoubleFontOnAShortScreenKeepsTabsAndTabContentReachable() =
+        runSkikoComposeUiTest(size = Size(360f, 480f)) {
+            val selectedTabs = mutableListOf<EventDetailTab>()
+            val longDescription = List(12) { "Part of the Valorant Champions Tour official circuit." }.joinToString(" ")
+            setContent {
+                CompositionLocalProvider(
+                    LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f),
+                ) {
+                    Fixture(
+                        uiState = populatedState.copy(
+                            identity = EventIdentityContentState.Content(
+                                event.copy(
+                                    name = "VCT 2027: EMEA Kickoff - Türkiye Qualifier",
+                                    description = longDescription,
+                                ),
+                            ),
+                        ),
+                        onSelectTab = { selectedTabs += it },
+                    )
+                }
+            }
+
+            // The description stays within three lines instead of growing the hero without bound.
+            val descriptionLayouts = mutableListOf<TextLayoutResult>()
+            onNodeWithText(longDescription, useUnmergedTree = true).fetchSemanticsNode()
+                .config[SemanticsActions.GetTextLayoutResult].action?.invoke(descriptionLayouts)
+            assertTrue(descriptionLayouts.first().lineCount <= 3)
+
+            // The hero scrolls away, so both the tabs and the selected tab content can be reached.
+            onNodeWithTag(eventDetailTabTag(EventDetailTab.STATS)).performScrollTo().assertIsDisplayed().performClick()
+            assertEquals(listOf(EventDetailTab.STATS), selectedTabs)
+            repeat(2) { onRoot().performTouchInput { swipeUp() } }
+            onNodeWithTag(matchCardTag(match.id)).assertIsDisplayed()
+        }
+
+    @Test
+    fun draggingTheTabListCollapsesTheHeroBeforeTheListScrolls() =
+        runSkikoComposeUiTest(size = Size(360f, 640f)) {
+            val matches = (1..30).map { match.copy(id = "match-$it") }
+            setContent {
+                Fixture(uiState = populatedState.copy(matches = EventMatchesContentState.Content(matches)))
+            }
+
+            val tabsTopBefore = onNodeWithTag(eventDetailTabTag(EventDetailTab.MATCHES)).fetchSemanticsNode().boundsInRoot.top
+            onNodeWithTag(matchCardTag("match-2")).performTouchInput { swipeUp(startY = bottom - 10f, endY = top) }
+            waitForIdle()
+            val tabsTopAfter = onNodeWithTag(eventDetailTabTag(EventDetailTab.MATCHES)).fetchSemanticsNode().boundsInRoot.top
+            assertTrue(tabsTopAfter < tabsTopBefore, "Hero did not collapse: $tabsTopBefore -> $tabsTopAfter")
+            // The tabs stop at the top of the content area instead of scrolling out with the hero.
+            assertTrue(tabsTopAfter >= 0f, "Tabs scrolled out of view: $tabsTopAfter")
+        }
+
+    @Test
+    fun eachTabRestoresItsOwnHeroCollapseAndListPositionAfterSwitchingTabs() =
+        runSkikoComposeUiTest(size = Size(360f, 640f)) {
+            val matches = (1..30).map { match.copy(id = "match-$it") }
+            val newsItems = (1..30).map { news.copy(articleId = "${200 + it}", slug = "news-$it", title = "News $it") }
+            var state by mutableStateOf(
+                populatedState.copy(
+                    matches = EventMatchesContentState.Content(matches),
+                    news = EventNewsContentState.Content(newsItems),
+                ),
+            )
+            setContent {
+                Fixture(uiState = state, onSelectTab = { state = state.copy(selectedTab = it) })
+            }
+            fun tabsTop() = onNodeWithTag(eventDetailTabTag(EventDetailTab.MATCHES)).fetchSemanticsNode().boundsInRoot.top
+            fun firstVisibleMatch() = matches.firstNotNullOf { item ->
+                onAllNodesWithTag(matchCardTag(item.id)).fetchSemanticsNodes()
+                    .firstOrNull { it.boundsInRoot.top >= tabsTop() }
+                    ?.let { item.id to it.boundsInRoot.top }
+            }
+            val expandedTabsTop = tabsTop()
+
+            // Matches: collapse the hero and scroll the list.
+            repeat(3) { onRoot().performTouchInput { swipeUp(startY = bottom - 20f, endY = centerY) } }
+            waitForIdle()
+            val collapsedTabsTop = tabsTop()
+            val (matchId, matchTop) = firstVisibleMatch()
+            assertTrue(collapsedTabsTop < expandedTabsTop, "Hero did not collapse on the matches tab")
+            assertTrue(matchId != matches.first().id, "Matches list did not scroll")
+
+            // News keeps its own hero, and expanding it there must not leak back into matches.
+            onNodeWithTag(eventDetailTabTag(EventDetailTab.NEWS)).performClick()
+            repeat(2) { onRoot().performTouchInput { swipeDown(startY = centerY, endY = bottom - 20f) } }
+            waitForIdle()
+            assertEquals(expandedTabsTop, tabsTop(), 1f)
+
+            onNodeWithTag(eventDetailTabTag(EventDetailTab.MATCHES)).performClick()
+            waitForIdle()
+            assertEquals(collapsedTabsTop, tabsTop(), 1f)
+            assertEquals(matchTop, onNodeWithTag(matchCardTag(matchId)).fetchSemanticsNode().boundsInRoot.top, 1f)
+        }
+
     @androidx.compose.runtime.Composable
     private fun Fixture(
         uiState: EventDetailUiState,
+        onSelectTab: (EventDetailTab) -> Unit = {},
         onMatchClick: (String) -> Unit = {},
         onNewsClick: (String, String) -> Unit = { _, _ -> },
         onPlayerClick: (String) -> Unit = {},
@@ -219,7 +330,7 @@ class EventDetailContentUiTest {
                 statsListState = rememberLazyListState(),
                 statsHorizontalScrollState = rememberScrollState(),
                 onBack = {},
-                onSelectTab = {},
+                onSelectTab = onSelectTab,
                 onMatchClick = onMatchClick,
                 onNewsClick = onNewsClick,
                 onPlayerClick = onPlayerClick,

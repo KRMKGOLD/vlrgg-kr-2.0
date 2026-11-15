@@ -18,7 +18,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
@@ -28,7 +27,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Density
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
@@ -37,6 +35,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.test.assertTouchHeightIsEqualTo
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 
 @OptIn(ExperimentalTestApi::class)
 class VlrStatsTableUiTest {
@@ -61,12 +65,6 @@ class VlrStatsTableUiTest {
                         rowSemanticsLabel = "player",
                         columns = columns,
                         horizontalScrollState = firstScroll,
-                        identityWidth = 132.dp,
-                        headerMinHeight = 56.dp,
-                        rowMinHeight = 56.dp,
-                        identityTextStyle = VlrTheme.typography.body,
-                        headerTextStyle = VlrTheme.typography.meta,
-                        valueTextStyle = VlrTheme.typography.meta,
                         modifier = Modifier.width(360.dp).testTag("sortable-table"),
                         sort = sort,
                         onSortColumn = {
@@ -86,12 +84,6 @@ class VlrStatsTableUiTest {
                         rowSemanticsLabel = "agent",
                         columns = columns,
                         horizontalScrollState = secondScroll,
-                        identityWidth = 120.dp,
-                        headerMinHeight = 56.dp,
-                        rowMinHeight = 52.dp,
-                        identityTextStyle = VlrTheme.typography.body,
-                        headerTextStyle = VlrTheme.typography.meta,
-                        valueTextStyle = VlrTheme.typography.meta,
                         modifier = Modifier.width(360.dp).testTag("display-table"),
                         sort = StatsSort(Metric.VALUE, StatsSortDirection.DESCENDING),
                         onSortColumn = null,
@@ -107,7 +99,8 @@ class VlrStatsTableUiTest {
         val displayHeader = onNodeWithTag("display-header-VALUE").fetchSemanticsNode().config
         assertFalse(displayHeader.contains(SemanticsActions.OnClick))
         assertFalse(displayHeader.contains(SemanticsProperties.StateDescription))
-        onNodeWithText("Value ↓").assertDoesNotExist()
+        // Neither table shows a direction yet: the display table has no sort affordance at all.
+        onAllNodesWithTag(StatsSortIconTag, useUnmergedTree = true).assertCountEquals(0)
         assertEquals(0, sortableClicks)
         assertEquals(20, sortableScroll)
         assertEquals(0, displayScroll)
@@ -116,8 +109,13 @@ class VlrStatsTableUiTest {
                 onNodeWithTag("display-ten").fetchSemanticsNode().boundsInRoot.top,
         )
 
-        onNodeWithTag("sortable-header-VALUE").assertHeightIsAtLeast(48.dp).performClick()
+        onNodeWithTag("sortable-header-VALUE")
+            .assertHeightIsEqualTo(40.dp)
+            .assertTouchHeightIsEqualTo(48.dp)
+            .assertHasClickAction()
+            .performClick()
         assertEquals(1, sortableClicks)
+        onAllNodesWithTag(StatsSortIconTag, useUnmergedTree = true).assertCountEquals(1)
         assertEquals("내림차순", onNodeWithTag("sortable-header-VALUE").fetchSemanticsNode().config[SemanticsProperties.StateDescription])
         assertTrue(
             onNodeWithTag("sortable-ten").fetchSemanticsNode().boundsInRoot.top <
@@ -126,7 +124,7 @@ class VlrStatsTableUiTest {
         val headerLeft = onNodeWithTag("sortable-header-VALUE").fetchSemanticsNode().boundsInRoot.left
         assertEquals(headerLeft, onNodeWithTag("sortable-ten-VALUE").fetchSemanticsNode().boundsInRoot.left)
         assertEquals(headerLeft, onNodeWithTag("sortable-two-VALUE").fetchSemanticsNode().boundsInRoot.left)
-        onNodeWithTag("sortable-ten").assertWidthIsEqualTo(132.dp).performClick()
+        onNodeWithTag("sortable-ten").assertWidthIsEqualTo(120.dp).performClick()
         assertEquals(1, identityClicks)
         assertFalse(onNodeWithTag("display-two").fetchSemanticsNode().config.contains(SemanticsActions.OnClick))
     }
@@ -148,12 +146,6 @@ class VlrStatsTableUiTest {
                         rowSemanticsLabel = "player",
                         columns = columns,
                         horizontalScrollState = rememberScrollState(),
-                        identityWidth = 132.dp,
-                        headerMinHeight = 56.dp,
-                        rowMinHeight = 56.dp,
-                        identityTextStyle = VlrTheme.typography.body,
-                        headerTextStyle = VlrTheme.typography.meta,
-                        valueTextStyle = VlrTheme.typography.meta,
                         modifier = Modifier.width(360.dp).testTag("common-360-long-table"),
                         metricHeaderTestTag = { "header-${it.name}" },
                         metricValueTestTag = { row, metric -> "value-${row.id}-${metric.name}" },
@@ -187,12 +179,6 @@ class VlrStatsTableUiTest {
                         rowSemanticsLabel = "player",
                         columns = columns,
                         horizontalScrollState = rememberScrollState(),
-                        identityWidth = 132.dp,
-                        headerMinHeight = 56.dp,
-                        rowMinHeight = 56.dp,
-                        identityTextStyle = VlrTheme.typography.body,
-                        headerTextStyle = VlrTheme.typography.meta,
-                        valueTextStyle = VlrTheme.typography.meta,
                         modifier = Modifier.width(360.dp).height(260.dp),
                         lazyListState = rememberLazyListState(),
                         identityTestTag = { "identity-${it.id}" },
@@ -205,15 +191,55 @@ class VlrStatsTableUiTest {
         onNodeWithTag("identity-row-30").assertExists()
     }
 
+    @Test
+    fun scrollHintAppearsOnlyWhileMetricsOverflowAndMissingValuesStayReadable() = runComposeUiTest {
+        initializeVlrMaterial3()
+        setContent {
+            VlrTheme {
+                Column {
+                    VlrStatsTable(
+                        rows = listOf(Row("gekko", "Gekko", null)),
+                        rowKey = Row::id,
+                        identityHeader = "Agent",
+                        identityText = Row::name,
+                        rowSemanticsLabel = "agent",
+                        columns = columns,
+                        horizontalScrollState = rememberScrollState(),
+                        modifier = Modifier.width(360.dp).testTag("overflowing-table"),
+                        metricValueTestTag = { row, metric -> "overflow-${row.id}-${metric.name}" },
+                    )
+                    VlrStatsTable(
+                        rows = listOf(Row("raze", "Raze", 1.0)),
+                        rowKey = Row::id,
+                        identityHeader = "Agent",
+                        identityText = Row::name,
+                        rowSemanticsLabel = "agent",
+                        columns = columns.take(1),
+                        horizontalScrollState = rememberScrollState(),
+                        modifier = Modifier.width(360.dp).testTag("fitting-table"),
+                    )
+                }
+            }
+        }
+
+        onAllNodesWithText(StatsScrollHint).assertCountEquals(1)
+        val hintTop = onNodeWithText(StatsScrollHint).fetchSemanticsNode().boundsInRoot.top
+        val overflowingBottom = onNodeWithTag("overflow-gekko-VALUE").fetchSemanticsNode().boundsInRoot.bottom
+        val fittingTop = onNodeWithTag("fitting-table").fetchSemanticsNode().boundsInRoot.top
+        assertTrue(hintTop >= overflowingBottom && hintTop < fittingTop)
+        onNodeWithContentDescription("Gekko, Value, —").assertExists()
+        onNodeWithTag("overflow-gekko-VALUE").assertHeightIsEqualTo(52.dp)
+    }
+
     private data class Row(val id: String, val name: String, val value: Double?)
     private enum class Metric { VALUE, MISSING, EXTRA }
 
     private companion object {
         val rows = listOf(Row("two", "Two", 2.0), Row("ten", "Ten", 10.0))
         val columns = listOf(
-            StatsColumn<Row, Metric>(Metric.VALUE, "Value", 84.dp, TextAlign.Center, { it.value?.toString() ?: "—" }, Row::value),
-            StatsColumn<Row, Metric>(Metric.MISSING, "A very long metric header", 84.dp, TextAlign.Center, { "—" }, { null }),
-            StatsColumn<Row, Metric>(Metric.EXTRA, "Extra", 84.dp, TextAlign.Center, { "999999999999999999" }, { 999999999999999999.0 }),
+            StatsColumn<Row, Metric>(Metric.VALUE, "Value", { it.value?.toString() ?: "—" }, Row::value, 90.dp),
+            StatsColumn<Row, Metric>(Metric.MISSING, "A very long metric header", { "—" }, { null }, 90.dp),
+            StatsColumn<Row, Metric>(Metric.EXTRA, "Extra", { "999999999999999999" }, { 999999999999999999.0 }, 90.dp),
         )
     }
 }

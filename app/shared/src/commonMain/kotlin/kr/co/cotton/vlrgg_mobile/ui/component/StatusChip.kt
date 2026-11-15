@@ -45,10 +45,6 @@ enum class StatusChipStatus {
 
     /** Version label on light surfaces. */
     Version,
-
-    /** v2 player result chips. Removed when the team match row replaces them (stage 2b). */
-    Loss,
-    Partial,
 }
 
 data class StatusChipColors(
@@ -102,8 +98,6 @@ fun statusChipColors(
 
     StatusChipStatus.Postponed -> StatusChipColors(container = colors.warnSoft, content = colors.warn)
     StatusChipStatus.Version -> StatusChipColors(container = colors.surfaceSunken, content = colors.ink2)
-    StatusChipStatus.Loss -> StatusChipColors(container = colors.accentSoft, content = colors.accentPressed)
-    StatusChipStatus.Partial -> StatusChipColors(container = colors.canvas, content = colors.muted)
 }
 
 internal fun statusChipTextStyle(status: StatusChipStatus, typography: VlrTypeScale): TextStyle = when (status) {

@@ -1,8 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.team.detail
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,11 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.DisposableEffect
@@ -35,21 +31,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
-import kr.co.cotton.vlrgg_mobile.ui.component.DetailHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
@@ -58,12 +49,19 @@ import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.team.detail.components.TeamMatchSection
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.DrawableResource
-import org.jetbrains.compose.resources.vectorResource
-import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_star_fill
-import vlrggmobile.app.shared.generated.resources.ic_star
 import kotlin.time.Duration.Companion.ZERO
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailTopBand
+import kr.co.cotton.vlrgg_mobile.ui.component.EntityHero
+import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteStarIcon
+import kr.co.cotton.vlrgg_mobile.ui.component.IdentityRow
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotDefaults
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotSurface
+import kr.co.cotton.vlrgg_mobile.ui.component.NewsRow
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonHero
+import kr.co.cotton.vlrgg_mobile.ui.component.favoriteStarTint
+import kr.co.cotton.vlrgg_mobile.ui.component.logoInitials
 
 internal const val TEAM_DETAIL_LOADING_TAG = "team-detail-loading"
 internal const val TEAM_DETAIL_HEADER_TAG = "team-detail-header"
@@ -193,16 +191,15 @@ private fun TeamDetailTopBar(
     onBack: () -> Unit,
     onFavoriteToggle: () -> Unit,
 ) {
-    DetailHeader(
+    DetailTopBand(
         onBack = onBack,
-        title = "Team Detail",
         actions = { iconColor ->
             if (favorite.isRestored) {
                 VlrIconButton(
                     contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
                     onClick = onFavoriteToggle,
                     enabled = !favorite.isMutationInProgress,
-                    tint = if (favorite.isFavorite) VlrTheme.colors.accent else iconColor,
+                    tint = favoriteStarTint(favorite.isFavorite, iconColor),
                     modifier = Modifier.testTag(
                         if (favorite.isFavorite) {
                             TEAM_DETAIL_FAVORITE_FILLED_TAG
@@ -210,14 +207,7 @@ private fun TeamDetailTopBar(
                             TEAM_DETAIL_FAVORITE_OUTLINE_TAG
                         },
                     ),
-                    icon = {
-                        Icon(
-                            imageVector = vectorResource(
-                                if (favorite.isFavorite) Res.drawable.ic_star_fill else Res.drawable.ic_star,
-                            ),
-                            contentDescription = null,
-                        )
-                    },
+                    icon = { FavoriteStarIcon(favorite.isFavorite) },
                 )
             }
         },
@@ -240,7 +230,6 @@ private fun TeamDetailBody(
         item(key = "header") {
             TeamHeader(team = team)
         }
-        divider(key = "header-divider")
         item(key = "upcoming") {
             TeamMatchesSection(
                 title = "예정된 경기",
@@ -298,75 +287,28 @@ private fun LazyListScope.divider(key: String) {
 private fun TeamHeader(
     team: TeamDetail,
 ) {
-    val imageUrl = team.logoUrl?.takeIf(String::isNotBlank)
-    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
-    val metadata = listOfNotNull(
-        team.tag?.takeIf(String::isNotBlank),
-        team.country?.takeIf(String::isNotBlank),
-    ).joinToString(" · ")
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(TEAM_DETAIL_HEADER_TAG)
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space6,
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(96.dp)
-                .clip(CircleShape)
-                .background(VlrTheme.colors.canvas)
-                .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (imageUrl != null && !imageFailed) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    onError = { imageFailed = true },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag(teamHeaderLogoTag(team.id)),
-                )
-            } else {
-                Text(
-                    text = team.tag?.takeIf(String::isNotBlank) ?: team.name.stableInitials(),
-                    modifier = Modifier.testTag(teamHeaderLogoPlaceholderTag(team.id)),
-                    style = VlrTheme.typography.display,
-                    color = VlrTheme.colors.ink,
-                )
-            }
-        }
-        Spacer(Modifier.height(VlrDimensions.Space3))
-        Text(
-            text = team.name,
-            style = VlrTheme.typography.display,
-            color = VlrTheme.colors.ink,
-            textAlign = TextAlign.Center,
-        )
-        if (metadata.isNotEmpty()) {
-            Spacer(Modifier.height(VlrDimensions.Space1))
-            Text(
-                text = metadata,
-                style = VlrTheme.typography.bodySm,
-                color = VlrTheme.colors.muted,
-                textAlign = TextAlign.Center,
+    EntityHero(
+        name = team.name,
+        meta = listOfNotNull(
+            listOfNotNull(
+                team.tag?.takeIf(String::isNotBlank),
+                team.country?.takeIf(String::isNotBlank),
+            ).joinToString(" · ").takeIf(String::isNotEmpty),
+        ),
+        modifier = Modifier.testTag(TEAM_DETAIL_HEADER_TAG),
+        logo = {
+            LogoSlot(
+                imageUrl = team.logoUrl,
+                kind = LogoSlotKind.Team,
+                placeholderText = team.tag?.takeIf(String::isNotBlank) ?: logoInitials(team.name),
+                size = LogoSlotDefaults.HeroSize,
+                surface = LogoSlotSurface.Dark,
+                imageTestTag = teamHeaderLogoTag(team.id),
+                placeholderTestTag = teamHeaderLogoPlaceholderTag(team.id),
             )
-        }
-    }
+        },
+    )
 }
-
-private fun String.stableInitials(): String = trim()
-    .split(Regex("\\s+"))
-    .filter(String::isNotEmpty)
-    .take(2)
-    .mapNotNull { word -> word.firstOrNull()?.uppercaseChar() }
-    .joinToString("")
 
 @Composable
 private fun TeamMatchesSection(
@@ -380,13 +322,17 @@ private fun TeamMatchesSection(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(VlrDimensions.Space4),
-        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
+            .padding(top = VlrDimensions.Space4),
     ) {
-        SectionTitle(title)
+        SectionTitle(
+            title = title,
+            modifier = Modifier.padding(horizontal = VlrDimensions.Space4),
+        )
+        Spacer(Modifier.height(VlrDimensions.Space3))
         if (matches.isEmpty()) {
             SectionEmpty(
                 message = emptyMessage,
+                modifier = Modifier.padding(horizontal = VlrDimensions.Space4),
             )
         } else {
             matches.forEach { match ->
@@ -473,84 +419,24 @@ private fun TeamRosterRow(
     contentDescription: String? = null,
     onClick: (() -> Unit)? = null,
 ) {
-    val imageUrl = member.imageUrl?.takeIf(String::isNotBlank)
-    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
-    val interactiveModifier = if (onClick != null && contentDescription != null) {
-        Modifier
-            .semantics { this.contentDescription = contentDescription }
-            .clickable(role = Role.Button, onClick = onClick)
-    } else {
-        Modifier
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .testTag(testTag)
-            .then(interactiveModifier)
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space2,
-            ),
-        horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(VlrTheme.colors.canvas),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (imageUrl != null && !imageFailed) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    onError = { imageFailed = true },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag(teamRosterImageTag(member.id)),
-                )
-            } else {
-                Text(
-                    text = member.handle.firstOrNull()?.uppercaseChar()?.toString().orEmpty(),
-                    modifier = Modifier.testTag(teamRosterImagePlaceholderTag(member.id)),
-                    style = VlrTheme.typography.meta,
-                    color = VlrTheme.colors.ink,
-                )
-            }
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
-        ) {
-            Text(
-                text = member.handle,
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.ink,
+    IdentityRow(
+        title = member.handle,
+        meta = listOfNotNull(
+            member.realName?.takeIf(String::isNotBlank),
+            member.roleLabels.takeIf { it.isNotEmpty() }?.joinToString(" · "),
+        ).joinToString(" · ").takeIf(String::isNotEmpty),
+        leading = {
+            LogoSlot(
+                imageUrl = member.imageUrl,
+                kind = LogoSlotKind.Player,
+                placeholderText = logoInitials(member.handle),
+                imageTestTag = teamRosterImageTag(member.id),
+                placeholderTestTag = teamRosterImagePlaceholderTag(member.id),
             )
-            member.realName?.takeIf(String::isNotBlank)?.let { realName ->
-                Text(
-                    text = realName,
-                    style = VlrTheme.typography.label,
-                    color = VlrTheme.colors.muted,
-                )
-            }
-        }
-        member.roleLabels.takeIf { it.isNotEmpty() }?.joinToString(" · ")?.let { roles ->
-            Text(
-                text = roles,
-                style = VlrTheme.typography.label,
-                color = VlrTheme.colors.muted,
-                textAlign = TextAlign.End,
-            )
-        }
-    }
-    HorizontalDivider(
-        thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.line,
+        },
+        onClick = onClick,
+        contentDescription = contentDescription,
+        modifier = Modifier.testTag(testTag),
     )
 }
 
@@ -591,36 +477,13 @@ private fun TeamNewsRow(
     news: TeamNews,
     onClick: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .testTag(teamNewsRowTag(news.articleId, news.slug))
-            .semantics { contentDescription = "뉴스 상세: ${news.title}" }
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space3,
-            ),
-        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1),
-    ) {
-        Text(
-            text = news.title,
-            style = VlrTheme.typography.body,
-            color = VlrTheme.colors.ink,
-        )
-        news.publishedDateText?.takeIf(String::isNotBlank)?.let { publishedDateText ->
-            Text(
-                text = publishedDateText,
-                modifier = Modifier.testTag(teamNewsPublishedDateTag(news.articleId, news.slug)),
-                style = VlrTheme.typography.label,
-                color = VlrTheme.colors.muted,
-            )
-        }
-    }
-    HorizontalDivider(
-        thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.line,
+    NewsRow(
+        title = news.title,
+        byline = news.publishedDateText,
+        onClick = onClick,
+        contentDescription = "뉴스 상세: ${news.title}",
+        bylineTestTag = teamNewsPublishedDateTag(news.articleId, news.slug),
+        modifier = Modifier.testTag(teamNewsRowTag(news.articleId, news.slug)),
     )
 }
 
@@ -664,19 +527,8 @@ private fun TeamDetailLoading(
             .semantics { contentDescription = "팀 상세를 불러오는 중" },
     ) {
         item(key = "loading-header") {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = VlrDimensions.Space6),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-            ) {
-                SkeletonBox(Modifier.size(96.dp).clip(CircleShape))
-                SkeletonBox(Modifier.size(width = 128.dp, height = 28.dp))
-                SkeletonBox(Modifier.size(width = 96.dp, height = 16.dp))
-            }
+            SkeletonHero()
         }
-        divider(key = "loading-header-divider")
         item(key = "loading-upcoming") {
             LoadingSection(title = "예정된 경기") {
                 LoadingMatchCard(shape = skeletonShape)

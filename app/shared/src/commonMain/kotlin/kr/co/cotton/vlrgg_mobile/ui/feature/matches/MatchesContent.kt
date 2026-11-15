@@ -188,11 +188,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
         MatchCard(
             match = match,
             onClick = { onMatchClick(match.id) },
-            modifier = Modifier.padding(
-                start = VlrDimensions.Space4,
-                end = VlrDimensions.Space4,
-                bottom = VlrDimensions.Space2,
-            ),
         )
     }
 }

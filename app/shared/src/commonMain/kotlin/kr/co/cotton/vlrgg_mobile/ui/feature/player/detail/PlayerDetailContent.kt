@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.player.detail
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,17 +8,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,25 +24,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
-import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerAgentStat
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatch
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
-import kr.co.cotton.vlrgg_mobile.ui.component.DetailHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteFailureSnackbar
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
@@ -55,11 +44,17 @@ import kr.co.cotton.vlrgg_mobile.ui.component.VlrErrorDialog
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
-import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_star_fill
-import vlrggmobile.app.shared.generated.resources.ic_star
 import kotlin.time.Duration.Companion.ZERO
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailTopBand
+import kr.co.cotton.vlrgg_mobile.ui.component.EntityHero
+import kr.co.cotton.vlrgg_mobile.ui.component.FavoriteStarIcon
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotDefaults
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotSurface
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonHero
+import kr.co.cotton.vlrgg_mobile.ui.component.favoriteStarTint
+import kr.co.cotton.vlrgg_mobile.ui.component.logoInitials
 
 internal const val PLAYER_DETAIL_LOADING_TAG = "player-detail-loading"
 internal const val PLAYER_DETAIL_HEADER_TAG = "player-detail-header"
@@ -180,9 +175,8 @@ private fun PlayerDetailTopBar(
     onBack: () -> Unit,
     onFavoriteClick: () -> Unit,
 ) {
-    DetailHeader(
+    DetailTopBand(
         onBack = onBack,
-        title = "Player Profile",
         actions = { iconColor ->
             PlayerFavoriteButton(favorite = favorite, onClick = onFavoriteClick, iconColor = iconColor)
         },
@@ -202,7 +196,7 @@ private fun PlayerFavoriteButton(
         contentDescription = if (favorite.isFavorite) "즐겨찾기 해제" else "즐겨찾기 추가",
         onClick = onClick,
         enabled = !favorite.isMutationInProgress,
-        tint = if (favorite.isFavorite) VlrTheme.colors.accent else iconColor,
+        tint = favoriteStarTint(favorite.isFavorite, iconColor),
         modifier = modifier.testTag(
             if (favorite.isFavorite) {
                 PLAYER_DETAIL_FAVORITE_FILLED_TAG
@@ -210,14 +204,7 @@ private fun PlayerFavoriteButton(
                 PLAYER_DETAIL_FAVORITE_OUTLINE_TAG
             },
         ),
-        icon = {
-            Icon(
-                imageVector = vectorResource(
-                    if (favorite.isFavorite) Res.drawable.ic_star_fill else Res.drawable.ic_star,
-                ),
-                contentDescription = null,
-            )
-        },
+        icon = { FavoriteStarIcon(favorite.isFavorite) },
     )
 }
 
@@ -233,7 +220,6 @@ private fun PlayerDetailBody(
     modifier: Modifier,
 ) = LazyColumn(state = listState, modifier = modifier) {
     item("header") { PlayerHeader(player) }
-    divider("header-divider")
     item("team") { CurrentTeamSection(player, onTeamClick) }
     divider("team-divider")
     item("stats") {
@@ -256,8 +242,6 @@ private fun LazyListScope.divider(key: String) = item(key) {
 @Composable
 private fun PlayerHeader(player: PlayerDetail) {
     val profile = player.profile
-    val imageUrl = profile.imageUrl?.takeIf(String::isNotBlank)
-    var imageFailed by remember(imageUrl) { mutableStateOf(false) }
     val country = listOfNotNull(
         profile.countryName?.takeIf(String::isNotBlank),
         profile.countryCode?.takeIf(String::isNotBlank)?.uppercase(),
@@ -266,38 +250,25 @@ private fun PlayerHeader(player: PlayerDetail) {
         profile.realName?.takeIf(String::isNotBlank),
         country.takeIf(String::isNotEmpty),
     ).joinToString(" · ")
-    Column(
-        Modifier.fillMaxWidth().testTag(PLAYER_DETAIL_HEADER_TAG).padding(VlrDimensions.Space4).semantics { contentDescription = "선수: ${profile.handle}" },
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(Modifier.height(96.dp).width(96.dp).clip(CircleShape).background(VlrTheme.colors.canvas), contentAlignment = Alignment.Center) {
-            if (imageUrl != null && !imageFailed) {
-                AsyncImage(
-                    model = imageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    onError = { imageFailed = true },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag(playerHeaderImageTag(player.id)),
-                )
-            } else {
-                Text(
-                    text = profile.handle.stablePlaceholder(),
-                    modifier = Modifier.testTag(playerHeaderImagePlaceholderTag(player.id)),
-                    style = VlrTheme.typography.display,
-                    color = VlrTheme.colors.ink,
-                )
-            }
-        }
-        Spacer(Modifier.height(VlrDimensions.Space3))
-        Text(profile.handle, style = VlrTheme.typography.display, color = VlrTheme.colors.ink, textAlign = TextAlign.Center)
-        if (metadata.isNotEmpty()) Text(metadata, style = VlrTheme.typography.bodySm, color = VlrTheme.colors.muted, textAlign = TextAlign.Center)
-        if (profile.aliases.isNotEmpty()) Text(profile.aliases.joinToString(" · "), style = VlrTheme.typography.label, color = VlrTheme.colors.muted, textAlign = TextAlign.Center)
-    }
+    EntityHero(
+        name = profile.handle,
+        meta = listOf(metadata, profile.aliases.joinToString(" · ")),
+        modifier = Modifier
+            .testTag(PLAYER_DETAIL_HEADER_TAG)
+            .semantics { contentDescription = "선수: ${profile.handle}" },
+        logo = {
+            LogoSlot(
+                imageUrl = profile.imageUrl,
+                kind = LogoSlotKind.Player,
+                placeholderText = logoInitials(profile.handle),
+                size = LogoSlotDefaults.HeroSize,
+                surface = LogoSlotSurface.Dark,
+                imageTestTag = playerHeaderImageTag(player.id),
+                placeholderTestTag = playerHeaderImagePlaceholderTag(player.id),
+            )
+        },
+    )
 }
-
-private fun String.stablePlaceholder(): String = trim().firstOrNull()?.uppercaseChar()?.toString().orEmpty()
 
 @Composable
 private fun CurrentTeamSection(player: PlayerDetail, onTeamClick: (String) -> Unit) {
@@ -333,7 +304,7 @@ private fun AgentStatsSection(
 private fun RecentMatchesSection(matches: List<PlayerRecentMatch>, onMatchClick: (String) -> Unit) {
     Section(PLAYER_DETAIL_MATCHES_SECTION_TAG, "최근 경기") {
         if (matches.isEmpty()) SectionEmpty("최근 경기 기록이 없습니다")
-        else Column(verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
+        else Column {
             matches.forEach { match ->
                 PlayerRecentMatchCard(match = match, onClick = { onMatchClick(match.id) })
             }
@@ -343,8 +314,13 @@ private fun RecentMatchesSection(matches: List<PlayerRecentMatch>, onMatchClick:
 
 @Composable
 private fun Section(tag: String, title: String, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().testTag(tag).padding(VlrDimensions.Space4)) {
-        Text(title, Modifier.semantics { heading() }, style = VlrTheme.typography.section, color = VlrTheme.colors.ink)
+    Column(Modifier.fillMaxWidth().testTag(tag).padding(top = VlrDimensions.Space4)) {
+        Text(
+            title,
+            Modifier.padding(horizontal = VlrDimensions.Space4).semantics { heading() },
+            style = VlrTheme.typography.section,
+            color = VlrTheme.colors.ink,
+        )
         Spacer(Modifier.height(VlrDimensions.Space3))
         content()
     }
@@ -352,15 +328,14 @@ private fun Section(tag: String, title: String, content: @Composable () -> Unit)
 
 @Composable
 private fun SectionEmpty(message: String) {
-    SectionMessage(message = message, horizontalPadding = 0.dp)
+    SectionMessage(message = message)
 }
 
 @Composable
 private fun PlayerDetailLoading(listState: LazyListState, modifier: Modifier) = LazyColumn(
     state = listState, modifier = modifier.testTag(PLAYER_DETAIL_LOADING_TAG).semantics { contentDescription = "선수 상세를 불러오는 중" },
 ) {
-    item("loading-header") { LoadingHeader() }
-    divider("loading-header-divider")
+    item("loading-header") { SkeletonHero(Modifier.testTag(PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG)) }
     item("loading-team") {
         LoadingSection { LoadingCurrentTeamCard() }
     }
@@ -377,20 +352,6 @@ private fun PlayerDetailLoading(listState: LazyListState, modifier: Modifier) = 
             }
         }
     }
-}
-
-@Composable
-private fun LoadingHeader() = Column(
-    Modifier.fillMaxWidth().padding(VlrDimensions.Space4),
-    horizontalAlignment = Alignment.CenterHorizontally,
-) {
-    Box(
-        Modifier.size(96.dp).testTag(PLAYER_DETAIL_LOADING_HEADER_AVATAR_TAG).clip(CircleShape).background(VlrTheme.colors.canvas),
-    )
-    Spacer(Modifier.height(VlrDimensions.Space3))
-    Skeleton(160.dp, 28.dp)
-    Spacer(Modifier.height(VlrDimensions.Space2))
-    Skeleton(112.dp, 18.dp)
 }
 
 @Composable

@@ -71,6 +71,7 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.Test
+import androidx.compose.ui.test.assert
 
 @OptIn(ExperimentalTestApi::class)
 class TeamDetailNavigationRuntimeUiTest {
@@ -145,7 +146,9 @@ class TeamDetailNavigationRuntimeUiTest {
         onNodeWithTag(PLAYER_DETAIL_HEADER_TAG).assertExists()
         scrollToTag(PLAYER_AGENT_STATS_TABLE_TAG)
         onNodeWithTag(playerAgentMetricHeaderTag("Maps")).performClick()
-        onNodeWithText("Maps ↓").assertExists()
+        onNodeWithTag(playerAgentMetricHeaderTag("Maps")).assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "내림차순"),
+        )
         val initialMapsLeft = onNodeWithTag(playerAgentMetricHeaderTag("Maps"))
             .fetchSemanticsNode().boundsInRoot.left
         onAllNodes(
@@ -165,7 +168,9 @@ class TeamDetailNavigationRuntimeUiTest {
         onNodeWithContentDescription("뒤로 가기").performClick()
         onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).assertIsDisplayed()
         scrollToTag(PLAYER_AGENT_STATS_TABLE_TAG)
-        onNodeWithText("Maps ↓").assertExists()
+        onNodeWithTag(playerAgentMetricHeaderTag("Maps")).assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "내림차순"),
+        )
         kotlin.test.assertEquals(
             sortedScrolledMapsLeft,
             onNodeWithTag(playerAgentMetricHeaderTag("Maps")).fetchSemanticsNode().boundsInRoot.left,
@@ -175,7 +180,9 @@ class TeamDetailNavigationRuntimeUiTest {
         runOnIdle { requireNotNull(navigationState).selectRoot(MyPageRoot) }
         onNodeWithTag(playerMatchCardTag(PLAYER_MATCH_ID)).assertIsDisplayed()
         scrollToTag(PLAYER_AGENT_STATS_TABLE_TAG)
-        onNodeWithText("Maps ↓").assertExists()
+        onNodeWithTag(playerAgentMetricHeaderTag("Maps")).assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "내림차순"),
+        )
         kotlin.test.assertEquals(
             sortedScrolledMapsLeft,
             onNodeWithTag(playerAgentMetricHeaderTag("Maps")).fetchSemanticsNode().boundsInRoot.left,

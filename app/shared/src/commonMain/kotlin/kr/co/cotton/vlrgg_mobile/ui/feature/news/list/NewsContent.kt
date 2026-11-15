@@ -7,10 +7,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -32,6 +30,7 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_newspaper
+import androidx.compose.foundation.lazy.itemsIndexed
 
 internal const val NEWS_INITIAL_RETRY_TAG = "news-initial-retry"
 internal const val NEWS_PAGINATION_RETRY_TAG = "news-pagination-retry"
@@ -110,19 +109,16 @@ fun NewsContent(
                     }
 
                     is NewsListContentState.Content -> {
-                        items(
+                        itemsIndexed(
                             items = contentState.items,
-                            key = { news -> "${news.articleId}/${news.slug}" },
-                        ) { news ->
+                            key = { _, news -> "${news.articleId}/${news.slug}" },
+                        ) { index, news ->
                             NewsListItem(
                                 news = news,
                                 onClick = {
                                     onNewsClick(news.articleId, news.slug)
                                 },
-                            )
-                            HorizontalDivider(
-                                thickness = VlrDimensions.OutlineWidth,
-                                color = VlrTheme.colors.line,
+                                headline = index == 0,
                             )
                         }
 

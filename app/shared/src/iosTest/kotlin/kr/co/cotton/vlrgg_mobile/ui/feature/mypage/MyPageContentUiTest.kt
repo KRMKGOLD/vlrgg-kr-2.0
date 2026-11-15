@@ -264,14 +264,51 @@ class MyPageContentUiTest {
             onNodeWithText(longTeamName).assertExists()
 
             onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(myPagePlayerRowTag(favoritePlayer.id)))
+            // Player favorites are full-width identity rows; the 48dp remove star keeps the 4dp end inset.
             onNodeWithTag(myPagePlayerRowTag(favoritePlayer.id))
-                .assertLeftPositionInRootIsEqualTo(16.dp)
-                .assertWidthIsEqualTo(328.dp)
+                .assertLeftPositionInRootIsEqualTo(0.dp)
+                .assertWidthIsEqualTo(360.dp)
                 .assertHeightIsAtLeast(48.dp)
             onNodeWithContentDescription("$longPlayerHandle 즐겨찾기 해제")
                 .assertHeightIsAtLeast(48.dp)
+                .assertWidthIsEqualTo(48.dp)
+                .assertLeftPositionInRootIsEqualTo(308.dp)
             onNodeWithText(longPlayerHandle).assertExists()
             onNodeWithContentDescription("검색").assertHeightIsAtLeast(48.dp)
+        }
+
+    @Test
+    fun favoritePlayersAreKeyedLazyItemsThatComposeOnlyWhenScrolledIntoView() =
+        runSkikoComposeUiTest(size = Size(360f, 600f)) {
+            val players = (1..40).map { index ->
+                FavoritePlayer(
+                    id = "player-$index",
+                    handle = "Player $index",
+                    realName = null,
+                    countryCode = null,
+                    countryName = null,
+                )
+            }
+            var removed: String? = null
+            setContent {
+                TestContent(
+                    uiState = MyPageUiState(
+                        favoriteTeams = FavoriteSectionState.Empty,
+                        favoritePlayers = FavoriteSectionState.Content(players),
+                    ),
+                    onRemovePlayer = { removed = it },
+                )
+            }
+
+            // Rows below the viewport are not composed until the list reaches them.
+            onNodeWithTag(myPagePlayerRowTag("player-1")).assertExists()
+            onNodeWithTag(myPagePlayerRowTag("player-40")).assertDoesNotExist()
+
+            onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(myPagePlayerRowTag("player-40")))
+            onNodeWithTag(myPagePlayerRowTag("player-40")).assertExists()
+            onNodeWithTag(myPagePlayerRowTag("player-1")).assertDoesNotExist()
+            onNodeWithContentDescription("Player 40 즐겨찾기 해제").performClick()
+            assertEquals("player-40", removed)
         }
 
     @Test

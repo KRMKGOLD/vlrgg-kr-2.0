@@ -6,9 +6,6 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
-import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
-import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemLeading
-import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.toMatchContentItem
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.remainingTimeLabel
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.detail.scheduleLabel
 import kotlin.test.Test
@@ -18,6 +15,8 @@ import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kr.co.cotton.vlrgg_mobile.ui.component.MatchRowStatus
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.toMatchRowModel
 
 class MatchDateTimeLabelTest {
 
@@ -31,31 +30,35 @@ class MatchDateTimeLabelTest {
 
     @Test
     fun upcomingCardUsesKoreanTimeAndRemainingTime() {
-        val leading = summary(time = LocalTime(3, 0), relativeTimeLabel = "1d 1h").leading()
+        val status = summary(time = LocalTime(3, 0), relativeTimeLabel = "1d 1h").rowStatus()
 
-        assertEquals(MatchContentItemLeading.Time(timeLabel = "오전 3:00", relativeTimeLabel = "1일 1시간 후"), leading)
+        assertEquals(MatchRowStatus.Scheduled(time = "오전 3:00", remaining = "1일 1시간 후"), status)
     }
 
     @Test
     fun upcomingCardFallsBackToSourceTimeAndHidesUnknownRelativeTime() {
-        val leading = summary(time = null, relativeTimeLabel = "IN 2 HOURS").leading()
+        val status = summary(time = null, relativeTimeLabel = "IN 2 HOURS").rowStatus()
 
-        assertEquals(MatchContentItemLeading.Time(timeLabel = "3:00 AM", relativeTimeLabel = null), leading)
+        assertEquals(MatchRowStatus.Scheduled(time = "3:00 AM", remaining = null), status)
         assertEquals(
-            MatchContentItemLeading.Time(timeLabel = "TBD", relativeTimeLabel = null),
-            summary(timeLabel = "TBD", time = null, relativeTimeLabel = null).leading(),
+            MatchRowStatus.Scheduled(time = "TBD", remaining = null),
+            summary(timeLabel = "TBD", time = null, relativeTimeLabel = null).rowStatus(),
         )
     }
 
     @Test
     fun nonUpcomingCardsKeepStatusLabelAndNeverShowRelativeTime() {
         assertEquals(
-            MatchContentItemLeading.Status(status = StatusChipStatus.Completed, label = "종료"),
-            summary(status = MatchStatus.COMPLETED, relativeTimeLabel = "10h 43m").leading(),
+            MatchRowStatus.Finished(time = "오전 3:00"),
+            summary(status = MatchStatus.COMPLETED, relativeTimeLabel = "10h 43m").rowStatus(),
         )
         assertEquals(
-            MatchContentItemLeading.Status(status = StatusChipStatus.Live, label = "LIVE"),
-            summary(status = MatchStatus.LIVE, relativeTimeLabel = "22m").leading(),
+            MatchRowStatus.Live,
+            summary(status = MatchStatus.LIVE, relativeTimeLabel = "22m").rowStatus(),
+        )
+        assertEquals(
+            MatchRowStatus.Other(time = "오전 3:00", label = "연기", isWarning = true),
+            summary(status = MatchStatus.POSTPONED, relativeTimeLabel = "22m").rowStatus(),
         )
     }
 
@@ -84,7 +87,7 @@ class MatchDateTimeLabelTest {
         assertNull(detail(relativeTimeLabel = null).remainingTimeLabel())
     }
 
-    private fun MatchSummary.leading() = toMatchContentItem(showEventName = true).leadingContent
+    private fun MatchSummary.rowStatus() = toMatchRowModel(showEventName = true).status
 
     private fun summary(
         status: MatchStatus = MatchStatus.UPCOMING,

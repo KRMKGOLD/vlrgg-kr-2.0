@@ -3,7 +3,6 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.matches
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -33,34 +32,43 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
-import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemScoreStyle
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.matchScoreTag
-import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.toMatchContentItem
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlin.test.assertEquals
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onAllNodesWithText
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kr.co.cotton.vlrgg_mobile.ui.component.matchRowAwayScoreTag
+import kr.co.cotton.vlrgg_mobile.ui.component.matchRowHomeScoreTag
+import kr.co.cotton.vlrgg_mobile.ui.component.showsScores
+import kr.co.cotton.vlrgg_mobile.ui.component.winner
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.toMatchRowModel
 
 @OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class MatchesContentUiTest {
 
     @Test
-    fun matchContentItemAdapterPreservesListScoreTypography() {
-        assertEquals(
-            MatchContentItemScoreStyle.LABEL,
-            upcomingMatch.toMatchContentItem(showEventName = true).scoreStyle,
-        )
-        assertEquals(
-            MatchContentItemScoreStyle.LABEL,
-            completedMatch.copy(homeScore = null, awayScore = null)
-                .toMatchContentItem(showEventName = true)
-                .scoreStyle,
-        )
-        assertEquals(
-            MatchContentItemScoreStyle.DISPLAY,
-            completedMatch.toMatchContentItem(showEventName = true).scoreStyle,
-        )
+    fun matchRowAdapterShowsScoresOnlyOnceAMatchHasThemAndMarksTheWinner() {
+        val liveWithoutScore = upcomingMatch.toMatchRowModel(showEventName = true)
+        assertFalse(liveWithoutScore.showsScores())
+        assertNull(liveWithoutScore.winner())
+
+        val completedWithoutScore = completedMatch.copy(homeScore = null, awayScore = null)
+            .toMatchRowModel(showEventName = true)
+        assertTrue(completedWithoutScore.showsScores())
+        assertNull(completedWithoutScore.winner())
+
+        val completed = completedMatch.toMatchRowModel(showEventName = true)
+        assertTrue(completed.showsScores())
+        assertEquals(completed.home, completed.winner())
+        assertEquals("Valorant Champions 2026 · Playoffs · Upper Final", liveWithoutScore.context)
+        assertEquals("Playoffs · Upper Final", upcomingMatch.toMatchRowModel(showEventName = false).context)
     }
 
     @Test
@@ -179,10 +187,12 @@ class MatchesContentUiTest {
         onNodeWithText("IN 2 HOURS").assertDoesNotExist()
         onNodeWithText("Paper Rex").assertIsDisplayed()
         onNodeWithText("Gen.G").assertIsDisplayed()
-        onNodeWithText("Valorant Champions 2026").assertIsDisplayed()
-        onNodeWithText("Playoffs · Upper Final").assertIsDisplayed()
-        onNodeWithText("VS").assertIsDisplayed()
-        onNodeWithTag(matchScoreTag(upcomingMatch.id), useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithText("Valorant Champions 2026 · Playoffs · Upper Final").assertIsDisplayed()
+        // A live match without a source score shows no score instead of a placeholder marker.
+        onNodeWithText("VS").assertDoesNotExist()
+        onNodeWithTag(matchRowHomeScoreTag(matchScoreTag(upcomingMatch.id)), useUnmergedTree = true)
+            .assertDoesNotExist()
+        onNodeWithContentDescription("경기 상세: Paper Rex 대 Gen.G").assertIsDisplayed()
         onNodeWithTag("match-team-placeholder-${upcomingMatch.id}-home", useUnmergedTree = true)
             .assertDoesNotExist()
         onNodeWithTag("match-team-placeholder-${upcomingMatch.id}-away", useUnmergedTree = true)
@@ -210,12 +220,12 @@ class MatchesContentUiTest {
             setContent { MatchesContentFixture(uiState = contentState(longMatch)) }
 
             onNodeWithTag(matchCardTag(longMatch.id))
-                .assertLeftPositionInRootIsEqualTo(16.dp)
-                .assertWidthIsEqualTo(328.dp)
+                .assertLeftPositionInRootIsEqualTo(0.dp)
+                .assertWidthIsEqualTo(360.dp)
                 .assertHeightIsAtLeast(48.dp)
             onNodeWithText(longHomeName).assertExists()
             onNodeWithText(longAwayName).assertExists()
-            onNodeWithText(longEventName).assertExists()
+            onNodeWithText(longEventName, substring = true).assertExists()
             onNodeWithText("오후 3:00").assertExists()
             onNodeWithText("1일 23시간 후").assertExists()
             onNodeWithContentDescription("경기 상세: $longHomeName 대 $longAwayName")
@@ -305,7 +315,11 @@ class MatchesContentUiTest {
         }
 
         onNodeWithText("종료").assertIsDisplayed()
-        onNodeWithText("13 : 9").assertIsDisplayed()
+        onNodeWithTag(matchRowHomeScoreTag(matchScoreTag(completedMatch.id)), useUnmergedTree = true)
+            .assertTextEquals("13")
+        onNodeWithTag(matchRowAwayScoreTag(matchScoreTag(completedMatch.id)), useUnmergedTree = true)
+            .assertTextEquals("9")
+        onNodeWithContentDescription("경기 상세: Fnatic 13, Sentinels 9").assertIsDisplayed()
         onNodeWithText("VS").assertDoesNotExist()
         onNodeWithText("Paper Rex").assertDoesNotExist()
         onNodeWithText("Fnatic").assertIsDisplayed()
@@ -326,7 +340,8 @@ class MatchesContentUiTest {
             )
         }
 
-        onNodeWithText("—").assertIsDisplayed()
+        onAllNodesWithText("—", useUnmergedTree = true).assertCountEquals(2)
+        onNodeWithContentDescription("경기 상세: Fnatic 대 Sentinels").assertIsDisplayed()
         onNodeWithText("VS").assertDoesNotExist()
     }
 

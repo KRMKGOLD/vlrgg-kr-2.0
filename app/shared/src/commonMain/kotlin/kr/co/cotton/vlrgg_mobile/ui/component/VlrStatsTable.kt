@@ -2,7 +2,6 @@ package kr.co.cotton.vlrgg_mobile.ui.component
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -18,25 +17,34 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.vectorResource
+import vlrggmobile.app.shared.generated.resources.Res
+import vlrggmobile.app.shared.generated.resources.ic_arrow_downward
+import vlrggmobile.app.shared.generated.resources.ic_arrow_upward
+import vlrggmobile.app.shared.generated.resources.ic_swap_horiz
 
 enum class StatsSortDirection(val savedStateId: String) {
     DESCENDING("desc"),
@@ -53,14 +61,28 @@ data class StatsSort<K : Any>(
     val direction: StatsSortDirection,
 )
 
+/** One metric column. Values are right-aligned `stat` text; [StatsMissingValue] renders `muted`. */
 internal data class StatsColumn<T, K : Any>(
     val key: K,
     val label: String,
-    val width: Dp,
-    val textAlign: TextAlign,
     val displayValue: (T) -> String,
     val numericValue: (T) -> Double?,
+    val width: Dp = StatsTableDefaults.ColumnWidth,
 )
+
+/** Missing metric value (`DESIGN.md` 3·8.3). A real zero stays `0`. */
+internal const val StatsMissingValue = "—"
+
+internal const val StatsScrollHint = "옆으로 밀어 지표 더 보기 · — 는 기록 없음"
+internal const val StatsSortIconTag = "vlr-stats-sort-icon"
+
+internal object StatsTableDefaults {
+    val IdentityWidth: Dp = 120.dp
+    val ColumnWidth: Dp = 68.dp
+    val HeaderHeight: Dp = 40.dp
+    val RowHeight: Dp = 52.dp
+    val FadeWidth: Dp = 56.dp
+}
 
 internal fun <K : Any> nextStatsSort(current: StatsSort<K>?, column: K): StatsSort<K>? = when {
     current?.column != column -> StatsSort(column, StatsSortDirection.DESCENDING)
@@ -89,24 +111,26 @@ internal fun <T, K : Any> stableSortedRows(
     }.map { it.value }
 }
 
+/**
+ * v3 stats table (`DESIGN.md` 8.3), shared by player agent stats and event stats.
+ *
+ * A pinned 120dp identity column with a right 1dp line stays put while the metrics scroll
+ * sideways together through [horizontalScrollState]. Sortable headers ([onSortColumn]) show the
+ * direction with an `ink` label and arrow; a 40dp header still gets the 48dp touch target. While
+ * more metrics sit off-screen, each row fades its right 56dp and a hint line follows the rows.
+ * With [lazyListState] the table is its own lazy list (event stats tab).
+ */
 @Composable
 internal fun <T, K : Any> VlrStatsTable(
     rows: List<T>,
     rowKey: (T) -> Any,
     identityHeader: String,
     identityText: (T) -> String,
-    identitySupportingText: (T) -> String? = { null },
     rowSemanticsLabel: String,
     columns: List<StatsColumn<T, K>>,
     horizontalScrollState: ScrollState,
-    identityWidth: Dp,
-    headerMinHeight: Dp,
-    rowMinHeight: Dp,
-    identityTextStyle: TextStyle,
-    headerTextStyle: TextStyle,
-    valueTextStyle: TextStyle,
     modifier: Modifier = Modifier,
-    headerContainer: Color = VlrTheme.colors.surface,
+    identitySupportingText: (T) -> String? = { null },
     lazyListState: LazyListState? = null,
     sort: StatsSort<K>? = null,
     onSortColumn: ((K) -> Unit)? = null,
@@ -116,81 +140,40 @@ internal fun <T, K : Any> VlrStatsTable(
     metricValueTestTag: ((T, K) -> String)? = null,
 ) {
     val displayedRows = if (onSortColumn == null) rows else stableSortedRows(rows, columns, sort)
-    val shape = RoundedCornerShape(VlrDimensions.CornerRadius)
-    val tableModifier = modifier
-        .border(VlrDimensions.OutlineWidth, VlrTheme.colors.line, shape)
-        .clip(shape)
-        .background(VlrTheme.colors.surface)
+    val showsScrollHint = horizontalScrollState.maxValue > 0
+    val header: @Composable () -> Unit = {
+        StatsHeaderRow(identityHeader, columns, horizontalScrollState, sort, onSortColumn, metricHeaderTestTag)
+    }
+    val valueRow: @Composable (T) -> Unit = { row ->
+        StatsValueRow(
+            row,
+            identityText,
+            identitySupportingText,
+            rowSemanticsLabel,
+            columns,
+            horizontalScrollState,
+            onIdentityClick,
+            identityTestTag,
+            metricValueTestTag,
+        )
+    }
+    val tableModifier = modifier.background(VlrTheme.colors.surface)
 
     if (lazyListState != null) {
         LazyColumn(state = lazyListState, modifier = tableModifier) {
-            item(key = "vlr-stats-header") {
-                StatsHeaderRow(
-                    identityHeader,
-                    columns,
-                    horizontalScrollState,
-                    identityWidth,
-                    headerMinHeight,
-                    headerTextStyle,
-                    sort,
-                    onSortColumn,
-                    metricHeaderTestTag,
-                    headerContainer,
-                )
-            }
-            items(displayedRows, key = rowKey) { row ->
-                HorizontalDivider(color = VlrTheme.colors.line)
-                StatsValueRow(
-                    row,
-                    identityText,
-                    identitySupportingText,
-                    rowSemanticsLabel,
-                    columns,
-                    horizontalScrollState,
-                    identityWidth,
-                    rowMinHeight,
-                    identityTextStyle,
-                    valueTextStyle,
-                    onIdentityClick,
-                    identityTestTag,
-                    metricValueTestTag,
-                )
+            item(key = "vlr-stats-header") { header() }
+            items(displayedRows, key = rowKey) { row -> valueRow(row) }
+            if (showsScrollHint) {
+                item(key = "vlr-stats-hint") { StatsScrollHintRow() }
             }
         }
     } else {
         Column(modifier = tableModifier) {
-            StatsHeaderRow(
-                identityHeader,
-                columns,
-                horizontalScrollState,
-                identityWidth,
-                headerMinHeight,
-                headerTextStyle,
-                sort,
-                onSortColumn,
-                metricHeaderTestTag,
-                headerContainer,
-            )
+            header()
             displayedRows.forEach { row ->
-                key(rowKey(row)) {
-                    HorizontalDivider(color = VlrTheme.colors.line)
-                    StatsValueRow(
-                        row,
-                        identityText,
-                        identitySupportingText,
-                        rowSemanticsLabel,
-                        columns,
-                        horizontalScrollState,
-                        identityWidth,
-                        rowMinHeight,
-                        identityTextStyle,
-                        valueTextStyle,
-                        onIdentityClick,
-                        identityTestTag,
-                        metricValueTestTag,
-                    )
-                }
+                key(rowKey(row)) { valueRow(row) }
             }
+            if (showsScrollHint) StatsScrollHintRow()
         }
     }
 }
@@ -200,21 +183,21 @@ private fun <T, K : Any> StatsHeaderRow(
     identityHeader: String,
     columns: List<StatsColumn<T, K>>,
     horizontalScrollState: ScrollState,
-    identityWidth: Dp,
-    minHeight: Dp,
-    textStyle: TextStyle,
     sort: StatsSort<K>?,
     onSortColumn: ((K) -> Unit)?,
     metricHeaderTestTag: ((K) -> String)?,
-    headerContainer: Color,
-) = StatsTableRow(identityWidth, minHeight, horizontalScrollState, modifier = Modifier.background(headerContainer), identity = {
-    Box(
-        modifier = Modifier.fillMaxHeight().fillMaxWidth().padding(horizontal = VlrDimensions.Space4),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Text(identityHeader, style = textStyle, color = VlrTheme.colors.muted)
-    }
-}) {
+) = StatsTableRow(
+    minHeight = StatsTableDefaults.HeaderHeight,
+    container = VlrTheme.colors.surfaceSunken,
+    horizontalScrollState = horizontalScrollState,
+    identity = {
+        Text(
+            text = identityHeader,
+            style = VlrTheme.typography.label.copy(fontWeight = FontWeight.Bold),
+            color = VlrTheme.colors.muted,
+        )
+    },
+) {
     columns.forEach { column ->
         key(column.key) {
             val activeDirection = sort?.takeIf { onSortColumn != null && it.column == column.key }?.direction
@@ -232,27 +215,38 @@ private fun <T, K : Any> StatsHeaderRow(
                     }
                     .clickable(role = Role.Button) { onSortColumn(column.key) }
             }
-            Box(
+            val labelColor = if (activeDirection != null) VlrTheme.colors.ink else VlrTheme.colors.muted
+            Row(
                 modifier = Modifier
                     .width(column.width)
                     .fillMaxHeight()
-                    .heightIn(min = VlrDimensions.MinimumTouchTarget)
                     .then(if (tag == null) Modifier else Modifier.testTag(tag))
                     .then(interaction)
-                    .padding(horizontal = VlrDimensions.Space2),
-                contentAlignment = Alignment.Center,
+                    .padding(end = VlrDimensions.Space3),
+                horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = column.label + when (activeDirection) {
-                        StatsSortDirection.DESCENDING -> " ↓"
-                        StatsSortDirection.ASCENDING -> " ↑"
-                        null -> ""
-                    },
-                    style = textStyle,
-                    color = VlrTheme.colors.muted,
-                    textAlign = column.textAlign,
-                    modifier = Modifier.fillMaxWidth(),
+                    text = column.label,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = VlrTheme.typography.tag,
+                    color = labelColor,
+                    textAlign = TextAlign.End,
                 )
+                if (activeDirection != null) {
+                    Icon(
+                        imageVector = vectorResource(
+                            if (activeDirection == StatsSortDirection.DESCENDING) {
+                                Res.drawable.ic_arrow_downward
+                            } else {
+                                Res.drawable.ic_arrow_upward
+                            },
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp).testTag(StatsSortIconTag),
+                        tint = VlrTheme.colors.ink,
+                    )
+                }
             }
         }
     }
@@ -266,53 +260,60 @@ private fun <T, K : Any> StatsValueRow(
     rowSemanticsLabel: String,
     columns: List<StatsColumn<T, K>>,
     horizontalScrollState: ScrollState,
-    identityWidth: Dp,
-    minHeight: Dp,
-    identityTextStyle: TextStyle,
-    valueTextStyle: TextStyle,
     onIdentityClick: ((T) -> Unit)?,
     identityTestTag: ((T) -> String)?,
     metricValueTestTag: ((T, K) -> String)?,
 ) {
     val identity = identityText(row)
-    StatsTableRow(identityWidth, minHeight, horizontalScrollState, identity = {
-        val tag = identityTestTag?.invoke(row)
-        val interaction = if (onIdentityClick == null) Modifier else Modifier.clickable(role = Role.Button) { onIdentityClick(row) }
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth()
-                .then(if (tag == null) Modifier else Modifier.testTag(tag))
-                .semantics { contentDescription = "$rowSemanticsLabel: $identity" }
-                .then(interaction)
-                .padding(horizontal = VlrDimensions.Space4),
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-        ) {
-            Text(identity, style = identityTextStyle, color = VlrTheme.colors.ink)
-            identitySupportingText(row)?.let {
-                Text(it, style = VlrTheme.typography.label, color = VlrTheme.colors.muted)
+    val tag = identityTestTag?.invoke(row)
+    val interaction = if (onIdentityClick == null) {
+        Modifier
+    } else {
+        Modifier.clickable(role = Role.Button) { onIdentityClick(row) }
+    }
+    StatsTableRow(
+        minHeight = StatsTableDefaults.RowHeight,
+        container = VlrTheme.colors.surface,
+        horizontalScrollState = horizontalScrollState,
+        identityModifier = Modifier
+            .then(if (tag == null) Modifier else Modifier.testTag(tag))
+            .semantics { contentDescription = "$rowSemanticsLabel: $identity" }
+            .then(interaction),
+        identity = {
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    text = identity,
+                    style = VlrTheme.typography.bodySm.copy(fontWeight = FontWeight.Bold),
+                    color = VlrTheme.colors.ink,
+                )
+                identitySupportingText(row)?.let {
+                    Text(
+                        text = it,
+                        style = VlrTheme.typography.label.copy(fontWeight = FontWeight.Normal),
+                        color = VlrTheme.colors.muted,
+                    )
+                }
             }
-        }
-    }) {
+        },
+    ) {
         columns.forEach { column ->
             key(column.key) {
                 val value = column.displayValue(row)
-                val tag = metricValueTestTag?.invoke(row, column.key)
+                val valueTag = metricValueTestTag?.invoke(row, column.key)
                 Box(
                     modifier = Modifier
                         .width(column.width)
                         .fillMaxHeight()
-                        .then(if (tag == null) Modifier else Modifier.testTag(tag))
+                        .then(if (valueTag == null) Modifier else Modifier.testTag(valueTag))
                         .semantics { contentDescription = "$identity, ${column.label}, $value" }
-                        .padding(horizontal = VlrDimensions.Space2),
-                    contentAlignment = Alignment.Center,
+                        .padding(end = VlrDimensions.Space3),
+                    contentAlignment = Alignment.CenterEnd,
                 ) {
                     Text(
                         text = value,
-                        style = valueTextStyle,
-                        color = VlrTheme.colors.ink,
-                        textAlign = column.textAlign,
-                        modifier = Modifier.fillMaxWidth(),
+                        style = VlrTheme.typography.stat,
+                        color = if (value == StatsMissingValue) VlrTheme.colors.muted else VlrTheme.colors.ink,
+                        textAlign = TextAlign.End,
                     )
                 }
             }
@@ -322,31 +323,75 @@ private fun <T, K : Any> StatsValueRow(
 
 @Composable
 private fun StatsTableRow(
-    identityWidth: Dp,
     minHeight: Dp,
+    container: Color,
     horizontalScrollState: ScrollState,
-    modifier: Modifier = Modifier,
     identity: @Composable () -> Unit,
+    identityModifier: Modifier = Modifier,
     metrics: @Composable () -> Unit,
 ) {
+    val line = VlrTheme.colors.line
     Row(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
+            .background(container)
+            .rowDivider(line)
             .height(IntrinsicSize.Min)
             .heightIn(min = minHeight),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = Modifier.width(identityWidth).fillMaxHeight(),
+            modifier = Modifier
+                .width(StatsTableDefaults.IdentityWidth)
+                .fillMaxHeight()
+                .drawBehind {
+                    val x = size.width - VlrDimensions.OutlineWidth.toPx() / 2
+                    drawLine(line, Offset(x, 0f), Offset(x, size.height), VlrDimensions.OutlineWidth.toPx())
+                }
+                .then(identityModifier)
+                .padding(start = VlrDimensions.Space4, end = VlrDimensions.Space2),
             contentAlignment = Alignment.CenterStart,
         ) {
             identity()
         }
-        Row(
-            modifier = Modifier.fillMaxHeight().horizontalScroll(horizontalScrollState),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            metrics()
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            Row(
+                modifier = Modifier.fillMaxHeight().horizontalScroll(horizontalScrollState),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                metrics()
+            }
+            if (horizontalScrollState.canScrollForward) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(StatsTableDefaults.FadeWidth)
+                        .fillMaxHeight()
+                        .background(Brush.horizontalGradient(listOf(container.copy(alpha = 0f), container))),
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun StatsScrollHintRow() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space3),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = vectorResource(Res.drawable.ic_swap_horiz),
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = VlrTheme.colors.muted,
+        )
+        Text(
+            text = StatsScrollHint,
+            style = VlrTheme.typography.label.copy(fontWeight = FontWeight.Normal),
+            color = VlrTheme.colors.muted,
+        )
     }
 }
