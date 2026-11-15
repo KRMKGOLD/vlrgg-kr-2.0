@@ -147,6 +147,13 @@ class KoreanDateTimeFormatTest {
     }
 
     @Test
+    fun matchDayHeaderOmitsTheYearOnlyInTheDeviceYear() {
+        assertEquals("10월 27일 (화)", KoreanDateTimeFormat.matchDayHeader(LocalDate(2026, 10, 27), currentYear = 2026))
+        assertEquals("2025년 12월 31일 (수)", KoreanDateTimeFormat.matchDayHeader(LocalDate(2025, 12, 31), currentYear = 2026))
+        assertEquals("2027년 1월 1일 (금)", KoreanDateTimeFormat.matchDayHeader(LocalDate(2027, 1, 1), currentYear = 2026))
+    }
+
+    @Test
     fun matchDateOmitsTheYearOnlyInTheDeviceYear() {
         assertEquals("7월 12일", KoreanDateTimeFormat.matchDate(LocalDate(2026, 7, 12), currentYear = 2026))
         assertEquals("2025년 7월 12일", KoreanDateTimeFormat.matchDate(LocalDate(2025, 7, 12), currentYear = 2026))

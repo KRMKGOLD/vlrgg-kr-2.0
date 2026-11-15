@@ -64,6 +64,11 @@ import androidx.compose.ui.unit.Density
 import kotlin.test.assertTrue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import kr.co.cotton.vlrgg_mobile.ui.format.LocalDeviceClock
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.unit.height
+import kotlin.time.Clock
+import kotlin.time.Instant
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.swipeDown
 
@@ -127,7 +132,10 @@ class EventDetailContentUiTest {
         }
         assertEquals(headers.map { it.second }, sortedColumns)
         onNodeWithText("—").assertExists()
-        onNodeWithTag(eventStatsPlayerTag(player.playerId)).performClick()
+        // The pinned cell reads with the Korean column title, like its `선수` header.
+        onNodeWithTag(eventStatsPlayerTag(player.playerId))
+            .assert(hasContentDescriptionExactly("선수: Meteor"))
+            .performClick()
         assertEquals(player.playerId, clickedPlayer)
     }
 
@@ -239,20 +247,26 @@ class EventDetailContentUiTest {
         runSkikoComposeUiTest(size = Size(360f, 480f)) {
             val selectedTabs = mutableListOf<EventDetailTab>()
             val longDescription = List(12) { "Part of the Valorant Champions Tour official circuit." }.joinToString(" ")
+            var state by mutableStateOf(
+                populatedState.copy(
+                    identity = EventIdentityContentState.Content(
+                        event.copy(
+                            name = "VCT 2027: EMEA Kickoff - Türkiye Qualifier",
+                            description = longDescription,
+                        ),
+                    ),
+                ),
+            )
             setContent {
                 CompositionLocalProvider(
                     LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f),
                 ) {
                     Fixture(
-                        uiState = populatedState.copy(
-                            identity = EventIdentityContentState.Content(
-                                event.copy(
-                                    name = "VCT 2027: EMEA Kickoff - Türkiye Qualifier",
-                                    description = longDescription,
-                                ),
-                            ),
-                        ),
-                        onSelectTab = { selectedTabs += it },
+                        uiState = state,
+                        onSelectTab = {
+                            selectedTabs += it
+                            state = state.copy(selectedTab = it)
+                        },
                     )
                 }
             }
@@ -266,8 +280,10 @@ class EventDetailContentUiTest {
             // The hero scrolls away, so both the tabs and the selected tab content can be reached.
             onNodeWithTag(eventDetailTabTag(EventDetailTab.STATS)).performScrollTo().assertIsDisplayed().performClick()
             assertEquals(listOf(EventDetailTab.STATS), selectedTabs)
+            onNodeWithTag(matchCardTag(match.id)).assertDoesNotExist()
             repeat(2) { onRoot().performTouchInput { swipeUp() } }
-            onNodeWithTag(matchCardTag(match.id)).assertIsDisplayed()
+            onNodeWithTag(eventStatsPlayerTag(player.playerId)).assertIsDisplayed()
+            onNodeWithTag(eventStatsMetricValueTag(player.playerId, EventStatsSortColumn.ACS)).assertIsDisplayed()
         }
 
     @Test
@@ -342,6 +358,72 @@ class EventDetailContentUiTest {
     }
 
     @Test
+    fun statsLoadingSkeletonKeepsTheHeaderAndRowHeightsOfTheTableAtEachFontScale() {
+        listOf(1f, 2f).forEach { scale ->
+            runComposeUiTest {
+                // A name that stays on one line at double fonts, as the skeleton cannot know a wrapping name.
+                val shortName = player.copy(playerName = "Ace")
+                var state by mutableStateOf(
+                    populatedState.copy(selectedTab = EventDetailTab.STATS, stats = EventStatsContentState.Loading),
+                )
+                setContent {
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, scale)) {
+                        Fixture(uiState = state)
+                    }
+                }
+
+                val label = "fontScale=$scale"
+                val skeletonHeight = onNodeWithTag(EVENT_STATS_LOADING_TAG).getUnclippedBoundsInRoot().height
+                state = populatedState.copy(
+                    selectedTab = EventDetailTab.STATS,
+                    stats = EventStatsContentState.Content(EventStats(EventStatsAvailability.AVAILABLE, listOf(shortName))),
+                )
+                waitForIdle()
+                val headerHeight = onNodeWithTag(eventStatsMetricHeaderTag(EventStatsSortColumn.ACS)).getUnclippedBoundsInRoot().height
+                val rowHeight = onNodeWithTag(eventStatsPlayerTag(player.playerId)).getUnclippedBoundsInRoot().height
+
+                if (scale == 1f) {
+                    assertEquals(40f, headerHeight.value, 0.5f, label)
+                    assertEquals(52f, rowHeight.value, 0.5f, label)
+                } else {
+                    // Doubled text outgrows the 40dp and 52dp minimums.
+                    assertTrue(rowHeight.value > 52f, "$label row stays at its minimum")
+                }
+                // The header and four rows of the table that replaces it.
+                assertEquals(headerHeight.value + rowHeight.value * 4, skeletonHeight.value, 1f, label)
+            }
+        }
+    }
+
+    @Test
+    fun statsLoadingSkeletonHeaderWrapsTheRestoredSortLabelBesideItsArrowLikeTheTable() = runComposeUiTest {
+        val sorted = populatedState.copy(
+            selectedTab = EventDetailTab.STATS,
+            statsSort = StatsSort(EventStatsSortColumn.ROUNDS, StatsSortDirection.DESCENDING),
+        )
+        var state by mutableStateOf(sorted.copy(stats = EventStatsContentState.Loading))
+        setContent {
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.3f)) {
+                Fixture(uiState = state)
+            }
+        }
+
+        val skeletonHeight = onNodeWithTag(EVENT_STATS_LOADING_TAG).getUnclippedBoundsInRoot().height
+        state = sorted.copy(
+            stats = EventStatsContentState.Content(
+                EventStats(EventStatsAvailability.AVAILABLE, listOf(player.copy(playerName = "Ace"))),
+            ),
+        )
+        waitForIdle()
+        val headerHeight = onNodeWithTag(eventStatsMetricHeaderTag(EventStatsSortColumn.ROUNDS)).getUnclippedBoundsInRoot().height
+        val rowHeight = onNodeWithTag(eventStatsPlayerTag(player.playerId)).getUnclippedBoundsInRoot().height
+
+        // `Rounds` beside its arrow wraps and grows the header past 40dp; the skeleton header matches it.
+        assertTrue(headerHeight.value > 40.5f, "sorted header stays at its minimum: $headerHeight")
+        assertEquals(headerHeight.value + rowHeight.value * 4, skeletonHeight.value, 1f)
+    }
+
+    @Test
     fun eachTabLoadingIsASkeletonWithProgressSemanticsInsteadOfASpinner() = runComposeUiTest {
         var state by mutableStateOf(
             populatedState.copy(
@@ -403,6 +485,24 @@ class EventDetailContentUiTest {
             onNode(hasText("종료") and hasAnyAncestor(hasTestTag(matchCardTag("finished"))), useUnmergedTree = true)
                 .assertExists()
         }
+
+    @Test
+    fun matchesTabDateHeaderAddsTheYearOnlyWhenTheDeviceYearDiffers() = runComposeUiTest {
+        val matches = listOf(
+            match.copy(id = "last-year", date = LocalDate(2025, 12, 31)),
+            match.copy(id = "this-year", date = LocalDate(2026, 1, 1)),
+        )
+        setContent {
+            Fixture(
+                uiState = populatedState.copy(matches = EventMatchesContentState.Content(matches)),
+                clock = FixedClock(Instant.parse("2026-01-01T12:00:00Z")),
+            )
+        }
+
+        onNode(hasText("2025년 12월 31일 (수)") and isHeading(), useUnmergedTree = true).assertExists()
+        onNode(hasText("1월 1일 (목)") and isHeading(), useUnmergedTree = true).assertExists()
+        onNodeWithText("2026년 1월 1일 (목)").assertDoesNotExist()
+    }
 
     @Test
     fun matchesWithoutDatesKeepTheHeaderlessList() = runComposeUiTest {
@@ -558,24 +658,32 @@ class EventDetailContentUiTest {
         onSortStats: (EventStatsSortColumn) -> Unit = {},
         onRetryIdentity: () -> Unit = {},
         onRetrySelectedTab: () -> Unit = {},
+        clock: Clock = FixedClock(Instant.parse("2026-11-15T12:00:00Z")),
     ) {
-        VlrTheme {
-            EventDetailContent(
-                uiState = uiState,
-                matchesListState = rememberLazyListState(),
-                newsListState = rememberLazyListState(),
-                statsListState = rememberLazyListState(),
-                statsHorizontalScrollState = rememberScrollState(),
-                onBack = {},
-                onSelectTab = onSelectTab,
-                onMatchClick = onMatchClick,
-                onNewsClick = onNewsClick,
-                onPlayerClick = onPlayerClick,
-                onSortStats = onSortStats,
-                onRetryIdentity = onRetryIdentity,
-                onRetrySelectedTab = onRetrySelectedTab,
-            )
+        CompositionLocalProvider(LocalDeviceClock provides clock) {
+            VlrTheme {
+                EventDetailContent(
+                    uiState = uiState,
+                    matchesListState = rememberLazyListState(),
+                    newsListState = rememberLazyListState(),
+                    statsListState = rememberLazyListState(),
+                    statsHorizontalScrollState = rememberScrollState(),
+                    onBack = {},
+                    onSelectTab = onSelectTab,
+                    onMatchClick = onMatchClick,
+                    onNewsClick = onNewsClick,
+                    onPlayerClick = onPlayerClick,
+                    onSortStats = onSortStats,
+                    onRetryIdentity = onRetryIdentity,
+                    onRetrySelectedTab = onRetrySelectedTab,
+                )
+            }
         }
+    }
+
+    /** Device clock for the date header year; fixtures default to a 2026 date so 2026 headers omit the year. */
+    private class FixedClock(private val now: Instant) : Clock {
+        override fun now(): Instant = now
     }
 
     private companion object {

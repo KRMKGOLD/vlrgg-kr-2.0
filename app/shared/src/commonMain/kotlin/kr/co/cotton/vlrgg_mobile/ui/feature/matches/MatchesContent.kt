@@ -36,6 +36,7 @@ import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchesSkeleton
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
+import kr.co.cotton.vlrgg_mobile.ui.format.rememberDeviceToday
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import vlrggmobile.app.shared.generated.resources.Res
@@ -66,6 +67,7 @@ fun MatchesContent(
     modifier: Modifier = Modifier,
 ) {
     val isBusyCooldownActive = rememberBusyRetryCooldown(uiState.busyRetry)
+    val currentYear = rememberDeviceToday().year
     val feedState = when (uiState.selectedTab) {
         MatchesTab.UPCOMING_LIVE -> uiState.upcomingLive
         MatchesTab.RESULTS -> uiState.results
@@ -155,6 +157,7 @@ fun MatchesContent(
                             matchGroup(
                                 group = group,
                                 isFirst = index == 0,
+                                currentYear = currentYear,
                                 onMatchClick = onMatchClick,
                             )
                         }
@@ -174,8 +177,9 @@ fun MatchesContent(
     }
 }
 
-/** 구조화한 날짜가 있으면 한국어로 표시하고, 없으면 source label을 그대로 쓴다. */
-internal fun MatchDateGroup.displayDateLabel(): String = date?.let(KoreanDateTimeFormat::monthDay) ?: dateLabel
+/** 구조화한 날짜가 있으면 한국어로 표시하고(기기 연도 [currentYear]와 다르면 연도 포함), 없으면 source label을 그대로 쓴다. */
+internal fun MatchDateGroup.displayDateLabel(currentYear: Int): String =
+    date?.let { KoreanDateTimeFormat.matchDayHeader(it, currentYear) } ?: dateLabel
 
 /** 목록의 시각은 vlr.gg가 서울 요청에 렌더한 한국 시간이다(기능 문서 날짜·시간 계약). */
 internal const val MATCHES_TIME_ZONE_LABEL = "한국 시간"
@@ -184,6 +188,7 @@ internal const val MATCHES_TIME_ZONE_LABEL = "한국 시간"
 private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
     group: MatchDateGroup,
     isFirst: Boolean,
+    currentYear: Int,
     onMatchClick: (String) -> Unit,
 ) {
     if (!isFirst) {
@@ -192,7 +197,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
         }
     }
     item(key = "date-${group.dateLabel}") {
-        SectionHeader(title = group.displayDateLabel(), meta = MATCHES_TIME_ZONE_LABEL)
+        SectionHeader(title = group.displayDateLabel(currentYear), meta = MATCHES_TIME_ZONE_LABEL)
     }
     items(
         items = group.matches,

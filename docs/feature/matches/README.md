@@ -393,7 +393,7 @@ v3 디자인 적용에 맞춰 한국어 UI를 기준으로 모든 날짜·시각
 | `GET /api/v1/news` item, `GET /api/v1/events/{id}/news` item, `GET /api/v1/teams/{teamId}` news | `publishedDate` | ISO-8601 local date `2026-09-19` | 목록 게시일. vlr.gg 표시 시간대 기준이며 instant가 아니다 | 원문이 `MMMM d, yyyy`나 `yyyy/MM/dd`가 아니거나 달력에 없는 날짜 |
 | `GET /api/v1/events/{id}/matches` item | `date` | ISO-8601 local date | 경기가 속한 날짜 그룹의 달력 날짜. Matches 목록 group `date`와 같은 의미 | 그룹 label이 Matches 목록 `date`의 null 조건에 걸림 |
 | `GET /api/v1/events` item, `GET /api/v1/events/{id}`, `GET /api/v1/series/{seriesId}` event item | `startDate`, `endDate` | ISO-8601 month-day `--09-13` (연도 없음) | 기간의 시작·끝 달력 날짜. 하루짜리는 두 값이 같다 | 형식을 알 수 없으면 둘 다 null. 끝이 `TBD`면 `endDate`만 null |
-| `GET /api/v1/teams/{teamId}` match | `scheduledDate`, `scheduledTime` | ISO-8601 local date, local time `HH:mm` | `scheduledAtText`의 날짜와 시각. 표시 시간대 기준이며 instant가 아니다 | 날짜 형식이 다르면 둘 다 null. 시각만 없으면 `scheduledTime`만 null |
+| `GET /api/v1/teams/{teamId}` match | `scheduledDate`, `scheduledTime` | ISO-8601 local date, local time `HH:mm` | `scheduledAtText`의 날짜와 시각. 표시 시간대 기준이며 instant가 아니다 | 날짜 형식이 다르거나, 원문에 시각 부분이 있는데 읽지 못하면 둘 다 null. 원문에 시각 부분이 아예 없을 때만 `scheduledTime`만 null |
 | `GET /api/v1/players/{playerId}` recent match | `playedDate` | ISO-8601 local date | `playedOn`의 날짜 | 형식이 다르거나 달력에 없는 날짜 |
 
 - 기존 원문 field(`publishedAt`, `publishedDateText`, `dateLabel`, `scheduledAtText`, `playedOn`, `statusText`)는 삭제하지 않고 의미도 바꾸지 않는다. 배포된 앱이 이 field를 쓴다.
@@ -402,16 +402,16 @@ v3 디자인 적용에 맞춰 한국어 UI를 기준으로 모든 날짜·시각
 
 #### 앱 표시 규칙
 
-2026-10-26 날짜·시간 표시 수정(앱 2/2)에서 정한 규칙이며, 2026-11-10 한국어 표시 확장에서 행을 추가했다. 표시 문자열은 UI layer의 `ui/format/KoreanDateTimeFormat`에서만 만든다. Domain Model에는 파싱한 값(`LocalDate`, `LocalTime`, `Instant`)만 두고, 파싱에 실패한 값은 null로 둔다.
+2026-10-26 날짜·시간 표시 수정(앱 2/2)에서 정한 규칙이며, 2026-11-10 한국어 표시 확장에서 행을 추가했다. 표시 문자열은 UI layer의 `ui/format/KoreanDateTimeFormat`에서만 만든다. Domain Model에는 파싱한 값(`LocalDate`, `LocalTime`, `Instant`, 대회 기간의 `EventMonthDay`)만 두고, 파싱에 실패한 값은 null로 둔다.
 
 | 화면 | 사용 값 | 표시 형식 | 값이 없을 때 |
 |---|---|---|---|
-| Matches 목록 날짜 헤더 | group `date` | `10월 27일 (화)` | `dateLabel` 원문 (`Tue, October 27, 2026`) |
+| Matches 목록 날짜 헤더 | group `date` | `10월 27일 (화)`, 기기 날짜와 연도가 다르면 `2025년 12월 31일 (수)` | `dateLabel` 원문 (`Tue, October 27, 2026`) |
 | Matches 목록·Event Matches 경기 시각 | summary `time` | `오전 3:00`, `오후 7:05`. 종료 경기는 아래 줄에 `종료`를 둔다(2026-11-10) | `timeLabel` 원문 (`3:00 AM`, `TBD`) |
-| Event Matches 날짜 헤더 | item `date` | `9월 13일 (일)`. 연속한 같은 날짜를 묶는다 | 날짜 헤더 없이 표시 |
+| Event Matches 날짜 헤더 | item `date` | `9월 13일 (일)`, 기기 날짜와 연도가 다르면 `2025년 12월 31일 (수)`. 연속한 같은 날짜를 묶는다 | 날짜 헤더 없이 표시 |
 | News 목록·Event News·Team News 게시일 | `publishedDate` | `2026년 9월 19일` | `publishedAt`·`publishedDateText` 원문 |
-| Events 목록·Event Detail·Series 기간 | `startDate`·`endDate` | `9월 12일 ~ 10월 4일`, 같은 달 `11월 20일 ~ 23일`, 하루 `12월 17일`, 끝 미정 `11월 1일 ~ 미정` | `dateLabel` 원문 |
-| Team Detail 경기 날짜·시각 | `scheduledDate`·`scheduledTime` | `9월 24일 오후 6:00`, 시각이 없으면 `9월 24일` | `scheduledAtText` 원문 |
+| Events 목록·Event Detail·Series 기간 | `startDate`·`endDate`. Domain 타입은 `LocalDate`가 아니라 `EventMonthDay(month, day)`다(연도 없음, 2월 29일 허용) | `9월 12일 ~ 10월 4일`, 같은 달 `11월 20일 ~ 23일`, 하루 `12월 17일`, 끝 미정 `11월 1일 ~ 미정` | `dateLabel` 원문 |
+| Team Detail 경기 날짜·시각 | `scheduledDate`·`scheduledTime` | `9월 24일 오후 6:00`, `scheduledTime`만 null(원문에 시각이 없음)이면 `9월 24일` | `scheduledDate`가 null(날짜 형식이 다르거나 시각 부분을 읽지 못함)이면 `scheduledAtText` 원문 |
 | Team Detail 경기 상태 | `statusText` | 남은 시간 원문이면 아래 남은 시간 규칙으로 `1일 6시간 후`. 점수·`LIVE` 같은 다른 원문은 그대로 | — |
 | Player 최근 경기 날짜 | `playedDate` | `7월 12일` | `playedOn` 원문 |
 | Matches 목록·Event Matches 예정 경기 남은 시간 | `relativeTimeLabel` | `22m` → `22분 후`, `10h 32m` → `10시간 32분 후`, `1d 1h` → `1일 1시간 후` | 표시하지 않음 |
@@ -420,7 +420,7 @@ v3 디자인 적용에 맞춰 한국어 UI를 기준으로 모든 날짜·시각
 | News 기사 게시 시각 | `publishedAtUtc` | 기기 시간대 기준 `2026년 10월 26일 오전 12:09` | `publishedAt` 원문 (`16 hours ago`) |
 
 - 시간대 변환은 instant(`scheduledAtUtc`, `publishedAtUtc`)에만 적용하고 기기 시스템 시간대를 쓴다. 목록의 `date`·`time`은 이미 vlr.gg 표시 시간대(KST) 값이라 변환하지 않는다.
-- 연도: 기사 날짜는 항상 연도를 쓴다. 경기 날짜(Team·Player)는 기기 날짜와 연도가 다를 때만 `2025년 9월 24일 오후 6:00`처럼 붙인다. 대회 기간은 원본에 연도가 없는 경우가 있어 쓰지 않는다.
+- 연도: 기사 날짜는 항상 연도를 쓴다. 경기 날짜(Team·Player)와 경기 날짜 헤더(Matches 목록·Event Matches)는 기기 날짜와 연도가 다를 때만 `2025년 9월 24일 오후 6:00`, `2025년 12월 31일 (수)`처럼 붙인다. 대회 기간은 원본에 연도가 없는 경우가 있어 쓰지 않는다.
 - 요일(`월`~`일`)과 `오전`/`오후`는 플랫폼 locale을 쓰지 않고 직접 만든다. Android와 iOS의 결과가 같다. 12시간제이며 00시는 `오전 12:00`, 12시는 `오후 12:00`이다.
 - 남은 시간은 `status = upcoming`인 경기에만 표시한다. 종료 경기 ETA는 시작 후 지난 시간이라 표시하지 않고 스코어를 보여준다. Live·연기·취소·정보 없음 경기는 상태 chip만 표시한다.
 - 남은 시간 원문은 `d`→`h`→`m` 순서의 1~3개 토큰(`22m`, `3h`, `2d`, `10h 32m`, `1d 1h`, `1d 2h 3m`)만 인식한다. 대문자, 순서가 다른 단위, `ago`·`LIVE` 같은 문구, 이미 번역된 문자열처럼 형식을 알 수 없는 원문은 표시하지 않는다.

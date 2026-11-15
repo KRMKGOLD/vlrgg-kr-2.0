@@ -1,7 +1,11 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.events
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -15,7 +19,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -27,7 +33,10 @@ import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
 import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
-import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotDefaults
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberTextSlotHeight
+import kr.co.cotton.vlrgg_mobile.ui.component.rowDivider
 import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
@@ -189,7 +198,7 @@ private fun EmptySectionRow() {
     )
 }
 
-/** First-load placeholder (`.pen` 40-2): six list-row skeletons under an 8dp top inset, without group headers. */
+/** First-load placeholder (`.pen` 40-2): six event row skeletons under an 8dp top inset, without group headers. */
 @Composable
 private fun EventsSkeleton() {
     Column(
@@ -203,7 +212,40 @@ private fun EventsSkeleton() {
                 progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
             },
     ) {
-        repeat(6) { SkeletonRow() }
+        repeat(6) { EventRowSkeleton() }
+    }
+}
+
+/**
+ * Placeholder for an [EventListItem] (`DESIGN.md` 8.2 Identity row): the same paddings, 40dp logo
+ * slot, title and meta lines at their scaled `body`·`meta` line heights, and the empty 48dp trailing slot,
+ * so the rows keep their height and title start when the events arrive.
+ */
+@Composable
+private fun EventRowSkeleton() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = VlrDimensions.MinimumTouchTarget)
+            .rowDivider(VlrTheme.colors.line)
+            .padding(start = VlrDimensions.Space4, end = VlrDimensions.Space1, top = 10.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SkeletonBlock(Modifier.size(LogoSlotDefaults.RowSize))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            // 14dp and 10dp bars centered in `body` and `meta` line slots that follow the font scale.
+            Box(Modifier.height(rememberTextSlotHeight(VlrTheme.typography.body)), contentAlignment = Alignment.CenterStart) {
+                SkeletonBlock(Modifier.fillMaxWidth(0.72f).height(14.dp))
+            }
+            Box(Modifier.height(rememberTextSlotHeight(VlrTheme.typography.meta)), contentAlignment = Alignment.CenterStart) {
+                SkeletonBlock(Modifier.fillMaxWidth(0.5f).height(10.dp))
+            }
+        }
+        Spacer(Modifier.size(VlrDimensions.MinimumTouchTarget))
     }
 }
 

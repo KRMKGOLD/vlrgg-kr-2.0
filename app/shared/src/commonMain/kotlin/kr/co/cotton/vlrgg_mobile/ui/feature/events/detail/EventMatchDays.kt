@@ -15,14 +15,15 @@ internal data class EventMatchDay(
  * without dates becomes one header-less group, the same list as before dates existed.
  */
 internal fun List<MatchSummary>.groupByConsecutiveDate(): List<EventMatchDay> {
-    val days = mutableListOf<EventMatchDay>()
+    // Each run fills its own mutable list, so a long run is not copied once per match.
+    val runs = mutableListOf<Pair<LocalDate?, MutableList<MatchSummary>>>()
     for (match in this) {
-        val last = days.lastOrNull()
-        if (last != null && last.date == match.date) {
-            days[days.lastIndex] = last.copy(matches = last.matches + match)
+        val last = runs.lastOrNull()
+        if (last != null && last.first == match.date) {
+            last.second += match
         } else {
-            days += EventMatchDay(match.date, listOf(match))
+            runs += match.date to mutableListOf(match)
         }
     }
-    return days
+    return runs.map { (date, matches) -> EventMatchDay(date, matches.toList()) }
 }
