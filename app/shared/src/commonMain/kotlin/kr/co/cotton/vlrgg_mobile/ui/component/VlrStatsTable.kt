@@ -82,6 +82,13 @@ internal object StatsTableDefaults {
     val HeaderHeight: Dp = 40.dp
     val RowHeight: Dp = 52.dp
     val FadeWidth: Dp = 56.dp
+    val CellEndPadding: Dp = VlrDimensions.Space3
+    val SortIconSize: Dp = 12.dp
+    val SortIconSpacing: Dp = 2.dp
+
+    /** Width a metric header label wraps in: the column less its end padding and, when sorted, the arrow and its gap. */
+    fun headerLabelWidth(columnWidth: Dp, sorted: Boolean): Dp =
+        columnWidth - CellEndPadding - if (sorted) SortIconSize + SortIconSpacing else 0.dp
 }
 
 internal fun <K : Any> nextStatsSort(current: StatsSort<K>?, column: K): StatsSort<K>? = when {
@@ -222,8 +229,8 @@ private fun <T, K : Any> StatsHeaderRow(
                     .fillMaxHeight()
                     .then(if (tag == null) Modifier else Modifier.testTag(tag))
                     .then(interaction)
-                    .padding(end = VlrDimensions.Space3),
-                horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End),
+                    .padding(end = StatsTableDefaults.CellEndPadding),
+                horizontalArrangement = Arrangement.spacedBy(StatsTableDefaults.SortIconSpacing, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -243,7 +250,7 @@ private fun <T, K : Any> StatsHeaderRow(
                             },
                         ),
                         contentDescription = null,
-                        modifier = Modifier.size(12.dp).testTag(StatsSortIconTag),
+                        modifier = Modifier.size(StatsTableDefaults.SortIconSize).testTag(StatsSortIconTag),
                         tint = VlrTheme.colors.ink,
                     )
                 }
@@ -306,7 +313,7 @@ private fun <T, K : Any> StatsValueRow(
                         .fillMaxHeight()
                         .then(if (valueTag == null) Modifier else Modifier.testTag(valueTag))
                         .semantics { contentDescription = "$identity, ${column.label}, $value" }
-                        .padding(end = VlrDimensions.Space3),
+                        .padding(end = StatsTableDefaults.CellEndPadding),
                     contentAlignment = Alignment.CenterEnd,
                 ) {
                     Text(

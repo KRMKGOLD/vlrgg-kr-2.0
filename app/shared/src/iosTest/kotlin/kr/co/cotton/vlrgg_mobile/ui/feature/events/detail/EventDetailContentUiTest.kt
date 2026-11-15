@@ -396,6 +396,34 @@ class EventDetailContentUiTest {
     }
 
     @Test
+    fun statsLoadingSkeletonHeaderWrapsTheRestoredSortLabelBesideItsArrowLikeTheTable() = runComposeUiTest {
+        val sorted = populatedState.copy(
+            selectedTab = EventDetailTab.STATS,
+            statsSort = StatsSort(EventStatsSortColumn.ROUNDS, StatsSortDirection.DESCENDING),
+        )
+        var state by mutableStateOf(sorted.copy(stats = EventStatsContentState.Loading))
+        setContent {
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.3f)) {
+                Fixture(uiState = state)
+            }
+        }
+
+        val skeletonHeight = onNodeWithTag(EVENT_STATS_LOADING_TAG).getUnclippedBoundsInRoot().height
+        state = sorted.copy(
+            stats = EventStatsContentState.Content(
+                EventStats(EventStatsAvailability.AVAILABLE, listOf(player.copy(playerName = "Ace"))),
+            ),
+        )
+        waitForIdle()
+        val headerHeight = onNodeWithTag(eventStatsMetricHeaderTag(EventStatsSortColumn.ROUNDS)).getUnclippedBoundsInRoot().height
+        val rowHeight = onNodeWithTag(eventStatsPlayerTag(player.playerId)).getUnclippedBoundsInRoot().height
+
+        // `Rounds` beside its arrow wraps and grows the header past 40dp; the skeleton header matches it.
+        assertTrue(headerHeight.value > 40.5f, "sorted header stays at its minimum: $headerHeight")
+        assertEquals(headerHeight.value + rowHeight.value * 4, skeletonHeight.value, 1f)
+    }
+
+    @Test
     fun eachTabLoadingIsASkeletonWithProgressSemanticsInsteadOfASpinner() = runComposeUiTest {
         var state by mutableStateOf(
             populatedState.copy(

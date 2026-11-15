@@ -383,7 +383,7 @@ private fun StatsTabContent(
     retryEnabled: Boolean,
 ) {
     when (state) {
-        EventStatsContentState.Loading -> StatsTableSkeleton()
+        EventStatsContentState.Loading -> StatsTableSkeleton(sortedColumn = sort?.column)
         EventStatsContentState.Empty -> TabStatePanel("아직 제공되는 통계가 없어요.", Res.drawable.ic_bar_chart)
         EventStatsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("통계를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventStatsContentState.Content -> VlrStatsTable(
@@ -445,25 +445,29 @@ private fun TabSkeleton(
  * header and [TabSkeletonRows] 52dp rows, each with the pinned 120dp identity column and its right
  * 1dp line followed by 68dp metric columns, so the table does not shift when the stats arrive.
  * Like the table, the header and rows grow past those minimums with the scaled text: the header to
- * the `label` identity header and the `tag` column labels wrapped in their columns, a row to the
+ * the `label` identity header and the `tag` column labels wrapped in their columns (the
+ * [sortedColumn] label beside its arrow, as the restored sort shows it), a row to the
  * one-line `bodySm` name, 1dp gap and `label` team, or a [StatsSkeletonSampleValue] `stat` value.
  * A name that wraps at a large font scale still makes its row taller, as the name is not known yet.
  */
 @Composable
-private fun StatsTableSkeleton() {
+private fun StatsTableSkeleton(sortedColumn: EventStatsSortColumn?) {
     val typography = VlrTheme.typography
     val identityTextWidth = StatsTableDefaults.IdentityWidth - VlrDimensions.Space4 - VlrDimensions.Space2
-    val metricTextWidth = StatsTableDefaults.ColumnWidth - VlrDimensions.Space3
+    val valueTextWidth = StatsTableDefaults.ColumnWidth - StatsTableDefaults.CellEndPadding
     val headerHeight = maxOf(
         StatsTableDefaults.HeaderHeight,
         rememberTextSlotHeight(typography.label.copy(fontWeight = FontWeight.Bold), EventStatsIdentityHeader, identityTextWidth),
-        eventStatsColumns.maxOf { rememberTextSlotHeight(typography.tag, it.label, metricTextWidth) },
+        eventStatsColumns.maxOf { column ->
+            val labelWidth = StatsTableDefaults.headerLabelWidth(column.width, sorted = column.key == sortedColumn)
+            rememberTextSlotHeight(typography.tag, column.label, labelWidth)
+        },
     )
     val rowHeight = maxOf(
         StatsTableDefaults.RowHeight,
         rememberTextSlotHeight(typography.bodySm.copy(fontWeight = FontWeight.Bold)) + 1.dp +
             rememberTextSlotHeight(typography.label.copy(fontWeight = FontWeight.Normal)),
-        rememberTextSlotHeight(typography.stat, StatsSkeletonSampleValue, metricTextWidth),
+        rememberTextSlotHeight(typography.stat, StatsSkeletonSampleValue, valueTextWidth),
     )
     Box(modifier = Modifier.fillMaxSize().background(VlrTheme.colors.surface)) {
         Column(
@@ -515,7 +519,7 @@ private fun StatsSkeletonRow(height: Dp, container: Color, header: Boolean) {
                         modifier = Modifier
                             .width(StatsTableDefaults.ColumnWidth)
                             .fillMaxHeight()
-                            .padding(end = VlrDimensions.Space3),
+                            .padding(end = StatsTableDefaults.CellEndPadding),
                         contentAlignment = Alignment.CenterEnd,
                     ) {
                         SkeletonBlock(Modifier.size(width = if (header) 28.dp else 32.dp, height = if (header) 10.dp else 12.dp))
