@@ -40,6 +40,15 @@ class EventMatchDaysTest {
     }
 
     @Test
+    fun aLongUndatedResponseStaysOneGroupInResponseOrder() {
+        val ids = (1..10_000).map { "m$it" }
+        val days = ids.map { match(it, null) }.groupByConsecutiveDate()
+
+        assertEquals(listOf<LocalDate?>(null), days.map { it.date })
+        assertEquals(ids, days.single().matches.map { it.id })
+    }
+
+    @Test
     fun matchesWithoutADateStayInTheirOwnRunBetweenDatedGroups() {
         val days = listOf(match("a", SEP_13), match("b", null), match("c", null), match("d", SEP_13))
             .groupByConsecutiveDate()
