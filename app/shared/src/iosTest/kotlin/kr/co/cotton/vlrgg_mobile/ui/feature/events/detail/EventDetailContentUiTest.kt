@@ -132,7 +132,10 @@ class EventDetailContentUiTest {
         }
         assertEquals(headers.map { it.second }, sortedColumns)
         onNodeWithText("—").assertExists()
-        onNodeWithTag(eventStatsPlayerTag(player.playerId)).performClick()
+        // The pinned cell reads with the Korean column title, like its `선수` header.
+        onNodeWithTag(eventStatsPlayerTag(player.playerId))
+            .assert(hasContentDescriptionExactly("선수: Meteor"))
+            .performClick()
         assertEquals(player.playerId, clickedPlayer)
     }
 

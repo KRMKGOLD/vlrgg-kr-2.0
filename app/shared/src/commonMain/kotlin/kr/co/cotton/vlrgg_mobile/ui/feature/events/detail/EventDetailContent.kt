@@ -390,7 +390,7 @@ private fun StatsTabContent(
             identityHeader = "선수",
             identityText = EventPlayerStats::playerName,
             identitySupportingText = EventPlayerStats::teamAbbreviation,
-            rowSemanticsLabel = "player",
+            rowSemanticsLabel = "선수",
             columns = eventStatsColumns,
             horizontalScrollState = horizontalScrollState,
             modifier = Modifier.fillMaxSize(),
