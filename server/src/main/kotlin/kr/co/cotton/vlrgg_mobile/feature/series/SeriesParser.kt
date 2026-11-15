@@ -1,14 +1,18 @@
 package kr.co.cotton.vlrgg_mobile.feature.series
 
-import kotlinx.coroutines.CancellationException
-import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedTextOrNull
+import kr.co.cotton.vlrgg_mobile.common.scraping.ownNormalizedTextOrNull
+import kr.co.cotton.vlrgg_mobile.common.scraping.parseSource
+import kr.co.cotton.vlrgg_mobile.common.scraping.requiredText
+import kr.co.cotton.vlrgg_mobile.common.scraping.sourceStructureError
+import kr.co.cotton.vlrgg_mobile.common.scraping.toPublicImageUrl
 import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 /** Owns all Jsoup traversal and VLR.GG markup assumptions for the Series feature. */
 internal class SeriesParser {
-    fun parse(page: SeriesHtmlPage, seriesId: SeriesId): SeriesSource = parseSafely(page) { document ->
+    fun parse(html: String, seriesId: SeriesId): SeriesSource = parseSource {
+        val document = Jsoup.parse(html, VLR_PRIMARY_ORIGIN)
         val header = document.selectFirst(SERIES_HEADER_SELECTOR)
             ?: sourceStructureError("Series header is missing.")
         val container = document.selectFirst(SERIES_EVENTS_CONTAINER_SELECTOR)
@@ -61,7 +65,7 @@ internal class SeriesParser {
 
     private fun Element.toSeriesEventStatus(): SeriesEventStatusSource {
         val values = buildList {
-            attr("data-event-status").normalizedStringOrNull()?.let(::add)
+            attr("data-event-status").normalizedTextOrNull()?.let(::add)
             classNames()
                 .filter { it.startsWith(STATUS_MODIFIER_PREFIX) }
                 .map { it.removePrefix(STATUS_MODIFIER_PREFIX) }
@@ -98,50 +102,20 @@ internal class SeriesParser {
         return eventsById.values.toList()
     }
 
-    private fun Element.requiredText(selector: String, message: String): String =
-        selectFirst(selector)?.normalizedTextOrNull() ?: sourceStructureError(message)
-
-    private fun Element.normalizedTextOrNull(): String? = text().normalizedStringOrNull()
-
-    private fun Element.ownNormalizedTextOrNull(): String? = ownText().normalizedStringOrNull()
-
-    private fun String.normalizedStringOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
-
     private fun String.matchedId(pattern: Regex): String? = pattern.matchEntire(trim())?.groupValues?.getOrNull(1)
 
     private fun Element.regionCode(): String? = classNames()
         .firstOrNull { it.startsWith(STATUS_MODIFIER_PREFIX) && it.length > STATUS_MODIFIER_PREFIX.length }
         ?.removePrefix(STATUS_MODIFIER_PREFIX)
         ?.lowercase()
-        ?.normalizedStringOrNull()
-
-    private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
-        when {
-            source.startsWith("//") -> "https:$source"
-            source.startsWith("https://") -> source
-            source.startsWith("/") -> "https://www.vlr.gg$source"
-            else -> null
-        }
-    }
-
-    private inline fun <T> parseSafely(page: SeriesHtmlPage, block: (Document) -> T): T = try {
-        block(Jsoup.parse(page.html, VLR_PRIMARY_ORIGIN))
-    } catch (failure: SourceParsingFailure) {
-        throw failure
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (failure: Exception) {
-        throw SourceParsingFailure(page.upstreamUrl, failure)
-    }
-
-    private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
+        ?.normalizedTextOrNull()
 
     private companion object {
         const val VLR_PRIMARY_ORIGIN = "https://www.vlr.gg/"
-        const val SERIES_HEADER_SELECTOR = "#wf-container .event-header"
+        const val SERIES_HEADER_SELECTOR = "#wrapper .col.mod-1 .event-header"
         const val SERIES_NAME_SELECTOR = ".wf-title"
         const val SERIES_DESCRIPTION_SELECTOR = ".event-header-main-desc, .series-description"
-        const val SERIES_EVENTS_CONTAINER_SELECTOR = "#wf-container .events-container"
+        const val SERIES_EVENTS_CONTAINER_SELECTOR = "#wrapper .col.mod-1 .events-container"
         const val SERIES_SECTION_CLASS = "events-container-col"
         const val SERIES_SECTION_LABEL_CLASS = "wf-label"
         const val UPCOMING_SECTION_CLASS = "mod-upcoming"
@@ -155,7 +129,6 @@ internal class SeriesParser {
         const val SERIES_EVENT_IMAGE_SELECTOR = ".event-item-thumb img[src]"
         const val STATUS_MODIFIER_PREFIX = "mod-"
         val EVENT_PATH_PATTERN = Regex("^/event/([1-9][0-9]{0,9})(?:/[^?#]*)?(?:[?#].*)?$")
-        val WHITESPACE = Regex("\\s+")
         val KNOWN_STATUS_TOKENS = setOf(
             "ongoing", "live", "upcoming", "scheduled", "completed", "complete", "finished", "paused", "suspended",
         )

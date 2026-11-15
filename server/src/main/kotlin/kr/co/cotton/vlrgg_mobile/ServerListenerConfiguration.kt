@@ -1,6 +1,6 @@
-package kr.co.cotton.vlrgg_mobile.feature.matches.notification
+package kr.co.cotton.vlrgg_mobile
 
-/** Cloud Run compatible listener configuration; notification runtime is deliberately disabled in main. */
+/** Cloud Run compatible listener configuration. */
 data class ServerListenerConfiguration(
     val host: String,
     val port: Int,

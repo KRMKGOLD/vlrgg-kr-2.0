@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.feature.events
 
-import io.ktor.http.*
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kotlin.test.*
 
@@ -9,8 +8,8 @@ class EventsParserTest {
 
     @Test
     fun `event list parses operational status metadata image and empty state`() {
-        val result = parser.parseEventList(page("event-list.html", "/events"))
-        val empty = parser.parseEventList(page("event-list-empty.html", "/events"))
+        val result = parser.parseEventList(fixture("event-list.html"))
+        val empty = parser.parseEventList(fixture("event-list-empty.html"))
 
         assertEquals(4, result.events.size)
         assertEquals(EventStatusSource.ONGOING, result.events.single { it.id == "100" }.status)
@@ -26,13 +25,13 @@ class EventsParserTest {
     @Test
     fun `event list selector drift is a parsing failure rather than a false empty response`() {
         assertFailsWith<SourceParsingFailure> {
-            parser.parseEventList(page("event-list-drifted.html", "/events"))
+            parser.parseEventList(fixture("event-list-drifted.html"))
         }
     }
 
     @Test
     fun `event detail parses source metadata without inventing unavailable status`() {
-        val result = parser.parseEventDetail(page("event-detail.html", "/event/100"), eventId = "100")
+        val result = parser.parseEventDetail(fixture("event-detail.html"), eventId = "100")
 
         assertEquals("100", result.id)
         assertEquals("Masters Seoul", result.name)
@@ -57,18 +56,18 @@ class EventsParserTest {
 
         assertEquals(
             EventStatusSource.ONGOING,
-            parser.parseEventList(pageHtml(listHtml, "/events")).events.single { it.id == "100" }.status,
+            parser.parseEventList(listHtml).events.single { it.id == "100" }.status,
         )
         assertEquals(
             EventStatusSource.ONGOING,
-            parser.parseEventDetail(pageHtml(detailHtml, "/event/100"), "100").status,
+            parser.parseEventDetail(detailHtml, "100").status,
         )
     }
 
     @Test
     fun `event matches parse all summaries statuses scores and absent scores`() {
-        val result = parser.parseEventMatches(page("event-matches.html", "/event/matches/100/?series_id=all"), "100")
-        val empty = parser.parseEventMatches(page("event-matches-empty.html", "/event/matches/200/?series_id=all"), "200")
+        val result = parser.parseEventMatches(fixture("event-matches.html"), "100")
+        val empty = parser.parseEventMatches(fixture("event-matches-empty.html"), "200")
 
         assertEquals(listOf("501", "502"), result.matches.map { it.id })
         assertEquals(EventMatchStatusSource.COMPLETED, result.matches.first().status)
@@ -90,7 +89,7 @@ class EventsParserTest {
     @Test
     fun `event matches mirror postponed cancelled and unavailable match statuses`() {
         val result = parser.parseEventMatches(
-            page("event-matches-statuses.html", "/event/matches/100/?series_id=all"),
+            fixture("event-matches-statuses.html"),
             "100",
         )
 
@@ -111,16 +110,13 @@ class EventsParserTest {
 
         assertFailsWith<SourceParsingFailure> {
             parser.parseEventMatches(
-                pageHtml(fixture.replace("<sup>(2)</sup>", "<sup>(3)</sup>"), "/event/matches/100/?series_id=all"),
+                fixture.replace("<sup>(2)</sup>", "<sup>(3)</sup>"),
                 "100",
             )
         }
         assertFailsWith<SourceParsingFailure> {
             parser.parseEventMatches(
-                pageHtml(
-                    fixture.replace("<div class=\"match-item-time\">8:00 PM</div>", ""),
-                    "/event/matches/100/?series_id=all",
-                ),
+                fixture.replace("<div class=\"match-item-time\">8:00 PM</div>", ""),
                 "100",
             )
         }
@@ -134,7 +130,7 @@ class EventsParserTest {
         )
 
         val match = parser.parseEventMatches(
-            pageHtml(fixture, "/event/matches/100/?series_id=all"),
+            fixture,
             "100",
         ).matches.first()
 
@@ -145,8 +141,8 @@ class EventsParserTest {
 
     @Test
     fun `event news parses canonical references and normal empty state without inventing author`() {
-        val populated = parser.parseEventNews(page("event-news.html", "/event/news/100"))
-        val empty = parser.parseEventNews(page("event-news-empty.html", "/event/news/100"))
+        val populated = parser.parseEventNews(fixture("event-news.html"))
+        val empty = parser.parseEventNews(fixture("event-news-empty.html"))
 
         assertEquals("701/masters-recap", populated.news.single().reference)
         assertEquals("Masters recap", populated.news.single().title)
@@ -157,8 +153,8 @@ class EventsParserTest {
 
     @Test
     fun `event stats parse operational data columns and normal no-stats state`() {
-        val available = parser.parseEventStats(page("event-stats.html", "/event/stats/100"))
-        val unavailable = parser.parseEventStats(page("event-stats-empty.html", "/event/stats/200"))
+        val available = parser.parseEventStats(fixture("event-stats.html"))
+        val unavailable = parser.parseEventStats(fixture("event-stats-empty.html"))
 
         val player = assertIs<EventStatsSource.Available>(available).players.first()
         assertEquals("10", player.playerId)
@@ -173,9 +169,9 @@ class EventsParserTest {
     @Test
     fun `event stats reject non-finite numeric source values`() {
         val fixture = fixture("event-stats.html")
-        val nanResult = parser.parseEventStats(pageHtml(fixture.replace(">1.32<", ">NaN<"), "/event/stats/100"))
+        val nanResult = parser.parseEventStats(fixture.replace(">1.32<", ">NaN<"))
         val infinityResult = parser.parseEventStats(
-            pageHtml(fixture.replace(">1.32<", ">Infinity<"), "/event/stats/100"),
+            fixture.replace(">1.32<", ">Infinity<"),
         )
 
         assertNull(assertIs<EventStatsSource.Available>(nanResult).players.first().rating)
@@ -183,24 +179,13 @@ class EventsParserTest {
     }
 
     @Test
-    fun `missing required resource structure maps to parsing failure with only canonical URL`() {
+    fun `missing required resource structure maps to parsing failure`() {
         val failure = assertFailsWith<SourceParsingFailure> {
-            parser.parseEventDetail(page("event-detail-broken.html", "/event/100"), eventId = "100")
+            parser.parseEventDetail(fixture("event-detail-broken.html"), eventId = "100")
         }
 
-        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         assertIs<IllegalStateException>(failure.cause)
     }
-
-    private fun page(name: String, path: String) = EventHtmlPage(
-        upstreamUrl = Url("https://www.vlr.gg$path"),
-        html = fixture(name),
-    )
-
-    private fun pageHtml(html: String, path: String) = EventHtmlPage(
-        upstreamUrl = Url("https://www.vlr.gg$path"),
-        html = html,
-    )
 
     private fun fixture(name: String): String = checkNotNull(
         javaClass.classLoader.getResource("events/$name"),

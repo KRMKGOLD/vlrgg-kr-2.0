@@ -1,10 +1,11 @@
 package kr.co.cotton.vlrgg_mobile.feature.teams
 
-import io.ktor.http.*
-import java.net.URI
-import kotlinx.coroutines.CancellationException
-import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
+import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedTextOrNull
+import kr.co.cotton.vlrgg_mobile.common.scraping.parseSource
+import kr.co.cotton.vlrgg_mobile.common.scraping.requiredText
+import kr.co.cotton.vlrgg_mobile.common.scraping.sourceStructureError
+import kr.co.cotton.vlrgg_mobile.common.scraping.toPublicImageUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -12,18 +13,18 @@ import org.jsoup.nodes.Element
 /** Keeps all VLR.GG DOM selectors and traversal inside the Team parsing boundary. */
 internal class TeamDetailParser {
     fun parse(content: TeamDetailUpstreamContent): TeamDetailSource {
-        val overview = parseOverview(content.overviewHtml, content.overviewUrl)
+        val overview = parseOverview(content.overviewHtml)
         return TeamDetailSource(
             profile = overview.profile,
             upcomingMatches = overview.upcomingMatches,
             recentMatches = overview.recentMatches,
             players = overview.players,
             staff = overview.staff,
-            news = parseNews(content.newsHtml, content.newsUrl),
+            news = parseNews(content.newsHtml),
         )
     }
 
-    private fun parseOverview(html: String, upstreamUrl: Url): ParsedOverview = parseSafely(upstreamUrl) {
+    private fun parseOverview(html: String): ParsedOverview = parseSource {
         val document = Jsoup.parse(html)
         val profile = parseProfile(document)
         val roster = parseRoster(document)
@@ -36,20 +37,20 @@ internal class TeamDetailParser {
         )
     }
 
-    private fun parseNews(html: String, upstreamUrl: Url): List<TeamNewsSource> = parseSafely(upstreamUrl) {
+    private fun parseNews(html: String): List<TeamNewsSource> = parseSource {
         val document = Jsoup.parse(html)
         val header = requireNotNull(document.selectFirst(TEAM_HEADER_SELECTOR)) { "Team news header is missing." }
         val headerCard = header.parent()
             ?.takeIf { it.hasClass(TEAM_NEWS_CONTAINER_CLASS) }
             ?: sourceStructureError("Team news header card is malformed.")
-        val container = headerCard.nextElementSibling() ?: return@parseSafely emptyList()
+        val container = headerCard.nextElementSibling() ?: return@parseSource emptyList()
         if (!container.hasClass(TEAM_NEWS_CONTAINER_CLASS)) {
             sourceStructureError("Team news container is malformed.")
         }
 
         // A Team without news renders a text-only placeholder card, so only a card with neither news candidates nor links is empty.
         if (container.select(".$NEWS_ITEM_CLASS").isEmpty() && container.select("a").isEmpty()) {
-            return@parseSafely emptyList()
+            return@parseSource emptyList()
         }
 
         container.children()
@@ -209,42 +210,7 @@ internal class TeamDetailParser {
 
     private fun Element.isSectionHeading(): Boolean = this.`is`(SECTION_HEADING_SELECTOR)
 
-    private fun Element.requiredText(selector: String, message: String): String = selectFirst(selector)
-        ?.normalizedTextOrNull()
-        ?: sourceStructureError(message)
-
-    private fun Element.normalizedTextOrNull(): String? = text().normalizedTextOrNull()
-
-    private fun String.normalizedTextOrNull(): String? = replace(WHITESPACE, " ").trim().ifEmpty { null }
-
-    // Team images are HTTPS-only: normalize protocol/root-relative sources and require a valid host.
-    private fun String.toPublicImageUrl(): String? = trim().takeIf { it.isNotEmpty() }?.let { source ->
-        val normalized = when {
-            source.startsWith("//") -> "https:$source"
-            source.startsWith("https://", ignoreCase = true) ->
-                "https://${source.substringAfter("://")}"
-            source.startsWith("/") -> "https://www.vlr.gg$source"
-            else -> null
-        }
-        normalized?.takeIf { url ->
-            val uri = runCatching { URI(url) }.getOrNull() ?: return@takeIf false
-            uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrEmpty()
-        }
-    }
-
     private fun String.matchedId(pattern: Regex): String? = pattern.matchEntire(this)?.groups?.get(1)?.value
-
-    private fun sourceStructureError(message: String): Nothing = throw IllegalStateException(message)
-
-    // This parser boundary fails closed by mapping all non-cancellation exceptions to SourceParsingFailure.
-    @Suppress("TooGenericExceptionCaught")
-    private inline fun <T> parseSafely(upstreamUrl: Url, block: () -> T): T = try {
-        block()
-    } catch (exception: CancellationException) {
-        throw exception
-    } catch (exception: Exception) {
-        throw SourceParsingFailure(upstreamUrl, exception)
-    }
 
     private data class ParsedOverview(
         val profile: TeamProfileSource,
@@ -289,6 +255,5 @@ internal class TeamDetailParser {
 
         val MATCH_PATH_PATTERN = Regex("^/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
         val PLAYER_PATH_PATTERN = Regex("^/player/([1-9][0-9]{0,9})/[a-z0-9-]+/?$")
-        val WHITESPACE = Regex("\\s+")
     }
 }

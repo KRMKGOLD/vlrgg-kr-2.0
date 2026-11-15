@@ -10,23 +10,24 @@ internal class NewsService(
     private val mapper: NewsMapper,
 ) {
     suspend fun getList(page: Int): NewsListResponse {
-        val scraped = scraper.fetchList(page)
+        val html = scraper.fetchList(page)
         return mapper.toListResponse(
             page = page,
-            source = parse(scraped) { parser.parseList(it, page) },
+            source = parse { parser.parseList(html, page) },
         )
     }
 
     suspend fun getArticle(reference: NewsReference): NewsArticleResponse {
-        val scraped = scraper.fetchArticle(reference)
+        val html = scraper.fetchArticle(reference)
         return mapper.toArticleResponse(
-            source = parse(scraped) { parser.parseArticle(it, reference) },
+            source = parse { parser.parseArticle(html, reference) },
         )
     }
 
-    private fun <T> parse(scraped: NewsScrapedHtml, parse: (String) -> T): T = try {
-        parse(scraped.html)
+    // Only known News DOM failures become SourceParsingFailure; any other exception stays an internal error.
+    private inline fun <T> parse(block: () -> T): T = try {
+        block()
     } catch (exception: NewsParsingException) {
-        throw SourceParsingFailure(upstreamUrl = scraped.upstreamUrl, cause = exception)
+        throw SourceParsingFailure(exception)
     }
 }

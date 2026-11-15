@@ -1,4 +1,4 @@
-# Android 앱 아이콘
+# 앱 아이콘
 
 `app-icon.svg`는 두 경기 행과 LIVE 신호를 표현한 독자적인 **스코어 윈도** 원본이다. VLR.GG·Riot Games 로고, VALORANT V 마크, 게임 에셋을 사용하지 않는다. 런처 이름은 `VLR.GG Mobile`이며 Play 제목과 About의 전체 이름은 `VLR.GG Mobile (Unofficial)`이다.
 
@@ -17,6 +17,7 @@
 ## 에셋과 크기
 
 - `app-icon.svg`: 108×108 원본. 배경과 두 foreground path를 분리했다.
+- `app/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png`: 1024×1024, 알파 채널 없는 RGB PNG. Play 아이콘과 같은 중앙 72dp 영역을 라운딩 없이 내보낸다. iOS가 마스크를 적용하며 App Store는 알파 채널을 허용하지 않는다.
 - `play-icon-512.png`: 512×512, RGBA 32-bit PNG, 1MB 미만. Play가 마스크를 적용하므로 사전 라운딩·그림자를 넣지 않았다.
 - `drawable/ic_launcher_{background,foreground,monochrome}.xml`: 108dp VectorDrawable. monochrome은 배경 없이 같은 두 패스를 단색으로 사용한다.
 - `mipmap-anydpi-v26/ic_launcher{,_round}.xml`: foreground/background와 Android 13 이상용 monochrome 레이어.
@@ -32,8 +33,9 @@ macOS의 Swift/AppKit SVG 렌더러를 사용한다. 앱 dependency 추가는 �
 ```sh
 swift docs/design/app-icon/export.swift
 ./gradlew :app:androidApp:assembleDebug :app:androidApp:lintDebug
+sips -g pixelWidth -g pixelHeight -g hasAlpha app/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png
 ```
 
-`app-icon.svg`를 수정한 뒤 생성기를 실행하면 네 VectorDrawable, 열 개 런처 PNG와 Play PNG가 갱신된다. 시안 비교 파일은 검토 기록이며 생성 입력이 아니다. 에뮬레이터 화면 캡처는 저장소에 포함하지 않는다. iOS 아이콘은 이 변경 범위 밖이다.
+`app-icon.svg`를 수정한 뒤 생성기를 실행하면 네 VectorDrawable, 열 개 런처 PNG, Play PNG와 iOS PNG가 갱신된다. 시안 비교 파일은 검토 기록이며 생성 입력이 아니다. 에뮬레이터 화면 캡처는 저장소에 포함하지 않는다.
 
 규격 근거: [Adaptive icons](https://developer.android.com/develop/ui/views/launch/icon_design_adaptive), [Splash screen dimensions](https://developer.android.com/develop/ui/views/launch/splash-screen#splash_screen_dimensions), [Google Play icon specifications](https://developer.android.com/distribute/google-play/resources/icon-design-specifications).

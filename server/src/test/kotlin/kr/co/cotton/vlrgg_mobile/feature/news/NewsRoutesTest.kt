@@ -191,7 +191,6 @@ class NewsRoutesTest {
 
     private object FailingTransport : UpstreamHtmlTransport {
         override suspend fun get(url: Url): String = throw UpstreamNetworkFailure(
-            upstreamUrl = url,
             cause = IllegalStateException("network details"),
         )
     }

@@ -6,11 +6,7 @@ import io.ktor.server.netty.*
 import kr.co.cotton.vlrgg_mobile.common.scraping.createUpstreamHtmlTransport
 import kr.co.cotton.vlrgg_mobile.feature.events.createEventsService
 import kr.co.cotton.vlrgg_mobile.feature.events.EventsService
-import kr.co.cotton.vlrgg_mobile.feature.matches.DefaultMatchesService
-import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesMapper
-import kr.co.cotton.vlrgg_mobile.feature.matches.VlrMatchesParser
-import kr.co.cotton.vlrgg_mobile.feature.matches.VlrMatchesScraper
-import kr.co.cotton.vlrgg_mobile.feature.matches.notification.ServerListenerConfiguration
+import kr.co.cotton.vlrgg_mobile.feature.matches.createMatchesService
 import kr.co.cotton.vlrgg_mobile.feature.news.createDefaultNewsService
 import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
 import kr.co.cotton.vlrgg_mobile.feature.player.createPlayerDetailService
@@ -32,7 +28,6 @@ import kr.co.cotton.vlrgg_mobile.routing.configureRouting
 
 private const val API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE = "VLRGG_ENABLE_API_DOCUMENTATION"
 
-/** Packaged runtime deliberately has no notification provider, verifier, store, or scheduler route. */
 fun main() {
     val listener = ServerListenerConfiguration.fromEnvironment(System.getenv())
     embeddedServer(Netty, host = listener.host, port = listener.port) {
@@ -55,12 +50,10 @@ internal fun Application.module(
     val protection = createPublicApiProtection(protectionConfig, observability)
     configurePublicRequestProtection(protection, protectionConfig)
     val transport = createUpstreamHtmlTransport().withPublicProtection(protection)
-    val matches = DefaultMatchesService(VlrMatchesScraper(transport), VlrMatchesParser(), MatchesMapper())
     configureRouting(
-        upstreamHtmlTransport = transport,
         newsService = newsService ?: createDefaultNewsService(transport), eventsService = eventsService ?: createEventsService(transport),
         searchService = searchService ?: createSearchService(transport), seriesService = seriesService ?: createSeriesService(transport),
         teamDetailService = teamDetailService ?: createTeamDetailService(transport), playerDetailService = playerDetailService ?: createPlayerDetailService(transport),
-        matchesService = matches, enableApiDocumentation = enableApiDocumentation,
+        matchesService = createMatchesService(transport), enableApiDocumentation = enableApiDocumentation,
     )
 }

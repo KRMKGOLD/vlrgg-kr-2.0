@@ -1,13 +1,15 @@
 # 서버 컨테이너 배포와 운영
 
-일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 배포·rollback·비용 중단과 복구를 확인했다. 2026-09-29 KST 기준 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)의 private 오류·가용성·native OOM 알림, 실제 이메일 수신과 독립 복원을 검증했고, 정상 production 배포와 영구 Monitoring 자원 4개의 적용·정상 상태 확인을 마쳤다. 앱 배포와 제품 경기 알림 Stage 2는 별도 범위다.
+일반 조회 서버는 서울 `asia-northeast3`의 Cloud Run에 배포돼 있다. [#111](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/111)에서 배포·rollback·비용 중단과 복구를 확인했다. 2026-09-29 KST 기준 [#122](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/122)의 private 오류·가용성·native OOM 알림, 실제 이메일 수신과 독립 복원을 검증했고, 정상 production 배포와 영구 Monitoring 자원 4개의 적용·정상 상태 확인을 마쳤다. 앱 배포는 별도 범위이고 제품 경기 알림은 현재 범위 밖이다.
+
+배포 절차와 스크립트별 역할을 먼저 파악하려면 [서버 운영 스크립트 안내](server-ops-guide.md)를 읽는다. 이 문서는 그 뒤에 필요한 계약과 검증 기록을 담는다.
 
 ## Image and runtime contract
 
 - root `Dockerfile`은 Java 21 build stage에서 `:server:installDist`를 만들고 runtime에는 server distribution만 복사한다.
 - runtime은 non-root `app` 사용자로 launcher를 PID 1로 실행하며 provider `PORT`와 `0.0.0.0`을 사용한다.
 - Cloud Run은 CPU 1, memory 768 MiB, timeout 30초, concurrency 32, CPU throttling과 production startup CPU boost를 사용한다. `JAVA_OPTS=-Xms128m -Xmx384m -XX:+ExitOnOutOfMemoryError`는 Java heap만 제한하며 전체 RSS 보장이 아니다.
-- `.dockerignore`는 allowlist다. build에 필요한 root Gradle 설정, `core`, `server` source만 포함하고 VCS/IDE/Gradle state, build output, test/iOS source, local config, Firebase/service-account/signing files와 logs를 제외한다.
+- `.dockerignore`는 allowlist다. build에 필요한 root Gradle 설정, `app/androidApp/build.gradle.kts`, `app/shared/build.gradle.kts`, `server` source만 포함하고 VCS/IDE/Gradle state, build output, test/iOS source, local config, Firebase/service-account/signing files와 logs를 제외한다.
 - 파일명 denylist는 임의 secret 탐지를 보장하지 않는다. build input을 늘릴 때 packaging 필요성과 secret/output 배제를 함께 검토한다.
 
 ## Deployment and rollback
@@ -18,7 +20,7 @@ Deploy identity는 project의 Cloud Run developer/invoker, Artifact Registry rep
 
 1. frozen source의 image를 cloud 인증 전에 GitHub runner에서 빌드한다. 그 뒤 WIF 인증을 수행해 Artifact Registry에 push하고 immutable digest를 기록한다.
 2. 같은 digest를 private `vlrgg-query-check`에 먼저 배포한다. expected revision의 Ready, image, digest, 100% traffic, Invoker IAM check와 public invoker 부재를 확인한다.
-3. validation service URL을 audience로 한 ID token으로 unauthenticated rejection, `/health`, 대표 query, 안전한 400과 docs/notification 404를 검사한다.
+3. validation service URL을 audience로 한 ID token으로 unauthenticated rejection, `/health`, 대표 query, 안전한 400과 docs 404를 검사한다.
 4. 첫 production은 private 기본 traffic으로 만들고 후속 production은 tag 없는 no-traffic revision으로 만든다. production URL용 별도 ID token smoke 뒤 명시적으로 100% 승격한다.
 5. 승격 또는 smoke가 실패하면 workflow 시작 때 기록한 serving revision으로 rollback한다. partial traffic이나 불명확한 revision을 정상 상태로 간주하지 않는다.
 
@@ -30,7 +32,7 @@ Production은 public, service min/max `0/1`, revision min/max `0/1`이고 valida
 
 - 요청이 없는 기간 뒤 첫 요청은 JVM cold start를 포함할 수 있다. startup CPU boost로 시작 시간을 줄이지만 시작 지연 상한을 보장하지 않는다.
 - 운영 uptime check의 주기 요청이 instance를 유지할 수 있지만 provider가 idle instance 유지를 보장하지 않으므로 warm 상태를 계약으로 사용하지 않는다.
-- Stage 2 알림은 Cloud Scheduler 요청 기반 설계라 상시 instance를 전제하지 않는다. 실사용자 latency 요구가 생기면 minimum 재상향을 비용과 함께 다시 결정한다.
+- 실사용자 latency 요구가 생기면 minimum 재상향을 비용과 함께 다시 결정한다.
 - service minimum 변경은 다음 production deploy부터 적용된다. 수동 변경은 workflow 계약과 어긋나므로 배포로 반영한다.
 
 ## Request log storage
@@ -57,7 +59,7 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 3. production public invoker를 제거하고 production·validation service minimum을 0으로 맞춘다. 관련 immutable revision의 minimum도 전수 확인한다.
 4. production과 project IAM의 `allUsers`·`allAuthenticatedUsers` 부재, default/tag URL의 실제 unauthenticated 거절과 drain을 상한 내 재확인한다. 기존 운영 identity는 보존하고 누락 표본은 unknown으로 둔다.
 
-복구는 기록한 production revision/digest 100%, production min/max `0/1`, validation private/minimum 0, production public invoker, 외부 `/health`·대표 query·안전한 400·docs/notification 404 순으로 확인한다. IAM·traffic·resource를 다시 읽은 뒤 enable variable을 마지막에 true로 되돌린다.
+복구는 기록한 production revision/digest 100%, production min/max `0/1`, validation private/minimum 0, production public invoker, 외부 `/health`·대표 query·안전한 400·docs 404 순으로 확인한다. IAM·traffic·resource를 다시 읽은 뒤 enable variable을 마지막에 true로 되돌린다.
 
 ## #122 observability live runbook
 
@@ -157,7 +159,7 @@ resource.labels.service_name="vlrgg-query"
 severity=ERROR
 ```
 
-안전한 이벤트는 총 frame 32개, cause 깊이 3, frame 후보 검사 128개, 개행 포함 UTF-8 16 KiB와 category별 프로세스당 4건/60초로 제한한다. 원본 exception 문구·HTML·query·token을 추가로 출력하지 않는다. Error Reporting occurrence는 수집된 sample 수이며 실제 실패 요청 수가 아니다. native 요청 지표와 emitted/suppressed 요약을 함께 보고, 프로세스 재시작과 무요청 시 요약 flush 한계를 고려한다.
+안전한 이벤트는 총 frame 32개, cause 깊이 3과 category별 프로세스당 4건/60초로 제한한다. stack에는 예외 종류와 코드 위치만 남긴다. packaged smoke가 한 이벤트가 stdout 한 줄 16 KiB 안에 들어가는지 확인한다. 원본 exception 문구·HTML·query·token을 추가로 출력하지 않는다. Error Reporting occurrence는 수집된 sample 수이며 실제 실패 요청 수가 아니다. native 요청 지표와 emitted/suppressed 요약을 함께 보고, 프로세스 재시작과 무요청 시 요약 flush 한계를 고려한다.
 
 재현 가능한 로컬 검증:
 

@@ -37,7 +37,6 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 | app/androidApp  | Android 앱 엔트리 포인트                    |
 | app/iosApp      | iOS 앱 엔트리 포인트                        |
 | server          | Ktor 기반 서버 애플리케이션                    |
-| core            | 앱/서버가 공유할 수 있는 순수 Kotlin 유틸리티와 공통 코드 |
 | docs            | 기획, 아키텍처, ADR, 작업 계획 문서              |
 
 ## Module Boundaries
@@ -45,7 +44,6 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - 대부분의 앱 UI, ViewModel, 상태 관리, data/domain 로직은 `app/shared`에 둔다.
 - `androidApp`과 `iosApp`에는 플랫폼 엔트리 포인트와 플랫폼 특화 코드만 둔다.
 - `server`는 scraping, API route, server-side DTO, service 로직을 담당한다.
-- `core`는 특정 플랫폼, Compose UI, Ktor server framework에 강하게 의존하지 않는 공통 코드만 둔다.
 
 ## Architecture Principles
 
@@ -75,14 +73,6 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - 서버 실패 응답은 HTTP status, stable error code, 안전한 message를 가진 공통 envelope로 반환한다. upstream 통신 실패는 public `UPSTREAM_NETWORK_FAILURE`, DOM 해석 실패는 public `SOURCE_PARSING_FAILURE`로 구분한다.
 - 예외 문구·upstream URL·selector·원본 HTML·parser 세부사항은 client에 노출하지 않는다. 안전하게 제한한 canonical upstream URL과 cause는 server log에만 기록하며 원본 HTML은 로그에도 남기지 않는다.
 - 서버는 Kotlin/JVM 기반 Ktor Netty이며 local 실행을 개발 기준으로 삼는다. 조회 서버의 Cloud Run 배포·복구 계약은 `docs/architecture/server-container-deployment.md`를 따른다. Discord notification은 필요한 경우에만 best-effort 운영 알림으로 추가한다.
-
-## Core Module Rules
-
-- `core`에는 앱과 서버가 공유해도 안전한 순수 Kotlin 코드를 둔다.
-- Compose UI, Android Context, iOS API, Ktor Application 같은 framework-specific 의존성은 피한다.
-- 공통 enum, value object, formatter, validation, lightweight utility를 우선 배치한다.
-- request/response DTO, API contract, transport-oriented model은 `core`에 두지 않는다.
-- 특정 기능에만 쓰이는 코드는 무리하게 `core`로 올리지 않는다.
 
 ## Build, Test, and Verification Commands
 

@@ -1,6 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.feature.search
 
-import io.ktor.http.*
 import java.nio.file.Files
 import java.nio.file.Paths
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
@@ -9,11 +8,10 @@ import kotlin.test.*
 class SearchParserTest {
 
     private val parser = SearchParser()
-    private val upstreamUrl = Url("https://www.vlr.gg/search/?q=sentinels")
 
     @Test
     fun `parser classifies supported search cards and keeps optional descriptions`() {
-        val source = parser.parse(readFixture("mixed-results.html"), upstreamUrl)
+        val source = parser.parse(readFixture("mixed-results.html"))
 
         assertEquals(
             listOf(
@@ -28,7 +26,7 @@ class SearchParserTest {
 
     @Test
     fun `parser maps the real eventgroup search path to a Series result`() {
-        val source = parser.parse(readFixture("series-real-dom.html"), upstreamUrl)
+        val source = parser.parse(readFixture("series-real-dom.html"))
 
         assertEquals(
             listOf(
@@ -40,14 +38,14 @@ class SearchParserTest {
 
     @Test
     fun `parser accepts an empty valid results page`() {
-        val source = parser.parse(readFixture("empty-results.html"), upstreamUrl)
+        val source = parser.parse(readFixture("empty-results.html"))
 
         assertTrue(source.results.isEmpty())
     }
 
     @Test
     fun `parser handles a valid single type page`() {
-        val source = parser.parse(readFixture("single-type-results.html"), upstreamUrl)
+        val source = parser.parse(readFixture("single-type-results.html"))
 
         assertEquals(
             listOf(
@@ -60,7 +58,7 @@ class SearchParserTest {
 
     @Test
     fun `parser keeps identifiable results when optional descriptions are missing`() {
-        val source = parser.parse(readFixture("missing-optionals.html"), upstreamUrl)
+        val source = parser.parse(readFixture("missing-optionals.html"))
 
         assertEquals(
             listOf(SearchSourceResult(SearchSourceResultType.TEAM, "2", "Sentinels", null)),
@@ -70,7 +68,7 @@ class SearchParserTest {
 
     @Test
     fun `parser ignores unknown types instead of guessing a supported type`() {
-        val source = parser.parse(readFixture("unknown-type.html"), upstreamUrl)
+        val source = parser.parse(readFixture("unknown-type.html"))
 
         assertTrue(source.results.isEmpty())
     }
@@ -78,41 +76,41 @@ class SearchParserTest {
     @Test
     fun `parser fails closed when the result card class drifts around a canonical supported link`() {
         assertFailsWith<SourceParsingFailure> {
-            parser.parse(readFixture("renamed-result-card.html"), upstreamUrl)
+            parser.parse(readFixture("renamed-result-card.html"))
         }
     }
 
     @Test
     fun `parser fails closed when the search item class drifts on a canonical supported link`() {
         assertFailsWith<SourceParsingFailure> {
-            parser.parse(readFixture("renamed-search-item.html"), upstreamUrl)
+            parser.parse(readFixture("renamed-search-item.html"))
         }
     }
 
     @Test
     fun `parser fails closed when Found results no longer use a canonical search path`() {
         assertFailsWith<SourceParsingFailure> {
-            parser.parse(readFixture("supported-path-drift.html"), upstreamUrl)
+            parser.parse(readFixture("supported-path-drift.html"))
         }
     }
 
     @Test
     fun `parser fails closed when Found count exceeds canonical source elements`() {
         assertFailsWith<SourceParsingFailure> {
-            parser.parse(readFixture("found-count-underflow.html"), upstreamUrl)
+            parser.parse(readFixture("found-count-underflow.html"))
         }
     }
 
     @Test
     fun `parser fails closed when duplicate canonical source elements exceed Found count`() {
         assertFailsWith<SourceParsingFailure> {
-            parser.parse(readFixture("found-count-overflow.html"), upstreamUrl)
+            parser.parse(readFixture("found-count-overflow.html"))
         }
     }
 
     @Test
     fun `parser ignores malformed and polluted cards while retaining valid results`() {
-        val source = parser.parse(readFixture("mixed-results.html"), upstreamUrl)
+        val source = parser.parse(readFixture("mixed-results.html"))
 
         assertEquals(setOf("86", "202", "2", "9"), source.results.map { it.id }.toSet())
     }
@@ -120,20 +118,18 @@ class SearchParserTest {
     @Test
     fun `parser maps a missing required results container to a parsing failure`() {
         val failure = assertFailsWith<SourceParsingFailure> {
-            parser.parse(readFixture("malformed-structure.html"), upstreamUrl)
+            parser.parse(readFixture("malformed-structure.html"))
         }
 
-        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         assertIs<IllegalStateException>(failure.cause)
     }
 
     @Test
     fun `parser maps an entirely malformed supported result set to a parsing failure`() {
         val failure = assertFailsWith<SourceParsingFailure> {
-            parser.parse(readFixture("malformed-results.html"), upstreamUrl)
+            parser.parse(readFixture("malformed-results.html"))
         }
 
-        assertEquals("https://www.vlr.gg/", failure.canonicalUpstreamUrl)
         assertIs<IllegalStateException>(failure.cause)
     }
 

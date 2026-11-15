@@ -1,14 +1,11 @@
 package kr.co.cotton.vlrgg_mobile.feature.teams
 
-import io.ktor.http.*
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 
 /** Raw, feature-internal material returned by the Team overview and news pages. */
 internal data class TeamDetailUpstreamContent(
     val overviewHtml: String,
     val newsHtml: String,
-    val overviewUrl: Url,
-    val newsUrl: Url,
 )
 
 /** Server-internal representation of VLR.GG's Team pages. It is never serialized. */

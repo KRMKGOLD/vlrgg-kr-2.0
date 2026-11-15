@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile.benchmark
 import com.sun.management.OperatingSystemMXBean
 import io.ktor.http.Url
 import io.ktor.server.application.Application
+import io.ktor.server.routing.routing
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import java.lang.management.ManagementFactory
@@ -164,7 +165,7 @@ class ProtectedRouteLoadBenchmarkTest {
         configureSerialization()
         configureErrorHandling(observability)
         configurePublicRequestProtection(protection, protectionConfig)
-        configureMatchesRoutes(service)
+        routing { configureMatchesRoutes(service) }
     }
 
     private fun runNormalLoad(
