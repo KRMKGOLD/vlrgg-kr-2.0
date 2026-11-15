@@ -3462,7 +3462,7 @@
                   "lineHeight": 1.35
                 },
                 "U5OPEw": {
-                  "content": "ChickenJoe · September 19, 2026"
+                  "content": "ChickenJoe · 2026년 9월 19일"
                 }
               }
             },
@@ -3477,7 +3477,7 @@
                   "content": "purp0 searching for new team following Team Liquid benching"
                 },
                 "U5OPEw": {
-                  "content": "jenopelle · September 19, 2026"
+                  "content": "jenopelle · 2026년 9월 19일"
                 }
               }
             },
@@ -3492,7 +3492,7 @@
                   "content": "Natus Vincere's CyvOph set to enter free agency"
                 },
                 "U5OPEw": {
-                  "content": "jenopelle · September 19, 2026"
+                  "content": "jenopelle · 2026년 9월 19일"
                 }
               }
             },
@@ -3507,7 +3507,7 @@
                   "content": "Warbirds set to leave the Rex Regum Qeon flock"
                 },
                 "U5OPEw": {
-                  "content": "VLR.gg · September 18, 2026"
+                  "content": "VLR.gg · 2026년 9월 18일"
                 }
               }
             },
@@ -3522,7 +3522,7 @@
                   "content": "ENVY allows nightz to explore options"
                 },
                 "U5OPEw": {
-                  "content": "VLR.gg · September 17, 2026"
+                  "content": "VLR.gg · 2026년 9월 17일"
                 }
               }
             }
@@ -4345,7 +4345,7 @@
                       "content": "VCT Pacific 2026"
                     },
                     "oI6eG": {
-                      "content": "Sep 12—Oct 4"
+                      "content": "9월 12일 ~ 10월 4일"
                     }
                   }
                 }
@@ -4394,7 +4394,7 @@
                       "content": "VALORANT Champions 2026"
                     },
                     "oI6eG": {
-                      "content": "Oct 15—Nov 1"
+                      "content": "10월 15일 ~ 11월 1일"
                     }
                   }
                 },
@@ -4415,7 +4415,7 @@
                       "content": "Red Bull Home Ground #6"
                     },
                     "oI6eG": {
-                      "content": "Nov 20—Nov 23"
+                      "content": "11월 20일 ~ 23일"
                     }
                   }
                 }
@@ -4464,7 +4464,7 @@
                       "content": "VCT Pacific: Stage 1"
                     },
                     "oI6eG": {
-                      "content": "Mar 22—May 18"
+                      "content": "3월 22일 ~ 5월 18일"
                     }
                   }
                 },
@@ -4485,7 +4485,7 @@
                       "content": "VCT Pacific: Kickoff"
                     },
                     "oI6eG": {
-                      "content": "Jan 18—Feb 9"
+                      "content": "1월 18일 ~ 2월 9일"
                     }
                   }
                 }
@@ -6058,7 +6058,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -6088,6 +6088,7 @@
           "name": "Matches tab",
           "width": "fill_container",
           "layout": "vertical",
+          "gap": 8,
           "padding": [
             0,
             0,
@@ -6097,12 +6098,130 @@
           "children": [
             {
               "type": "frame",
-              "id": "ABQeH",
-              "name": "Match list",
+              "id": "r5s5DV",
+              "name": "Group · 9월 21일 (월)",
               "width": "fill_container",
               "fill": "$surface",
               "layout": "vertical",
               "children": [
+                {
+                  "id": "xahyH",
+                  "type": "ref",
+                  "ref": "bZWQb",
+                  "name": "Date header",
+                  "width": "fill_container",
+                  "descendants": {
+                    "X4HaZ": {
+                      "content": "9월 21일 (월)"
+                    },
+                    "f7Ywz": {
+                      "enabled": false
+                    },
+                    "tybeM": {
+                      "content": "한국 시간"
+                    }
+                  }
+                },
+                {
+                  "id": "C3LzYV",
+                  "type": "ref",
+                  "ref": "cmmzU",
+                  "name": "Match · T1 vs KIWOOM DRX",
+                  "width": "fill_container",
+                  "descendants": {
+                    "Bq8bC": {
+                      "content": "오후 3:00"
+                    },
+                    "OIxYb": {
+                      "content": "종료"
+                    },
+                    "h2XzAk": {
+                      "content": "T1",
+                      "fill": "$muted",
+                      "fontWeight": "500"
+                    },
+                    "vqCqd": {
+                      "content": "1",
+                      "fill": "$muted"
+                    },
+                    "p9zZ0v": {
+                      "content": "KIWOOM DRX",
+                      "fill": "$ink",
+                      "fontWeight": "700"
+                    },
+                    "LPlyL": {
+                      "content": "2",
+                      "fill": "$ink"
+                    },
+                    "Hry2y": {
+                      "content": "Playoffs–Upper Semifinal"
+                    }
+                  }
+                },
+                {
+                  "id": "p8ABsD",
+                  "type": "ref",
+                  "ref": "cmmzU",
+                  "name": "Match · Paper Rex vs Gen.G",
+                  "width": "fill_container",
+                  "descendants": {
+                    "Bq8bC": {
+                      "content": "오후 6:00"
+                    },
+                    "OIxYb": {
+                      "content": "종료"
+                    },
+                    "h2XzAk": {
+                      "content": "Paper Rex",
+                      "fill": "$ink",
+                      "fontWeight": "700"
+                    },
+                    "vqCqd": {
+                      "content": "2",
+                      "fill": "$ink"
+                    },
+                    "p9zZ0v": {
+                      "content": "Gen.G",
+                      "fill": "$muted",
+                      "fontWeight": "500"
+                    },
+                    "LPlyL": {
+                      "content": "0",
+                      "fill": "$muted"
+                    },
+                    "Hry2y": {
+                      "content": "Playoffs–Upper Semifinal"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "bKYSx",
+              "name": "Group · 9월 22일 (화)",
+              "width": "fill_container",
+              "fill": "$surface",
+              "layout": "vertical",
+              "children": [
+                {
+                  "id": "vFw7z",
+                  "type": "ref",
+                  "ref": "bZWQb",
+                  "name": "Date header",
+                  "width": "fill_container",
+                  "descendants": {
+                    "X4HaZ": {
+                      "content": "9월 22일 (화)"
+                    },
+                    "f7Ywz": {
+                      "enabled": false
+                    },
+                    "tybeM": {
+                      "content": "한국 시간"
+                    }
+                  }
+                },
                 {
                   "id": "OKcTL",
                   "type": "ref",
@@ -6167,78 +6286,6 @@
                     },
                     "Hry2y": {
                       "content": "Playoffs–Lower Round 2"
-                    }
-                  }
-                },
-                {
-                  "id": "p8ABsD",
-                  "type": "ref",
-                  "ref": "cmmzU",
-                  "name": "Match · Paper Rex vs Gen.G",
-                  "width": "fill_container",
-                  "descendants": {
-                    "Bq8bC": {
-                      "content": "오후 6:00"
-                    },
-                    "OIxYb": {
-                      "content": "종료"
-                    },
-                    "h2XzAk": {
-                      "content": "Paper Rex",
-                      "fill": "$ink",
-                      "fontWeight": "700"
-                    },
-                    "vqCqd": {
-                      "content": "2",
-                      "fill": "$ink"
-                    },
-                    "p9zZ0v": {
-                      "content": "Gen.G",
-                      "fill": "$muted",
-                      "fontWeight": "500"
-                    },
-                    "LPlyL": {
-                      "content": "0",
-                      "fill": "$muted"
-                    },
-                    "Hry2y": {
-                      "content": "Playoffs–Upper Semifinal"
-                    }
-                  }
-                },
-                {
-                  "id": "C3LzYV",
-                  "type": "ref",
-                  "ref": "cmmzU",
-                  "name": "Match · T1 vs KIWOOM DRX",
-                  "width": "fill_container",
-                  "descendants": {
-                    "Bq8bC": {
-                      "content": "오후 3:00"
-                    },
-                    "OIxYb": {
-                      "content": "종료"
-                    },
-                    "h2XzAk": {
-                      "content": "T1",
-                      "fill": "$muted",
-                      "fontWeight": "500"
-                    },
-                    "vqCqd": {
-                      "content": "1",
-                      "fill": "$muted"
-                    },
-                    "p9zZ0v": {
-                      "content": "KIWOOM DRX",
-                      "fill": "$ink",
-                      "fontWeight": "700"
-                    },
-                    "LPlyL": {
-                      "content": "2",
-                      "fill": "$ink"
-                    },
-                    "Hry2y": {
-                      "content": "Playoffs–Upper Semifinal"
                     }
                   }
                 }
@@ -6361,12 +6408,14 @@
                       "content": "VCT Pacific 2026 · Playoffs–Upper Final"
                     },
                     "eonln": {
-                      "content": "18h 5m",
+                      "content": "18시간 5분 후",
                       "fill": "$muted",
-                      "fontSize": 16
+                      "fontSize": 13,
+                      "fontFamily": "$font-text",
+                      "fontWeight": "700"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/24 6:00 pm"
+                      "content": "9월 24일 오후 6:00"
                     }
                   }
                 }
@@ -6415,7 +6464,7 @@
                       "content": "2 : 1"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/21 3:00 pm"
+                      "content": "9월 21일 오후 3:00"
                     }
                   }
                 },
@@ -6436,7 +6485,7 @@
                       "content": "2 : 0"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/14 6:00 pm"
+                      "content": "9월 14일 오후 6:00"
                     }
                   }
                 },
@@ -6457,7 +6506,7 @@
                       "content": "1 : 2"
                     },
                     "p0Ls9": {
-                      "content": "2026/08/28 7:05 pm"
+                      "content": "8월 28일 오후 7:05"
                     }
                   }
                 }
@@ -6685,7 +6734,7 @@
                       "content": "KIWOOM DRX advance to the Pacific playoffs"
                     },
                     "U5OPEw": {
-                      "content": "2026/09/15"
+                      "content": "2026년 9월 15일"
                     }
                   }
                 },
@@ -6700,7 +6749,7 @@
                       "content": "MaKo on the road to Champions 2026"
                     },
                     "U5OPEw": {
-                      "content": "2026/09/02"
+                      "content": "2026년 9월 2일"
                     }
                   }
                 }
@@ -7117,7 +7166,7 @@
                       "content": "2 : 0"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/12"
+                      "content": "7월 12일"
                     }
                   }
                 },
@@ -7143,7 +7192,7 @@
                       "content": "0 : 2"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/10"
+                      "content": "7월 10일"
                     }
                   }
                 },
@@ -7170,7 +7219,7 @@
                       "fill": "$muted"
                     },
                     "p0Ls9": {
-                      "content": "2026/06/28"
+                      "content": "6월 28일"
                     }
                   }
                 }
@@ -7316,7 +7365,7 @@
                       "content": "VCT Pacific 2027: Kickoff"
                     },
                     "oI6eG": {
-                      "content": "Jan 15—Feb 8"
+                      "content": "1월 15일 ~ 2월 8일"
                     }
                   }
                 }
@@ -7365,7 +7414,7 @@
                       "content": "VCT Pacific: Stage 1"
                     },
                     "oI6eG": {
-                      "content": "Mar 22—May 18"
+                      "content": "3월 22일 ~ 5월 18일"
                     }
                   }
                 },
@@ -7386,7 +7435,7 @@
                       "content": "VCT Pacific: Kickoff"
                     },
                     "oI6eG": {
-                      "content": "Jan 18—Feb 9"
+                      "content": "1월 18일 ~ 2월 9일"
                     }
                   }
                 }
@@ -9718,7 +9767,7 @@
                   "lineHeight": 1.35
                 },
                 "U5OPEw": {
-                  "content": "ChickenJoe · September 19, 2026"
+                  "content": "ChickenJoe · 2026년 9월 19일"
                 }
               }
             },
@@ -9733,7 +9782,7 @@
                   "content": "purp0 searching for new team following Team Liquid benching"
                 },
                 "U5OPEw": {
-                  "content": "jenopelle · September 19, 2026"
+                  "content": "jenopelle · 2026년 9월 19일"
                 }
               }
             },
@@ -9748,7 +9797,7 @@
                   "content": "Natus Vincere's CyvOph set to enter free agency"
                 },
                 "U5OPEw": {
-                  "content": "jenopelle · September 19, 2026"
+                  "content": "jenopelle · 2026년 9월 19일"
                 }
               }
             },
@@ -9763,7 +9812,7 @@
                   "content": "Warbirds set to leave the Rex Regum Qeon flock"
                 },
                 "U5OPEw": {
-                  "content": "VLR.gg · September 18, 2026"
+                  "content": "VLR.gg · 2026년 9월 18일"
                 }
               }
             },
@@ -10536,11 +10585,12 @@
                   "width": "fill_container",
                   "descendants": {
                     "Bq8bC": {
-                      "content": "종료",
-                      "fill": "$muted"
+                      "content": "오후 9:00",
+                      "fill": "$ink"
                     },
                     "OIxYb": {
-                      "enabled": false
+                      "enabled": true,
+                      "content": "종료"
                     },
                     "h2XzAk": {
                       "content": "Havoc & Yonder GC",
@@ -10573,11 +10623,12 @@
                   "width": "fill_container",
                   "descendants": {
                     "Bq8bC": {
-                      "content": "종료",
-                      "fill": "$muted"
+                      "content": "오후 6:00",
+                      "fill": "$ink"
                     },
                     "OIxYb": {
-                      "enabled": false
+                      "enabled": true,
+                      "content": "종료"
                     },
                     "h2XzAk": {
                       "content": "FENNEL GC",
@@ -10638,11 +10689,12 @@
                   "width": "fill_container",
                   "descendants": {
                     "Bq8bC": {
-                      "content": "종료",
-                      "fill": "$muted"
+                      "content": "오후 6:00",
+                      "fill": "$ink"
                     },
                     "OIxYb": {
-                      "enabled": false
+                      "enabled": true,
+                      "content": "종료"
                     },
                     "h2XzAk": {
                       "content": "Nova Esports GC",
@@ -10675,11 +10727,12 @@
                   "width": "fill_container",
                   "descendants": {
                     "Bq8bC": {
-                      "content": "종료",
-                      "fill": "$muted"
+                      "content": "오후 3:00",
+                      "fill": "$ink"
                     },
                     "OIxYb": {
-                      "enabled": false
+                      "enabled": true,
+                      "content": "종료"
                     },
                     "h2XzAk": {
                       "content": "Gen.G GC",
@@ -16841,7 +16894,7 @@
                       "content": "VCT Pacific 2026"
                     },
                     "oI6eG": {
-                      "content": "Sep 12—Oct 4"
+                      "content": "9월 12일 ~ 10월 4일"
                     }
                   }
                 }
@@ -16931,7 +16984,7 @@
                       "content": "VCT Pacific: Stage 1"
                     },
                     "oI6eG": {
-                      "content": "Mar 22—May 18"
+                      "content": "3월 22일 ~ 5월 18일"
                     }
                   }
                 },
@@ -16952,7 +17005,7 @@
                       "content": "VCT Pacific: Kickoff"
                     },
                     "oI6eG": {
-                      "content": "Jan 18—Feb 9"
+                      "content": "1월 18일 ~ 2월 9일"
                     }
                   }
                 }
@@ -17307,7 +17360,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -17480,7 +17533,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -17638,7 +17691,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -17796,7 +17849,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -17871,7 +17924,7 @@
                       "content": "purp0 searching for new team following Team Liquid benching"
                     },
                     "U5OPEw": {
-                      "content": "jenopelle · September 19, 2026"
+                      "content": "jenopelle · 2026년 9월 19일"
                     }
                   }
                 },
@@ -17886,7 +17939,7 @@
                       "content": "Natus Vincere's CyvOph set to enter free agency"
                     },
                     "U5OPEw": {
-                      "content": "jenopelle · September 19, 2026"
+                      "content": "jenopelle · 2026년 9월 19일"
                     }
                   }
                 },
@@ -17901,7 +17954,7 @@
                       "content": "Warbirds set to leave the Rex Regum Qeon flock"
                     },
                     "U5OPEw": {
-                      "content": "VLR.gg · September 18, 2026"
+                      "content": "VLR.gg · 2026년 9월 18일"
                     }
                   }
                 }
@@ -17986,7 +18039,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -18159,7 +18212,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -18317,7 +18370,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -18475,7 +18528,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -18888,7 +18941,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -19061,7 +19114,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -19219,7 +19272,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -19752,7 +19805,7 @@
                       "content": "VCT Pacific 2027: Kickoff"
                     },
                     "oI6eG": {
-                      "content": "Jan 15—Feb 8"
+                      "content": "1월 15일 ~ 2월 8일"
                     }
                   }
                 }
@@ -19980,7 +20033,7 @@
                       "content": "VCT Pacific: Stage 1"
                     },
                     "oI6eG": {
-                      "content": "Mar 22—May 18"
+                      "content": "3월 22일 ~ 5월 18일"
                     }
                   }
                 },
@@ -20001,7 +20054,7 @@
                       "content": "VCT Pacific: Kickoff"
                     },
                     "oI6eG": {
-                      "content": "Jan 18—Feb 9"
+                      "content": "1월 18일 ~ 2월 9일"
                     }
                   }
                 }
@@ -20134,12 +20187,14 @@
                       "content": "VCT Pacific 2026 · Playoffs–Upper Final"
                     },
                     "eonln": {
-                      "content": "18h 5m",
+                      "content": "18시간 5분 후",
                       "fill": "$muted",
-                      "fontSize": 16
+                      "fontSize": 13,
+                      "fontFamily": "$font-text",
+                      "fontWeight": "700"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/24 6:00 pm"
+                      "content": "9월 24일 오후 6:00"
                     }
                   }
                 }
@@ -20188,7 +20243,7 @@
                       "content": "2 : 1"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/21 3:00 pm"
+                      "content": "9월 21일 오후 3:00"
                     }
                   }
                 },
@@ -20209,7 +20264,7 @@
                       "content": "2 : 0"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/14 6:00 pm"
+                      "content": "9월 14일 오후 6:00"
                     }
                   }
                 },
@@ -20230,7 +20285,7 @@
                       "content": "1 : 2"
                     },
                     "p0Ls9": {
-                      "content": "2026/08/28 7:05 pm"
+                      "content": "8월 28일 오후 7:05"
                     }
                   }
                 }
@@ -20458,7 +20513,7 @@
                       "content": "KIWOOM DRX advance to the Pacific playoffs"
                     },
                     "U5OPEw": {
-                      "content": "2026/09/15"
+                      "content": "2026년 9월 15일"
                     }
                   }
                 },
@@ -20473,7 +20528,7 @@
                       "content": "MaKo on the road to Champions 2026"
                     },
                     "U5OPEw": {
-                      "content": "2026/09/02"
+                      "content": "2026년 9월 2일"
                     }
                   }
                 }
@@ -21181,12 +21236,14 @@
                       "content": "VCT Pacific 2026 · Playoffs–Upper Final"
                     },
                     "eonln": {
-                      "content": "18h 5m",
+                      "content": "18시간 5분 후",
                       "fill": "$muted",
-                      "fontSize": 16
+                      "fontSize": 13,
+                      "fontFamily": "$font-text",
+                      "fontWeight": "700"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/24 6:00 pm"
+                      "content": "9월 24일 오후 6:00"
                     }
                   }
                 }
@@ -21235,7 +21292,7 @@
                       "content": "2 : 1"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/21 3:00 pm"
+                      "content": "9월 21일 오후 3:00"
                     }
                   }
                 },
@@ -21256,7 +21313,7 @@
                       "content": "2 : 0"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/14 6:00 pm"
+                      "content": "9월 14일 오후 6:00"
                     }
                   }
                 },
@@ -21277,7 +21334,7 @@
                       "content": "1 : 2"
                     },
                     "p0Ls9": {
-                      "content": "2026/08/28 7:05 pm"
+                      "content": "8월 28일 오후 7:05"
                     }
                   }
                 }
@@ -21505,7 +21562,7 @@
                       "content": "KIWOOM DRX advance to the Pacific playoffs"
                     },
                     "U5OPEw": {
-                      "content": "2026/09/15"
+                      "content": "2026년 9월 15일"
                     }
                   }
                 },
@@ -21520,7 +21577,7 @@
                       "content": "MaKo on the road to Champions 2026"
                     },
                     "U5OPEw": {
-                      "content": "2026/09/02"
+                      "content": "2026년 9월 2일"
                     }
                   }
                 }
@@ -21668,12 +21725,14 @@
                       "content": "VCT Pacific 2026 · Playoffs–Upper Final"
                     },
                     "eonln": {
-                      "content": "18h 5m",
+                      "content": "18시간 5분 후",
                       "fill": "$muted",
-                      "fontSize": 16
+                      "fontSize": 13,
+                      "fontFamily": "$font-text",
+                      "fontWeight": "700"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/24 6:00 pm"
+                      "content": "9월 24일 오후 6:00"
                     }
                   }
                 }
@@ -21722,7 +21781,7 @@
                       "content": "2 : 1"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/21 3:00 pm"
+                      "content": "9월 21일 오후 3:00"
                     }
                   }
                 },
@@ -21743,7 +21802,7 @@
                       "content": "2 : 0"
                     },
                     "p0Ls9": {
-                      "content": "2026/09/14 6:00 pm"
+                      "content": "9월 14일 오후 6:00"
                     }
                   }
                 },
@@ -21764,7 +21823,7 @@
                       "content": "1 : 2"
                     },
                     "p0Ls9": {
-                      "content": "2026/08/28 7:05 pm"
+                      "content": "8월 28일 오후 7:05"
                     }
                   }
                 }
@@ -21992,7 +22051,7 @@
                       "content": "KIWOOM DRX advance to the Pacific playoffs"
                     },
                     "U5OPEw": {
-                      "content": "2026/09/15"
+                      "content": "2026년 9월 15일"
                     }
                   }
                 },
@@ -22007,7 +22066,7 @@
                       "content": "MaKo on the road to Champions 2026"
                     },
                     "U5OPEw": {
-                      "content": "2026/09/02"
+                      "content": "2026년 9월 2일"
                     }
                   }
                 }
@@ -22448,7 +22507,7 @@
                       "content": "2 : 0"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/12"
+                      "content": "7월 12일"
                     }
                   }
                 },
@@ -22474,7 +22533,7 @@
                       "content": "0 : 2"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/10"
+                      "content": "7월 10일"
                     }
                   }
                 },
@@ -22501,7 +22560,7 @@
                       "fill": "$muted"
                     },
                     "p0Ls9": {
-                      "content": "2026/06/28"
+                      "content": "6월 28일"
                     }
                   }
                 }
@@ -23434,7 +23493,7 @@
                       "content": "2 : 0"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/12"
+                      "content": "7월 12일"
                     }
                   }
                 },
@@ -23460,7 +23519,7 @@
                       "content": "0 : 2"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/10"
+                      "content": "7월 10일"
                     }
                   }
                 },
@@ -23487,7 +23546,7 @@
                       "fill": "$muted"
                     },
                     "p0Ls9": {
-                      "content": "2026/06/28"
+                      "content": "6월 28일"
                     }
                   }
                 }
@@ -23929,7 +23988,7 @@
                       "content": "2 : 0"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/12"
+                      "content": "7월 12일"
                     }
                   }
                 },
@@ -23955,7 +24014,7 @@
                       "content": "0 : 2"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/10"
+                      "content": "7월 10일"
                     }
                   }
                 },
@@ -23982,7 +24041,7 @@
                       "fill": "$muted"
                     },
                     "p0Ls9": {
-                      "content": "2026/06/28"
+                      "content": "6월 28일"
                     }
                   }
                 }
@@ -25752,7 +25811,7 @@
               "content": "VCT Pacific 2026"
             },
             "t5IV96": {
-              "content": "Sep 12—Oct 4"
+              "content": "9월 12일 ~ 10월 4일"
             },
             "IwjsU": {
               "enabled": true
@@ -26158,7 +26217,7 @@
                   "lineHeight": 1.35
                 },
                 "U5OPEw": {
-                  "content": "ChickenJoe · September 19, 2026",
+                  "content": "ChickenJoe · 2026년 9월 19일",
                   "fontSize": 16
                 }
               }
@@ -26175,7 +26234,7 @@
                   "fontSize": 20
                 },
                 "U5OPEw": {
-                  "content": "jenopelle · September 19, 2026",
+                  "content": "jenopelle · 2026년 9월 19일",
                   "fontSize": 16
                 }
               }
@@ -26192,7 +26251,7 @@
                   "fontSize": 20
                 },
                 "U5OPEw": {
-                  "content": "jenopelle · September 19, 2026",
+                  "content": "jenopelle · 2026년 9월 19일",
                   "fontSize": 16
                 }
               }
@@ -26209,7 +26268,7 @@
                   "fontSize": 20
                 },
                 "U5OPEw": {
-                  "content": "VLR.gg · September 18, 2026",
+                  "content": "VLR.gg · 2026년 9월 18일",
                   "fontSize": 16
                 }
               }
@@ -26226,7 +26285,7 @@
                   "fontSize": 20
                 },
                 "U5OPEw": {
-                  "content": "VLR.gg · September 17, 2026",
+                  "content": "VLR.gg · 2026년 9월 17일",
                   "fontSize": 16
                 }
               }
@@ -27055,7 +27114,7 @@
                       "content": "2 : 0"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/12"
+                      "content": "7월 12일"
                     }
                   }
                 },
@@ -27081,7 +27140,7 @@
                       "content": "0 : 2"
                     },
                     "p0Ls9": {
-                      "content": "2026/07/10"
+                      "content": "7월 10일"
                     }
                   }
                 },
@@ -27108,7 +27167,7 @@
                       "fill": "$muted"
                     },
                     "p0Ls9": {
-                      "content": "2026/06/28"
+                      "content": "6월 28일"
                     }
                   }
                 }

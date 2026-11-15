@@ -26,7 +26,7 @@ GET /api/v1/series/{seriesId}
 ```
 
 - `seriesId`는 Search `eventgroup` 결과의 선행 0 없는 1~10자리 양의 10진 String이다. trailing slash, 추가 segment와 query는 upstream 요청 전에 `400 INVALID_REQUEST`다.
-- 응답은 필수 `id`, `name`, nullable `description`, `upcomingEvents`, `completedEvents`다. Event item은 Events API의 `id`, `name`, `status`, `dateLabel`, `regionCode`, `imageUrl` 의미를 재사용한다.
+- 응답은 필수 `id`, `name`, nullable `description`, `upcomingEvents`, `completedEvents`다. Event item은 Events API의 `id`, `name`, `status`, `dateLabel`, `regionCode`, `imageUrl` 의미를 재사용한다. 기간은 2026-11-10 계약의 `startDate`·`endDate`로 한국어 표시한다([한국어 표시 확장](../matches/README.md#한국어-표시-확장-2026-11-10)).
 - `ONGOING`, `UPCOMING`은 upcoming에, `COMPLETED`, `PAUSED`는 completed에 둔다. 실제 status는 보존한다.
 - 중복 ID는 첫 source 순서로 한 번만 반환한다. 같은 ID의 status가 충돌하면 parsing failure다.
 - request마다 `https://www.vlr.gg/series/{seriesId}`를 한 번 조회하며 cache, retry, stale-success fallback이 없다.
