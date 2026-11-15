@@ -15,6 +15,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
 
 class NewsMapperTest {
 
@@ -172,6 +173,31 @@ class NewsMapperTest {
         assertNull(articleResponse(publishedAtUtc = "16 hours ago").toDomain().publishedAtUtc)
         assertNull(articleResponse(publishedAtUtc = null).toDomain().publishedAtUtc)
         assertEquals("16 hours ago", articleResponse(publishedAt = "16 hours ago").toDomain().publishedAt)
+    }
+
+    @Test
+    fun summaryPublishedDateIsParsedAndInvalidOrMissingValuesBecomeNull() {
+        fun summary(publishedDate: String?) = NewsListResponseDto(
+            page = 1,
+            nextPage = null,
+            items = listOf(
+                NewsSummaryDto(
+                    reference = "101/champions-run",
+                    title = "Champions run",
+                    author = "Reporter",
+                    publishedAt = "September 19, 2026",
+                    publishedDate = publishedDate,
+                ),
+            ),
+        ).toDomain().items.single()
+
+        assertEquals(LocalDate(2026, 9, 19), summary("2026-09-19").publishedDate)
+        assertNull(summary(null).publishedDate)
+        listOf("September 19, 2026", "2026/09/19", "2026-02-30", "").forEach { invalid ->
+            val item = summary(invalid)
+            assertNull(item.publishedDate, "'$invalid' must not become a date")
+            assertEquals("September 19, 2026", item.publishedAt)
+        }
     }
 
     @Test

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kr.co.cotton.vlrgg_mobile.ui.theme.withKoreanWordBreak
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
@@ -109,7 +110,7 @@ private fun StatePanelContent(
         Text(
             text = title,
             modifier = Modifier.fillMaxWidth(),
-            style = VlrTheme.typography.body.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold),
+            style = VlrTheme.typography.body.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold).withKoreanWordBreak(),
             color = VlrTheme.colors.ink,
             textAlign = TextAlign.Center,
         )
@@ -118,7 +119,7 @@ private fun StatePanelContent(
             Text(
                 text = it,
                 modifier = Modifier.fillMaxWidth(),
-                style = VlrTheme.typography.meta,
+                style = VlrTheme.typography.meta.withKoreanWordBreak(),
                 color = VlrTheme.colors.muted,
                 textAlign = TextAlign.Center,
             )

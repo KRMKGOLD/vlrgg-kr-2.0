@@ -33,10 +33,16 @@ internal object KoreanDateTimeFormat {
         return "${local.date.year}년 ${monthDay(local.date)} ${time(local.time)}"
     }
 
+    /** `2026년 9월 19일` */
+    fun date(date: LocalDate): String = "${date.year}년 ${date.month.number}월 ${date.day}일"
+
+    /** [date]가 있으면 `2026년 9월 19일`, 없으면(서버 미제공·파싱 실패) [source] 원문이다. */
+    fun dateOrSource(date: LocalDate?, source: String): String = date?.let(::date) ?: source
+
     /** `2026년 10월 26일 오전 12:09`. [timeZone] 기준으로 변환한다. */
     fun dateTime(instant: Instant, timeZone: TimeZone): String {
         val local = instant.toLocalDateTime(timeZone)
-        return "${local.date.year}년 ${local.date.month.number}월 ${local.date.day}일 ${time(local.time)}"
+        return "${date(local.date)} ${time(local.time)}"
     }
 
     /**

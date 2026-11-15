@@ -68,6 +68,23 @@ class KoreanDateTimeFormatTest {
     }
 
     @Test
+    fun dateUsesKoreanYearMonthDayWithoutPadding() {
+        assertEquals("2026년 9월 19일", KoreanDateTimeFormat.date(LocalDate(2026, 9, 19)))
+        assertEquals("2026년 12월 1일", KoreanDateTimeFormat.date(LocalDate(2026, 12, 1)))
+    }
+
+    @Test
+    fun dateOrSourceFormatsParsedDateAndOtherwiseKeepsSourceText() {
+        assertEquals(
+            "2026년 9월 19일",
+            KoreanDateTimeFormat.dateOrSource(LocalDate(2026, 9, 19), "September 19, 2026"),
+        )
+        // 서버가 field를 주지 않거나 mapper가 형식 오류로 null을 만든 경우다.
+        assertEquals("September 19, 2026", KoreanDateTimeFormat.dateOrSource(null, "September 19, 2026"))
+        assertEquals("", KoreanDateTimeFormat.dateOrSource(null, ""))
+    }
+
+    @Test
     fun remainingTimeTranslatesKnownVlrEtaFormats() {
         assertEquals("22분 후", KoreanDateTimeFormat.remainingTime("22m"))
         assertEquals("10시간 32분 후", KoreanDateTimeFormat.remainingTime("10h 32m"))
