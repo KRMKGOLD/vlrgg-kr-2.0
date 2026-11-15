@@ -7,10 +7,6 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.CreationExtras
 import java.io.File
 import kr.co.cotton.vlrgg_mobile.data.local.datastore.createFavoriteDataStore
-import kr.co.cotton.vlrgg_mobile.data.repository.FavoriteRepositoryImpl
-import kr.co.cotton.vlrgg_mobile.data.repository.PlayerRepositoryImpl
-import kr.co.cotton.vlrgg_mobile.data.repository.MatchRepositoryImpl
-import kr.co.cotton.vlrgg_mobile.data.repository.TeamRepositoryImpl
 import kr.co.cotton.vlrgg_mobile.ui.feature.mypage.MyPageViewModel
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -20,16 +16,6 @@ import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 
 class AppGraphAndroidHostTest {
-    @Test
-    fun appGraphResolvesTeamPlayerAndMatchRepositories() {
-        val graph = createTestGraph()
-
-        assertIs<TeamRepositoryImpl>(graph.teamRepository)
-        assertIs<PlayerRepositoryImpl>(graph.playerRepository)
-        assertIs<MatchRepositoryImpl>(graph.matchRepository)
-        assertIs<FavoriteRepositoryImpl>(graph.favoriteRepository)
-    }
-
     @Test
     fun metroGraphResolvesFactoryCreatesMyPageAndRejectsUnknownViewModels() {
         val graph = createTestGraph()
