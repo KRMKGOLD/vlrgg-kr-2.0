@@ -242,20 +242,26 @@ class EventDetailContentUiTest {
         runSkikoComposeUiTest(size = Size(360f, 480f)) {
             val selectedTabs = mutableListOf<EventDetailTab>()
             val longDescription = List(12) { "Part of the Valorant Champions Tour official circuit." }.joinToString(" ")
+            var state by mutableStateOf(
+                populatedState.copy(
+                    identity = EventIdentityContentState.Content(
+                        event.copy(
+                            name = "VCT 2027: EMEA Kickoff - Türkiye Qualifier",
+                            description = longDescription,
+                        ),
+                    ),
+                ),
+            )
             setContent {
                 CompositionLocalProvider(
                     LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f),
                 ) {
                     Fixture(
-                        uiState = populatedState.copy(
-                            identity = EventIdentityContentState.Content(
-                                event.copy(
-                                    name = "VCT 2027: EMEA Kickoff - Türkiye Qualifier",
-                                    description = longDescription,
-                                ),
-                            ),
-                        ),
-                        onSelectTab = { selectedTabs += it },
+                        uiState = state,
+                        onSelectTab = {
+                            selectedTabs += it
+                            state = state.copy(selectedTab = it)
+                        },
                     )
                 }
             }
@@ -269,8 +275,10 @@ class EventDetailContentUiTest {
             // The hero scrolls away, so both the tabs and the selected tab content can be reached.
             onNodeWithTag(eventDetailTabTag(EventDetailTab.STATS)).performScrollTo().assertIsDisplayed().performClick()
             assertEquals(listOf(EventDetailTab.STATS), selectedTabs)
+            onNodeWithTag(matchCardTag(match.id)).assertDoesNotExist()
             repeat(2) { onRoot().performTouchInput { swipeUp() } }
-            onNodeWithTag(matchCardTag(match.id)).assertIsDisplayed()
+            onNodeWithTag(eventStatsPlayerTag(player.playerId)).assertIsDisplayed()
+            onNodeWithTag(eventStatsMetricValueTag(player.playerId, EventStatsSortColumn.ACS)).assertIsDisplayed()
         }
 
     @Test
