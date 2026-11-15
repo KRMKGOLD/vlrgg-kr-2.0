@@ -16,6 +16,11 @@ import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.unit.height
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
@@ -60,6 +65,20 @@ class EventsContentUiTest {
         listOf("진행 중", "예정", "종료 · 중단").forEach { onNodeWithText(it).assertDoesNotExist() }
         onNodeWithContentDescription("검색").performClick()
         assertEquals(1, searchClicks)
+    }
+
+    @Test
+    fun loadingRowsKeepTheHeightOfTheEventRowsThatReplaceThem() = runComposeUiTest {
+        var uiState by mutableStateOf(EventsUiState())
+        setContent { EventsContentFixture(uiState = uiState) }
+
+        val skeletonHeight = onNodeWithTag(EVENTS_LOADING_TAG).getUnclippedBoundsInRoot().height
+        uiState = populatedState
+        waitForIdle()
+        val rowHeight = onNodeWithTag(eventRowTag(completedEvent.id)).getUnclippedBoundsInRoot().height
+
+        // Six rows as tall as a one-line Identity row with meta (the tag sits inside the 8dp top inset).
+        assertEquals(rowHeight.value * 6, skeletonHeight.value, 1f)
     }
 
     @Test
