@@ -65,6 +65,8 @@ import kotlin.test.assertTrue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import kr.co.cotton.vlrgg_mobile.ui.format.LocalDeviceClock
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.unit.height
 import kotlin.time.Clock
 import kotlin.time.Instant
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -350,6 +352,25 @@ class EventDetailContentUiTest {
         assertEquals(ProgressBarRangeInfo.Indeterminate, loading.config[SemanticsProperties.ProgressBarRangeInfo])
         EventDetailTab.entries.forEach { onNodeWithTag(eventDetailTabTag(it)).assertDoesNotExist() }
         onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)).assertCountEquals(1)
+    }
+
+    @Test
+    fun statsLoadingSkeletonKeepsTheHeaderAndRowHeightsOfTheTable() = runComposeUiTest {
+        var state by mutableStateOf(
+            populatedState.copy(selectedTab = EventDetailTab.STATS, stats = EventStatsContentState.Loading),
+        )
+        setContent { Fixture(uiState = state) }
+
+        val skeletonHeight = onNodeWithTag(EVENT_STATS_LOADING_TAG).getUnclippedBoundsInRoot().height
+        state = populatedState.copy(selectedTab = EventDetailTab.STATS)
+        waitForIdle()
+        val headerHeight = onNodeWithTag(eventStatsMetricHeaderTag(EventStatsSortColumn.ACS)).getUnclippedBoundsInRoot().height
+        val rowHeight = onNodeWithTag(eventStatsPlayerTag(player.playerId)).getUnclippedBoundsInRoot().height
+
+        assertEquals(40f, headerHeight.value, 0.5f)
+        assertEquals(52f, rowHeight.value, 0.5f)
+        // The 40dp header and four 52dp rows of the table that replaces it.
+        assertEquals(headerHeight.value + rowHeight.value * 4, skeletonHeight.value, 1f)
     }
 
     @Test

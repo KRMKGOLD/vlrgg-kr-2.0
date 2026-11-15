@@ -10,6 +10,20 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonMatchRow
 import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsTableDefaults
+import kr.co.cotton.vlrgg_mobile.ui.component.rowDivider
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MATCHES_TIME_ZONE_LABEL
 import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.format.rememberDeviceToday
@@ -75,6 +89,7 @@ import androidx.compose.ui.unit.dp
 internal const val EVENT_DETAIL_IDENTITY_RETRY_TAG = "event-detail-identity-retry"
 internal const val EVENT_DETAIL_TAB_RETRY_TAG = "event-detail-tab-retry"
 internal const val EVENT_DETAIL_LOADING_TAG = "event-detail-loading"
+internal const val EVENT_STATS_LOADING_TAG = "event-stats-loading"
 
 internal fun eventStatsPlayerTag(playerId: String): String = "event-stats-player-$playerId"
 internal fun eventStatsMetricHeaderTag(column: EventStatsSortColumn): String = "event-stats-header-${column.savedStateId}"
@@ -366,7 +381,7 @@ private fun StatsTabContent(
     retryEnabled: Boolean,
 ) {
     when (state) {
-        EventStatsContentState.Loading -> TabSkeleton("통계를 불러오는 중") { SkeletonRow() }
+        EventStatsContentState.Loading -> StatsTableSkeleton()
         EventStatsContentState.Empty -> TabStatePanel("아직 제공되는 통계가 없어요.", Res.drawable.ic_bar_chart)
         EventStatsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("통계를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventStatsContentState.Content -> VlrStatsTable(
@@ -407,7 +422,7 @@ private fun TabStatePanel(title: String, icon: DrawableResource) {
     StatePanel(title = title, icon = icon, modifier = Modifier.fillMaxSize())
 }
 
-/** Tab-area loading (`.pen` 41-4·41-8·41-12): four placeholders of the tab's rows on `surface`. */
+/** Tab-area loading (`.pen` 41-4·41-8): four placeholders of the tab's rows on `surface`. */
 @Composable
 private fun TabSkeleton(
     description: String,
@@ -420,6 +435,74 @@ private fun TabSkeleton(
             .loadingSemantics(description),
     ) {
         repeat(TabSkeletonRows) { row() }
+    }
+}
+
+/**
+ * Stats tab loading (`.pen` 41-12): the [VlrStatsTable] frame on `surface`, a 40dp `surface-sunken`
+ * header and [TabSkeletonRows] 52dp rows, each with the pinned 120dp identity column and its right
+ * 1dp line followed by 68dp metric columns, so the table does not shift when the stats arrive.
+ */
+@Composable
+private fun StatsTableSkeleton() {
+    Box(modifier = Modifier.fillMaxSize().background(VlrTheme.colors.surface)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(EVENT_STATS_LOADING_TAG)
+                .loadingSemantics("통계를 불러오는 중"),
+        ) {
+            StatsSkeletonRow(StatsTableDefaults.HeaderHeight, VlrTheme.colors.surfaceSunken, header = true)
+            repeat(TabSkeletonRows) {
+                StatsSkeletonRow(StatsTableDefaults.RowHeight, VlrTheme.colors.surface, header = false)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatsSkeletonRow(height: Dp, container: Color, header: Boolean) {
+    val line = VlrTheme.colors.line
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .background(container)
+            .rowDivider(line),
+    ) {
+        Column(
+            modifier = Modifier
+                .width(StatsTableDefaults.IdentityWidth)
+                .fillMaxHeight()
+                .drawBehind {
+                    val x = size.width - VlrDimensions.OutlineWidth.toPx() / 2
+                    drawLine(line, Offset(x, 0f), Offset(x, size.height), VlrDimensions.OutlineWidth.toPx())
+                }
+                .padding(start = VlrDimensions.Space4, end = VlrDimensions.Space2),
+            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+        ) {
+            if (header) {
+                SkeletonBlock(Modifier.size(width = 28.dp, height = 10.dp))
+            } else {
+                SkeletonBlock(Modifier.size(width = 72.dp, height = 12.dp))
+                SkeletonBlock(Modifier.size(width = 32.dp, height = 10.dp))
+            }
+        }
+        Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
+            Row(modifier = Modifier.fillMaxHeight().wrapContentWidth(Alignment.Start, unbounded = true)) {
+                repeat(eventStatsColumns.size) {
+                    Box(
+                        modifier = Modifier
+                            .width(StatsTableDefaults.ColumnWidth)
+                            .fillMaxHeight()
+                            .padding(end = VlrDimensions.Space3),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        SkeletonBlock(Modifier.size(width = if (header) 28.dp else 32.dp, height = if (header) 10.dp else 12.dp))
+                    }
+                }
+            }
+        }
     }
 }
 
