@@ -12,7 +12,9 @@ Android/iOS 앱이 사용하는 공개 조회 API의 비싼 작업과 비용을 
 | in-flight canonical keys | 4 | 추가 key 즉시 거절 |
 | upstream / whole request / Cloud Run | 10s / 15s / 30s | 안전한 오류와 cancellation |
 | request target / headers / body | 4 KiB / 16 KiB / 1 KiB | 400·413·431 또는 platform rejection |
-| upstream HTML / success JSON | 1 MiB / 2 MiB | 안전한 502 |
+| upstream HTML / success JSON | 4 MiB / 2 MiB | 안전한 502 |
+
+upstream HTML 제한을 4 MiB로 둔 것은 경기 수가 많은 대회의 경기 목록 페이지가 경기당 약 2.2 KB라서 4 MiB면 약 1,800경기까지 받을 수 있기 때문이다. fetch 상한 4는 동시 파싱 상한이 아니다. fetch가 끝난 뒤 active API 요청(최대 8)마다 DOM을 따로 만든다. 로컬 재현에서 4.4 MiB 페이지 8건 동시 파싱과 4건 수신은 heap 약 295 MiB를 썼다(`-Xmx384m` 통과, `-Xmx256m` OOM). 2026-11 현재 가장 큰 실제 페이지는 1.16 MB이며, 제한에 가까운 페이지가 생기거나 OOM·GC 지연이 보이면 운영 heap에서 다시 측정한다.
 
 잘못된 config는 server start에서 거절한다. 전체 deadline은 느린 body 수신보다 먼저 시작하고 request size → API token/concurrency → upstream admission 순서로 자원을 얻는다. 실패·취소 시 이미 획득한 API concurrency semaphore와 upstream fetch admission permit은 반환하지만, 소비한 token-bucket token은 환불하지 않는다. unknown route/method도 저비용 request limit 대상이며 upstream을 호출하지 않는다.
 

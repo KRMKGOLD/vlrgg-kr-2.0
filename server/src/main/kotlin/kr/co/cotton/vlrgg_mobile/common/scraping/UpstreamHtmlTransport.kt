@@ -15,7 +15,7 @@ import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
 import kr.co.cotton.vlrgg_mobile.common.http.isAllowedVlrUpstreamUrl
 
 private const val DEFAULT_USER_AGENT = "VLR.GG-Mobile/2.0"
-private const val DEFAULT_MAX_RESPONSE_BODY_BYTES = 1_048_576
+private const val DEFAULT_MAX_RESPONSE_BODY_BYTES = 4_194_304
 private const val RESPONSE_READ_BUFFER_SIZE = 8_192
 
 internal data class UpstreamHtmlTransportConfig(
