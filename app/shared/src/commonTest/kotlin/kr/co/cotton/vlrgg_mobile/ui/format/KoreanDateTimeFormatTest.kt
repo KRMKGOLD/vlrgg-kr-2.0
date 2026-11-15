@@ -146,6 +146,41 @@ class KoreanDateTimeFormatTest {
         assertNull(KoreanDateTimeFormat.periodSpoken(null, null, null))
     }
 
+    @Test
+    fun matchDateOmitsTheYearOnlyInTheDeviceYear() {
+        assertEquals("7월 12일", KoreanDateTimeFormat.matchDate(LocalDate(2026, 7, 12), currentYear = 2026))
+        assertEquals("2025년 7월 12일", KoreanDateTimeFormat.matchDate(LocalDate(2025, 7, 12), currentYear = 2026))
+        assertEquals("2027년 1월 3일", KoreanDateTimeFormat.matchDate(LocalDate(2027, 1, 3), currentYear = 2026))
+    }
+
+    @Test
+    fun matchDateTimeAddsTheTimeOnlyWhenPresent() {
+        assertEquals(
+            "9월 24일 오후 6:00",
+            KoreanDateTimeFormat.matchDateTime(LocalDate(2026, 9, 24), LocalTime(18, 0), currentYear = 2026),
+        )
+        assertEquals(
+            "2025년 9월 24일 오후 6:00",
+            KoreanDateTimeFormat.matchDateTime(LocalDate(2025, 9, 24), LocalTime(18, 0), currentYear = 2026),
+        )
+        assertEquals(
+            "8월 28일 오후 7:05",
+            KoreanDateTimeFormat.matchDateTime(LocalDate(2026, 8, 28), LocalTime(19, 5), currentYear = 2026),
+        )
+        assertEquals("9월 24일", KoreanDateTimeFormat.matchDateTime(LocalDate(2026, 9, 24), null, currentYear = 2026))
+    }
+
+    @Test
+    fun remainingTimeOrSourceTranslatesOnlyRemainingTimeSources() {
+        assertEquals("1일 6시간 후", KoreanDateTimeFormat.remainingTimeOrSource("1d 6h"))
+        assertEquals("18시간 5분 후", KoreanDateTimeFormat.remainingTimeOrSource("18h 5m"))
+        assertEquals("22분 후", KoreanDateTimeFormat.remainingTimeOrSource("22m"))
+        // Scores, live markers and unknown text stay as the source wrote them.
+        listOf("2 : 1", "0 : 2", "LIVE", "TBD", "in 2d", "1h ago", "6h 1d", "").forEach { source ->
+            assertEquals(source, KoreanDateTimeFormat.remainingTimeOrSource(source))
+        }
+    }
+
     private companion object {
         val SEOUL = TimeZone.of("Asia/Seoul")
         val NEW_YORK = TimeZone.of("America/New_York")

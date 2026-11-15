@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -78,9 +80,12 @@ fun SkeletonMatchRow(modifier: Modifier = Modifier) {
     }
 }
 
-/** Placeholder for the dark detail hero: logo slot, name and meta on `panel`. */
+/**
+ * Placeholder for the dark detail hero: logo slot, name and meta on `panel`. [circularLogo] rounds
+ * the slot for a player photo (`.pen` 51-3).
+ */
 @Composable
-fun SkeletonHero(modifier: Modifier = Modifier) {
+fun SkeletonHero(modifier: Modifier = Modifier, circularLogo: Boolean = false) {
     val block = VlrTheme.colors.panel2
     Row(
         modifier = modifier
@@ -96,7 +101,7 @@ fun SkeletonHero(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SkeletonBlock(Modifier.size(72.dp), color = block)
+        SkeletonBlock(Modifier.size(72.dp).then(if (circularLogo) Modifier.clip(CircleShape) else Modifier), color = block)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SkeletonBlock(Modifier.size(width = 160.dp, height = 22.dp), color = block)
             SkeletonBlock(Modifier.size(width = 96.dp, height = 12.dp), color = block)

@@ -61,6 +61,7 @@ internal data class PlayerRecentMatchDto(
     val teamBScore: Int? = null,
     val outcome: PlayerRecentMatchOutcomeDto,
     val playedOn: String? = null,
+    val playedDate: String? = null,
 )
 
 @Serializable
