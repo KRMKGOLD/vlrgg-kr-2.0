@@ -8,6 +8,7 @@ import kr.co.cotton.vlrgg_mobile.data.remote.model.player.PlayerRecentMatchDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.player.PlayerRecentMatchOutcomeDto
 import kr.co.cotton.vlrgg_mobile.data.remote.model.player.PlayerRecentMatchTeamDto
 import kr.co.cotton.vlrgg_mobile.domain.model.player.PlayerRecentMatchOutcome
+import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -156,6 +157,23 @@ class PlayerMapperTest {
         )
     }
 
+    @Test
+    fun playedDateParsesIsoDatesAndKeepsTheSourceText() {
+        val parsed = PlayerDetailResponseDto(
+            id = "488",
+            profile = PlayerProfileDto("Rb", null, emptyList(), null, null),
+            currentTeam = null,
+            agentStats = emptyList(),
+            recentMatches = listOf("2026-07-12", null, "2026-02-30", "2026/07/12").map { playedDate ->
+                recentMatch(playedOn = "2026/07/12", playedDate = playedDate)
+            },
+        ).toDomain().recentMatches
+
+        assertEquals(LocalDate(2026, 7, 12), parsed[0].playedDate)
+        assertEquals(listOf(null, null, null), parsed.drop(1).map { it.playedDate })
+        assertEquals(List(4) { "2026/07/12" }, parsed.map { it.playedOn })
+    }
+
     private fun completeResponse() = PlayerDetailResponseDto(
         id = "488",
         profile = PlayerProfileDto(
@@ -205,6 +223,7 @@ class PlayerMapperTest {
         teamBScore: Int? = 0,
         outcome: PlayerRecentMatchOutcomeDto = PlayerRecentMatchOutcomeDto.WIN,
         playedOn: String? = "2026-07-12",
+        playedDate: String? = null,
     ) = PlayerRecentMatchDto(
         id = id,
         eventName = "EWC 2026",
@@ -215,5 +234,6 @@ class PlayerMapperTest {
         teamBScore = teamBScore,
         outcome = outcome,
         playedOn = playedOn,
+        playedDate = playedDate,
     )
 }

@@ -1,0 +1,14 @@
+{
+  "uniqueId": "com.google.fonts.saira-condensed",
+  "name": "Saira Condensed",
+  "description": "Copyright 2016 The Saira Project Authors (omnibus.type@gmail.com), with reserved font name \"Saira\". SemiBold and Bold fonts bundled unmodified as Compose resources.",
+  "website": "https://github.com/google/fonts/tree/main/ofl/sairacondensed",
+  "developers": [
+    {
+      "name": "The Saira Project Authors"
+    }
+  ],
+  "licenses": [
+    "OFL-1.1"
+  ]
+}

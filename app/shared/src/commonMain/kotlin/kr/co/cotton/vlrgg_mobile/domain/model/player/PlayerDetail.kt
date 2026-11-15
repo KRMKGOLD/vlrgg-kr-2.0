@@ -1,5 +1,7 @@
 package kr.co.cotton.vlrgg_mobile.domain.model.player
 
+import kotlinx.datetime.LocalDate
+
 data class PlayerDetail(
     val id: String,
     val profile: PlayerProfile,
@@ -53,6 +55,7 @@ data class PlayerRecentMatch(
     val teamBScore: Int?,
     val outcome: PlayerRecentMatchOutcome,
     val playedOn: String?,
+    val playedDate: LocalDate? = null,
 )
 
 data class PlayerRecentMatchTeam(

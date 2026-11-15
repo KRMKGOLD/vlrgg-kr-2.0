@@ -8,4 +8,5 @@ internal data class NewsSummaryDto(
     val title: String,
     val author: String,
     val publishedAt: String,
+    val publishedDate: String? = null,
 )

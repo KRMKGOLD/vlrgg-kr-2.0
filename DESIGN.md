@@ -1,8 +1,8 @@
 # Design System: VLR.GG Mobile v3 — Scoreline
 
-> **코드 미적용:** 이 문서와 `.pen`은 v3 디자인 계약이다. 앱 코드(theme·공통 컴포넌트·화면)에는 아직 적용되지 않았으며, 적용은 [적용 순서](#11-적용-순서와-범위-밖)에 따른 후속 작업이다.
+> **코드 적용:** 이 문서와 `.pen`은 v3 디자인 계약이고, 앱(`feat/v3-design`)에 모두 적용했다(2026-11-12). 서버 날짜 field와 완료 경기 점수(`sp-hide`) 수정은 아직 없어 그 값은 원문(점수는 `VS`)으로 보인다. 남은 기기 검증은 [적용 순서](#11-적용-순서와-범위-밖)를 따른다.
 
-- **Status:** Active — v3 채택 (2026-11-05). 앱 구현에는 아직 적용하지 않았다([구현 상태](#1-구현-상태) 참조).
+- **Status:** Active — v3 채택 (2026-11-05), 앱 적용 완료 (2026-11-12, `feat/v3-design`, [구현 상태](#1-구현-상태) 참조).
 - **Design source:** [`docs/design/pen/vlrgg-mobile-v3.pen`](docs/design/pen/vlrgg-mobile-v3.pen) (Pencil). 작업 기록과 캔버스 구성은 [v3 디자인 기록](docs/design/v3-redesign.md)에 있다.
 - **Applies to:** `app/shared/src/commonMain`의 Compose Multiplatform UI. Android·iOS 모바일, 라이트 테마.
 - **소유 범위:** 이 문서는 시각·컴포넌트·상호작용·접근성 계약을 소유한다. 데이터, 흐름, 화면 문구는 [기능 문서](docs/feature/README.md)가, 배치와 런타임 경계는 [앱 아키텍처](docs/app-arch/app-arch.md)가 소유한다. 기능 문서와 시각 규칙이 충돌하면 이 문서를 따른다.
@@ -10,24 +10,45 @@
 
 ## 1. 구현 상태
 
-현재 Compose theme(`Colors.kt`, `Typography.kt`, `Dimensions.kt`)과 공통 컴포넌트는 v3 이전 값을 사용한다. v3 적용은 기반(토큰·서체·아이콘·공통 컴포넌트) → 화면 순서의 별도 작업으로 진행한다.
+v3를 `feat/v3-design`에 모두 적용했다. 기반(토큰·서체·아이콘)은 2026-11-11, chrome·컨트롤·피드백·목록·상세 공통 컴포넌트와 화면 12계열 배치는 2026-11-12에 적용했다. 앱 쪽 한국어 날짜 포맷은 구현했지만 서버 날짜 field(`publishedDate`, `startDate`·`endDate`, Event Matches `date`, `scheduledDate`·`scheduledTime`, `playedDate`)는 아직 없어 실서버에서는 원문 날짜가 보인다. 서버 `sp-hide` 수정 전에는 완료 경기 점수가 null로 와 경기 상세 hero가 `VS`로 보인다.
 
-- 기반 적용 전에는 화면 하나만 부분적으로 v3로 바꾸지 않는다. 시각 변경은 v3 적용 작업 안에서만 한다.
+- `.pen`은 앱·기능 계약을 따르도록 고쳤다(2026-11-12, [v3 디자인 기록](docs/design/v3-redesign.md#상태-case-결정)): 경기 상세 취소·부분 정보의 맵 문구, 팀·선수 로딩 중 즐겨찾기 별 숨김, 선수 hero 메타(실명 · 국가명 · 국가 코드, 다음 줄 별칭), `결과 미정` 점수 `—`.
+
+- 새 시각 변경은 이 문서와 `.pen`을 먼저 고친 뒤 공통 컴포넌트를 거쳐 적용한다.
 - 기능 문서의 동작은 v3에서도 바뀌지 않는다. 문구는 루트 제목·하단 탭 라벨만 한국어(`뉴스`·`경기`·`마이페이지`·`대회`·`정보`)로 바꾸며(2026-11-05 결정, 기능 문서 반영), 상태 문구는 현재 앱 구현 문구를 그대로 쓴다.
-- 현재 앱은 아직 영어 라벨(`News`·`Matches`·`My Page`·`Events`·`About`)을 쓴다. 라벨 변경은 v3 화면 적용 작업에 포함한다.
+- 루트 제목·하단 탭 라벨과 대회 상세 탭 라벨(`경기`·`뉴스`·`통계`)은 한국어로 바꿨다(2026-11-12).
+- 공통 컴포넌트(`ui/component`): `RootHeader`, `DetailHeader`(Light·Dark), `VlrBottomNavigation`, `VlrTabs`, `VlrButton`(Primary·Secondary·Text), `VlrIconButton`, `StatusChip`, `VlrSearchField`, `StatePanel`, `InlineRetry`, `SectionMessage`, `SectionHeader`, `SkeletonBlock`·`SkeletonRow`·`SkeletonMatchRow`·`SkeletonHero`, `VlrSnackbar`, `VlrErrorDialog`(`BusyRetryDialog`가 사용). 화면의 같은 역할 구현은 이 컴포넌트로 바꿨다.
+- 목록·상세 컴포넌트(2026-11-12): `LogoSlot`, `MatchRow`(경기 목록·대회 경기 탭), `NewsRow`(뉴스 목록 첫 기사 `headline`·대회 뉴스·팀 뉴스), `IdentityRow`(대회 목록·시리즈 대회·팀 로스터·스태프·마이페이지 선수·선수 현재 팀), `TeamMatchRow`(팀 예정·최근 경기, 선수 최근 경기), v3 `VlrStatsTable`(선수 요원 기록·대회 통계), `DetailTopBand`·`EntityHero`(팀·선수·대회·시리즈 상세, 로딩은 `SkeletonHero`). `StatusChip`의 v2 `Loss`·`Partial` 변형은 없앴다. 검색 결과 행은 검색만 써서 검색 화면 안에 두었다.
+- 상단 inset: `RootHeader`·`DetailHeader`·검색 헤더가 상태바 영역을 직접 칠하고, 앱 runtime은 위쪽 inset을 화면에 넘긴다. 어두운 띠가 보이는 동안 `LightStatusBarIconsEffect`가 밝은 상태바 아이콘을 요청하고, 마지막 띠가 사라지면 루트의 어두운 아이콘으로 돌아온다(Android `WindowInsetsController`, iOS 앱 전체 status bar style — `UIViewControllerBasedStatusBarAppearance` 끔).
+- 대회 목록·시리즈 행은 그룹·섹션 제목이 상태를 나타낸다. 섞인 상태만 따로 표시한다: 종료 그룹의 중단 대회는 메타 앞에 `중단`(시리즈 `일시 중지`), 시리즈 예정 섹션의 진행 중 대회는 `진행 중` 상태 chip. 대회 상세 hero·탭은 탭 내용과 한 스크롤로 묶여 hero부터 접히고, hero 메타 줄은 최대 3줄이다. 팀 경기 행 제목은 `vs 상대 팀`이다.
+- 뉴스 목록·상세(2026-11-12): `.pen` `10`·`11`대로 적용했다. 목록 끝 추가 로딩은 스피너 대신 기사 행 스켈레톤 한 줄(진행 중 semantics)이고, 목록 게시일은 `publishedDate`가 있으면 `2026년 9월 19일`, 없으면 원문이다(서버 field는 미구현). 상세는 밝은 헤더 + `title` 제목 + `작성자 · 날짜 시각` + `article` 본문이며, 본문 이미지는 184dp `surface-sunken` 자리에 그리고 실패하면 `image` 아이콘을 둔다. 본문 없음은 기사 제목 없이 State panel만 둔다. 소제목·인용 블록은 서버 응답에 없어 그리지 않는다.
+- 경기 목록·상세(2026-11-12): `.pen` `20`·`21`대로 적용했다. 목록 날짜 헤더는 `한국 시간` 메타를 두고 그룹 사이를 8dp `canvas`로 띄우며, 로딩은 경기 행 스켈레톤(추가 로딩은 한 줄 + 진행 중 semantics)이다. 상세는 Scoreboard hero·Map row·Head to head row를 경기 상세 화면 안에 두었다(다른 화면이 쓰지 않아 `ui/component`로 올리지 않음). 맵 범례는 응답에 팀 tag가 없어 팀 이름을 쓴다. 완료 경기 점수가 null로 오는 서버 `sp-hide` 문제가 남아 있어 그 경우 hero가 `VS`로 보인다.
+- 대회 목록·상세·시리즈(2026-11-12): `.pen` `40`·`41`·`42`대로 적용했다. 그룹·섹션 제목은 `진행 중`·`예정`·`종료 · 중단`, `예정 대회`·`완료 대회`와 개수(빈 그룹은 개수 없음)이고 흰 섹션 사이를 8dp `canvas`로 띄운다. 대회 상세 경기 탭은 item `date`로 연속한 같은 날짜를 묶어 경기 목록과 같은 날짜 헤더를 두고, 통계 고정 열 머리는 `선수`다. 로딩은 스피너 대신 행·경기 행 스켈레톤(진행 중 semantics)이고, 대회 목록 행 스켈레톤은 Identity row 배치(40dp 로고 자리·제목·메타·48dp trailing)를, 통계 탭 스켈레톤은 표 구조(40dp 머리, 120dp 고정 열과 오른쪽 구분선, 52dp 행)를 따른다(2026-11-15). 기간은 `9월 12일 ~ 10월 4일`로 표시하고 `부터`·`까지`로 낭독한다(`IdentityRow`·`EntityHero` 메타 낭독 문구). 서버 field가 없으면 원문이다.
+- 마이페이지(2026-11-12): `.pen` `30`대로 적용했다. 섹션 제목은 `팀`·`선수`와 보이는 개수(제거 중에는 숨긴 대상을 뺀 수)이고, 흰 섹션 사이 8dp `canvas` 아래에 `즐겨찾기는 이 기기에만 저장됩니다.` 안내를 둔다. Favorite tile은 마이페이지만 써서 화면 안에 두었고, 같은 행의 두 타일은 높이를 맞추며 글꼴 확대 시 함께 늘어난다. 섹션 로딩은 스피너 대신 타일·행 스켈레톤(진행 중 semantics)이다. LogoSlot 48dp 자리 표시 글자는 16sp다.
+- 팀·선수 상세(2026-11-12): `.pen` `50`·`51`대로 적용했다. hero 아래 흰 섹션 사이를 8dp `canvas`로 띄우고, 팀은 `예정 경기`·`최근 경기`·`선수`·`스태프`·`뉴스`, 선수는 `현재 팀`·`요원별 기록`(`전체 기간`)·`최근 경기`(`최대 5경기`)와 개수를 쓴다. 빈 섹션은 개수·메타 없이 Section message를 둔다. 로딩과 전체 조회 실패 다이얼로그 뒤는 같은 스켈레톤(어두운 hero + 행 스켈레톤 3·2줄, 선수는 원형 사진 자리)이고 로딩만 진행 중 semantics를 준다. 팀 경기 날짜는 `9월 24일 오후 6:00`, 예정 경기 남은 시간 원문은 `1일 6시간 후`, 팀 뉴스는 `2026년 9월 15일`, 선수 최근 경기는 `7월 12일`(다른 해면 연도)이며 서버 field가 없으면 원문이다. 요원 기록 고정 열 머리는 `요원`이고, 선수 최근 경기 행 낭독은 결과(`승리`·`패배`·`결과 미정`)로 끝난다.
+- 검색(2026-11-12): `.pen` `60`대로 적용했다. 밝은 헤더는 Back + Search field + 기존 `검색` 제출 버튼이고, 결과는 `‘검색어’ 검색 결과`와 개수 섹션 아래 Search result row(타입 `시리즈`·`대회`·`팀`·`선수`, 제목·메타, chevron)를 두며 섹션 아래는 `canvas`다. 타입 열은 32dp이고 글꼴이 커지면 가장 긴 라벨(`시리즈`) 폭까지 함께 넓어진다. 로딩 중에는 입력창 스피너 대신 지우기를 유지하고 State panel(`progress_activity`)만 진행 중으로 읽힌다. 헤더는 Scaffold 본문보다 먼저 읽히는 traversal group이다(Back → 입력 → 지우기 → 검색 → 결과).
+- 정보(2026-11-12): `.pen` `70`대로 적용했다. 흰 섹션 사이 8dp `canvas`에 앱 정체성(56dp 앱 아이콘, 이름, `버전 0.2.0 (3)` chip, 소개), `프로젝트` Link row 4행(`code`·`privacy_tip`·`mail`·`description`, 외부 `arrow_outward`·앱 안 `chevron_right`), `화면 테마`, `출처와 고지`를 둔다. 링크 실패는 액션 없는 `VlrSnackbar`다. 오픈소스 라이선스 화면은 밝은 Detail header + AboutLibraries 기본 UI 그대로다. 앱 아이콘은 `docs/design/app-icon/app-icon.svg`를 옮긴 `drawable/app_icon.xml`이다.
+- 한글 어절 줄바꿈: State panel·Error dialog·기사 제목·본문·캡션에 `withKoreanWordBreak()`(locale `ko` + `WordBreak.Phrase`)를 쓴다. Android 13(API 33) 이상에서만 적용되고, 그 아래 Android와 iOS(skiko가 `LineBreak`를 읽지 않음)는 기존 줄바꿈 그대로다.
+- 하단 탭은 시스템 navigation inset을 아래에 더하고 `.pen`의 16dp Gesture area를 고정값으로 두지 않는다. 글꼴 확대로 `마이페이지`가 칸을 넘으면 `마이`/`페이지`로 줄바꿈한다.
+- 다이얼로그 뒤 배경은 플랫폼 Dialog의 기본 scrim을 쓴다(`scrim` 토큰 값과 다를 수 있다).
+- 타이포그래피: `VlrTypeScale`은 [5절](#5-타이포그래피) 역할을 camelCase로 쓴다(`bodySm`, `scoreXl`, `scoreL`, `scoreM`, `stat`, `tag`). 숫자 역할은 `VlrTheme` 안에서 번들 Saira Condensed로 만든다. 굵기 범위가 있는 역할은 가장 낮은 굵기가 기본이고 화면에서 `copy(fontWeight = …)`로 올린다. 이전 이름은 `pageTitle`→`title`, `sectionTitle`→`section`, `body`→`bodySm`, `bodyStrong`→`body`, `label`→`meta`, `labelSmall`→`label`이다.
+- 형태·간격: `VlrDimensions`에 `Space5`(20dp), `CornerRadius`(2dp), `ButtonCornerRadius`(10dp), `OverlayCornerRadius`(4dp, Snackbar·다이얼로그), `HeaderHeight`(56dp)를 둔다. 이전 `DefaultCornerRadius`·`CardCornerRadius` 사용처는 `CornerRadius`로, 버튼은 `ButtonCornerRadius`로 옮겼다.
+- 서체: Saira Condensed SemiBold·Bold 원본 TTF를 subset 없이 `composeResources/font/`에 번들한다. `Saira`가 OFL Reserved Font Name이라 subset한 수정본은 이름을 바꿔야 하기 때문이다(OFL FAQ 2.6).
+- 아이콘: [7절](#7-아이콘) 글리프 24개를 `composeResources/drawable/ic_<glyph>.xml`로 가져왔다. FILL 1 별은 `ic_star_fill.xml`이다.
 
-| v3 토큰 | 현재 `VlrColors` | 적용 시 |
+| v3 토큰 | `VlrColors` | 이전 이름 |
 | --- | --- | --- |
-| `surface`, `canvas` | `surface`, `surfaceSubtle` | 캔버스(`#F1F2F4`)가 앱 배경이 된다 |
-| `ink`, `muted`, `line`, `skeleton` | `textPrimary`, `textSecondary`, `outline`, `skeleton` | 값 교체 |
-| `ink-2`, `line-strong`, `surface-sunken` | — | 신규 |
-| `accent`, `accent-pressed`, `accent-soft` | `actionPrimary`, `actionPrimaryPressed`, `surfaceSelected` | 값 교체 |
-| `live`, `focus`, `scrim` | `accentLive`, `focusOutline`, `scrim` | 값 교체 |
-| `panel`, `on-panel` | `inverseSurface`, `inverseOnSurface` | 값 교체 |
-| `on-panel-accent` | `inversePrimary` | 값 교체(Snackbar 액션). 어두운 헤더의 즐겨찾기 ON에도 쓴다 |
-| `panel-2`, `on-panel-muted` | — | 신규 |
-| `warn`, `warn-soft` | `statusPostponed`, `statusPostponedContainer` | 값 교체 |
-| — | `statusUpcoming*`, `statusCompleted*`, `accentLiveContainer` | v3에서 상태는 텍스트로 표시한다. 사용처 정리 후 제거한다 |
+| `canvas`, `surface`, `surface-sunken` | `canvas`, `surface`, `surfaceSunken` | `surfaceSubtle`, `surface`, — |
+| `ink`, `ink-2`, `muted` | `ink`, `ink2`, `muted` | `textPrimary`·`textBrand`, —, `textSecondary` |
+| `line`, `line-strong`, `skeleton` | `line`, `lineStrong`, `skeleton` | `outline`, —, `skeleton` |
+| `accent`, `accent-pressed`, `accent-soft` | `accent`, `accentPressed`, `accentSoft` | `actionPrimary`, `actionPrimaryPressed`, `surfaceSelected` |
+| `live`, `focus`, `scrim` | `live`, `focus`, `scrim` | `accentLive`, `focusOutline`, `scrim` |
+| `panel`, `panel-2` | `panel`, `panel2` | `inverseSurface`, — |
+| `on-panel`, `on-panel-muted`, `on-panel-accent` | `onPanel`, `onPanelMuted`, `onPanelAccent` | `inverseOnSurface`·`onActionPrimary`, —, `inversePrimary` |
+| `warn`, `warn-soft` | `warn`, `warnSoft` | `statusPostponed`, `statusPostponedContainer` |
+| `disabled` | `disabled` | — |
+
+- v2 상태 색(`statusUpcoming*`·`statusCompleted*`·`statusCancelled`)은 v3에서 상태를 텍스트로 표시하면서 제거했다. `accentPressed`·`focus`는 [8.4](#84-컨트롤) 조건(기본 ripple·포커스 표시가 부족할 때)에서만 쓰는 계약 토큰이라 아직 기능 코드에서 쓰지 않는다.
 
 ## 2. 화면 계약
 
@@ -37,7 +58,7 @@
 - **상세 action:** Back과 기능에 필요한 action만 둔다. 팀·선수는 즐겨찾기 별, 나머지는 Back만 둔다. 경기 알림 벨은 MVP 이후 Stage 2이며 v3 MVP 화면에 그리지 않는다.
 - **검색:** 전체 화면 push, 명시적 제출만, 최대 30자. 빈 값이나 기호만 있는 검색어는 제출하지 않는다. 결과는 이미지 없는 구분선 행과 텍스트 타입 라벨을 쓰고 행 전체가 상세로 이동한다.
 - **뉴스:** 썸네일·카드 없는 구분선 행이며 행 전체가 뉴스 상세를 연다. 첫 기사는 큰 제목으로 표시할 수 있다.
-- **경기 행:** 시간·상태 → 두 팀과 점수 → 대회 문맥 순서다. 경기 루트는 안정 ID가 있을 때만 팀·대회 중첩 target을 둘 수 있다. 대회·팀·선수 화면의 경기 행은 경기 상세만 연다. 대회 상세에서는 문맥으로 `event.series`를 표시하고 날짜 헤더를 두지 않는다.
+- **경기 행:** 시간·상태 → 두 팀과 점수 → 대회 문맥 순서다. 경기 루트는 안정 ID가 있을 때만 팀·대회 중첩 target을 둘 수 있다. 대회·팀·선수 화면의 경기 행은 경기 상세만 연다. 대회 상세도 경기 목록과 같은 날짜 헤더로 묶고, 문맥으로 `event.series`를 표시한다.
 - **경기 상세:** 대회 링크 → 대칭 hero(로고 위·이름 아래, 점수·상태 중앙) → 일정·Bo → 경기 설명 → 맵 → 상대 전적 순서다. 서버 `pastMatches`는 표시하지 않는다.
 - **마이페이지:** 팀 즐겨찾기는 2열 타일, 선수 즐겨찾기는 행으로 저장 순서대로 표시한다. 경기 즐겨찾기, 알림 설정, Next Matches는 두지 않는다.
 - **대회 상세:** `경기`(기본)·`뉴스`·`통계` 탭이며 탭별 상태·스크롤을 보존한다. 통계는 선수 셀을 고정하고 `Rounds`·`Rating`·`ACS`·`K-D`·`ADR`·`KAST` 순서로 가로 스크롤하며, 선수 셀만 선수 상세로 이동한다.
@@ -50,7 +71,7 @@
 2. **빨강은 하나의 신호다.** `accent`는 LIVE, `진행 중` chip, 하단 탭 선택, 승자 표시(`승리` 라벨 포함), 즐겨찾기 ON 별, 주요 버튼, 재시도, 본문 링크에만 쓴다. 어두운 `panel` 위의 빨강 글자·아이콘(Snackbar 액션, 즐겨찾기 ON 별)은 `on-panel-accent`를 쓰고, 채운 chip(`LIVE`, `진행 중`)은 `accent` 배경에 흰 글자를 그대로 쓴다. 일반 텍스트·배경·상태 구분에는 쓰지 않는다.
 3. **카드 대신 전폭 섹션을 쓴다.** 흰 섹션 사이를 8dp 캔버스로 띄우고 행은 1dp 구분선으로 나눈다. 카드 형태는 마이페이지 팀 타일에만 쓴다. 그림자는 Snackbar와 다이얼로그에만 쓴다.
 4. **상세는 어두운 hero로 시작한다.** 로고·사진은 흰 slot 위에 두어 원본 색을 지킨다.
-5. **없는 정보는 만들지 않는다.** 원문 문자열을 바꾸지 않고, 결측은 `—`, 실제 0은 `0`, 이미지가 없으면 텍스트 placeholder를 쓴다. 장식용 그래픽, 그라디언트, 발광 효과를 쓰지 않는다. 표의 가로 스크롤 흐림만 예외다.
+5. **없는 정보는 만들지 않는다.** 이름·제목 원문을 바꾸지 않고(날짜·시각은 한국어로 포맷한다, [5절](#5-타이포그래피)), 결측은 `—`, 실제 0은 `0`, 이미지가 없으면 텍스트 placeholder를 쓴다. 장식용 그래픽, 그라디언트, 발광 효과를 쓰지 않는다. 표의 가로 스크롤 흐림만 예외다.
 
 ## 4. 색상 토큰
 
@@ -68,7 +89,7 @@
 | `ink-2` | `#3D434C` | 보조 본문, 고지문 | surface 9.97 |
 | `muted` | `#646B78` | 메타, 패자, 비선택 탭 | surface 5.36, canvas 4.79, sunken 4.96 |
 | `accent` | `#CF1F33` | LIVE·`진행 중` chip·탭 선택·승자(`승리` 라벨)·즐겨찾기 ON 별·주요 버튼·재시도·본문 링크 | surface 5.39, canvas 4.81, 흰 글자 5.39 |
-| `accent-pressed` | `#A8172A` | 주요 버튼 누름 | — |
+| `accent-pressed` | `#A8172A` | 주요 버튼 누름(기본 ripple로 부족할 때만, [8.4](#84-컨트롤)) | — |
 | `accent-soft` | `#FDECEE` | 선택 배경이 필요할 때 | accent 4.72 |
 | `live` | `#FF3B4B` | LIVE 점(장식 신호, 항상 `LIVE` 글자와 함께) | panel 5.03 |
 | `panel` | `#15191E` | 상세 상단 띠, Snackbar | — |
@@ -77,7 +98,7 @@
 | `on-panel-muted` | `#A4ABB6` | panel 위 보조 글자, 패자 점수 | panel 7.63, panel-2 6.34 |
 | `on-panel-accent` | `#FF7A86` | Snackbar 액션, 어두운 헤더의 즐겨찾기 ON | panel 7.04 |
 | `warn` / `warn-soft` | `#9A5800` / `#FFF4E0` | `연기됨` 라벨 | 5.11 |
-| `focus` | `#2F6FED` | 키보드·접근성 포커스 링 | 비텍스트 |
+| `focus` | `#2F6FED` | 키보드·접근성 포커스 링(플랫폼 기본 표시가 보이지 않을 때) | 비텍스트 |
 | `disabled` | `#9AA1AC` | 상태 아이콘, 이미지 자리 아이콘 | 비텍스트 전용 |
 | `scrim` | `#0B0D10` 40% | 모달 뒤 배경 | — |
 
@@ -86,7 +107,12 @@
 - **한글·문장·이름:** 플랫폼 시스템 sans-serif를 쓴다(Android Noto Sans CJK, iOS Apple SD Gothic Neo). `.pen`은 Noto Sans KR로 대리 표현한다. 한글 서체는 번들하지 않는다.
 - **숫자·약어:** Saira Condensed(Google Fonts, OFL)를 번들한다. 점수, 맵 점수, 통계 수치, 팀 tag placeholder, `LIVE`, `MAP 1`, `Bo3` 계열에만 쓴다. 오픈소스 라이선스 화면에 수동으로 등록한다.
 - 공식 팀·선수·대회·맵·지역 이름과 기사 원제는 원문 그대로 둔다. UI 라벨은 한국어다.
-- 날짜·시각은 기능 문서의 [앱 표시 규칙](docs/feature/matches/README.md#앱-표시-규칙)을 따른다. 구조화 값(`date`·`time`·instant)이 있으면 한국어 형식으로 표시한다. source 원문만 있는 값(뉴스 목록 `publishedAt`, 대회 `dateLabel`, 팀 경기 `scheduledAtText`, 팀 뉴스 `publishedDateText`, 선수 최근 경기 `playedOn`)과 구조화 값이 없을 때의 대체 표시는 원문 그대로 둔다.
+- 날짜·시각은 모든 화면에서 한국어로 표시한다(2026-11-10 결정). 형식은 기능 문서의 [앱 표시 규칙](docs/feature/matches/README.md#앱-표시-규칙)을 따른다. 서버가 주는 구조화 값(`date`·`time`·instant와 2026-11-10 계약의 날짜 field)으로 포맷하고, 그 값이 없거나 파싱에 실패할 때만 원문을 대신 표시한다.
+  - 기사 날짜: `2026년 9월 19일`(뉴스 목록·팀 뉴스·대회 뉴스). 시각까지는 뉴스 상세에서만 쓴다.
+  - 경기 날짜·시각: `9월 24일 오후 6:00`(팀 경기), `7월 12일`(선수 최근 경기). 기기 날짜와 연도가 다를 때만 연도를 붙인다.
+  - 경기 날짜 헤더: `10월 27일 (화)`(경기 목록·대회 경기 탭). 기기 날짜와 연도가 다를 때만 `2025년 12월 31일 (수)`처럼 연도를 붙인다.
+  - 대회 기간: `9월 12일 ~ 10월 4일`, 같은 달 `11월 20일 ~ 23일`, 하루 `12월 17일`, 끝 미정 `11월 1일 ~ 미정`.
+  - 남은 시간: `18시간 5분 후`. 한글이 들어가므로 Saira가 아니라 시스템 서체를 쓴다.
 
 | 역할 | 크기 / 줄 높이 | 굵기 | 서체 | 용도 |
 | --- | --- | --- | --- | --- |
@@ -130,6 +156,7 @@
 - [Google Material Symbols Outlined](https://fonts.google.com/icons) 원본을 굵기 400으로 쓴다. 패스 재작성, 라이브러리 혼용, 자체 제작 아이콘을 쓰지 않는다. 사용하는 글리프만 vector asset으로 가져온다.
 - 즐겨찾기 ON만 같은 사이트의 공식 `star` FILL 1을 쓴다. 다른 선택 상태는 선 아이콘에 색·막대·굵기를 함께 쓴다.
 - 크기: 기본 24dp, 행 trailing 20dp, 보조 16–18dp, 상태 패널 40dp. 아이콘 버튼은 48dp 영역을 갖는다.
+- RTL에서는 방향을 뜻하는 `arrow_back`·`chevron_right`·`arrow_outward`만 좌우 반전한다(vector `android:autoMirrored`, 패스는 원본 그대로). 위아래 화살표, 대칭인 `swap_horiz`, `search` 등 나머지는 반전하지 않는다.
 
 | 용도 | 아이콘 |
 | --- | --- |
@@ -139,7 +166,8 @@
 | 검색창 | `search`, `cancel`(지우기) |
 | 정보 링크 | `code`, `privacy_tip`, `mail`, `description` |
 | 상태 | `error`(오류), `do_not_disturb_on`(섹션 빈 상태), `progress_activity`(검색 중), `info`(안내) |
-| 표 | `arrow_downward`(정렬), `swap_horiz`(가로 스크롤 안내) |
+| 빈 목록 | 기능 아이콘: `newspaper`(뉴스), `scoreboard`(경기), `trophy`(대회·시리즈), `search`(검색), `description`(기사 본문 없음), `bar_chart`(통계 없음) |
+| 표 | `arrow_downward`·`arrow_upward`(내림차순·오름차순 정렬), `swap_horiz`(가로 스크롤 안내) |
 | 자리 표시 | `trophy`(대회·시리즈 로고 없음), `image`(기사 이미지 로딩 실패) |
 
 ## 8. 컴포넌트
@@ -157,14 +185,14 @@
 
 - **Section header:** 위 20·아래 8·좌우 16dp. 제목 `section`, 선택적 개수(Saira 17/600 `muted`), 오른쪽 선택적 메타(`label`, 예: `한국 시간`, `전체 기간`, `최대 5경기`).
 - **Match row:** 위아래 12·좌우 16dp, 아래 1dp 구분선. 왼쪽 72dp 시간 열과 오른쪽 팀 열 사이에 1dp 세로선을 둔다.
-  - 시간 열: 예정은 `오후 8:00`(13/700) + `1시간 32분 후`(12/500 `muted`)를 쓴다. LIVE는 6dp `live` 점과 `LIVE`(Saira 14/700 `accent`)이고, 종료는 `종료`(`muted`)다.
+  - 시간 열: 예정은 `오후 8:00`(13/700) + `1시간 32분 후`(12/500 `muted`)를 쓴다. LIVE는 6dp `live` 점과 `LIVE`(Saira 14/700 `accent`)이고, 종료는 시각(13/700) + `종료`(12/500 `muted`)다. 경기 목록 결과 탭과 대회 상세가 같은 표기를 쓴다.
   - 팀 열: 팀 이름 `body` 700과 점수 `score-m`. 종료 경기의 승자는 `ink` 700, 패자는 `muted` 500이다. 예정 경기에는 점수를 두지 않는다. 대회 문맥은 12 `muted`다.
   - 목록에는 팀 로고가 없다(목록 응답에 이미지가 없음).
-- **News row:** 위아래 14·좌우 16dp. 제목 15/600(줄 높이 1.45), 아래 `작성자 · 게시일` 12 `muted`. 목록의 게시일은 API `publishedAt` 원문(예: `September 19, 2026`)이며, 한국어 날짜·시각 형식은 뉴스 상세에만 쓴다. 첫 기사는 `headline`과 위아래 20/18dp 여백을 쓴다.
+- **News row:** 위아래 14·좌우 16dp. 제목 15/600(줄 높이 1.45), 아래 `작성자 · 게시일` 12 `muted`. 목록의 게시일은 날짜만 `2026년 9월 19일`로 쓰고, 시각까지 쓰는 형식은 뉴스 상세에만 쓴다. 첫 기사는 `headline`과 위아래 20/18dp 여백을 쓴다.
 - **Identity row:** 로고 slot 40dp, 제목 `body` 700, 메타 13 `muted`, trailing 48dp(chevron, 즐겨찾기 해제 별, 또는 없음). 이동하지 않는 행(스태프)은 trailing을 두지 않는다.
 - **Link row:** 선두 아이콘 22dp `ink-2`, 제목 15/600, 보조 12 `muted`, trailing `arrow_outward` 또는 `chevron_right`. 최소 48dp이며 button role을 갖는다.
 - **Search result row:** 타입 라벨 32dp 열(12/700 `muted`: `팀`·`선수`·`대회`·`시리즈`), 제목·메타, chevron. 이미지를 두지 않는다.
-- **Team match row:** 팀·선수 상세용 행이다. 선택적 결과 열 60dp(`승리` `accent` 800, `패배`·`결과 미정` `muted`), 제목(줄바꿈 허용)과 대회 문맥, 오른쪽에 원문 상태(`statusText`·점수, Saira 20)와 원문 날짜(12 `muted`)를 둔다.
+- **Team match row:** 팀·선수 상세용 행이다. 선택적 결과 열 60dp(`승리` `accent` 800, `패배`·`결과 미정` `muted`), 제목(줄바꿈 허용)과 대회 문맥, 오른쪽에 상태와 날짜·시각(12 `muted`)을 둔다. 상태는 점수면 Saira 20, 예정 경기의 남은 시간(`18시간 5분 후`)이면 시스템 서체 13/700이다.
 - **Favorite tile:** 마이페이지 팀용 2열 타일, 간격 8dp. `surface`에 1dp `line` 테두리, 2dp 모서리. 로고 slot 48dp, 즐겨찾기 해제 별(FILL, `accent`, 48dp 영역), 이름 15/800, 메타 12 `muted`.
 
 ### 8.3 상세
@@ -191,10 +219,12 @@
 
 | 상태 | 버튼 동작 |
 | --- | --- |
-| Pressed | Primary는 `accent-pressed`, Secondary·Text는 `surface-sunken` 바탕 |
-| Focus | 2dp `focus` 링을 바깥에 둔다. 색 변화만으로 표시하지 않는다 |
-| Disabled | 이유가 분명할 때만 50% 불투명도. 아니면 활성 상태로 두고 근처에 이유를 쓴다 |
+| Pressed | 별도 시안 없이 Compose 기본 indication(ripple)을 쓴다 |
+| Focus | 플랫폼 기본 포커스 표시를 쓴다. 보이지 않으면 2dp `focus` 링을 바깥에 둔다. 색 변화만으로 표시하지 않는다 |
+| Disabled | 이유가 분명할 때만 흐리게(50% 불투명도) 표시한다. 아니면 활성 상태로 두고 근처에 이유를 쓴다 |
 | Loading | 폭을 유지하고 반복 실행을 막으며 진행 표시와 busy semantics를 준다 |
+
+- 버튼 상태는 대략적인 기준만 둔다(2026-11-10 결정). ripple 색이나 흐림 정도 같은 세부 표현은 실제 기기에서 써 보고 불편하면 그때 조정하고 이 표를 갱신한다.
 
 - **Search field:** 높이 48dp, `surface-sunken`, 2dp 모서리, 선두 `search` 20dp `muted`. 지우기 `cancel`은 값이 있을 때만 48dp 영역으로 둔다(접근성 이름 `검색어 지우기`). 포커스는 2dp `ink` 테두리, 제출 후 비포커스는 1dp `line-strong`이다. placeholder는 `팀, 선수, 대회 검색…`이다.
 - **Status chip:** 위아래 2·좌우 6dp, 2dp 모서리, 정보 전용이다.
@@ -249,9 +279,9 @@
 
 ## 11. 적용 순서와 범위 밖
 
-1. [ ] 기반: `ui/theme` 토큰을 v3 값으로 교체하고 신규 토큰을 추가한다. Saira Condensed와 Material Symbols 글리프를 가져오고 공통 컴포넌트를 v3 계약으로 맞춘다.
-2. [ ] 화면: 기능 묶음별로 v3를 적용한다. 상세 상단의 어두운 띠에 맞는 상태바 아이콘 색은 플랫폼별로 처리한다.
-3. [ ] 검증: UI 테스트를 갱신하고 Android·iOS에서 주요 상태, 글꼴 확대, TalkBack·VoiceOver를 확인한다.
-4. [ ] 정리: 코드에 남은 이전 디자인 흔적(뉴스 상세 미리보기의 Stitch placeholder 이미지 URL, `TeamDetailContentUiTest`의 Stitch marker 테스트 이름)을 v3 기준으로 바꾼다.
+1. [x] 기반: `ui/theme` 토큰을 v3 값으로 교체하고 신규 토큰을 추가한다. Saira Condensed와 Material Symbols 글리프를 가져오고 공통 컴포넌트를 v3 계약으로 맞춘다. 토큰·서체·아이콘(2026-11-11)과 chrome·컨트롤·피드백·목록·상세 컴포넌트(2026-11-12)를 `feat/v3-design`에 적용했다.
+2. [x] 화면: 기능 묶음별로 v3를 적용한다. 상세 상단의 어두운 띠와 상태바 아이콘 색은 공통 컴포넌트 단계에서 처리했다. 뉴스(`10`·`11`), 경기(`20`·`21`), 마이페이지(`30`), 대회·시리즈(`40`·`41`·`42`), 팀·선수(`50`·`51`), 검색(`60`), 정보(`70`)를 적용했다(2026-11-12).
+3. [ ] 검증: UI 테스트를 갱신하고 Android·iOS에서 주요 상태, 글꼴 확대, TalkBack·VoiceOver를 확인한다. UI 테스트는 화면 단계마다 갱신했고, 2026-11-12에 Android 에뮬레이터(411dp)·로컬 서버로 QA `90-1`~`90-5`, 글꼴 130%(루트 5개·상세 3개), TalkBack(하단 탭, 경기 행, 상세 헤더 Back·별, 오류 다이얼로그 포커스)을 확인했다. iOS simulator에서는 루트 5개와 상세 3개(팀·선수·경기)를 확인했다. 접근성 상세 확인(VoiceOver·Accessibility Inspector)은 사용자 지시로 생략했다. TalkBack은 목록 행의 묶은 설명 뒤에 자식 텍스트(팀 이름·점수 등)를 한 번 더 읽는다. 남은 기기 확인은 #49에서 가벼운 범위로 추적한다.
+4. [x] 정리: 코드에 남은 이전 디자인 흔적을 v3 기준으로 바꿨다. 뉴스 상세 미리보기의 Stitch placeholder 이미지 URL은 v3 샘플로, `TeamDetailContentUiTest`의 Stitch marker 테스트 이름은 v3 섹션 기준으로 바꿨다(2026-11-12). 2026-11-12 `grep -ri stitch` 결과 코드·리소스에는 남은 것이 없고(이 문서의 이력 문장과 `.gitignore`의 `.stitch/`만 남음), v2 상태 색도 제거되어 있다.
 
 범위 밖: 다크 모드, 태블릿 전용 레이아웃, 별도 애니메이션 시스템, 플랫폼별로 다른 시각, 경기 알림(Stage 2) 화면. 새 색, 새 상호작용 컴포넌트, 파괴적 action 표현은 이 문서와 `.pen`을 먼저 갱신한 뒤 도입한다.

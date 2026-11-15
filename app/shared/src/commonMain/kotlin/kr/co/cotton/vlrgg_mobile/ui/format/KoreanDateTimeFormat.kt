@@ -7,6 +7,7 @@ import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
+import kr.co.cotton.vlrgg_mobile.domain.model.events.EventMonthDay
 
 /**
  * 화면에 보이는 날짜·시각 문자열을 한 곳에서 만든다.
@@ -19,6 +20,13 @@ internal object KoreanDateTimeFormat {
     /** `10월 27일 (화)` */
     fun monthDay(date: LocalDate): String =
         "${date.month.number}월 ${date.day}일 (${date.dayOfWeek.koreanShortName()})"
+
+    /**
+     * Match day header (match list, event matches tab): `10월 27일 (화)`, or `2025년 12월 31일 (수)`
+     * when [date] is not in [currentYear], the device year ([rememberDeviceToday]).
+     */
+    fun matchDayHeader(date: LocalDate, currentYear: Int): String =
+        if (date.year == currentYear) monthDay(date) else "${date.year}년 ${monthDay(date)}"
 
     /** `오전 3:00`, `오후 7:05`. 00시는 `오전 12:00`, 12시는 `오후 12:00`이다. */
     fun time(time: LocalTime): String {
@@ -33,10 +41,62 @@ internal object KoreanDateTimeFormat {
         return "${local.date.year}년 ${monthDay(local.date)} ${time(local.time)}"
     }
 
+    /**
+     * Team·player match date: `9월 24일`, or `2025년 9월 24일` when [date] is not in [currentYear],
+     * the device year ([rememberDeviceToday]).
+     */
+    fun matchDate(date: LocalDate, currentYear: Int): String {
+        val monthDay = "${date.month.number}월 ${date.day}일"
+        return if (date.year == currentYear) monthDay else "${date.year}년 $monthDay"
+    }
+
+    /** Team match schedule: `9월 24일 오후 6:00`, or the [matchDate] alone without [time]. */
+    fun matchDateTime(date: LocalDate, time: LocalTime?, currentYear: Int): String {
+        val dateText = matchDate(date, currentYear)
+        return if (time == null) dateText else "$dateText ${time(time)}"
+    }
+
+    /** `2026년 9월 19일` */
+    fun date(date: LocalDate): String = "${date.year}년 ${date.month.number}월 ${date.day}일"
+
+    /** [date]가 있으면 `2026년 9월 19일`, 없으면(서버 미제공·파싱 실패) [source] 원문이다. */
+    fun dateOrSource(date: LocalDate?, source: String): String = date?.let(::date) ?: source
+
+    /**
+     * 대회 기간: `9월 12일 ~ 10월 4일`, 같은 달 `11월 20일 ~ 23일`, 하루 `12월 17일`, 끝 미정 `11월 1일 ~ 미정`.
+     * [start]가 없으면(서버 미제공·파싱 실패) [source] 원문이다.
+     */
+    fun period(start: EventMonthDay?, end: EventMonthDay?, source: String?): String? {
+        start ?: return source
+        val startText = monthDay(start)
+        return when {
+            end == null -> "$startText ~ $UndecidedEnd"
+            end == start -> startText
+            end.month == start.month -> "$startText ~ ${end.day}일"
+            else -> "$startText ~ ${monthDay(end)}"
+        }
+    }
+
+    /** [period]의 낭독 문구. `~` 대신 `부터`·`까지`를 쓴다: `9월 12일부터 10월 4일까지`, `11월 1일부터, 종료일 미정`. */
+    fun periodSpoken(start: EventMonthDay?, end: EventMonthDay?, source: String?): String? {
+        start ?: return source
+        val startText = monthDay(start)
+        return when {
+            end == null -> "${startText}부터, 종료일 $UndecidedEnd"
+            end == start -> startText
+            end.month == start.month -> "${startText}부터 ${end.day}일까지"
+            else -> "${startText}부터 ${monthDay(end)}까지"
+        }
+    }
+
+    private fun monthDay(value: EventMonthDay): String = "${value.month}월 ${value.day}일"
+
+    private const val UndecidedEnd = "미정"
+
     /** `2026년 10월 26일 오전 12:09`. [timeZone] 기준으로 변환한다. */
     fun dateTime(instant: Instant, timeZone: TimeZone): String {
         val local = instant.toLocalDateTime(timeZone)
-        return "${local.date.year}년 ${local.date.month.number}월 ${local.date.day}일 ${time(local.time)}"
+        return "${date(local.date)} ${time(local.time)}"
     }
 
     /**
@@ -55,6 +115,12 @@ internal object KoreanDateTimeFormat {
         }
         return parts.joinToString(" ") + " 후"
     }
+
+    /**
+     * Team upcoming match status: a remaining-time source (`1d 6h`) becomes `1일 6시간 후`, and any
+     * other source (a score, `LIVE`) stays as written.
+     */
+    fun remainingTimeOrSource(label: String): String = remainingTime(label) ?: label
 
     private fun DayOfWeek.koreanShortName(): String = when (this) {
         DayOfWeek.MONDAY -> "월"

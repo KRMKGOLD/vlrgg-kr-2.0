@@ -1,6 +1,6 @@
 # News
 
-News는 최신 기사 목록과 구조화된 본문을 제공하고 본문의 Team·Player를 앱 Detail로 연결하는 Phase 1 기능이다. 서버·앱 구현과 자동화 검증은 완료됐고 실기기 렌더·접근성 확인은 남아 있다. 공통 pagination·refresh·오류 계약은 [Feature Guide](../README.md#공통-상태와-오류-계약)를 따른다.
+News는 최신 기사 목록과 구조화된 본문을 제공하고 본문의 Team·Player를 앱 Detail로 연결하는 Phase 1 기능이다. 서버·앱 구현과 자동화 검증은 완료됐고, 앱 화면은 v3 디자인(`.pen` `10`·`11`)을 적용했다(2026-11-12). 목록 `publishedDate`는 앱만 받을 준비가 됐고 서버 구현은 남아 있다. 실기기 TalkBack·VoiceOver 확인은 남아 있다. 공통 pagination·refresh·오류 계약은 [Feature Guide](../README.md#공통-상태와-오류-계약)를 따른다.
 
 ## MVP 범위
 
@@ -15,9 +15,9 @@ Event·Match 본문 링크 이동, external link browsing 정책, embed 재생, 
 ## 상태와 인터랙션
 
 - 목록은 Initial Loading, Populated, Empty, Initial Error, Pagination Error를 구분한다.
-- 목록 끝 요청은 한 번만 실행하고 footer spinner를 사용한다. 실패 시 기존 항목을 유지하고 같은 page Retry를 제공한다.
+- 목록 끝 요청은 한 번만 실행하고 목록 끝에 기사 행 스켈레톤 한 줄을 둔다(v3, 진행 중 semantics 포함). 실패 시 기존 항목을 유지하고 같은 page Retry를 제공한다.
 - refresh는 기존 목록을 비우고 `page=1`만 요청한다. 진행 중 pagination을 취소하거나 이전 결과를 무시해 stale 항목 삽입을 막는다.
-- Detail은 Loading, Populated, Empty, Error를 구분한다. 필수 제목·본문 구조 실패는 Error다.
+- Detail은 Loading, Populated, Empty, Error를 구분한다. 필수 제목·본문 구조 실패는 Error다. Empty는 기사 제목 없이 본문 없음 State panel만 표시한다(v3 `11-3`).
 - 선택적 image·caption·unsupported embed가 원문에 없으면 해당 요소만 생략한다. 이미지 로딩이 실패해도 본문과 기존 caption은 유지하며 별도 Partial이나 전역 경고를 만들지 않는다.
 - 링크는 색상만으로 구분하지 않는다.
 
@@ -32,7 +32,7 @@ GET /api/v1/news/{articleId}/{slug}
 - 목록 응답은 `{ page, nextPage, items }`, item은 canonical `{articleId}/{slug}` `reference`, `title`, `author`, `publishedAt`을 가진다. `nextPage=null`은 마지막 페이지다. `publishedAt`은 source text이며 상대 시간 formatting은 UI가 담당한다.
 - Detail은 목록 reference의 두 segment를 그대로 사용하고 `{ reference, title, author, publishedAt, publishedAtUtc?, blocks }`를 반환한다. noncanonical reference는 `400 INVALID_REQUEST`다.
 - `publishedAtUtc`는 기사 header의 `time[datetime]`(offset 포함 ISO-8601)을 바꾼 UTC instant(`2026-10-25T15:09:14Z`)다. 속성이 없거나 형식이 맞지 않으면 null이다. `publishedAt`은 기존 source text 그대로다. 실제 기사 페이지에서는 `16 hours ago` 같은 상대 시간이다. 목록 item은 날짜 텍스트만 있어 instant를 제공하지 않는다. 형식·null 조건·앱 호환성은 [Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)을 따른다.
-- 앱 기사 화면은 `publishedAtUtc`가 있으면 기기 시간대 기준 `2026년 10월 26일 오전 12:09`로 표시하고, 없거나 파싱할 수 없으면 `publishedAt` 원문을 표시한다. 목록 item의 `publishedAt`은 원문 그대로 표시한다. 상세 규칙은 [앱 표시 규칙](../matches/README.md#앱-표시-규칙)을 따른다.
+- 앱 기사 화면은 `publishedAtUtc`가 있으면 기기 시간대 기준 `2026년 10월 26일 오전 12:09`로 표시하고, 없거나 파싱할 수 없으면 `publishedAt` 원문을 표시한다. 목록 item은 `publishedDate`(2026-11-10 계약, 서버 구현 예정)가 있으면 `2026년 9월 19일`로 표시하고, 없으면 `publishedAt` 원문을 표시한다. 상세 규칙은 [앱 표시 규칙](../matches/README.md#앱-표시-규칙)을 따른다.
 - block은 원순서의 `paragraph.content`, `image.imageUrl`/optional `caption`, `list.ordered`/`items` tagged object다. text content는 `text` 또는 `link`이고 link kind는 `TEAM`, `PLAYER`, `EVENT`, `MATCH`, `INTERNAL_UNSUPPORTED`, `EXTERNAL`이다. Team·Player만 routable reference를 가진다.
 - `.article-body`만 본문으로 사용하고 script/style, hover/reference card, sidebar, comments를 제외한다. DOM 전체 `text()` 병합으로 구조를 평탄화하지 않는다.
 - 제목과 본문은 필수다. image/caption은 선택이고 필수 구조 실패는 `SOURCE_PARSING_FAILURE`다.

@@ -19,6 +19,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 
 class RemoteNewsDataSourceImplTest {
 
@@ -38,6 +39,23 @@ class RemoteNewsDataSourceImplTest {
             assertEquals(2, response.page)
             assertEquals(3, response.nextPage)
             assertEquals("101/champions-run", response.items.single().reference)
+            // 구서버 응답(field 없음)은 기본값 null로 읽는다.
+            assertNull(response.items.single().publishedDate)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun getNewsPageReadsPublishedDateWhenTheServerProvidesIt() = runTest {
+        val client = createClient(MockEngine { respondJson(NEWS_LIST_WITH_PUBLISHED_DATE_JSON) })
+
+        try {
+            val items = RemoteNewsDataSourceImpl(client).getNewsPage(page = 1).items
+
+            assertEquals("2026-09-19", items[0].publishedDate)
+            assertEquals("September 19, 2026", items[0].publishedAt)
+            assertNull(items[1].publishedDate)
         } finally {
             client.close()
         }
@@ -129,6 +147,30 @@ class RemoteNewsDataSourceImplTest {
                   "title": "Champions run",
                   "author": "Reporter",
                   "publishedAt": "2026-08-09T12:00:00Z"
+                }
+              ]
+            }
+            """.trimIndent()
+
+        val NEWS_LIST_WITH_PUBLISHED_DATE_JSON =
+            """
+            {
+              "page": 1,
+              "nextPage": null,
+              "items": [
+                {
+                  "reference": "101/champions-run",
+                  "title": "Champions run",
+                  "author": "Reporter",
+                  "publishedAt": "September 19, 2026",
+                  "publishedDate": "2026-09-19"
+                },
+                {
+                  "reference": "102/masters-run",
+                  "title": "Masters run",
+                  "author": "Reporter",
+                  "publishedAt": "September 18, 2026",
+                  "publishedDate": null
                 }
               ]
             }

@@ -14,6 +14,8 @@ internal data class EventDetailResponseDto(
     val series: String? = null,
     val description: String? = null,
     val imageUrl: String? = null,
+    val startDate: String? = null,
+    val endDate: String? = null,
 )
 
 @Serializable
@@ -32,6 +34,7 @@ internal data class EventNewsDto(
     val title: String,
     val author: String? = null,
     val publishedAt: String,
+    val publishedDate: String? = null,
 )
 
 @Serializable

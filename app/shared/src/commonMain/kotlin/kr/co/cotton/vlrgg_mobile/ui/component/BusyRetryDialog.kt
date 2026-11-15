@@ -1,7 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.ui.component
 
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -75,24 +73,15 @@ fun BusyRetryDialog(
         retryEnabled = visibleBusy.canRetry()
     }
 
-    AlertDialog(
+    VlrErrorDialog(
+        title = stringResource(Res.string.busy_dialog_title),
+        message = stringResource(Res.string.busy_dialog_message),
+        confirmLabel = stringResource(Res.string.busy_dialog_retry),
+        onConfirm = onRetry,
+        dismissLabel = stringResource(Res.string.busy_dialog_close),
+        onDismiss = onDismiss,
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.busy_dialog_title)) },
-        text = { Text(stringResource(Res.string.busy_dialog_message)) },
-        confirmButton = {
-            VlrButton(
-                text = stringResource(Res.string.busy_dialog_retry),
-                enabled = retryEnabled,
-                onClick = onRetry,
-            )
-        },
-        dismissButton = {
-            VlrButton(
-                text = stringResource(Res.string.busy_dialog_close),
-                variant = VlrButtonVariant.Secondary,
-                onClick = onDismiss,
-            )
-        },
+        confirmEnabled = retryEnabled,
     )
 }
 

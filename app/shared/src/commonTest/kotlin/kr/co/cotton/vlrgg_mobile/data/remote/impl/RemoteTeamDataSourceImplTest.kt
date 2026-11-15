@@ -50,6 +50,38 @@ class RemoteTeamDataSourceImplTest {
     }
 
     @Test
+    fun koreanDateFieldsDeserializeWhenPresentAndAreNullWhenOmitted() = runTest {
+        val client = createClient(MockEngine { respondJson(TEAM_DETAIL_JSON) })
+
+        try {
+            val response = RemoteTeamDataSourceImpl(client).getTeamDetail("8185")
+
+            val upcoming = response.upcomingMatches.single()
+            assertEquals("2026-08-28", upcoming.scheduledDate)
+            assertEquals("17:00", upcoming.scheduledTime)
+            assertEquals("2026-08-25", response.news.single().publishedDate)
+            // The recent match predates the 2026-11-10 fields, as the current server still sends.
+            val recent = response.recentMatches.single()
+            assertEquals(null, recent.scheduledDate)
+            assertEquals(null, recent.scheduledTime)
+        } finally {
+            client.close()
+        }
+
+        val omittedClient = createClient(MockEngine { respondJson(TEAM_DETAIL_WITHOUT_DATE_FIELDS_JSON) })
+        try {
+            val response = RemoteTeamDataSourceImpl(omittedClient).getTeamDetail("8185")
+
+            assertEquals(null, response.upcomingMatches.single().scheduledDate)
+            assertEquals(null, response.upcomingMatches.single().scheduledTime)
+            assertEquals(null, response.news.single().publishedDate)
+            assertEquals("2026/08/25", response.news.single().publishedDateText)
+        } finally {
+            omittedClient.close()
+        }
+    }
+
+    @Test
     fun nullMetadataAndEmptySectionsDeserializeWithoutDefaults() = runTest {
         val client = createClient(MockEngine { respondJson(NULLABLE_AND_EMPTY_TEAM_DETAIL_JSON) })
 
@@ -170,7 +202,9 @@ class RemoteTeamDataSourceImplTest {
                 "teamName": "KIWOOM DRX",
                 "opponentName": "Sentinels",
                 "statusText": "in 2d",
-                "scheduledAtText": "2026-08-28 17:00"
+                "scheduledAtText": "2026-08-28 17:00",
+                "scheduledDate": "2026-08-28",
+                "scheduledTime": "17:00"
               }],
               "recentMatches": [{
                 "id": "698100",
@@ -198,7 +232,8 @@ class RemoteTeamDataSourceImplTest {
               "news": [{
                 "reference": "700755/kiwoom-drx-releases-rookie-hermes",
                 "title": "KIWOOM DRX releases rookie Hermes",
-                "publishedDateText": "2026-08-25"
+                "publishedDateText": "2026-08-25",
+                "publishedDate": "2026-08-25"
               }]
             }
             """.trimIndent()
@@ -215,6 +250,29 @@ class RemoteTeamDataSourceImplTest {
               "players": [],
               "staff": [],
               "news": []
+            }
+            """.trimIndent()
+
+        val TEAM_DETAIL_WITHOUT_DATE_FIELDS_JSON =
+            """
+            {
+              "id": "8185",
+              "name": "KIWOOM DRX",
+              "upcomingMatches": [{
+                "id": "698887",
+                "teamName": "KIWOOM DRX",
+                "opponentName": "Sentinels",
+                "statusText": "1d 6h",
+                "scheduledAtText": "2026/08/28 7:05 pm"
+              }],
+              "recentMatches": [],
+              "players": [],
+              "staff": [],
+              "news": [{
+                "reference": "700755/kiwoom-drx-releases-rookie-hermes",
+                "title": "KIWOOM DRX releases rookie Hermes",
+                "publishedDateText": "2026/08/25"
+              }]
             }
             """.trimIndent()
 

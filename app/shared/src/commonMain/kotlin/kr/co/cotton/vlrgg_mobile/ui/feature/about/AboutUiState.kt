@@ -20,7 +20,7 @@ internal data class AboutUiState(
 internal fun aboutUiState(buildVersion: String?): AboutUiState = AboutUiState(
     versionLabel = buildVersion
         ?.takeIf(String::isNotBlank)
-        ?.let { "v$it" }
+        ?.let { "버전 $it" }
 )
 
 internal fun AboutUiState.afterLinkOpen(link: AboutLink, opened: Boolean): AboutUiState =

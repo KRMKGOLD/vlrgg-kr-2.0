@@ -1,45 +1,40 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.news.list
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.datetime.LocalDate
 import kr.co.cotton.vlrgg_mobile.domain.model.news.NewsSummary
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.InlineRetry
+import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsListItem
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsSkeleton
-import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_search
+import vlrggmobile.app.shared.generated.resources.ic_newspaper
+import androidx.compose.foundation.lazy.itemsIndexed
+
+internal const val NEWS_INITIAL_RETRY_TAG = "news-initial-retry"
+internal const val NEWS_PAGINATION_RETRY_TAG = "news-pagination-retry"
+internal const val NEWS_PAGINATION_LOADING_TAG = "news-pagination-loading"
 
 @Composable
 fun NewsContent(
@@ -70,7 +65,7 @@ fun NewsContent(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
         topBar = {
-            NewsTopBar(onSearch = onSearch)
+            RootHeader(title = "뉴스", onSearch = onSearch)
         },
     ) { contentPadding ->
         PullToRefreshBox(
@@ -92,8 +87,9 @@ fun NewsContent(
                     }
 
                     NewsListContentState.Empty -> item(key = "empty") {
-                        NewsStateMessage(
-                            message = "표시할 뉴스가 없어요.",
+                        StatePanel(
+                            title = "표시할 뉴스가 없어요.",
+                            icon = Res.drawable.ic_newspaper,
                             modifier = Modifier.fillParentMaxSize(),
                         )
                     }
@@ -102,29 +98,28 @@ fun NewsContent(
                         if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
                             Box(Modifier.fillParentMaxSize())
                         } else {
-                            NewsStateMessage(
-                                message = "뉴스를 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
-                                actionText = "재시도",
+                            StatePanel(
+                                title = "뉴스를 불러오지 못했습니다.",
+                                body = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+                                actionLabel = "재시도",
                                 onAction = onRetryInitial,
+                                actionTestTag = NEWS_INITIAL_RETRY_TAG,
                                 modifier = Modifier.fillParentMaxSize(),
                             )
                         }
                     }
 
                     is NewsListContentState.Content -> {
-                        items(
+                        itemsIndexed(
                             items = contentState.items,
-                            key = { news -> "${news.articleId}/${news.slug}" },
-                        ) { news ->
+                            key = { _, news -> "${news.articleId}/${news.slug}" },
+                        ) { index, news ->
                             NewsListItem(
                                 news = news,
                                 onClick = {
                                     onNewsClick(news.articleId, news.slug)
                                 },
-                            )
-                            HorizontalDivider(
-                                thickness = VlrDimensions.OutlineWidth,
-                                color = VlrTheme.colors.outline,
+                                headline = index == 0,
                             )
                         }
 
@@ -145,99 +140,26 @@ fun NewsContent(
 }
 
 @Composable
-private fun NewsTopBar(
-    onSearch: () -> Unit,
-) {
-    TopAppBar(
-        title = {
-            Text(
-                text = "News",
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
-            )
-        },
-        actions = {
-            VlrIconButton(
-                contentDescription = "검색",
-                onClick = onSearch,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_search),
-                        contentDescription = null,
-                    )
-                },
-            )
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = VlrTheme.colors.surface,
-        ),
-    )
-}
-
-@Composable
-private fun NewsStateMessage(
-    message: String,
-    modifier: Modifier = Modifier,
-    actionText: String? = null,
-    onAction: () -> Unit = {},
-) {
-    Column(
-        modifier = modifier.padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = message,
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
-            textAlign = TextAlign.Center,
-        )
-        actionText?.let { text ->
-            VlrButton(
-                text = text,
-                onClick = onAction,
-                modifier = Modifier.padding(top = VlrDimensions.Space4),
-            )
-        }
-    }
-}
-
-@Composable
 private fun NewsPaginationFooter(
     isLoading: Boolean,
     hasError: Boolean,
     onRetry: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(VlrDimensions.Space4),
-        contentAlignment = Alignment.Center,
-    ) {
-        when {
-            isLoading -> CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                color = VlrTheme.colors.actionPrimary,
-                strokeWidth = 2.dp,
-            )
-
-            hasError -> Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-            ) {
-                Text(
-                    text = "뉴스 소식을 더 불러오지 못했습니다.",
-                    style = VlrTheme.typography.body,
-                    color = VlrTheme.colors.textSecondary,
-                    textAlign = TextAlign.Center,
-                )
-                VlrButton(
-                    text = "재시도",
-                    onClick = onRetry,
-                    variant = VlrButtonVariant.Text,
-                )
-            }
-        }
+    if (!isLoading && hasError) {
+        InlineRetry(
+            message = "뉴스 소식을 더 불러오지 못했습니다.",
+            onRetry = onRetry,
+            actionTestTag = NEWS_PAGINATION_RETRY_TAG,
+        )
+        return
+    }
+    if (isLoading) {
+        // 다음 기사 행 자리를 스켈레톤으로 채운다(`DESIGN.md` 6·9절). 진행 상태는 보조 기술에 알린다.
+        SkeletonRow(
+            modifier = Modifier
+                .testTag(NEWS_PAGINATION_LOADING_TAG)
+                .semantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate },
+        )
     }
 }
 
@@ -322,6 +244,22 @@ private fun NewsContentPopulatedPreview() {
 }
 
 @Preview(
+    name = "Loading more",
+    showBackground = true,
+    widthDp = 360,
+    heightDp = 780,
+)
+@Composable
+private fun NewsContentLoadingMorePreview() {
+    NewsContentPreview(
+        uiState = NewsListUiState(
+            contentState = NewsListContentState.Content(previewNewsItems),
+            isLoadingMore = true,
+        ),
+    )
+}
+
+@Preview(
     name = "Pagination error",
     showBackground = true,
     widthDp = 360,
@@ -356,39 +294,18 @@ private fun NewsContentPreview(
 }
 
 private val previewNewsItems = listOf(
-    NewsSummary(
-        articleId = "101",
-        slug = "champions-run",
-        title = "Champions 서울, 새로운 왕좌를 향한 여정",
-        author = "글로벌 뉴스",
-        publishedAt = "2시간 전",
-    ),
-    NewsSummary(
-        articleId = "102",
-        slug = "masters-preview",
-        title = "Masters 플레이오프 대진과 주목할 경기",
-        author = "VLR 편집팀",
-        publishedAt = "5시간 전",
-    ),
-    NewsSummary(
-        articleId = "103",
-        slug = "roster-update",
-        title = "주요 팀 로스터 업데이트 정리",
-        author = "경기 분석팀",
-        publishedAt = "어제",
-    ),
-    NewsSummary(
-        articleId = "104",
-        slug = "regional-standings",
-        title = "지역별 리그 순위 경쟁이 본격화된다",
-        author = "글로벌 뉴스",
-        publishedAt = "2일 전",
-    ),
-    NewsSummary(
-        articleId = "105",
-        slug = "patch-analysis",
-        title = "새 패치가 프로 경기 메타에 미칠 영향",
-        author = "전략 분석팀",
-        publishedAt = "3일 전",
-    ),
+    previewNews("101", "coach-joe", "Coach Joe: \"[Shopify] has been the team to beat in [Game Changers].\"", "ChickenJoe", 19),
+    previewNews("102", "purp0-free-agent", "purp0 searching for new team following Team Liquid benching", "jenopelle", 19),
+    previewNews("103", "cyvoph-free-agent", "Natus Vincere's CyvOph set to enter free agency", "jenopelle", 19),
+    previewNews("104", "warbirds-rex-regum", "Warbirds set to leave the Rex Regum Qeon flock", "VLR.gg", 18),
+    previewNews("105", "envy-nightz", "ENVY allows nightz to explore options", "VLR.gg", 17),
+)
+
+private fun previewNews(articleId: String, slug: String, title: String, author: String, day: Int) = NewsSummary(
+    articleId = articleId,
+    slug = slug,
+    title = title,
+    author = author,
+    publishedAt = "September $day, 2026",
+    publishedDate = LocalDate(2026, 9, day),
 )

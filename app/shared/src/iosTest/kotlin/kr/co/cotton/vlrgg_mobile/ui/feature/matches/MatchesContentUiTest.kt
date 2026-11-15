@@ -3,7 +3,6 @@ package kr.co.cotton.vlrgg_mobile.ui.feature.matches
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -33,34 +32,47 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchEvent
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
-import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchContentItemScoreStyle
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.matchScoreTag
-import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.toMatchContentItem
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kotlin.test.Test
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
+import androidx.compose.runtime.CompositionLocalProvider
+import kr.co.cotton.vlrgg_mobile.ui.format.LocalDeviceClock
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.test.assertEquals
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onAllNodesWithText
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kr.co.cotton.vlrgg_mobile.ui.component.matchRowAwayScoreTag
+import kr.co.cotton.vlrgg_mobile.ui.component.matchRowHomeScoreTag
+import kr.co.cotton.vlrgg_mobile.ui.component.showsScores
+import kr.co.cotton.vlrgg_mobile.ui.component.winner
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.toMatchRowModel
 
 @OptIn(DelicateCoilApi::class, ExperimentalTestApi::class)
 class MatchesContentUiTest {
 
     @Test
-    fun matchContentItemAdapterPreservesListScoreTypography() {
-        assertEquals(
-            MatchContentItemScoreStyle.LABEL,
-            upcomingMatch.toMatchContentItem(showEventName = true).scoreStyle,
-        )
-        assertEquals(
-            MatchContentItemScoreStyle.LABEL,
-            completedMatch.copy(homeScore = null, awayScore = null)
-                .toMatchContentItem(showEventName = true)
-                .scoreStyle,
-        )
-        assertEquals(
-            MatchContentItemScoreStyle.DISPLAY,
-            completedMatch.toMatchContentItem(showEventName = true).scoreStyle,
-        )
+    fun matchRowAdapterShowsScoresOnlyOnceAMatchHasThemAndMarksTheWinner() {
+        val liveWithoutScore = upcomingMatch.toMatchRowModel(showEventName = true)
+        assertFalse(liveWithoutScore.showsScores())
+        assertNull(liveWithoutScore.winner())
+
+        val completedWithoutScore = completedMatch.copy(homeScore = null, awayScore = null)
+            .toMatchRowModel(showEventName = true)
+        assertTrue(completedWithoutScore.showsScores())
+        assertNull(completedWithoutScore.winner())
+
+        val completed = completedMatch.toMatchRowModel(showEventName = true)
+        assertTrue(completed.showsScores())
+        assertEquals(completed.home, completed.winner())
+        assertEquals("Valorant Champions 2026 · Playoffs · Upper Final", liveWithoutScore.context)
+        assertEquals("Playoffs · Upper Final", upcomingMatch.toMatchRowModel(showEventName = false).context)
     }
 
     @Test
@@ -179,10 +191,12 @@ class MatchesContentUiTest {
         onNodeWithText("IN 2 HOURS").assertDoesNotExist()
         onNodeWithText("Paper Rex").assertIsDisplayed()
         onNodeWithText("Gen.G").assertIsDisplayed()
-        onNodeWithText("Valorant Champions 2026").assertIsDisplayed()
-        onNodeWithText("Playoffs · Upper Final").assertIsDisplayed()
-        onNodeWithText("VS").assertIsDisplayed()
-        onNodeWithTag(matchScoreTag(upcomingMatch.id), useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithText("Valorant Champions 2026 · Playoffs · Upper Final").assertIsDisplayed()
+        // A live match without a source score shows no score instead of a placeholder marker.
+        onNodeWithText("VS").assertDoesNotExist()
+        onNodeWithTag(matchRowHomeScoreTag(matchScoreTag(upcomingMatch.id)), useUnmergedTree = true)
+            .assertDoesNotExist()
+        onNodeWithContentDescription("경기 상세: Paper Rex 대 Gen.G").assertIsDisplayed()
         onNodeWithTag("match-team-placeholder-${upcomingMatch.id}-home", useUnmergedTree = true)
             .assertDoesNotExist()
         onNodeWithTag("match-team-placeholder-${upcomingMatch.id}-away", useUnmergedTree = true)
@@ -210,12 +224,12 @@ class MatchesContentUiTest {
             setContent { MatchesContentFixture(uiState = contentState(longMatch)) }
 
             onNodeWithTag(matchCardTag(longMatch.id))
-                .assertLeftPositionInRootIsEqualTo(16.dp)
-                .assertWidthIsEqualTo(328.dp)
+                .assertLeftPositionInRootIsEqualTo(0.dp)
+                .assertWidthIsEqualTo(360.dp)
                 .assertHeightIsAtLeast(48.dp)
             onNodeWithText(longHomeName).assertExists()
             onNodeWithText(longAwayName).assertExists()
-            onNodeWithText(longEventName).assertExists()
+            onNodeWithText(longEventName, substring = true).assertExists()
             onNodeWithText("오후 3:00").assertExists()
             onNodeWithText("1일 23시간 후").assertExists()
             onNodeWithContentDescription("경기 상세: $longHomeName 대 $longAwayName")
@@ -262,6 +276,26 @@ class MatchesContentUiTest {
     }
 
     @Test
+    fun dateHeaderAddsTheYearOnlyWhenTheDeviceYearDiffers() = runComposeUiTest {
+        val groups = listOf(
+            MatchDateGroup("Wed, December 31, 2025", listOf(completedMatch), LocalDate(2025, 12, 31)),
+            MatchDateGroup("Thu, January 1, 2026", listOf(upcomingMatch), LocalDate(2026, 1, 1)),
+        )
+        setContent {
+            MatchesContentFixture(
+                uiState = MatchesUiState(
+                    upcomingLive = MatchesFeedUiState(contentState = MatchesFeedContentState.Content(groups)),
+                ),
+                clock = FixedClock(Instant.parse("2026-01-01T12:00:00Z")),
+            )
+        }
+
+        onNodeWithText("2025년 12월 31일 (수)").assertIsDisplayed()
+        onNodeWithText("1월 1일 (목)").assertIsDisplayed()
+        onNodeWithText("2026년 1월 1일 (목)").assertDoesNotExist()
+    }
+
+    @Test
     fun sourceDateAndTimeLabelsRemainWhenStructuredValuesAreMissing() = runComposeUiTest {
         val scheduledMatch = upcomingMatch.copy(
             status = MatchStatus.UPCOMING,
@@ -305,7 +339,11 @@ class MatchesContentUiTest {
         }
 
         onNodeWithText("종료").assertIsDisplayed()
-        onNodeWithText("13 : 9").assertIsDisplayed()
+        onNodeWithTag(matchRowHomeScoreTag(matchScoreTag(completedMatch.id)), useUnmergedTree = true)
+            .assertTextEquals("13")
+        onNodeWithTag(matchRowAwayScoreTag(matchScoreTag(completedMatch.id)), useUnmergedTree = true)
+            .assertTextEquals("9")
+        onNodeWithContentDescription("경기 상세: Fnatic 13, Sentinels 9").assertIsDisplayed()
         onNodeWithText("VS").assertDoesNotExist()
         onNodeWithText("Paper Rex").assertDoesNotExist()
         onNodeWithText("Fnatic").assertIsDisplayed()
@@ -326,7 +364,8 @@ class MatchesContentUiTest {
             )
         }
 
-        onNodeWithText("—").assertIsDisplayed()
+        onAllNodesWithText("—", useUnmergedTree = true).assertCountEquals(2)
+        onNodeWithContentDescription("경기 상세: Fnatic 대 Sentinels").assertIsDisplayed()
         onNodeWithText("VS").assertDoesNotExist()
     }
 
@@ -347,8 +386,8 @@ class MatchesContentUiTest {
         }
 
         onNodeWithText("Paper Rex").assertDoesNotExist()
-        onNodeWithText("경기 목록을 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.")
-            .assertIsDisplayed()
+        onNodeWithText("경기 목록을 불러오지 못했습니다.").assertIsDisplayed()
+        onNodeWithText("네트워크 상태를 확인하고 다시 시도해 주세요.").assertIsDisplayed()
         waitForIdle()
         assertEquals(0, loadMoreRequests)
         onNodeWithTag(MATCHES_INITIAL_RETRY_TAG).performClick()
@@ -505,6 +544,94 @@ class MatchesContentUiTest {
     }
 
     @Test
+    fun dateGroupsShowKoreanTimeMetaAndAreSeparatedByCanvasGap() = runComposeUiTest {
+        val secondDayMatch = upcomingMatch.copy(id = "match-next-day", status = MatchStatus.UPCOMING)
+        setContent {
+            MatchesContentFixture(
+                uiState = MatchesUiState(
+                    upcomingLive = MatchesFeedUiState(
+                        contentState = MatchesFeedContentState.Content(
+                            listOf(
+                                MatchDateGroup("Tue, September 22, 2026", listOf(upcomingMatch), LocalDate(2026, 9, 22)),
+                                MatchDateGroup("Wed, September 23, 2026", listOf(secondDayMatch), LocalDate(2026, 9, 23)),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithText("9월 22일 (화)").assertIsDisplayed()
+        onNodeWithText("9월 23일 (수)").assertIsDisplayed()
+        onAllNodesWithText(MATCHES_TIME_ZONE_LABEL).assertCountEquals(2)
+        // 그룹 사이에는 8dp canvas 간격이 있어 첫 그룹 마지막 행과 다음 날짜 헤더가 붙지 않는다.
+        val firstRowBottom = onNodeWithTag(matchCardTag(upcomingMatch.id)).fetchSemanticsNode().boundsInRoot.bottom
+        val secondHeaderTop = onNodeWithText("9월 23일 (수)").fetchSemanticsNode().boundsInRoot.top
+        assertTrue(secondHeaderTop - firstRowBottom >= 8f * density.density)
+    }
+
+    @Test
+    fun resultsTabShowsKoreanStartTimeAndFinishedLabelForCompletedMatches() = runComposeUiTest {
+        val finished = completedMatch.copy(time = LocalTime(18, 0))
+        setContent {
+            MatchesContentFixture(
+                uiState = MatchesUiState(
+                    selectedTab = MatchesTab.RESULTS,
+                    results = MatchesFeedUiState(
+                        contentState = MatchesFeedContentState.Content(
+                            listOf(MatchDateGroup("Mon, September 21, 2026", listOf(finished), LocalDate(2026, 9, 21))),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithText("오후 6:00").assertIsDisplayed()
+        onNodeWithText("종료").assertIsDisplayed()
+        onNodeWithTag(matchRowHomeScoreTag(matchScoreTag(finished.id)), useUnmergedTree = true).assertTextEquals("13")
+        onNodeWithContentDescription("경기 상세: Fnatic 13, Sentinels 9").assertIsDisplayed()
+    }
+
+    @Test
+    fun paginationLoadingIsAMatchRowSkeletonWithProgressSemantics() = runComposeUiTest {
+        setContent {
+            MatchesContentFixture(
+                uiState = contentState(upcomingMatch).copy(
+                    upcomingLive = MatchesFeedUiState(
+                        contentState = MatchesFeedContentState.Content(
+                            listOf(MatchDateGroup("TODAY, AUG 23", listOf(upcomingMatch), date = null)),
+                        ),
+                        isLoadingMore = true,
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithTag(MATCHES_PAGINATION_LOADING_TAG)
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+        assertEquals(
+            onNodeWithTag(matchCardTag(upcomingMatch.id)).fetchSemanticsNode().size.width,
+            onNodeWithTag(MATCHES_PAGINATION_LOADING_TAG).fetchSemanticsNode().size.width,
+        )
+        val rowBottom = onNodeWithTag(matchCardTag(upcomingMatch.id)).fetchSemanticsNode().boundsInRoot.bottom
+        val skeletonTop = onNodeWithTag(MATCHES_PAGINATION_LOADING_TAG).fetchSemanticsNode().boundsInRoot.top
+        assertTrue(skeletonTop >= rowBottom)
+        onNodeWithText("재시도").assertDoesNotExist()
+    }
+
+    @Test
+    fun initialLoadingSkeletonHasFiveMatchRowPlaceholdersWithoutProgressSpinner() = runComposeUiTest {
+        setContent { MatchesContentFixture(uiState = MatchesUiState()) }
+
+        onNodeWithTag(MATCHES_LOADING_TAG)
+            .assertIsDisplayed()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "경기 목록 불러오는 중"))
+        onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)).assertCountEquals(0)
+        // 상단 12dp + 86dp 행 5개(.pen 20-3)
+        onNodeWithTag(MATCHES_LOADING_TAG).assertHeightIsAtLeast(12.dp + 86.dp * 5)
+    }
+
+    @Test
     fun nearingTheEndRequestsTheNextPage() = runComposeUiTest {
         var loadMoreRequests = 0
         setContent {
@@ -528,21 +655,29 @@ class MatchesContentUiTest {
         onRetryInitial: () -> Unit = {},
         onLoadMore: () -> Unit = {},
         onRetryLoadMore: () -> Unit = {},
+        clock: Clock = FixedClock(Instant.parse("2026-11-15T12:00:00Z")),
     ) {
-        VlrTheme {
-            MatchesContent(
-                uiState = uiState,
-                upcomingLiveListState = rememberLazyListState(),
-                resultsListState = rememberLazyListState(),
-                onSearch = onSearch,
-                onSelectTab = onSelectTab,
-                onMatchClick = onMatchClick,
-                onRefresh = onRefresh,
-                onRetryInitial = onRetryInitial,
-                onLoadMore = onLoadMore,
-                onRetryLoadMore = onRetryLoadMore,
-            )
+        CompositionLocalProvider(LocalDeviceClock provides clock) {
+            VlrTheme {
+                MatchesContent(
+                    uiState = uiState,
+                    upcomingLiveListState = rememberLazyListState(),
+                    resultsListState = rememberLazyListState(),
+                    onSearch = onSearch,
+                    onSelectTab = onSelectTab,
+                    onMatchClick = onMatchClick,
+                    onRefresh = onRefresh,
+                    onRetryInitial = onRetryInitial,
+                    onLoadMore = onLoadMore,
+                    onRetryLoadMore = onRetryLoadMore,
+                )
+            }
         }
+    }
+
+    /** Device clock for the date header year; fixtures default to a 2026 date so 2026 headers omit the year. */
+    private class FixedClock(private val now: Instant) : Clock {
+        override fun now(): Instant = now
     }
 
     private fun contentState(match: MatchSummary) = MatchesUiState(

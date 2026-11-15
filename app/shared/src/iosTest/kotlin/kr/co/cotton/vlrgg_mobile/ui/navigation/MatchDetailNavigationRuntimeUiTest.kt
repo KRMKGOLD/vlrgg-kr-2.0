@@ -123,7 +123,7 @@ class MatchDetailNavigationRuntimeUiTest {
             onNodeWithTag(matchDetailHeadToHeadTag(RELATED_MATCH_ID)).assertIsDisplayed()
 
             runOnIdle { requireNotNull(navigationState).selectRoot(NewsRoot) }
-            onNodeWithText("root:News").assertExists()
+            onNodeWithText("root:뉴스").assertExists()
             runOnIdle { requireNotNull(navigationState).selectRoot(MatchesRoot) }
             assertRealMatchDetailDestination()
             onNodeWithTag(matchDetailHeadToHeadTag(RELATED_MATCH_ID)).assertIsDisplayed()

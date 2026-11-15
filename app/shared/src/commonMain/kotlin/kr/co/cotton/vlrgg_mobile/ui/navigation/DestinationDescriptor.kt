@@ -3,47 +3,34 @@ package kr.co.cotton.vlrgg_mobile.ui.navigation
 data class DestinationDescriptor(
     val marker: String,
     val title: String,
-    val isRoot: Boolean,
-    val rootOrder: Int?,
     val showBottomBar: Boolean,
-    val searchAvailable: Boolean,
-    val requiresEntryScope: Boolean,
 )
 
 val AppNavKey.destinationDescriptor: DestinationDescriptor
     get() = when (this) {
         NewsRoot -> rootDescriptor(
             marker = "news",
-            title = "News",
-            rootOrder = 0,
-            requiresEntryScope = true,
+            title = "뉴스",
         )
 
         MatchesRoot -> rootDescriptor(
             marker = "matches",
-            title = "Matches",
-            rootOrder = 1,
-            requiresEntryScope = true,
+            title = "경기",
         )
 
         MyPageRoot -> rootDescriptor(
             marker = "my_page",
-            title = "My Page",
-            rootOrder = 2,
-            requiresEntryScope = true,
+            title = "마이페이지",
         )
 
         EventsRoot -> rootDescriptor(
             marker = "events",
-            title = "Events",
-            rootOrder = 3,
-            requiresEntryScope = true,
+            title = "대회",
         )
 
         AboutRoot -> rootDescriptor(
             marker = "about",
-            title = "About",
-            rootOrder = 4,
+            title = "정보",
         )
 
         Search -> pushedDescriptor(
@@ -90,16 +77,10 @@ val AppNavKey.destinationDescriptor: DestinationDescriptor
 private fun rootDescriptor(
     marker: String,
     title: String,
-    rootOrder: Int,
-    requiresEntryScope: Boolean = false,
 ) = DestinationDescriptor(
     marker = marker,
     title = title,
-    isRoot = true,
-    rootOrder = rootOrder,
     showBottomBar = true,
-    searchAvailable = true,
-    requiresEntryScope = requiresEntryScope,
 )
 
 private fun pushedDescriptor(
@@ -108,9 +89,5 @@ private fun pushedDescriptor(
 ) = DestinationDescriptor(
     marker = marker,
     title = title,
-    isRoot = false,
-    rootOrder = null,
     showBottomBar = false,
-    searchAvailable = false,
-    requiresEntryScope = false,
 )

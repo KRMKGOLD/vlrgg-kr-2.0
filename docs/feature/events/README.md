@@ -8,7 +8,7 @@ Events 기능은 사용자가 Valorant 대회의 현재 진행 상태를 훑고,
 
 ## 구현 상태
 
-목록·상세·Matches·News·Stats 서버 API와 앱 화면, 탭별 상태·복원, Matches/Search 진입 경로가 구현되어 있다. 자동화 검증은 완료됐지만 Android/iOS 실기기 시각·접근성 검증은 남아 있다.
+목록·상세·Matches·News·Stats 서버 API와 앱 화면, 탭별 상태·복원, Matches/Search 진입 경로가 구현되어 있다. v3 화면(`.pen` `40`·`41`)을 적용했다(2026-11-12): 한국어 그룹 제목과 개수, 로딩 스켈레톤, 경기 탭 날짜 헤더, 한국어 기간·게시일. 앱은 2026-11-10 계약 field(`startDate`·`endDate`, Event Matches `date`, Event News `publishedDate`)를 받아 표시하지만 서버 구현 전까지는 원문을 표시한다. 자동화 검증은 완료됐지만 Android/iOS 실기기 접근성 검증은 남아 있다.
 
 ## MVP 범위
 
@@ -17,14 +17,14 @@ Events는 Phase 3 기능이며 Phase 1~5 전체로 구성되는 1차 MVP에 포�
 ### Event List
 
 - VLR.GG Events의 `All` 기준 첫 페이지만 제공한다.
-- Event를 `Ongoing`, `Upcoming`, `Completed / Paused` 상태 그룹으로 구분한다.
+- Event를 `진행 중`, `예정`, `종료 · 중단` 상태 그룹으로 구분한다.
 - 각 항목은 Event를 식별하고 상태를 판단하는 데 필요한 요약 정보를 제공한다.
 - 항목 선택 시 Event Detail로 이동한다.
 
 ### Event Detail
 
 - Event 기본 정보
-- `Matches`, `News`, `Stats` 탭 (`Matches` 기본)
+- `Matches`, `News`, `Stats` 탭 (`Matches` 기본, 화면 라벨은 `경기`·`뉴스`·`통계`)
 - Match 선택 시 Match Detail 이동
 - News 선택 시 News Detail 이동
 - Stats의 pinned Player identity cell 선택 시 Player Detail 이동
@@ -66,10 +66,12 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 ### Event List
 
 1. 공유 Top App Bar와 Search 액션
-2. `Ongoing`
-3. `Upcoming`
-4. `Completed / Paused`
+2. `진행 중`
+3. `예정`
+4. `종료 · 중단`
 5. 각 상태 그룹의 Event 요약 목록
+
+그룹 제목 옆에는 그룹의 Event 수를 표시하고, 빈 그룹은 개수 없이 제목과 빈 안내를 둔다. Event 행의 기간은 `9월 12일 ~ 10월 4일`처럼 표시하고 낭독은 `9월 12일부터 10월 4일까지`로 한다.
 
 세 상태 그룹은 항상 표시한다. 비어 있는 상태 그룹은 빈 안내를 표시하고 다른 그룹에 데이터가 있다면 화면 전체 오류로 취급하지 않으며, 전체 목록이 비었는지는 명확하게 구분한다.
 
@@ -109,7 +111,7 @@ Team Detail과 Player Detail은 1차 MVP에서 Event로 직접 연결하지 않�
 - 스코어 또는 예정 상태
 - Match를 선택하는 데 필요한 설명 정보
 
-Match 표시에 관한 세부 규칙은 Match 기능 문서가 소유하며 Event Detail은 같은 요약 표현을 재사용한다. 경기 시각(`time`)과 남은 시간 표시는 [Matches 앱 표시 규칙](../matches/README.md#앱-표시-규칙)을 따르며, 응답에 날짜 그룹이 없어 날짜 헤더는 표시하지 않는다.
+Match 표시에 관한 세부 규칙은 Match 기능 문서가 소유하며 Event Detail은 같은 요약 표현을 재사용한다. 경기 시각(`time`)·남은 시간·날짜 헤더 표시는 [Matches 앱 표시 규칙](../matches/README.md#앱-표시-규칙)을 따른다. item `date`로 연속한 같은 날짜의 경기를 묶어 Matches 목록과 같은 날짜 헤더를 표시하고, `date`가 없는 응답은 날짜 헤더 없이 표시한다(2026-11-10 결정).
 Event 문맥의 `stage`는 wire field가 아닌 UI 문맥명이며 `matches.items[].event.series`를 표시한다. `event.series`가 `null`이면 이 보조 문맥은 생략한다. 현재 API 응답의 Team ID가 없으므로 Team cell은 비클릭 콘텐츠이며 card 전체만 Match Detail을 연다.
 
 ### News tab
@@ -189,8 +191,8 @@ GET /api/v1/events/{eventId}/stats
 ```
 
 - `matches`는 upstream Event Matches의 `series_id=all` 결과를 사용한다.
-- `matches.items`는 Matches 목록의 `MatchSummaryResponse` 계약을 재사용한다. `event`는 현재 Event의 `id`와 이름을 담고, Event 내부 단계 표시는 `event.series`에 둔다. `time`(`timeLabel`의 ISO local time)도 같은 의미로 채우지만, 응답에 날짜 그룹이 없어 날짜는 제공하지 않는다. [Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)을 따른다.
-- Events 목록·Event Detail의 `dateLabel`은 자유 형식 기간 문자열이고, vlr.gg가 기계 판독 가능한 값을 주지 않아 구조화하지 않는다. Event Detail bracket의 unix timestamp는 서버가 bracket을 파싱하지 않아 사용하지 않는다.
+- `matches.items`는 Matches 목록의 `MatchSummaryResponse` 계약을 재사용한다. `event`는 현재 Event의 `id`와 이름을 담고, Event 내부 단계 표시는 `event.series`에 둔다. `time`(`timeLabel`의 ISO local time)도 같은 의미로 채운다. 응답은 날짜 그룹 없이 원본 순서의 목록이며, 2026-11-10 계약으로 각 item에 원본 날짜 그룹의 `date`를 추가한다(서버 구현 예정). [Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)을 따른다.
+- Events 목록·Event Detail의 `dateLabel`은 원문 기간 문자열이다(목록 `Nov 5—16`, 상세 `Sep 13 – Dec 25, 2026`). 2026-11-10 계약으로 서버가 `startDate`·`endDate`(연도 없는 month-day)를 추가하고 앱은 한국어로 표시한다([한국어 표시 확장](../matches/README.md#한국어-표시-확장-2026-11-10)). Event Detail bracket의 unix timestamp는 서버가 bracket을 파싱하지 않아 사용하지 않는다.
 - Event Detail 원본에는 상태가 항상 존재하지 않으므로 상세 응답의 `status`는 선택 값이다. 목록 응답의 상태 그룹은 필수다.
 - Event News 원본에는 작성자가 항상 존재하지 않으므로 Event News 요약의 `author`는 선택 값이다. 제목, canonical News reference, 작성 시각은 필수다.
 - 섹션 하나의 network 또는 parsing 실패가 다른 섹션의 성공 응답을 대체하지 않는다. 각 실패는 공통 오류 envelope로 독립 반환한다.
@@ -208,14 +210,14 @@ https://www.vlr.gg/event/stats/2955/esports-world-cup-2026-pacific-qualifier
 
 - MVP Event List는 `All` 첫 페이지를 대상으로 하며 `?page=2`는 향후 페이지네이션 분석용 예시다.
 - Event 상태와 섹션 존재 여부는 표시 텍스트만 가정하지 말고 대표 fixture로 검증한다.
-- `Ongoing`, `Upcoming`, `Completed / Paused` 분류 규칙을 parser/mapper 테스트에서 고정한다.
+- `진행 중`(`ongoing`), `예정`(`upcoming`), `종료 · 중단`(`completedOrPaused`) 분류 규칙을 parser/mapper 테스트에서 고정한다.
 - Event Detail의 기본 정보, Matches, News, 통계는 DOM 경계가 다를 수 있으므로 parser 내부에서 책임을 분리한다.
 - selector, DOM 보정, slug는 server-internal 세부사항이다. 앱 식별과 내비게이션은 안정적인 Event ID를 기준으로 한다.
 - 대표 fixture에는 진행 중, 예정, 종료, 중단 Event와 일부 섹션이 없는 Event를 포함한다.
 
 ## 수용 기준
 
-- [x] Event List가 `All` 첫 페이지의 Event를 `Ongoing`, `Upcoming`, `Completed / Paused`로 구분해 표시한다.
+- [x] Event List가 `All` 첫 페이지의 Event를 `진행 중`, `예정`, `종료 · 중단`으로 구분해 표시한다.
 - [x] 하단 `Events` 탭의 Event List row에서 Event Detail에 진입할 수 있다.
 - [x] Matches의 Event 참조에서 Event Detail에 진입할 수 있다.
 - [x] Search의 Event 결과에서 Event Detail에 진입할 수 있다.

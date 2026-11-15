@@ -15,7 +15,9 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -40,6 +42,8 @@ import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamMatch
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamNews
 import kr.co.cotton.vlrgg_mobile.domain.model.team.TeamRosterMember
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
+import kr.co.cotton.vlrgg_mobile.ui.navigation.rootNavKeys
+import kr.co.cotton.vlrgg_mobile.ui.navigation.rootNavigationItemTag
 import kr.co.cotton.vlrgg_mobile.ui.theme.initializeVlrMaterial3
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -125,12 +129,16 @@ class TeamDetailContentUiTest {
     fun loadingKeepsTopBarAndShowsGeometrySkeletonWithoutSampleTeamData() = runComposeUiTest {
         setContent { Fixture(uiState = TeamDetailUiState()) }
 
-        onNodeWithText("Team Detail").assertIsDisplayed()
+        // The dark band header has no title; Back stays reachable while the hero skeleton loads.
+        onNodeWithText("Team Detail").assertDoesNotExist()
         onNodeWithContentDescription("뒤로 가기").assertIsDisplayed()
-        onNodeWithTag(TEAM_DETAIL_LOADING_TAG).assertIsDisplayed()
-        listOf("예정된 경기", "최근 경기", "로스터", "뉴스").forEach { section ->
-            scrollToText(section)
-            onNodeWithText(section).assertExists()
+        onNodeWithTag(TEAM_DETAIL_LOADING_TAG)
+            .assertIsDisplayed()
+            .assert(hasContentDescription("팀 상세를 불러오는 중"))
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+        // `.pen` 50-3: row skeletons only, without section titles or a spinner.
+        listOf("예정 경기", "최근 경기", "선수", "스태프", "뉴스").forEach { section ->
+            onNodeWithText(section).assertDoesNotExist()
         }
         onNodeWithText(TEAM_NAME).assertDoesNotExist()
         onNodeWithContentDescription("즐겨찾기 추가").assertDoesNotExist()
@@ -165,24 +173,23 @@ class TeamDetailContentUiTest {
         assertTextInTaggedSection(TEAM_NAME, TEAM_DETAIL_HEADER_TAG)
         assertTextInTaggedSection("KRX · South Korea", TEAM_DETAIL_HEADER_TAG)
 
+        // Team match rows name the opponent; the hero above already names the team.
         scrollToTag(teamMatchCardTag(UPCOMING_MATCH_ID))
-        assertTextInTaggedSection(TEAM_NAME, teamMatchCardTag(UPCOMING_MATCH_ID))
-        assertTextInTaggedSection("Sentinels", teamMatchCardTag(UPCOMING_MATCH_ID))
-        assertTextInTaggedSection("VCT Pacific", teamMatchCardTag(UPCOMING_MATCH_ID))
-        assertTextInTaggedSection("Stage 2", teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection("vs Sentinels", teamMatchCardTag(UPCOMING_MATCH_ID))
+        assertTextInTaggedSection("VCT Pacific · Stage 2", teamMatchCardTag(UPCOMING_MATCH_ID))
         assertTextInTaggedSection("in 2d", teamMatchCardTag(UPCOMING_MATCH_ID))
         assertTextInTaggedSection("2026-08-28 17:00", teamMatchCardTag(UPCOMING_MATCH_ID))
+        onNodeWithContentDescription("경기 상세: $TEAM_NAME 대 Sentinels").assertExists()
 
         scrollToTag(teamMatchCardTag(RECENT_MATCH_ID))
-        assertTextInTaggedSection(TEAM_NAME, teamMatchCardTag(RECENT_MATCH_ID))
-        assertTextInTaggedSection("Gen.G", teamMatchCardTag(RECENT_MATCH_ID))
+        assertTextInTaggedSection("vs Gen.G", teamMatchCardTag(RECENT_MATCH_ID))
         assertTextInTaggedSection("VCT Pacific", teamMatchCardTag(RECENT_MATCH_ID))
         assertTextInTaggedSection("final", teamMatchCardTag(RECENT_MATCH_ID))
         assertTextInTaggedSection("2026-08-25", teamMatchCardTag(RECENT_MATCH_ID))
         scrollToTag(teamPlayerRowTag(PLAYER_ID))
         assertTextNodeCount("MaKo", expectedCount = 1)
-        assertTextNodeCount("Kim Myeong-kwan", expectedCount = 1)
-        assertTextNodeCount("player", expectedCount = 1)
+        // Identity row meta joins the real name and the roles on one 13 `muted` line.
+        assertTextNodeCount("Kim Myeong-kwan · player", expectedCount = 1)
         scrollToTag(teamStaffRowTag(STAFF_ID))
         assertTextNodeCount("termi", expectedCount = 1)
         assertTextNodeCount("head coach", expectedCount = 1)
@@ -195,7 +202,8 @@ class TeamDetailContentUiTest {
         listOf(
             TEAM_DETAIL_UPCOMING_SECTION_TAG,
             TEAM_DETAIL_RECENT_SECTION_TAG,
-            TEAM_DETAIL_ROSTER_SECTION_TAG,
+            TEAM_DETAIL_PLAYERS_SECTION_TAG,
+            TEAM_DETAIL_STAFF_SECTION_TAG,
             TEAM_DETAIL_NEWS_SECTION_TAG,
         ).forEach { tag -> onNodeWithTag(tag).assertExists() }
     }
@@ -264,7 +272,7 @@ class TeamDetailContentUiTest {
     }
 
     @Test
-    fun whollyEmptyRosterUsesStitchMarkerAndKeepsNews() = runComposeUiTest {
+    fun whollyEmptyRosterKeepsPlayerAndStaffSectionMessagesAndNews() = runComposeUiTest {
         setContent {
             Fixture(
                 contentState = TeamDetailContentState.Content(
@@ -273,8 +281,11 @@ class TeamDetailContentUiTest {
             )
         }
 
-        scrollToText("로스터 정보가 없습니다")
-        onNodeWithText("로스터 정보가 없습니다").assertExists()
+        // `.pen` 50-4: `선수` and `스태프` are separate sections, each with its own Section message.
+        scrollToText("선수 정보가 없습니다")
+        onNodeWithText("선수 정보가 없습니다").assertExists()
+        scrollToText("스태프 정보가 없습니다")
+        onNodeWithText("스태프 정보가 없습니다").assertExists()
         scrollToTag(teamNewsRowTag(ARTICLE_ID, ARTICLE_SLUG))
         onNodeWithText("KIWOOM DRX releases rookie Hermes").assertExists()
     }
@@ -315,7 +326,10 @@ class TeamDetailContentUiTest {
         onNodeWithTag(TEAM_DETAIL_HEADER_TAG).assertExists()
         onNodeWithText("예정된 경기가 없습니다").assertExists()
         onNodeWithText("최근 경기 기록이 없습니다").assertExists()
-        onNodeWithText("로스터 정보가 없습니다").assertExists()
+        scrollToText("선수 정보가 없습니다")
+        onNodeWithText("선수 정보가 없습니다").assertExists()
+        scrollToText("스태프 정보가 없습니다")
+        onNodeWithText("스태프 정보가 없습니다").assertExists()
         scrollToText("관련 뉴스가 없습니다")
         onNodeWithText("관련 뉴스가 없습니다").assertExists()
         onNode(isDialog()).assertDoesNotExist()
@@ -337,6 +351,9 @@ class TeamDetailContentUiTest {
         onNodeWithText("정보를 불러오지 못했습니다").assertIsDisplayed()
         onNodeWithText("네트워크 상태를 확인하고 다시 시도해 주세요.").assertIsDisplayed()
         onNodeWithText(TEAM_NAME).assertDoesNotExist()
+        // `.pen` 50-5: the dialog sits over the skeleton, which does not read as loading.
+        onNodeWithTag(TEAM_DETAIL_ERROR_SKELETON_TAG).assertExists()
+        onNodeWithTag(TEAM_DETAIL_LOADING_TAG).assertDoesNotExist()
         onNodeWithContentDescription("재시도").performClick()
         onNodeWithContentDescription("뒤로가기").performClick()
         assertEquals(1, retries)
@@ -380,9 +397,9 @@ class TeamDetailContentUiTest {
         }
 
         scrollToTag(teamMatchCardTag(UPCOMING_MATCH_ID))
-        val eventNodes = onAllNodesWithText("VCT Pacific", useUnmergedTree = true)
+        val eventNodes = onAllNodesWithText("VCT Pacific", substring = true, useUnmergedTree = true)
             .fetchSemanticsNodes()
-        val stageNodes = onAllNodesWithText("Stage 2", useUnmergedTree = true)
+        val stageNodes = onAllNodesWithText("Stage 2", substring = true, useUnmergedTree = true)
             .fetchSemanticsNodes()
         assertTrue(eventNodes.isNotEmpty(), "Upcoming match event name was not composed")
         assertTrue(stageNodes.isNotEmpty(), "Upcoming match stage was not composed")
@@ -488,9 +505,10 @@ class TeamDetailContentUiTest {
 
         onNodeWithText(longKoreanName).assertExists()
         onNodeWithContentDescription("즐겨찾기 추가").assertExists()
-        onNodeWithText("News").assertDoesNotExist()
-        onNodeWithText("Matches").assertDoesNotExist()
-        onNodeWithText("MyPage").assertDoesNotExist()
+        rootNavKeys.forEach { root ->
+            onNodeWithTag(rootNavigationItemTag(root)).assertDoesNotExist()
+        }
+        onNodeWithText("마이페이지").assertDoesNotExist()
     }
 
     @Test

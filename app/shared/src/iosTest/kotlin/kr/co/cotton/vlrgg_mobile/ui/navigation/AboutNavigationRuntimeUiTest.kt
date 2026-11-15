@@ -5,6 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -59,9 +60,9 @@ class AboutNavigationRuntimeUiTest {
         onNodeWithText("search overlay").performClick()
         onNodeWithText("소스 코드를 열 수 없습니다.").assertDoesNotExist()
 
-        onNodeWithText("News").performClick()
-        onNodeWithText("root:News").assertExists()
-        onNodeWithText("About").performClick()
+        onNodeWithTag(rootNavigationItemTag(NewsRoot)).performClick()
+        onNodeWithText("root:뉴스").assertExists()
+        onNodeWithTag(rootNavigationItemTag(AboutRoot)).performClick()
         onNodeWithText("소스 코드를 열 수 없습니다.").assertDoesNotExist()
         assertEquals(listOf(ABOUT_SOURCE_URL), platform.openedUrls)
     }
@@ -97,7 +98,7 @@ class AboutNavigationRuntimeUiTest {
 
         onNodeWithContentDescription(ABOUT_OPEN_SOURCE_LICENSES_LABEL).performScrollTo().performClick()
         onNodeWithText(OPEN_SOURCE_LICENSES_TITLE).assertExists()
-        onNodeWithText("About").assertDoesNotExist()
+        onNodeWithTag(rootNavigationItemTag(AboutRoot)).assertDoesNotExist()
         // Rows are sorted by name, so the AboutLibraries artifacts lead the generated list.
         waitUntil(timeoutMillis = 5_000) {
             onAllNodesWithText("AboutLibraries Core Library").fetchSemanticsNodes().isNotEmpty()

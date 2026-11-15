@@ -35,6 +35,10 @@ class RemoteSeriesDataSourceImplTest {
             assertEquals(listOf("200", "201"), response.upcomingEvents.map { it.id })
             assertEquals(listOf("100"), response.completedEvents.map { it.id })
             assertNull(response.upcomingEvents.first().imageUrl)
+            // Period fields are absent on the first event and present on the others.
+            assertNull(response.upcomingEvents.first().startDate)
+            assertEquals("--09-12" to "--10-04", response.upcomingEvents[1].let { it.startDate to it.endDate })
+            assertEquals("--01-15" to null, response.completedEvents.single().let { it.startDate to it.endDate })
         } finally {
             client.close()
         }
@@ -45,9 +49,11 @@ class RemoteSeriesDataSourceImplTest {
             {"id":"2","name":"Champions Tour","description":null,
              "upcomingEvents":[
                {"id":"200","name":"Masters","status":"upcoming","dateLabel":null,"regionCode":null,"imageUrl":null},
-               {"id":"201","name":"Champions","status":"ongoing","dateLabel":"Sep","regionCode":"INT","imageUrl":null}],
+               {"id":"201","name":"Champions","status":"ongoing","dateLabel":"Sep","regionCode":"INT","imageUrl":null,
+                "startDate":"--09-12","endDate":"--10-04"}],
              "completedEvents":[
-               {"id":"100","name":"Kickoff","status":"completed","dateLabel":"Jan","regionCode":"KR","imageUrl":null}]}
+               {"id":"100","name":"Kickoff","status":"completed","dateLabel":"Jan","regionCode":"KR","imageUrl":null,
+                "startDate":"--01-15","endDate":null}]}
         """.trimIndent()
     }
 }

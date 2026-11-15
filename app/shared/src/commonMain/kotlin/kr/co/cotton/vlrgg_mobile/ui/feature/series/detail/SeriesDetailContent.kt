@@ -1,55 +1,56 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.series.detail
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.stateDescription
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
 import kr.co.cotton.vlrgg_mobile.domain.model.series.SeriesDetail
-import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
-import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_arrow_back
-import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_event
+import vlrggmobile.app.shared.generated.resources.ic_trophy
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailTopBand
+import kr.co.cotton.vlrgg_mobile.ui.component.EntityHero
+import kr.co.cotton.vlrgg_mobile.ui.component.IdentityRow
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotDefaults
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotSurface
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonHero
+import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
+import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 
 internal const val SERIES_DETAIL_LOADING_TAG = "series-detail-loading"
 internal const val SERIES_DETAIL_IDENTITY_TAG = "series-detail-identity"
@@ -74,7 +75,7 @@ fun SeriesDetailContent(
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { SeriesDetailTopBar(onBack) },
+        topBar = { DetailTopBand(onBack = onBack) },
     ) { contentPadding ->
         when (val contentState = uiState.contentState) {
             SeriesDetailContentState.Loading -> SeriesDetailLoading(
@@ -101,63 +102,28 @@ fun SeriesDetailContent(
     }
 }
 
-@Composable
-private fun SeriesDetailTopBar(onBack: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxWidth().height(56.dp).background(VlrTheme.colors.surface),
-    ) {
-        VlrIconButton(
-            contentDescription = "뒤로 가기",
-            onClick = onBack,
-            modifier = Modifier.padding(start = VlrDimensions.Space1).weight(1f),
-            icon = { Icon(vectorResource(Res.drawable.ic_arrow_back), contentDescription = null) },
-        )
-        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
-    }
-}
-
+/** `.pen` 42-2: dark hero skeleton and four list-row skeletons on `surface`. */
 @Composable
 private fun SeriesDetailLoading(listState: LazyListState, modifier: Modifier) {
     LazyColumn(state = listState, modifier = modifier.testTag(SERIES_DETAIL_LOADING_TAG)) {
-        item("identity") { SeriesIdentitySkeleton() }
-        skeletonSection("upcoming", "Upcoming Events")
-        skeletonSection("completed", "Completed Events")
-    }
-}
-
-private fun LazyListScope.skeletonSection(key: String, title: String) {
-    item("$key-heading") { SeriesSectionHeading(title) }
-    item("$key-row") {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(VlrDimensions.Space4),
-            horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
-        ) {
-            SkeletonBlock(Modifier.size(48.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2)) {
-                SkeletonBlock(Modifier.fillMaxWidth().height(16.dp))
-                SkeletonBlock(Modifier.width(96.dp).height(12.dp))
+        item("identity") { SkeletonHero() }
+        item("skeleton-rows") {
+            Column(
+                Modifier.clearAndSetSemantics {
+                    stateDescription = "시리즈 정보를 불러오는 중"
+                    progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+                },
+            ) {
+                repeat(4) { SkeletonRow() }
             }
         }
-        HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
     }
 }
 
-@Composable
-private fun SeriesIdentitySkeleton() {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space6),
-        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-    ) {
-        SkeletonBlock(Modifier.width(180.dp).height(34.dp))
-        SkeletonBlock(Modifier.fillMaxWidth().height(20.dp))
-    }
-}
-
-@Composable
-private fun SkeletonBlock(modifier: Modifier) {
-    Box(modifier = modifier.clip(RoundedCornerShape(VlrDimensions.DefaultCornerRadius)).background(VlrTheme.colors.skeleton))
-}
-
+/**
+ * `.pen` 42-1: hero, then white `예정 대회`·`완료 대회` sections on `canvas`, 8dp apart and 8dp below
+ * the hero. With no events at all the State panel fills the rest of the screen on `surface`.
+ */
 @Composable
 private fun SeriesDetailBody(
     series: SeriesDetail,
@@ -165,29 +131,45 @@ private fun SeriesDetailBody(
     onEventClick: (String) -> Unit,
     modifier: Modifier,
 ) {
-    LazyColumn(state = listState, modifier = modifier) {
-        item("identity") { SeriesIdentity(series) }
-        if (series.upcomingEvents.isEmpty() && series.completedEvents.isEmpty()) {
-            item("overall-empty") { OverallEmpty() }
-        } else {
-            eventSection(
-                key = "upcoming",
-                title = "Upcoming Events",
-                events = series.upcomingEvents,
-                emptyMessage = "예정된 대회가 없습니다.",
-                sectionTag = SERIES_DETAIL_UPCOMING_SECTION_TAG,
-                onEventClick = onEventClick,
-            )
-            eventSection(
-                key = "completed",
-                title = "Completed Events",
-                events = series.completedEvents,
-                emptyMessage = "종료된 대회가 없습니다.",
-                sectionTag = SERIES_DETAIL_COMPLETED_SECTION_TAG,
-                onEventClick = onEventClick,
-            )
+    val isOverallEmpty = series.upcomingEvents.isEmpty() && series.completedEvents.isEmpty()
+    BoxWithConstraints(modifier) {
+        var heroHeight by remember { mutableIntStateOf(0) }
+        val remainingHeight = (maxHeight - with(LocalDensity.current) { heroHeight.toDp() }).coerceAtLeast(0.dp)
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (isOverallEmpty) VlrTheme.colors.surface else VlrTheme.colors.canvas),
+        ) {
+            item("identity") {
+                SeriesIdentity(series, Modifier.onSizeChanged { heroHeight = it.height })
+            }
+            if (isOverallEmpty) {
+                // A fixed height bounds the panel, so it centers in the rest of the screen and scrolls
+                // its own content when a tall hero (large font) leaves little room.
+                item("overall-empty") {
+                    OverallEmpty(Modifier.height(remainingHeight.coerceAtLeast(OverallEmptyMinHeight)))
+                }
+            } else {
+                eventSection(
+                    key = "upcoming",
+                    title = "예정 대회",
+                    events = series.upcomingEvents,
+                    emptyMessage = "예정된 대회가 없습니다.",
+                    sectionTag = SERIES_DETAIL_UPCOMING_SECTION_TAG,
+                    onEventClick = onEventClick,
+                )
+                eventSection(
+                    key = "completed",
+                    title = "완료 대회",
+                    events = series.completedEvents,
+                    emptyMessage = "종료된 대회가 없습니다.",
+                    sectionTag = SERIES_DETAIL_COMPLETED_SECTION_TAG,
+                    onEventClick = onEventClick,
+                )
+                item("bottom-space") { Spacer(Modifier.height(VlrDimensions.Space8)) }
+            }
         }
-        item("bottom-space") { Spacer(Modifier.height(VlrDimensions.Space8)) }
     }
 }
 
@@ -199,7 +181,16 @@ private fun LazyListScope.eventSection(
     sectionTag: String,
     onEventClick: (String) -> Unit,
 ) {
-    item("$key-heading") { SeriesSectionHeading(title, Modifier.testTag(sectionTag)) }
+    item("$key-gap") {
+        Spacer(Modifier.fillMaxWidth().height(VlrDimensions.Space2).background(VlrTheme.colors.canvas))
+    }
+    item("$key-heading") {
+        SectionHeader(
+            title = title,
+            count = events.size.takeIf { it > 0 }?.toString(),
+            modifier = Modifier.background(VlrTheme.colors.surface).testTag(sectionTag),
+        )
+    }
     if (events.isEmpty()) {
         item("$key-empty") { SectionEmpty(emptyMessage) }
     } else {
@@ -210,126 +201,92 @@ private fun LazyListScope.eventSection(
 }
 
 @Composable
-private fun SeriesIdentity(series: SeriesDetail) {
-    Column(
-        modifier = Modifier.fillMaxWidth().testTag(SERIES_DETAIL_IDENTITY_TAG)
-            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space6),
-        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-    ) {
-        Text(series.name, style = VlrTheme.typography.display, color = VlrTheme.colors.textPrimary)
-        series.description?.takeIf(String::isNotBlank)?.let { description ->
-            Text(description, style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary)
-        }
-    }
-}
-
-@Composable
-private fun SeriesSectionHeading(title: String, modifier: Modifier = Modifier) {
-    Text(
-        text = title,
-        modifier = modifier.fillMaxWidth().background(VlrTheme.colors.surfaceSubtle)
-            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space3),
-        style = VlrTheme.typography.sectionTitle,
-        color = VlrTheme.colors.textPrimary,
+private fun SeriesIdentity(series: SeriesDetail, modifier: Modifier = Modifier) {
+    EntityHero(
+        name = series.name,
+        meta = listOfNotNull(series.description),
+        modifier = modifier.testTag(SERIES_DETAIL_IDENTITY_TAG),
+        logo = {
+            LogoSlot(
+                imageUrl = null,
+                kind = LogoSlotKind.Event,
+                size = LogoSlotDefaults.HeroSize,
+                surface = LogoSlotSurface.Dark,
+            )
+        },
     )
 }
 
 @Composable
 private fun SeriesEventRow(event: EventSummary, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = VlrDimensions.MinimumTouchTarget)
-            .testTag(seriesEventRowTag(event.id))
-            .semantics { contentDescription = "이벤트 상세: ${event.name}" }
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space3),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        event.imageUrl?.takeIf(String::isNotBlank)?.let { imageUrl ->
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp).testTag(seriesEventImageTag(event.id))
-                    .clip(RoundedCornerShape(VlrDimensions.DefaultCornerRadius)),
+    IdentityRow(
+        title = event.name,
+        meta = event.metadataLabel(spoken = false),
+        metaContentDescription = event.metadataLabel(spoken = true),
+        leading = {
+            LogoSlot(
+                imageUrl = event.imageUrl,
+                kind = LogoSlotKind.Event,
+                imageTestTag = seriesEventImageTag(event.id),
             )
-            Spacer(Modifier.width(VlrDimensions.Space3))
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space1)) {
-            Text(event.name, style = VlrTheme.typography.bodyStrong, color = VlrTheme.colors.textPrimary)
-            EventMetadata(event)
-        }
-        Spacer(Modifier.width(VlrDimensions.Space2))
-        StatusChip(event.status.toChipStatus(), event.status.label(), Modifier.align(Alignment.Top))
+        },
+        onClick = onClick,
+        contentDescription = "이벤트 상세: ${event.name}",
+        badge = if (event.status == EventStatus.ONGOING) {
+            { StatusChip(StatusChipStatus.InProgress, OngoingLabel) }
+        } else {
+            null
+        },
+        modifier = Modifier.testTag(seriesEventRowTag(event.id)),
+    )
+}
+
+/**
+ * Section titles carry the status. The mixed sections spell out the minority status: ongoing
+ * events get the `진행 중` chip among upcoming ones, and `일시 중지` leads the meta among finished ones.
+ * The period is Korean when the server sends `startDate`, otherwise the source `dateLabel`;
+ * [spoken] reads `~` as `부터`·`까지`.
+ */
+private fun EventSummary.metadataLabel(spoken: Boolean): String {
+    val period = if (spoken) {
+        KoreanDateTimeFormat.periodSpoken(startDate, endDate, dateLabel)
+    } else {
+        KoreanDateTimeFormat.period(startDate, endDate, dateLabel)
     }
-    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
+    val labels = listOfNotNull(
+        PausedLabel.takeIf { status == EventStatus.PAUSED },
+        period?.takeIf(String::isNotBlank),
+        regionCode?.takeIf(String::isNotBlank),
+    )
+    return labels.joinToString(" · ").ifEmpty { "정보 없음" }
+}
+
+private val OverallEmptyMinHeight = 240.dp
+
+private const val PausedLabel = "일시 중지"
+private const val OngoingLabel = "진행 중"
+
+@Composable
+private fun SectionEmpty(message: String) {
+    SectionMessage(message = message, modifier = Modifier.background(VlrTheme.colors.surface))
 }
 
 @Composable
-private fun EventMetadata(event: EventSummary) {
-    val labels = listOfNotNull(event.dateLabel?.takeIf(String::isNotBlank), event.regionCode?.takeIf(String::isNotBlank))
-    Text(
-        text = labels.joinToString(" · ").ifEmpty { "정보 없음" },
-        style = VlrTheme.typography.labelSmall,
-        color = VlrTheme.colors.textSecondary,
+private fun OverallEmpty(modifier: Modifier = Modifier) {
+    StatePanel(
+        title = "표시할 대회가 없습니다.",
+        icon = Res.drawable.ic_trophy,
+        modifier = modifier.fillMaxWidth().testTag(SERIES_DETAIL_EMPTY_TAG),
     )
 }
 
 @Composable
-private fun SectionEmpty(message: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = VlrDimensions.MinimumTouchTarget)
-            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space3),
-        horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(vectorResource(Res.drawable.ic_event), contentDescription = null, tint = VlrTheme.colors.textSecondary)
-        Text(message, style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary)
-    }
-    HorizontalDivider(thickness = VlrDimensions.OutlineWidth, color = VlrTheme.colors.outline)
-}
-
-@Composable
-private fun OverallEmpty() {
-    Column(
-        modifier = Modifier.fillMaxWidth().testTag(SERIES_DETAIL_EMPTY_TAG)
-            .padding(VlrDimensions.Space4)
-            .clip(RoundedCornerShape(VlrDimensions.DefaultCornerRadius))
-            .background(VlrTheme.colors.surfaceSubtle)
-            .padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-    ) {
-        Icon(vectorResource(Res.drawable.ic_event), contentDescription = null, tint = VlrTheme.colors.textSecondary)
-        Text("표시할 대회가 없습니다.", style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary)
-    }
-}
-
-@Composable
 private fun SeriesDetailError(onRetry: () -> Unit, modifier: Modifier) {
-    Column(
-        modifier = modifier.testTag(SERIES_DETAIL_ERROR_TAG).padding(VlrDimensions.Space4),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(vectorResource(Res.drawable.ic_error), contentDescription = null, modifier = Modifier.size(48.dp), tint = VlrTheme.colors.textSecondary)
-        Spacer(Modifier.height(VlrDimensions.Space4))
-        Text("시리즈 정보를 불러오지 못했습니다", style = VlrTheme.typography.pageTitle, color = VlrTheme.colors.textPrimary, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(VlrDimensions.Space2))
-        Text("잠시 후 다시 시도해 주세요.", style = VlrTheme.typography.body, color = VlrTheme.colors.textSecondary, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(VlrDimensions.Space6))
-        VlrButton(text = "재시도", onClick = onRetry)
-    }
-}
-
-private fun EventStatus.toChipStatus(): StatusChipStatus = when (this) {
-    EventStatus.ONGOING -> StatusChipStatus.Live
-    EventStatus.UPCOMING -> StatusChipStatus.Upcoming
-    EventStatus.COMPLETED -> StatusChipStatus.Completed
-    EventStatus.PAUSED -> StatusChipStatus.Postponed
-}
-
-private fun EventStatus.label(): String = when (this) {
-    EventStatus.ONGOING -> "진행 중"
-    EventStatus.UPCOMING -> "예정"
-    EventStatus.COMPLETED -> "종료됨"
-    EventStatus.PAUSED -> "일시 중지"
+    StatePanel(
+        title = "시리즈 정보를 불러오지 못했습니다",
+        body = "잠시 후 다시 시도해 주세요.",
+        actionLabel = "재시도",
+        onAction = onRetry,
+        modifier = modifier.testTag(SERIES_DETAIL_ERROR_TAG),
+    )
 }

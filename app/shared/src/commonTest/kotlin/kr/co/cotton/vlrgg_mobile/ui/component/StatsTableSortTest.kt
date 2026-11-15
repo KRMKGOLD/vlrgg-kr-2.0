@@ -1,7 +1,5 @@
 package kr.co.cotton.vlrgg_mobile.ui.component
 
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -72,8 +70,8 @@ class StatsTableSortTest {
 
     private companion object {
         val columns = listOf(
-            StatsColumn<Row, Metric>(Metric.VALUE, "Value", 80.dp, TextAlign.Center, { it.value?.toString() ?: "—" }, Row::value),
-            StatsColumn<Row, Metric>(Metric.OTHER, "Other", 80.dp, TextAlign.Center, { it.other?.toString() ?: "—" }, Row::other),
+            StatsColumn<Row, Metric>(Metric.VALUE, "Value", { it.value?.toString() ?: "—" }, Row::value),
+            StatsColumn<Row, Metric>(Metric.OTHER, "Other", { it.other?.toString() ?: "—" }, Row::other),
         )
     }
 }

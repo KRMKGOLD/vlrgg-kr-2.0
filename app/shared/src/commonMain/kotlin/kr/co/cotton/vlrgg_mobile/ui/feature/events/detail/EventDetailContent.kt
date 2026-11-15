@@ -1,39 +1,48 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.events.detail
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonMatchRow
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonRow
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberTextSlotHeight
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsTableDefaults
+import kr.co.cotton.vlrgg_mobile.ui.component.rowDivider
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.font.FontWeight
+import kr.co.cotton.vlrgg_mobile.ui.feature.matches.MATCHES_TIME_ZONE_LABEL
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
+import kr.co.cotton.vlrgg_mobile.ui.format.rememberDeviceToday
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventDetail
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventPlayerStats
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
@@ -41,21 +50,48 @@ import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
 import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsColumn
 import kr.co.cotton.vlrgg_mobile.ui.component.StatsSort
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrTab
+import kr.co.cotton.vlrgg_mobile.ui.component.VlrTabs
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrStatsTable
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.feature.matches.components.MatchCard
 import kr.co.cotton.vlrgg_mobile.ui.feature.news.list.components.NewsListItem
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_arrow_back
+import vlrggmobile.app.shared.generated.resources.ic_bar_chart
+import vlrggmobile.app.shared.generated.resources.ic_newspaper
+import vlrggmobile.app.shared.generated.resources.ic_scoreboard
+import org.jetbrains.compose.resources.DrawableResource
+import kr.co.cotton.vlrgg_mobile.ui.component.DetailTopBand
+import kr.co.cotton.vlrgg_mobile.ui.component.EntityHero
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotDefaults
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotSurface
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonHero
+import kr.co.cotton.vlrgg_mobile.ui.component.StatsMissingValue
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 
 internal const val EVENT_DETAIL_IDENTITY_RETRY_TAG = "event-detail-identity-retry"
 internal const val EVENT_DETAIL_TAB_RETRY_TAG = "event-detail-tab-retry"
 internal const val EVENT_DETAIL_LOADING_TAG = "event-detail-loading"
+internal const val EVENT_STATS_LOADING_TAG = "event-stats-loading"
 
 internal fun eventStatsPlayerTag(playerId: String): String = "event-stats-player-$playerId"
 internal fun eventStatsMetricHeaderTag(column: EventStatsSortColumn): String = "event-stats-header-${column.savedStateId}"
@@ -83,25 +119,29 @@ fun EventDetailContent(
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { EventDetailTopBar(onBack) },
+        topBar = { DetailTopBand(onBack = onBack) },
     ) { contentPadding ->
         when (val identity = uiState.identity) {
-            EventIdentityContentState.Loading -> EventStateMessage(
-                message = "이벤트 정보를 불러오는 중",
-                loading = true,
+            // `.pen` 41-2: dark hero skeleton and list-row skeletons, without tabs.
+            EventIdentityContentState.Loading -> Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(contentPadding)
-                    .testTag(EVENT_DETAIL_LOADING_TAG),
-            )
+                    .testTag(EVENT_DETAIL_LOADING_TAG)
+                    .loadingSemantics("이벤트 정보를 불러오는 중"),
+            ) {
+                SkeletonHero()
+                repeat(TabSkeletonRows) { SkeletonRow() }
+            }
 
             EventIdentityContentState.Error -> if (uiState.busyRetry?.isDialogVisible == true) {
                 Box(Modifier.fillMaxSize().padding(contentPadding))
             } else {
-                EventStateMessage(
-                    message = "이벤트 정보를 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.",
-                    actionText = "재시도",
-                    actionTag = EVENT_DETAIL_IDENTITY_RETRY_TAG,
+                StatePanel(
+                    title = "이벤트 정보를 불러오지 못했습니다.",
+                    body = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+                    actionLabel = "재시도",
+                    actionTestTag = EVENT_DETAIL_IDENTITY_RETRY_TAG,
                     actionEnabled = retryEnabled,
                     onAction = onRetryIdentity,
                     modifier = Modifier
@@ -110,122 +150,118 @@ fun EventDetailContent(
                 )
             }
 
-            is EventIdentityContentState.Content -> Column(
+            is EventIdentityContentState.Content -> EventDetailCollapsingBody(
+                selectedTab = uiState.selectedTab,
+                hero = { EventIdentityHeader(identity.event) },
+                tabs = { EventDetailTabs(uiState.selectedTab, onSelectTab) },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(contentPadding),
             ) {
-                EventIdentityHeader(identity.event)
-                EventDetailTabs(uiState.selectedTab, onSelectTab)
-                Box(modifier = Modifier.weight(1f)) {
-                    when (uiState.selectedTab) {
-                        EventDetailTab.MATCHES -> MatchesTabContent(
-                            state = uiState.matches,
-                            listState = matchesListState,
-                            onMatchClick = onMatchClick,
-                            onRetry = onRetrySelectedTab,
-                            suppressError = uiState.busyRetry?.isDialogVisible == true,
-                            retryEnabled = retryEnabled,
-                        )
+                when (uiState.selectedTab) {
+                    EventDetailTab.MATCHES -> MatchesTabContent(
+                        state = uiState.matches,
+                        listState = matchesListState,
+                        onMatchClick = onMatchClick,
+                        onRetry = onRetrySelectedTab,
+                        suppressError = uiState.busyRetry?.isDialogVisible == true,
+                        retryEnabled = retryEnabled,
+                    )
 
-                        EventDetailTab.NEWS -> NewsTabContent(
-                            state = uiState.news,
-                            listState = newsListState,
-                            onNewsClick = onNewsClick,
-                            onRetry = onRetrySelectedTab,
-                            suppressError = uiState.busyRetry?.isDialogVisible == true,
-                            retryEnabled = retryEnabled,
-                        )
+                    EventDetailTab.NEWS -> NewsTabContent(
+                        state = uiState.news,
+                        listState = newsListState,
+                        onNewsClick = onNewsClick,
+                        onRetry = onRetrySelectedTab,
+                        suppressError = uiState.busyRetry?.isDialogVisible == true,
+                        retryEnabled = retryEnabled,
+                    )
 
-                        EventDetailTab.STATS -> StatsTabContent(
-                            state = uiState.stats,
-                            listState = statsListState,
-                            horizontalScrollState = statsHorizontalScrollState,
-                            sort = uiState.statsSort,
-                            onSortColumn = onSortStats,
-                            onPlayerClick = onPlayerClick,
-                            onRetry = onRetrySelectedTab,
-                            suppressError = uiState.busyRetry?.isDialogVisible == true,
-                            retryEnabled = retryEnabled,
-                        )
-                    }
+                    EventDetailTab.STATS -> StatsTabContent(
+                        state = uiState.stats,
+                        listState = statsListState,
+                        horizontalScrollState = statsHorizontalScrollState,
+                        sort = uiState.statsSort,
+                        onSortColumn = onSortStats,
+                        onPlayerClick = onPlayerClick,
+                        onRetry = onRetrySelectedTab,
+                        suppressError = uiState.busyRetry?.isDialogVisible == true,
+                        retryEnabled = retryEnabled,
+                    )
                 }
             }
         }
     }
 }
 
+/**
+ * Hero, tabs and the selected tab share one vertical scroll. Scrolling up collapses the hero
+ * before the tab list moves, and the tab content keeps the viewport height under the tabs, so a
+ * tall hero (long text, large font, short screen) never pushes the tabs out of reach.
+ *
+ * Each tab keeps its own saveable outer scroll, so returning to a tab restores how far its hero
+ * was collapsed together with its list position.
+ */
 @Composable
-private fun EventDetailTopBar(onBack: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(VlrTheme.colors.surface),
-    ) {
-        Row(
+private fun EventDetailCollapsingBody(
+    selectedTab: EventDetailTab,
+    hero: @Composable () -> Unit,
+    tabs: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    BoxWithConstraints(modifier) {
+        val heroScrollStates = EventDetailTab.entries.associateWith { rememberScrollState() }
+        val scrollState = heroScrollStates.getValue(selectedTab)
+        val collapseHeroFirst = remember(scrollState) { CollapseHeroFirst(scrollState) }
+        var tabsHeight by remember { mutableIntStateOf(0) }
+        val contentHeight = (maxHeight - with(LocalDensity.current) { tabsHeight.toDp() }).coerceAtLeast(0.dp)
+        Column(
             modifier = Modifier
-                .weight(1f)
-                .padding(start = VlrDimensions.Space1),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxSize()
+                .nestedScroll(collapseHeroFirst)
+                .verticalScroll(scrollState),
         ) {
-            VlrIconButton(
-                contentDescription = "뒤로 가기",
-                onClick = onBack,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_arrow_back),
-                        contentDescription = null,
-                    )
-                },
-            )
+            hero()
+            Box(Modifier.fillMaxWidth().onSizeChanged { tabsHeight = it.height }) { tabs() }
+            Box(Modifier.fillMaxWidth().height(contentHeight)) { content() }
         }
-        HorizontalDivider(color = VlrTheme.colors.outline)
+    }
+}
+
+/** Lets the outer scroll take upward drags from the tab list until the hero is gone. */
+private class CollapseHeroFirst(private val outer: ScrollState) : NestedScrollConnection {
+    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+        if (available.y >= 0f || !outer.canScrollForward) return Offset.Zero
+        return Offset(0f, -outer.dispatchRawDelta(-available.y))
     }
 }
 
 @Composable
 private fun EventIdentityHeader(event: EventDetail) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space3),
-        verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = event.name,
-                modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
+    // The period is Korean when the server sends `startDate`, otherwise the source `dateLabel`.
+    val factsLine = listOfNotNull(event.series, event.periodLabel(spoken = false), event.location)
+        .joinToString(" · ")
+        .takeIf(String::isNotEmpty)
+    val spokenFactsLine = listOfNotNull(event.series, event.periodLabel(spoken = true), event.location)
+        .joinToString(" · ")
+        .takeIf(String::isNotEmpty)
+    EntityHero(
+        name = event.name,
+        meta = listOfNotNull(factsLine, event.description),
+        metaContentDescriptions = listOfNotNull(factsLine?.let { spokenFactsLine }),
+        logo = {
+            LogoSlot(
+                imageUrl = event.imageUrl,
+                kind = LogoSlotKind.Event,
+                size = LogoSlotDefaults.HeroSize,
+                surface = LogoSlotSurface.Dark,
             )
-            event.status?.let { status ->
-                StatusChip(status.toChipStatus(), status.displayLabel())
-            }
-        }
-        listOfNotNull(event.series, event.dateLabel, event.location)
-            .takeIf { it.isNotEmpty() }
-            ?.let { metadata ->
-                Text(
-                    text = metadata.joinToString(" · "),
-                    style = VlrTheme.typography.label,
-                    color = VlrTheme.colors.textSecondary,
-                )
-            }
-        event.description?.let { description ->
-            Text(
-                text = description,
-                style = VlrTheme.typography.body,
-                color = VlrTheme.colors.textPrimary,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+        },
+        facts = event.status?.let { status ->
+            { StatusChip(status.toChipStatus(), status.displayLabel()) }
+        },
+    )
 }
 
 @Composable
@@ -233,35 +269,14 @@ private fun EventDetailTabs(
     selectedTab: EventDetailTab,
     onSelectTab: (EventDetailTab) -> Unit,
 ) {
-    val shape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space2)
-            .border(VlrDimensions.OutlineWidth, VlrTheme.colors.outline, shape)
-            .clip(shape),
-    ) {
+    VlrTabs {
         EventDetailTab.entries.forEach { tab ->
-            val selected = tab == selectedTab
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = VlrDimensions.MinimumTouchTarget)
-                    .testTag(eventDetailTabTag(tab))
-                    .background(if (selected) VlrTheme.colors.surfaceSubtle else VlrTheme.colors.surface)
-                    .selectable(
-                        selected = selected,
-                        role = Role.Tab,
-                        onClick = { onSelectTab(tab) },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = tab.label(),
-                    style = VlrTheme.typography.label,
-                    color = if (selected) VlrTheme.colors.actionPrimary else VlrTheme.colors.textSecondary,
-                )
-            }
+            VlrTab(
+                label = tab.label(),
+                selected = tab == selectedTab,
+                onClick = { onSelectTab(tab) },
+                testTag = eventDetailTabTag(tab),
+            )
         }
     }
 }
@@ -276,23 +291,55 @@ private fun MatchesTabContent(
     retryEnabled: Boolean,
 ) {
     when (state) {
-        EventMatchesContentState.Loading -> EventStateMessage("경기를 불러오는 중", loading = true)
-        EventMatchesContentState.Empty -> EventStateMessage("표시할 경기가 없어요.")
+        EventMatchesContentState.Loading -> TabSkeleton("경기를 불러오는 중") { SkeletonMatchRow() }
+        EventMatchesContentState.Empty -> TabStatePanel("표시할 경기가 없어요.", Res.drawable.ic_scoreboard)
         EventMatchesContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("경기를 불러오지 못했습니다.", onRetry, retryEnabled)
-        is EventMatchesContentState.Content -> LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(VlrDimensions.Space4),
-            verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-        ) {
-            items(state.matches, key = { it.id }) { match ->
-                MatchCard(
-                    match = match,
-                    onClick = { onMatchClick(match.id) },
-                    showEventName = false,
-                )
+        is EventMatchesContentState.Content -> {
+            val days = remember(state.matches) { state.matches.groupByConsecutiveDate() }
+            val currentYear = rememberDeviceToday().year
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().background(VlrTheme.colors.canvas),
+                contentPadding = PaddingValues(bottom = VlrDimensions.Space6),
+            ) {
+                days.forEachIndexed { index, day -> matchDay(index, day, currentYear, onMatchClick) }
             }
         }
+    }
+}
+
+/**
+ * Date group of the matches tab (`.pen` 41-1), the same date header as the match list: a white
+ * section under `9월 13일 (일)` (with the year outside the device year) + `한국 시간`, 8dp `canvas`
+ * from the previous group. Matches without a date have no header. Header keys carry the group
+ * index, because a date can repeat after another date in the source order.
+ */
+private fun LazyListScope.matchDay(
+    index: Int,
+    day: EventMatchDay,
+    currentYear: Int,
+    onMatchClick: (String) -> Unit,
+) {
+    if (index > 0) {
+        item(key = "match-day-gap-$index") {
+            Spacer(Modifier.fillMaxWidth().height(VlrDimensions.Space2).background(VlrTheme.colors.canvas))
+        }
+    }
+    day.date?.let { date ->
+        item(key = "match-day-$index-$date") {
+            SectionHeader(
+                title = KoreanDateTimeFormat.matchDayHeader(date, currentYear),
+                meta = MATCHES_TIME_ZONE_LABEL,
+                modifier = Modifier.background(VlrTheme.colors.surface),
+            )
+        }
+    }
+    items(day.matches, key = { it.id }) { match ->
+        MatchCard(
+            match = match,
+            onClick = { onMatchClick(match.id) },
+            showEventName = false,
+        )
     }
 }
 
@@ -306,21 +353,17 @@ private fun NewsTabContent(
     retryEnabled: Boolean,
 ) {
     when (state) {
-        EventNewsContentState.Loading -> EventStateMessage("뉴스를 불러오는 중", loading = true)
-        EventNewsContentState.Empty -> EventStateMessage("표시할 뉴스가 없어요.")
+        EventNewsContentState.Loading -> TabSkeleton("뉴스를 불러오는 중") { SkeletonRow() }
+        EventNewsContentState.Empty -> TabStatePanel("표시할 뉴스가 없어요.", Res.drawable.ic_newspaper)
         EventNewsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("뉴스를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventNewsContentState.Content -> LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().background(VlrTheme.colors.canvas),
         ) {
             items(state.news, key = { "${it.articleId}/${it.slug}" }) { news ->
                 NewsListItem(
                     news = news,
                     onClick = { onNewsClick(news.articleId, news.slug) },
-                )
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = VlrDimensions.Space4),
-                    color = VlrTheme.colors.outline,
                 )
             }
         }
@@ -340,24 +383,18 @@ private fun StatsTabContent(
     retryEnabled: Boolean,
 ) {
     when (state) {
-        EventStatsContentState.Loading -> EventStateMessage("통계를 불러오는 중", loading = true)
-        EventStatsContentState.Empty -> EventStateMessage("아직 제공되는 통계가 없어요.")
+        EventStatsContentState.Loading -> StatsTableSkeleton(sortedColumn = sort?.column)
+        EventStatsContentState.Empty -> TabStatePanel("아직 제공되는 통계가 없어요.", Res.drawable.ic_bar_chart)
         EventStatsContentState.Error -> if (suppressError) Box(Modifier.fillMaxSize()) else EventTabError("통계를 불러오지 못했습니다.", onRetry, retryEnabled)
         is EventStatsContentState.Content -> VlrStatsTable(
             rows = state.stats.players,
             rowKey = EventPlayerStats::playerId,
-            identityHeader = "Player",
+            identityHeader = EventStatsIdentityHeader,
             identityText = EventPlayerStats::playerName,
             identitySupportingText = EventPlayerStats::teamAbbreviation,
-            rowSemanticsLabel = "player",
+            rowSemanticsLabel = "선수",
             columns = eventStatsColumns,
             horizontalScrollState = horizontalScrollState,
-            identityWidth = 132.dp,
-            headerMinHeight = 56.dp,
-            rowMinHeight = 56.dp,
-            identityTextStyle = VlrTheme.typography.bodyStrong,
-            headerTextStyle = VlrTheme.typography.label,
-            valueTextStyle = VlrTheme.typography.label,
             modifier = Modifier.fillMaxSize(),
             lazyListState = listState,
             sort = sort,
@@ -372,60 +409,149 @@ private fun StatsTabContent(
 
 @Composable
 private fun EventTabError(message: String, onRetry: () -> Unit, enabled: Boolean) {
-    EventStateMessage(
-        message = message,
-        actionText = "재시도",
-        actionTag = EVENT_DETAIL_TAB_RETRY_TAG,
+    StatePanel(
+        title = message,
+        actionLabel = "재시도",
+        actionTestTag = EVENT_DETAIL_TAB_RETRY_TAG,
         actionEnabled = enabled,
         onAction = onRetry,
+        modifier = Modifier.fillMaxSize(),
     )
 }
 
 @Composable
-private fun EventStateMessage(
-    message: String,
-    modifier: Modifier = Modifier,
-    loading: Boolean = false,
-    actionText: String? = null,
-    actionTag: String? = null,
-    actionEnabled: Boolean = true,
-    onAction: () -> Unit = {},
+private fun TabStatePanel(title: String, icon: DrawableResource) {
+    StatePanel(title = title, icon = icon, modifier = Modifier.fillMaxSize())
+}
+
+/** Tab-area loading (`.pen` 41-4·41-8): four placeholders of the tab's rows on `surface`. */
+@Composable
+private fun TabSkeleton(
+    description: String,
+    row: @Composable () -> Unit,
 ) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .then(if (loading) Modifier.semantics { stateDescription = message } else Modifier)
-            .padding(VlrDimensions.Space6),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .background(VlrTheme.colors.surface)
+            .loadingSemantics(description),
     ) {
-        if (loading) {
-            CircularProgressIndicator(color = VlrTheme.colors.actionPrimary)
-            Spacer(Modifier.height(VlrDimensions.Space3))
-        }
-        Text(
-            text = message,
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
-            textAlign = TextAlign.Center,
-        )
-        actionText?.let { text ->
-            VlrButton(
-                text = text,
-                onClick = onAction,
-                enabled = actionEnabled,
-                modifier = Modifier
-                    .padding(top = VlrDimensions.Space4)
-                    .then(if (actionTag != null) Modifier.testTag(actionTag) else Modifier),
-            )
+        repeat(TabSkeletonRows) { row() }
+    }
+}
+
+/**
+ * Stats tab loading (`.pen` 41-12): the [VlrStatsTable] frame on `surface`, a 40dp `surface-sunken`
+ * header and [TabSkeletonRows] 52dp rows, each with the pinned 120dp identity column and its right
+ * 1dp line followed by 68dp metric columns, so the table does not shift when the stats arrive.
+ * Like the table, the header and rows grow past those minimums with the scaled text: the header to
+ * the `label` identity header and the `tag` column labels wrapped in their columns (the
+ * [sortedColumn] label beside its arrow, as the restored sort shows it), a row to the
+ * one-line `bodySm` name, 1dp gap and `label` team, or a [StatsSkeletonSampleValue] `stat` value.
+ * A name that wraps at a large font scale still makes its row taller, as the name is not known yet.
+ */
+@Composable
+private fun StatsTableSkeleton(sortedColumn: EventStatsSortColumn?) {
+    val typography = VlrTheme.typography
+    val identityTextWidth = StatsTableDefaults.IdentityWidth - VlrDimensions.Space4 - VlrDimensions.Space2
+    val valueTextWidth = StatsTableDefaults.ColumnWidth - StatsTableDefaults.CellEndPadding
+    val headerHeight = maxOf(
+        StatsTableDefaults.HeaderHeight,
+        rememberTextSlotHeight(typography.label.copy(fontWeight = FontWeight.Bold), EventStatsIdentityHeader, identityTextWidth),
+        eventStatsColumns.maxOf { column ->
+            val labelWidth = StatsTableDefaults.headerLabelWidth(column.width, sorted = column.key == sortedColumn)
+            rememberTextSlotHeight(typography.tag, column.label, labelWidth)
+        },
+    )
+    val rowHeight = maxOf(
+        StatsTableDefaults.RowHeight,
+        rememberTextSlotHeight(typography.bodySm.copy(fontWeight = FontWeight.Bold)) + 1.dp +
+            rememberTextSlotHeight(typography.label.copy(fontWeight = FontWeight.Normal)),
+        rememberTextSlotHeight(typography.stat, StatsSkeletonSampleValue, valueTextWidth),
+    )
+    Box(modifier = Modifier.fillMaxSize().background(VlrTheme.colors.surface)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(EVENT_STATS_LOADING_TAG)
+                .loadingSemantics("통계를 불러오는 중"),
+        ) {
+            StatsSkeletonRow(headerHeight, VlrTheme.colors.surfaceSunken, header = true)
+            repeat(TabSkeletonRows) {
+                StatsSkeletonRow(rowHeight, VlrTheme.colors.surface, header = false)
+            }
         }
     }
 }
 
+@Composable
+private fun StatsSkeletonRow(height: Dp, container: Color, header: Boolean) {
+    val line = VlrTheme.colors.line
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .background(container)
+            .rowDivider(line),
+    ) {
+        Column(
+            modifier = Modifier
+                .width(StatsTableDefaults.IdentityWidth)
+                .fillMaxHeight()
+                .drawBehind {
+                    val x = size.width - VlrDimensions.OutlineWidth.toPx() / 2
+                    drawLine(line, Offset(x, 0f), Offset(x, size.height), VlrDimensions.OutlineWidth.toPx())
+                }
+                .padding(start = VlrDimensions.Space4, end = VlrDimensions.Space2),
+            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+        ) {
+            if (header) {
+                SkeletonBlock(Modifier.size(width = 28.dp, height = 10.dp))
+            } else {
+                SkeletonBlock(Modifier.size(width = 72.dp, height = 12.dp))
+                SkeletonBlock(Modifier.size(width = 32.dp, height = 10.dp))
+            }
+        }
+        Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
+            Row(modifier = Modifier.fillMaxHeight().wrapContentWidth(Alignment.Start, unbounded = true)) {
+                repeat(eventStatsColumns.size) {
+                    Box(
+                        modifier = Modifier
+                            .width(StatsTableDefaults.ColumnWidth)
+                            .fillMaxHeight()
+                            .padding(end = StatsTableDefaults.CellEndPadding),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        SkeletonBlock(Modifier.size(width = if (header) 28.dp else 32.dp, height = if (header) 10.dp else 12.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun Modifier.loadingSemantics(description: String): Modifier = clearAndSetSemantics {
+    stateDescription = description
+    progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+}
+
+private const val TabSkeletonRows = 4
+
+private const val EventStatsIdentityHeader = "선수"
+
+/** A KAST value, the widest stats value format, sizing the skeleton rows for values that wrap. */
+private const val StatsSkeletonSampleValue = "00.0%"
+
+private fun EventDetail.periodLabel(spoken: Boolean): String? = if (spoken) {
+    KoreanDateTimeFormat.periodSpoken(startDate, endDate, dateLabel)
+} else {
+    KoreanDateTimeFormat.period(startDate, endDate, dateLabel)
+}
+
 private fun EventDetailTab.label(): String = when (this) {
-    EventDetailTab.MATCHES -> "Matches"
-    EventDetailTab.NEWS -> "News"
-    EventDetailTab.STATS -> "Stats"
+    EventDetailTab.MATCHES -> "경기"
+    EventDetailTab.NEWS -> "뉴스"
+    EventDetailTab.STATS -> "통계"
 }
 
 private fun EventStatus.displayLabel(): String = when (this) {
@@ -436,7 +562,7 @@ private fun EventStatus.displayLabel(): String = when (this) {
 }
 
 private fun EventStatus.toChipStatus(): StatusChipStatus = when (this) {
-    EventStatus.ONGOING -> StatusChipStatus.Live
+    EventStatus.ONGOING -> StatusChipStatus.InProgress
     EventStatus.UPCOMING -> StatusChipStatus.Upcoming
     EventStatus.COMPLETED -> StatusChipStatus.Completed
     EventStatus.PAUSED -> StatusChipStatus.Unavailable
@@ -444,30 +570,30 @@ private fun EventStatus.toChipStatus(): StatusChipStatus = when (this) {
 
 private val eventStatsColumns = listOf(
     StatsColumn<EventPlayerStats, EventStatsSortColumn>(
-        EventStatsSortColumn.ROUNDS, "Rounds", 80.dp, TextAlign.Center,
+        EventStatsSortColumn.ROUNDS, "Rounds",
         { it.roundsPlayed?.toString().orMissing() }, { it.roundsPlayed?.toDouble() },
     ),
     StatsColumn<EventPlayerStats, EventStatsSortColumn>(
-        EventStatsSortColumn.RATING, "Rating", 80.dp, TextAlign.Center,
+        EventStatsSortColumn.RATING, "Rating",
         { it.rating?.toString().orMissing() }, EventPlayerStats::rating,
     ),
     StatsColumn<EventPlayerStats, EventStatsSortColumn>(
-        EventStatsSortColumn.ACS, "ACS", 80.dp, TextAlign.Center,
+        EventStatsSortColumn.ACS, "ACS",
         { it.averageCombatScore?.toString().orMissing() }, { it.averageCombatScore?.toDouble() },
     ),
     StatsColumn<EventPlayerStats, EventStatsSortColumn>(
-        EventStatsSortColumn.K_D, "K-D", 80.dp, TextAlign.Center,
+        EventStatsSortColumn.K_D, "K-D",
         { it.killDeathRatio?.toString().orMissing() }, EventPlayerStats::killDeathRatio,
     ),
     StatsColumn<EventPlayerStats, EventStatsSortColumn>(
-        EventStatsSortColumn.ADR, "ADR", 80.dp, TextAlign.Center,
+        EventStatsSortColumn.ADR, "ADR",
         { it.averageDamagePerRound?.toString().orMissing() }, EventPlayerStats::averageDamagePerRound,
     ),
     StatsColumn<EventPlayerStats, EventStatsSortColumn>(
-        EventStatsSortColumn.KAST, "KAST", 80.dp, TextAlign.Center,
+        EventStatsSortColumn.KAST, "KAST",
         { it.killAssistSurvivedTradedPercentage?.let { value -> "$value%" }.orMissing() },
         EventPlayerStats::killAssistSurvivedTradedPercentage,
     ),
 )
 
-private fun String?.orMissing(): String = this ?: "—"
+private fun String?.orMissing(): String = this ?: StatsMissingValue

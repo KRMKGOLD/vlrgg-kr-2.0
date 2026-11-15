@@ -1,55 +1,52 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.events
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.events.EventSummary
-import kr.co.cotton.vlrgg_mobile.ui.component.StatusChip
-import kr.co.cotton.vlrgg_mobile.ui.component.StatusChipStatus
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
-import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
+import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SectionMessage
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotDefaults
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonBlock
+import kr.co.cotton.vlrgg_mobile.ui.component.rememberTextSlotHeight
+import kr.co.cotton.vlrgg_mobile.ui.component.rowDivider
+import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
+import kr.co.cotton.vlrgg_mobile.ui.format.KoreanDateTimeFormat
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
-import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
-import vlrggmobile.app.shared.generated.resources.ic_error
-import vlrggmobile.app.shared.generated.resources.ic_search
+import vlrggmobile.app.shared.generated.resources.ic_trophy
+import kr.co.cotton.vlrgg_mobile.ui.component.IdentityRow
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
 
 internal const val EVENTS_LOADING_TAG = "events-loading"
 internal const val EVENTS_REFRESHING_TAG = "events-refreshing"
@@ -72,7 +69,7 @@ fun EventsContent(
     Scaffold(
         modifier = modifier,
         containerColor = VlrTheme.colors.surface,
-        topBar = { EventsTopBar(onSearch = onSearch) },
+        topBar = { RootHeader(title = "대회", onSearch = onSearch) },
     ) { contentPadding ->
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
@@ -93,17 +90,19 @@ fun EventsContent(
         ) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(VlrTheme.colors.canvas),
             ) {
                 when (contentState) {
-                    EventsContentState.Loading -> eventsSkeleton()
+                    EventsContentState.Loading -> item(key = "skeleton") { EventsSkeleton() }
                     EventsContentState.Empty -> item(key = "empty") {
                         EventsEmptyState(modifier = Modifier.fillParentMaxSize())
                     }
 
                     EventsContentState.Error -> item(key = "error") {
                         if (uiState.busyRetry?.isDialogVisible == true || isBusyCooldownActive) {
-                            Box(Modifier.fillParentMaxSize())
+                            Box(Modifier.fillParentMaxSize().background(VlrTheme.colors.surface))
                         } else {
                             EventsErrorState(
                                 onRetry = onRetry,
@@ -113,22 +112,22 @@ fun EventsContent(
                     }
 
                     is EventsContentState.Content -> {
-                        eventSection(
+                        eventGroup(
                             key = "ongoing",
-                            title = "Ongoing",
+                            title = "진행 중",
                             events = contentState.events.ongoing,
                             isFirst = true,
                             onEventClick = onEventClick,
                         )
-                        eventSection(
+                        eventGroup(
                             key = "upcoming",
-                            title = "Upcoming",
+                            title = "예정",
                             events = contentState.events.upcoming,
                             onEventClick = onEventClick,
                         )
-                        eventSection(
+                        eventGroup(
                             key = "completed-paused",
-                            title = "Completed / Paused",
+                            title = "종료 · 중단",
                             events = contentState.events.completedOrPaused,
                             onEventClick = onEventClick,
                         )
@@ -139,14 +138,30 @@ fun EventsContent(
     }
 }
 
-private fun LazyListScope.eventSection(
+/**
+ * Status group (`.pen` 40-1): a white section whose header shows the count of visible events,
+ * separated from the previous group by 8dp `canvas`. An empty group keeps its title without a
+ * count and shows a Section message (`.pen` 40-5).
+ */
+private fun LazyListScope.eventGroup(
     key: String,
     title: String,
     events: List<EventSummary>,
     isFirst: Boolean = false,
     onEventClick: (String) -> Unit,
 ) {
-    sectionHeading(key = key, title = title, isFirst = isFirst)
+    if (!isFirst) {
+        item(key = "gap-$key") {
+            Spacer(Modifier.fillMaxWidth().height(VlrDimensions.Space2).background(VlrTheme.colors.canvas))
+        }
+    }
+    item(key = "section-$key") {
+        SectionHeader(
+            title = title,
+            count = events.size.takeIf { it > 0 }?.toString(),
+            modifier = Modifier.background(VlrTheme.colors.surface),
+        )
+    }
     if (events.isEmpty()) {
         item(key = "section-$key-empty") { EmptySectionRow() }
     } else {
@@ -159,232 +174,88 @@ private fun LazyListScope.eventSection(
     }
 }
 
-private fun LazyListScope.sectionHeading(
-    key: String,
-    title: String,
-    isFirst: Boolean,
-) {
-    item(key = "section-$key") {
-        Text(
-            text = title,
-            modifier = Modifier.padding(
-                start = VlrDimensions.Space4,
-                end = VlrDimensions.Space4,
-                top = if (isFirst) VlrDimensions.Space4 else VlrDimensions.Space6,
-                bottom = VlrDimensions.Space2,
-            ),
-            style = VlrTheme.typography.sectionTitle,
-            color = VlrTheme.colors.textSecondary,
-        )
-    }
-}
-
-@Composable
-private fun EventsTopBar(onSearch: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = VlrDimensions.Space4),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Events",
-                modifier = Modifier.weight(1f),
-                style = VlrTheme.typography.pageTitle,
-                color = VlrTheme.colors.textPrimary,
-            )
-            VlrIconButton(
-                contentDescription = "검색",
-                onClick = onSearch,
-                icon = {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.ic_search),
-                        contentDescription = null,
-                    )
-                },
-            )
-        }
-        HorizontalDivider(
-            modifier = Modifier.align(Alignment.BottomCenter),
-            thickness = VlrDimensions.OutlineWidth,
-            color = VlrTheme.colors.outline,
-        )
-    }
-}
-
 @Composable
 private fun EventListItem(
     event: EventSummary,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val imageShape = RoundedCornerShape(VlrDimensions.DefaultCornerRadius)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = VlrDimensions.MinimumTouchTarget)
-            .testTag(eventRowTag(event.id))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space3,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        event.imageUrl?.let { imageUrl ->
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(imageShape),
-            )
-            Spacer(Modifier.width(VlrDimensions.Space3))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = event.name,
-                style = VlrTheme.typography.bodyStrong,
-                color = VlrTheme.colors.textPrimary,
-            )
-            event.metadataLabel()?.let { metadata ->
-                Spacer(Modifier.height(VlrDimensions.Space1))
-                Text(
-                    text = metadata,
-                    style = VlrTheme.typography.labelSmall,
-                    color = VlrTheme.colors.textSecondary,
-                )
-            }
-        }
-        Spacer(Modifier.width(VlrDimensions.Space2))
-        StatusChip(
-            status = event.status.toChipStatus(),
-            label = event.status.label(),
-            modifier = Modifier.align(Alignment.Top),
-        )
-    }
-    HorizontalDivider(
-        thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.outline,
+    IdentityRow(
+        title = event.name,
+        meta = event.metadataLabel(spoken = false),
+        metaContentDescription = event.metadataLabel(spoken = true),
+        leading = { LogoSlot(imageUrl = event.imageUrl, kind = LogoSlotKind.Event) },
+        onClick = onClick,
+        modifier = modifier.testTag(eventRowTag(event.id)),
     )
 }
 
 @Composable
 private fun EmptySectionRow() {
-    Text(
-        text = "현재 이벤트가 없어요.",
+    SectionMessage(
+        message = "현재 이벤트가 없어요.",
+        modifier = Modifier.background(VlrTheme.colors.surface),
+    )
+}
+
+/** First-load placeholder (`.pen` 40-2): six event row skeletons under an 8dp top inset, without group headers. */
+@Composable
+private fun EventsSkeleton() {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space3,
-            ),
-        style = VlrTheme.typography.body,
-        color = VlrTheme.colors.textSecondary,
-    )
-    HorizontalDivider(
-        thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.outline,
-    )
-}
-
-private fun LazyListScope.eventsSkeleton() {
-    skeletonSection(
-        key = "ongoing",
-        title = "Ongoing",
-        isFirst = true,
-        loadingTag = EVENTS_LOADING_TAG,
-    )
-    skeletonSection(key = "upcoming", title = "Upcoming")
-    skeletonSection(key = "completed-paused", title = "Completed / Paused")
-}
-
-private fun LazyListScope.skeletonSection(
-    key: String,
-    title: String,
-    isFirst: Boolean = false,
-    loadingTag: String? = null,
-) {
-    sectionHeading(key = "skeleton-$key", title = title, isFirst = isFirst)
-    item(key = "skeleton-row-$key") {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (loadingTag != null) {
-                        Modifier
-                            .testTag(loadingTag)
-                            .semantics { stateDescription = "이벤트를 불러오는 중" }
-                    } else {
-                        Modifier
-                    },
-                ),
-        ) {
-            EventsSkeletonRow()
-        }
+            .background(VlrTheme.colors.surface)
+            .padding(top = VlrDimensions.Space2)
+            .testTag(EVENTS_LOADING_TAG)
+            .clearAndSetSemantics {
+                stateDescription = "이벤트를 불러오는 중"
+                progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+            },
+    ) {
+        repeat(6) { EventRowSkeleton() }
     }
 }
 
+/**
+ * Placeholder for an [EventListItem] (`DESIGN.md` 8.2 Identity row): the same paddings, 40dp logo
+ * slot, title and meta lines at their scaled `body`·`meta` line heights, and the empty 48dp trailing slot,
+ * so the rows keep their height and title start when the events arrive.
+ */
 @Composable
-private fun EventsSkeletonRow() {
-    val placeholderShape = RoundedCornerShape(VlrDimensions.Space1)
+private fun EventRowSkeleton() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(
-                horizontal = VlrDimensions.Space4,
-                vertical = VlrDimensions.Space3,
-            )
-            .clearAndSetSemantics {},
+            .heightIn(min = VlrDimensions.MinimumTouchTarget)
+            .rowDivider(VlrTheme.colors.line)
+            .padding(start = VlrDimensions.Space4, end = VlrDimensions.Space1, top = 10.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.72f)
-                    .height(20.dp)
-                    .background(VlrTheme.colors.skeleton, placeholderShape),
-            )
-            Spacer(Modifier.height(VlrDimensions.Space1))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.42f)
-                    .height(VlrDimensions.Space3)
-                    .background(VlrTheme.colors.skeleton, placeholderShape),
-            )
+        SkeletonBlock(Modifier.size(LogoSlotDefaults.RowSize))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            // 14dp and 10dp bars centered in `body` and `meta` line slots that follow the font scale.
+            Box(Modifier.height(rememberTextSlotHeight(VlrTheme.typography.body)), contentAlignment = Alignment.CenterStart) {
+                SkeletonBlock(Modifier.fillMaxWidth(0.72f).height(14.dp))
+            }
+            Box(Modifier.height(rememberTextSlotHeight(VlrTheme.typography.meta)), contentAlignment = Alignment.CenterStart) {
+                SkeletonBlock(Modifier.fillMaxWidth(0.5f).height(10.dp))
+            }
         }
-        Spacer(Modifier.width(VlrDimensions.Space2))
-        Box(
-            modifier = Modifier
-                .width(56.dp)
-                .height(24.dp)
-                .background(VlrTheme.colors.skeleton, CircleShape),
-        )
+        Spacer(Modifier.size(VlrDimensions.MinimumTouchTarget))
     }
-    HorizontalDivider(
-        thickness = VlrDimensions.OutlineWidth,
-        color = VlrTheme.colors.outline,
-    )
 }
 
 @Composable
 private fun EventsEmptyState(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.padding(VlrDimensions.Space6),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "표시할 이벤트가 없어요.",
-            style = VlrTheme.typography.bodyStrong,
-            color = VlrTheme.colors.textPrimary,
-            textAlign = TextAlign.Center,
-        )
-    }
+    StatePanel(
+        title = "표시할 이벤트가 없어요.",
+        icon = Res.drawable.ic_trophy,
+        modifier = modifier.background(VlrTheme.colors.surface),
+    )
 }
 
 @Composable
@@ -392,67 +263,30 @@ private fun EventsErrorState(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier.padding(VlrDimensions.Space6),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space6),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(VlrTheme.colors.surfaceSubtle, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = vectorResource(Res.drawable.ic_error),
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = VlrTheme.colors.textSecondary,
-                )
-            }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
-            ) {
-                Text(
-                    text = "이벤트를 불러오지 못했습니다.",
-                    style = VlrTheme.typography.sectionTitle,
-                    color = VlrTheme.colors.textPrimary,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = "네트워크 상태를 확인하고 다시 시도해 주세요.",
-                    style = VlrTheme.typography.body,
-                    color = VlrTheme.colors.textSecondary,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            VlrButton(
-                text = "재시도",
-                onClick = onRetry,
-                modifier = Modifier.testTag(EVENTS_INITIAL_RETRY_TAG),
-            )
-        }
+    StatePanel(
+        title = "이벤트를 불러오지 못했습니다.",
+        body = "네트워크 상태를 확인하고 다시 시도해 주세요.",
+        actionLabel = "재시도",
+        onAction = onRetry,
+        actionTestTag = EVENTS_INITIAL_RETRY_TAG,
+        modifier = modifier.background(VlrTheme.colors.surface),
+    )
+}
+
+/**
+ * Group headers carry the status. Only `중단` is spelled out, because it shares the
+ * `종료 · 중단` group with finished events. The period is Korean when the server sends
+ * `startDate`, otherwise the source `dateLabel`; [spoken] reads `~` as `부터`·`까지`.
+ */
+private fun EventSummary.metadataLabel(spoken: Boolean): String? {
+    val period = if (spoken) {
+        KoreanDateTimeFormat.periodSpoken(startDate, endDate, dateLabel)
+    } else {
+        KoreanDateTimeFormat.period(startDate, endDate, dateLabel)
     }
+    return listOfNotNull(PausedLabel.takeIf { status == EventStatus.PAUSED }, period, regionCode)
+        .takeIf { it.isNotEmpty() }
+        ?.joinToString(" · ")
 }
 
-private fun EventSummary.metadataLabel(): String? = listOfNotNull(dateLabel, regionCode)
-    .takeIf { it.isNotEmpty() }
-    ?.joinToString(" · ")
-
-private fun EventStatus.toChipStatus(): StatusChipStatus = when (this) {
-    EventStatus.ONGOING -> StatusChipStatus.Live
-    EventStatus.UPCOMING -> StatusChipStatus.Upcoming
-    EventStatus.COMPLETED -> StatusChipStatus.Completed
-    EventStatus.PAUSED -> StatusChipStatus.Postponed
-}
-
-private fun EventStatus.label(): String = when (this) {
-    EventStatus.ONGOING -> "진행 중"
-    EventStatus.UPCOMING -> "예정"
-    EventStatus.COMPLETED -> "종료"
-    EventStatus.PAUSED -> "중단"
-}
+private const val PausedLabel = "중단"
