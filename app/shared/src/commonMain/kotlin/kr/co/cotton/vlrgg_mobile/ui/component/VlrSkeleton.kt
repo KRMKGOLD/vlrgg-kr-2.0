@@ -49,7 +49,7 @@ fun SkeletonRow(modifier: Modifier = Modifier) {
     }
 }
 
-/** Placeholder for a match row: 72dp time column, divider, two teams and context. */
+/** Placeholder for a match row (`.pen` `Skeleton match row`): 72dp time column, divider, two teams and context. */
 @Composable
 fun SkeletonMatchRow(modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxWidth().clearAndSetSemantics {}) {
@@ -57,7 +57,7 @@ fun SkeletonMatchRow(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
-                .padding(horizontal = VlrDimensions.Space4, vertical = VlrDimensions.Space3),
+                .padding(horizontal = VlrDimensions.Space4, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
         ) {
             Column(

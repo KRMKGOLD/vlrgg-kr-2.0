@@ -520,6 +520,94 @@ class MatchesContentUiTest {
     }
 
     @Test
+    fun dateGroupsShowKoreanTimeMetaAndAreSeparatedByCanvasGap() = runComposeUiTest {
+        val secondDayMatch = upcomingMatch.copy(id = "match-next-day", status = MatchStatus.UPCOMING)
+        setContent {
+            MatchesContentFixture(
+                uiState = MatchesUiState(
+                    upcomingLive = MatchesFeedUiState(
+                        contentState = MatchesFeedContentState.Content(
+                            listOf(
+                                MatchDateGroup("Tue, September 22, 2026", listOf(upcomingMatch), LocalDate(2026, 9, 22)),
+                                MatchDateGroup("Wed, September 23, 2026", listOf(secondDayMatch), LocalDate(2026, 9, 23)),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithText("9월 22일 (화)").assertIsDisplayed()
+        onNodeWithText("9월 23일 (수)").assertIsDisplayed()
+        onAllNodesWithText(MATCHES_TIME_ZONE_LABEL).assertCountEquals(2)
+        // 그룹 사이에는 8dp canvas 간격이 있어 첫 그룹 마지막 행과 다음 날짜 헤더가 붙지 않는다.
+        val firstRowBottom = onNodeWithTag(matchCardTag(upcomingMatch.id)).fetchSemanticsNode().boundsInRoot.bottom
+        val secondHeaderTop = onNodeWithText("9월 23일 (수)").fetchSemanticsNode().boundsInRoot.top
+        assertTrue(secondHeaderTop - firstRowBottom >= 8f * density.density)
+    }
+
+    @Test
+    fun resultsTabShowsKoreanStartTimeAndFinishedLabelForCompletedMatches() = runComposeUiTest {
+        val finished = completedMatch.copy(time = LocalTime(18, 0))
+        setContent {
+            MatchesContentFixture(
+                uiState = MatchesUiState(
+                    selectedTab = MatchesTab.RESULTS,
+                    results = MatchesFeedUiState(
+                        contentState = MatchesFeedContentState.Content(
+                            listOf(MatchDateGroup("Mon, September 21, 2026", listOf(finished), LocalDate(2026, 9, 21))),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithText("오후 6:00").assertIsDisplayed()
+        onNodeWithText("종료").assertIsDisplayed()
+        onNodeWithTag(matchRowHomeScoreTag(matchScoreTag(finished.id)), useUnmergedTree = true).assertTextEquals("13")
+        onNodeWithContentDescription("경기 상세: Fnatic 13, Sentinels 9").assertIsDisplayed()
+    }
+
+    @Test
+    fun paginationLoadingIsAMatchRowSkeletonWithProgressSemantics() = runComposeUiTest {
+        setContent {
+            MatchesContentFixture(
+                uiState = contentState(upcomingMatch).copy(
+                    upcomingLive = MatchesFeedUiState(
+                        contentState = MatchesFeedContentState.Content(
+                            listOf(MatchDateGroup("TODAY, AUG 23", listOf(upcomingMatch), date = null)),
+                        ),
+                        isLoadingMore = true,
+                    ),
+                ),
+            )
+        }
+
+        onNodeWithTag(MATCHES_PAGINATION_LOADING_TAG)
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+        assertEquals(
+            onNodeWithTag(matchCardTag(upcomingMatch.id)).fetchSemanticsNode().size.width,
+            onNodeWithTag(MATCHES_PAGINATION_LOADING_TAG).fetchSemanticsNode().size.width,
+        )
+        val rowBottom = onNodeWithTag(matchCardTag(upcomingMatch.id)).fetchSemanticsNode().boundsInRoot.bottom
+        val skeletonTop = onNodeWithTag(MATCHES_PAGINATION_LOADING_TAG).fetchSemanticsNode().boundsInRoot.top
+        assertTrue(skeletonTop >= rowBottom)
+        onNodeWithText("재시도").assertDoesNotExist()
+    }
+
+    @Test
+    fun initialLoadingSkeletonHasFiveMatchRowPlaceholdersWithoutProgressSpinner() = runComposeUiTest {
+        setContent { MatchesContentFixture(uiState = MatchesUiState()) }
+
+        onNodeWithTag(MATCHES_LOADING_TAG)
+            .assertIsDisplayed()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "경기 목록 불러오는 중"))
+        onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)).assertCountEquals(0)
+        // 상단 12dp + 86dp 행 5개(.pen 20-3)
+        onNodeWithTag(MATCHES_LOADING_TAG).assertHeightIsAtLeast(12.dp + 86.dp * 5)
+    }
+
+    @Test
     fun nearingTheEndRequestsTheNextPage() = runComposeUiTest {
         var loadMoreRequests = 0
         setContent {

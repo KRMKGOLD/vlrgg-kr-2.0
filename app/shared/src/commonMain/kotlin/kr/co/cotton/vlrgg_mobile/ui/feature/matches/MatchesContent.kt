@@ -1,32 +1,34 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.matches
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchDateGroup
 import kr.co.cotton.vlrgg_mobile.ui.component.InlineRetry
 import kr.co.cotton.vlrgg_mobile.ui.component.RootHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
+import kr.co.cotton.vlrgg_mobile.ui.component.SkeletonMatchRow
 import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrTab
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrTabs
@@ -149,9 +151,10 @@ fun MatchesContent(
                     }
 
                     is MatchesFeedContentState.Content -> {
-                        content.groups.forEach { group ->
+                        content.groups.forEachIndexed { index, group ->
                             matchGroup(
                                 group = group,
+                                isFirst = index == 0,
                                 onMatchClick = onMatchClick,
                             )
                         }
@@ -174,12 +177,22 @@ fun MatchesContent(
 /** 구조화한 날짜가 있으면 한국어로 표시하고, 없으면 source label을 그대로 쓴다. */
 internal fun MatchDateGroup.displayDateLabel(): String = date?.let(KoreanDateTimeFormat::monthDay) ?: dateLabel
 
+/** 목록의 시각은 vlr.gg가 서울 요청에 렌더한 한국 시간이다(기능 문서 날짜·시간 계약). */
+internal const val MATCHES_TIME_ZONE_LABEL = "한국 시간"
+
+/** 날짜 그룹은 흰 섹션이며, 그룹 사이는 8dp `canvas`로 띄운다(`.pen` 20-1). */
 private fun androidx.compose.foundation.lazy.LazyListScope.matchGroup(
     group: MatchDateGroup,
+    isFirst: Boolean,
     onMatchClick: (String) -> Unit,
 ) {
+    if (!isFirst) {
+        item(key = "gap-${group.dateLabel}") {
+            Spacer(Modifier.fillMaxWidth().height(VlrDimensions.Space2).background(VlrTheme.colors.canvas))
+        }
+    }
     item(key = "date-${group.dateLabel}") {
-        SectionHeader(title = group.displayDateLabel())
+        SectionHeader(title = group.displayDateLabel(), meta = MATCHES_TIME_ZONE_LABEL)
     }
     items(
         items = group.matches,
@@ -223,21 +236,13 @@ private fun MatchesPaginationFooter(
         )
         return
     }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(VlrDimensions.Space4),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .size(24.dp)
-                    .testTag(MATCHES_PAGINATION_LOADING_TAG),
-                color = VlrTheme.colors.accent,
-                strokeWidth = 2.dp,
-            )
-        }
+    if (isLoading) {
+        // 다음 경기 행 자리를 스켈레톤으로 채운다(`DESIGN.md` 6·9절). 진행 상태는 보조 기술에 알린다.
+        SkeletonMatchRow(
+            modifier = Modifier
+                .testTag(MATCHES_PAGINATION_LOADING_TAG)
+                .semantics { progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate },
+        )
     }
 }
 
