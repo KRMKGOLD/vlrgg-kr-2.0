@@ -28,6 +28,22 @@ class UpstreamHtmlTransportTest {
     }
 
     @Test
+    fun `default configuration accepts a response body larger than the previous 1 MiB limit`() {
+        val html = "a".repeat(2 * 1_048_576)
+        withTransport(
+            engine = MockEngine {
+                respond(
+                    content = ByteReadChannel(html),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
+                )
+            },
+        ) { transport ->
+            assertTrue(html == transport.get(UPSTREAM_URL), "2 MiB response body must be preserved")
+        }
+    }
+
+    @Test
     fun `redirects map to upstream failure without another request`() {
         var requestCount = 0
         val body = CancellationTrackingChannel("redirect body")
