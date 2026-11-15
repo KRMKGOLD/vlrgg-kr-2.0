@@ -35,32 +35,18 @@ OpenAPI와 Swagger route는 `VLRGG_ENABLE_API_DOCUMENTATION=true`인 local 개�
 - 로그에 request path/query/IP/header, token, exception message, raw HTML, selector와 임의 stack 문자열을 넣지 않는다.
 - trace는 신뢰된 project 환경과 형식이 모두 유효한 단일 `X-Cloud-Trace-Context`에서만 연결한다.
 - failure event와 stack은 고정 크기·깊이·빈도 제한을 적용한다. 출력 sample 수를 전체 실패 수로 해석하지 않는다.
-- 운영 정책, 장애 주입, 권한과 복원 절차는 [서버 컨테이너 배포 경로](server-container-deployment.md)의 #122 runbook이 소유한다. 제품 경기 알림과 Crashlytics는 이 운영 관측과 별개다.
-
-## Match Notification: Stage 1.1 offline gate
-
-제품 경기 알림은 1차 MVP에서 제외하고 MVP 이후 Stage 2에서 진행한다. 현재 Stage 1.1은 credential-free offline 서버 기반만 구현했다.
-
-- 앱 설치 단위의 익명 Target, one-time Target Secret, FCM registration token 전달 주소를 구분한다. token, FID와 물리 기기 ID는 권한 증명이 아니다.
-- 한 Target과 전체 active unique Match는 각각 최대 100개다.
-- `UPCOMING`/`POSTPONED -> LIVE`만 START intent를 만든다. END 알림은 현재 Stage 2 범위에 포함하지 않는다.
-- subscription별 START intent는 하나이며 provider call 결과가 불명확하면 `UNKNOWN`으로 격리하고 자동 재발송하지 않는다.
-- Target, subscription, capacity, lease, fan-out cursor와 delivery intent만 Firestore에 저장한다. 일반 scraping response와 이전 Match 결과는 저장하지 않는다.
-- Firestore SDK transaction/query/document mapping은 Emulator에서 검증했다. 일반 local/main/packaged runtime에는 fake provider와 public scheduler route가 없고 알림 API는 disabled/fail-closed다.
-
-Stage 2는 Android/iOS Target client, 실제 App Check/FCM, production Firestore/IAM/index, OIDC Scheduler route와 notification deployment를 소유한다. precise Target API, transaction, retry와 검증 gate는 [Stage 1.1 contract](server-fcm-stage1.md), 선택 이유는 [ADR-0002](adr/0002-match-notification-stage1-1-offline-firestore-boundary.md), 제품 범위는 [Feature Guide](../feature/README.md), 실행 범위는 [Epic #76](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/76)을 따른다.
+- 운영 정책, 장애 주입, 권한과 복원 절차는 [서버 컨테이너 배포 경로](server-container-deployment.md)의 #122 runbook이 소유한다. Crashlytics는 이 운영 관측과 별개다.
 
 ## Configuration and deployment
 
-config와 secret은 source code에 넣지 않는다. Firebase Admin credential과 FCM send 권한은 trusted server에만 두고 실제 project ID, service-account JSON, registration token을 문서·response·log에 기록하지 않는다.
+config와 secret은 source code에 넣지 않는다.
 
-일반 조회 서버는 서울 Cloud Run에 배포돼 있다. root `Dockerfile`은 repository root의 Gradle 설정, `core`, `server`를 사용해 `:server:installDist`를 만들며 runtime은 `0.0.0.0`, provider `PORT`, `/health`를 지원한다. exact SHA 검증, private validation, promotion, rollback과 비용 중단은 [배포 runbook](server-container-deployment.md)이 소유한다. 알림 production gate는 일반 조회 배포의 선행 조건이 아니다.
+일반 조회 서버는 서울 Cloud Run에 배포돼 있다. root `Dockerfile`은 repository root의 Gradle 설정, `core`, `server`를 사용해 `:server:installDist`를 만들며 runtime은 `0.0.0.0`, provider `PORT`, `/health`를 지원한다. exact SHA 검증, private validation, promotion, rollback과 비용 중단은 [배포 runbook](server-container-deployment.md)이 소유한다.
 
 ## Verification
 
 - 기본 서버 변경: `./gradlew :server:test`
 - packaging 또는 module 경계 변경: `./gradlew :server:build :server:installDist`
-- Stage 1.1 persistence 변경: 명시적 Emulator 환경에서 `./gradlew :server:firestoreEmulatorTest`
 - parser 변경: 최소 HTML fixture 기반 parser test
 - route/error 변경: Ktor `testApplication` 기반 status·envelope test
 

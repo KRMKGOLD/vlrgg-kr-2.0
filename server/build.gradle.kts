@@ -13,7 +13,6 @@ application {
 dependencies {
     api(projects.core)
     implementation(libs.jspecify)
-    implementation(libs.google.cloud.firestore)
     implementation(libs.jsoup)
     implementation(libs.logback)
     implementation(libs.ktor.clientCio)
@@ -30,41 +29,11 @@ dependencies {
     testImplementation(libs.kotlin.testJunit)
 }
 
-val firestoreEmulatorCategory = "kr.co.cotton.vlrgg_mobile.feature.matches.notification.FirestoreEmulatorCategory"
-
-tasks.test {
-    useJUnit {
-        excludeCategories(firestoreEmulatorCategory)
-    }
-}
-
 tasks.register<Jar>("observabilityValidationJar") {
     description = "Builds the opt-in private observability harness; excluded from production distributions."
     dependsOn(tasks.testClasses)
     archiveFileName.set("server-observability-validation.jar")
     from(sourceSets["test"].output) {
         include("kr/co/cotton/vlrgg_mobile/observability/validation/**")
-    }
-}
-
-val firestoreEmulatorTest by tasks.registering(Test::class) {
-    group = LifecycleBasePlugin.VERIFICATION_GROUP
-    description = "Runs Firestore Emulator integration tests."
-    testClassesDirs = sourceSets["test"].output.classesDirs
-    classpath = sourceSets["test"].runtimeClasspath
-    useJUnit {
-        includeCategories(firestoreEmulatorCategory)
-    }
-    filter {
-        includeTestsMatching("*EmulatorTest")
-        isFailOnNoMatchingTests = true
-    }
-    doFirst {
-        require(!System.getenv("FIRESTORE_EMULATOR_HOST").isNullOrBlank()) {
-            "FIRESTORE_EMULATOR_HOST is required for firestoreEmulatorTest"
-        }
-        require(!System.getenv("VLRGG_FIRESTORE_TEST_PROJECT_ID").isNullOrBlank()) {
-            "VLRGG_FIRESTORE_TEST_PROJECT_ID is required for firestoreEmulatorTest"
-        }
     }
 }

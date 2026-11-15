@@ -58,7 +58,6 @@ check /health 200 '.status == "ok"'
 check '/api/v1/matches/upcoming?page=0' 400 '.code == "INVALID_REQUEST"'
 check /openapi.json 404
 check /swagger 404
-check /api/v1/notification-targets 404
 
 if [[ "$local_check" == false ]]; then
   check /api/v1/matches/upcoming 200 '.category == "upcoming" and (.groups | type == "array")'

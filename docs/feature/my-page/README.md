@@ -12,7 +12,7 @@ MyPage는 앱의 기본 root이며 기기에 저장한 Team·Player 즐겨찾기
 - 두 섹션의 독립 loading·empty·content·error와 초기 full error
 - Search, Detail, 다른 root 왕복 뒤 scroll·ViewModel·콘텐츠 상태 복원
 
-Match 목록·즐겨찾기·알림·`Next Matches`, 로그인·프로필·동기화, Team/Player 알림, 폴더·태그·수동 정렬은 제외한다. 예정 섹션으로도 노출하지 않는다. 경기 알림 설정은 MVP 이후 [Stage 2](../README.md#mvp-이후-stage-2-경기-알림)다.
+Match 목록·즐겨찾기·알림·`Next Matches`, 로그인·프로필·동기화, Team/Player 알림, 폴더·태그·수동 정렬은 제외한다. 예정 섹션으로도 노출하지 않는다. 경기 알림 설정은 현재 범위 밖이다([MVP 이후 Stage 2](../README.md#mvp-이후-stage-2-경기-알림)).
 
 ## 화면과 이동
 

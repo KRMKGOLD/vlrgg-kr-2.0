@@ -10,7 +10,6 @@ import kr.co.cotton.vlrgg_mobile.feature.matches.DefaultMatchesService
 import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesMapper
 import kr.co.cotton.vlrgg_mobile.feature.matches.VlrMatchesParser
 import kr.co.cotton.vlrgg_mobile.feature.matches.VlrMatchesScraper
-import kr.co.cotton.vlrgg_mobile.feature.matches.notification.ServerListenerConfiguration
 import kr.co.cotton.vlrgg_mobile.feature.news.createDefaultNewsService
 import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
 import kr.co.cotton.vlrgg_mobile.feature.player.createPlayerDetailService
@@ -32,7 +31,6 @@ import kr.co.cotton.vlrgg_mobile.routing.configureRouting
 
 private const val API_DOCUMENTATION_ENABLED_ENVIRONMENT_VARIABLE = "VLRGG_ENABLE_API_DOCUMENTATION"
 
-/** Packaged runtime deliberately has no notification provider, verifier, store, or scheduler route. */
 fun main() {
     val listener = ServerListenerConfiguration.fromEnvironment(System.getenv())
     embeddedServer(Netty, host = listener.host, port = listener.port) {

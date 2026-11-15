@@ -2,12 +2,11 @@
 
 ## Scope
 
-PR과 `main` push는 credential-free CI를 실행한다. 서버와 앱 배포는 검증된 exact `main` SHA에서 수동으로 시작한다. 일반 조회 서버 배포는 완료됐고, 제품 경기 알림의 App Check/FCM/production Firestore/Scheduler는 MVP 이후 Stage 2다.
+PR과 `main` push는 credential-free CI를 실행한다. 서버와 앱 배포는 검증된 exact `main` SHA에서 수동으로 시작한다. 일반 조회 서버 배포는 완료됐고, 제품 경기 알림은 현재 범위 밖이다.
 
 - 서버 runtime·rollback·비용 중단·#122 복원: [서버 배포 runbook](architecture/server-container-deployment.md)
 - 앱 signing·store 배포: [앱 내부 배포](app-release.md)
 - Crashlytics 설정·수집: [Crashlytics](app-crashlytics.md)
-- 경기 알림 offline/live 경계: [Stage 1.1 contract](architecture/server-fcm-stage1.md)
 
 ## CI
 
@@ -17,7 +16,7 @@ PR과 `main` push는 credential-free CI를 실행한다. 서버와 앱 배포는
 | --- | --- |
 | Linux `changes` | CI 선택·배포 증명 회귀 테스트, 전체 변경 범위 기반 플랫폼 선택 |
 | Linux `android` | release contracts, shared Android host tests, Android unit/lint, Firebase config lifecycle |
-| Linux `server` | deployment script stubs, server unit/build/installDist/observability jar, Firestore Emulator suite, packaged observability smoke |
+| Linux `server` | deployment script stubs, server unit/build/installDist/observability jar, packaged observability smoke |
 | macOS `ios` | iOS release/Firebase scripts, shared simulator tests·compile, unsigned Release simulator app |
 | Linux `verify` | `always()`로 detector·선택된 job 성공과 의도한 skip 확인, changed-lines whitespace |
 
@@ -25,7 +24,7 @@ PR과 `main` push는 credential-free CI를 실행한다. 서버와 앱 배포는
 
 PR은 base와 PR head의 merge-base부터 PR head까지, main push는 event의 `before`부터 `after`까지 비교한다. rename의 이전·이후 경로와 삭제를 포함하며 diff·identity를 확인할 수 없으면 모두 실행한다. PR 빌드는 기존처럼 GitHub merge checkout을 사용한다. `verify`는 detector 실패, 선택된 job의 실패·취소·예상하지 못한 skip을 거부한다. detector가 명시적으로 제외한 job만 skip을 인정하며 aggregate 성공 자체는 배포 증거가 아니다.
 
-도구 버전, task 목록과 workflow step은 workflow/build source가 소유한다. 저장소에 ktlint나 Detekt가 추가되기 전에는 존재하지 않는 task를 gate로 만들지 않는다. Stage 1.1의 과거 `app/**` zero-touch 검사는 해당 구현 branch의 증거이며 향후 앱 PR을 막는 규칙이 아니다. 앱/iOS 최종 완료 판정은 최종 exact commit의 해당 플랫폼 CI 성공을 확인한다.
+도구 버전, task 목록과 workflow step은 workflow/build source가 소유한다. 저장소에 ktlint나 Detekt가 추가되기 전에는 존재하지 않는 task를 gate로 만들지 않는다. 앱/iOS 최종 완료 판정은 최종 exact commit의 해당 플랫폼 CI 성공을 확인한다.
 
 ### Skipped platform validation before deployment
 
@@ -92,24 +91,12 @@ PROTECTED_ROUTE_LOAD_REPORT_PATH=/tmp/vlrgg-protected-load.properties \
 
 Android는 Play internal, iOS는 TestFlight로 배포한다. 플랫폼별 environment, WIF 또는 App Store Connect 인증, signing input, uncertain upload 처리와 cleanup은 [앱 내부 배포 계약](app-release.md)이 소유한다. 실제 URL, signing 자료, AAB/IPA와 raw Fastlane output은 artifact나 Release에 올리지 않는다.
 
-## Notification Stage 2 gate
-
-제품 경기 알림 gate는 일반 조회 release와 분리한다. 다음이 구현·검증되기 전에는 notification production을 GREEN으로 기록하지 않는다.
-
-- short-lived App Check evidence와 disposable registration address를 제공하는 Stage 2 credential source
-- production Firestore/IAM/index와 Target create/read/update/revoke smoke
-- 실제 FCM provider error mapping과 fresh device-display smoke
-- OIDC Scheduler route와 Cloud Scheduler resource
-
-Target Secret, registration token과 App Check token은 repository/environment variable, artifact, cache, step output과 log에 저장하지 않는다. smoke Target은 성공·실패와 무관하게 revoke한다. cleanup 실패 시 secret이 아닌 Target ID와 release identifier로 제한된 운영 기록만 남기고 gate를 실패시킨다. 실제 기기 수신 전에는 FCM GREEN으로 기록하지 않는다.
-
 ## Release evidence
 
 문서나 workflow 존재만으로 배포 성공을 주장하지 않는다. 각 release는 exact SHA/CI, immutable artifact, provider receipt, promotion 또는 rollback, smoke와 cleanup 증거를 연결한다.
 
 | Area | Current evidence | Remaining gate |
 | --- | --- | --- |
-| Stage 1.1 notification server | Emulator contract/concurrency/security tests, build/installDist, notification-disabled packaged smoke GREEN | App·real Firebase/GCP/Cloud Run은 `NOT RUN — Stage 2` |
 | Query server | private validation, production promotion, rollback, public smoke와 cost-stop recovery PASS | 실제 invoice·Budget receipt·Spend cap 미확인; Monitoring 장애 수신은 #122에서 별도 검증 |
 | App release process | [#117](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/117): Android `0.1.0(2)` Actions 업로드·Play 업데이트·실기기 정상 동작·cleanup 확인 완료 | iOS account/signing/TestFlight는 [#139](https://github.com/KRMKGOLD/vlrgg-kr-2.0/issues/139)에서 보류 |
 | Crashlytics | Android fatal·ANR, iOS fatal·dSYM 실수신 확인 | store release 안정성은 별도 운영 관측 |
