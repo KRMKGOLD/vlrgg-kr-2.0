@@ -14,7 +14,7 @@ bottom navigation item, News/Match 결과, 필터·정렬·자동완성·추천,
 
 ## 표시와 인터랙션
 
-결과는 이미지 없는 divider row와 text type label(`시리즈`·`대회`·`팀`·`선수`)을 사용하며 전체 row가 대응 Detail을 연다. 결과 위에는 `‘검색어’ 검색 결과`와 결과 개수를 둔다. 타입을 색상만으로 전달하지 않는다. v3 시각(`.pen` `60`)은 2026-11-12에 적용했다([DESIGN.md](../../../DESIGN.md#1-구현-상태)). 안정적인 ID·이름·타입은 필수고, source가 제공하는 scope/period/tag·region/identity는 선택 값이다.
+결과는 divider row이며 선두 40dp 썸네일 slot(`imageUrl`, 없거나 실패하면 타입별 placeholder)과 메타 줄 앞 text type label(`시리즈`·`대회`·`팀`·`선수`, 예: `팀 · 대한민국`)을 두고, 전체 row가 대응 Detail을 연다(2026-11-18). 결과 위에는 `‘검색어’ 검색 결과`와 결과 개수를 둔다. 타입을 색상만으로 전달하지 않는다. v3 시각(`.pen` `60`)은 2026-11-12에 적용했다([DESIGN.md](../../../DESIGN.md#1-구현-상태)). 안정적인 ID·이름·타입은 필수고, source가 제공하는 scope/period/tag·region/identity는 선택 값이다.
 
 - 앞뒤 공백을 정리한 뒤에만 제출한다. blank 또는 문자·숫자가 없는 입력은 action을 비활성화하고 요청하지 않는다.
 - 입력마다 요청하거나 debounce하지 않는다. 입력 지우기는 검색어와 결과를 Initial로 되돌린다.
