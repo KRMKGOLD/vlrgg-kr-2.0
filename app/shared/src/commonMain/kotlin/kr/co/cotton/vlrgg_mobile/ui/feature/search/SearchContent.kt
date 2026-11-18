@@ -1,12 +1,9 @@
 package kr.co.cotton.vlrgg_mobile.ui.feature.search
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,37 +26,32 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
 import kr.co.cotton.vlrgg_mobile.domain.model.search.EventSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.PlayerSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.SearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.SeriesSearchResult
 import kr.co.cotton.vlrgg_mobile.domain.model.search.TeamSearchResult
+import kr.co.cotton.vlrgg_mobile.ui.component.IdentityRow
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlot
+import kr.co.cotton.vlrgg_mobile.ui.component.LogoSlotKind
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButton
+import kr.co.cotton.vlrgg_mobile.ui.component.logoInitials
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrButtonVariant
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrIconButton
 import kr.co.cotton.vlrgg_mobile.ui.component.VlrSearchField
 import kr.co.cotton.vlrgg_mobile.ui.component.SectionHeader
 import kr.co.cotton.vlrgg_mobile.ui.component.StatePanel
-import kr.co.cotton.vlrgg_mobile.ui.component.rowDivider
 import kr.co.cotton.vlrgg_mobile.ui.component.rememberBusyRetryCooldown
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.ic_arrow_back
-import vlrggmobile.app.shared.generated.resources.ic_chevron_right
 import vlrggmobile.app.shared.generated.resources.ic_progress_activity
 import vlrggmobile.app.shared.generated.resources.ic_search
 import androidx.compose.foundation.layout.WindowInsets
@@ -73,6 +65,8 @@ internal const val SEARCH_RESULTS_SECTION_TAG = "search-results-section"
 private const val SEARCH_RESULTS_HEADER_KEY = "search-results-header"
 
 internal fun searchRowTag(result: SearchResult): String = "search-row-${result.stableListKey}"
+
+internal fun searchRowLogoTag(result: SearchResult): String = "search-row-logo-${result.stableListKey}"
 
 @Composable
 fun SearchContent(
@@ -252,7 +246,6 @@ private fun SearchResults(
     modifier: Modifier = Modifier,
 ) {
     val orderedItems = orderedSearchResults(items)
-    val typeLabelWidth = rememberSearchTypeLabelWidth()
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -271,95 +264,55 @@ private fun SearchResults(
             items = orderedItems,
             key = { index, result -> searchResultListKey(result, index) },
         ) { _, result ->
-            SearchResultRow(result, typeLabelWidth, onClick = { onResultClick(result) })
+            SearchResultRow(result, onClick = { onResultClick(result) })
         }
     }
 }
 
 /**
- * Search result row (`DESIGN.md` 8.2): a text type label column, title and meta, and a chevron.
- * It has no image and the whole row opens the detail.
+ * Search result row (`DESIGN.md` 8.2): a 40dp logo slot, title, a meta line led by the type label
+ * (`팀 · 대한민국`) and a chevron, on the Identity row frame. The whole row opens the detail.
  */
 @Composable
 private fun SearchResultRow(
     result: SearchResult,
-    typeLabelWidth: Dp,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(VlrTheme.colors.surface)
-            .rowDivider(VlrTheme.colors.line)
-            .testTag(searchRowTag(result))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(
-                start = VlrDimensions.Space4,
-                end = VlrDimensions.Space1,
-                top = VlrDimensions.Space2,
-                bottom = VlrDimensions.Space2,
-            ),
-        horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space3),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = result.typeLabel,
-            modifier = Modifier.width(typeLabelWidth),
-            style = SearchTypeLabelStyle,
-            color = VlrTheme.colors.muted,
-        )
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = result.name,
-                style = VlrTheme.typography.body.copy(fontWeight = FontWeight.Bold),
-                color = VlrTheme.colors.ink,
+    IdentityRow(
+        title = result.name,
+        meta = result.metaLine,
+        leading = {
+            LogoSlot(
+                imageUrl = result.imageUrl,
+                kind = result.logoSlotKind,
+                placeholderText = logoInitials(result.name),
+                modifier = Modifier.testTag(searchRowLogoTag(result)),
             )
-            result.metadata?.takeIf(String::isNotBlank)?.let { metadata ->
-                Text(
-                    text = metadata,
-                    style = VlrTheme.typography.label.copy(fontWeight = FontWeight.Normal),
-                    color = VlrTheme.colors.muted,
-                )
-            }
-        }
-        Box(
-            modifier = Modifier.size(VlrDimensions.MinimumTouchTarget),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = vectorResource(Res.drawable.ic_chevron_right),
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = VlrTheme.colors.muted,
-            )
-        }
-    }
+        },
+        onClick = onClick,
+        // The logo is decorative; the row reads type, title, then meta.
+        contentDescription = result.spokenLabel,
+        modifier = Modifier.testTag(searchRowTag(result)),
+    )
 }
 
-private val SearchTypeLabelStyle: TextStyle
-    @Composable get() = VlrTheme.typography.label.copy(fontWeight = FontWeight.Bold)
+/** Meta line: the type label, then the source metadata when present (`팀 · 대한민국`). */
+internal val SearchResult.metaLine: String
+    get() = listOfNotNull(typeLabel, visibleMetadata).joinToString(" · ")
 
-/**
- * The type column is 32dp, or the widest label (`시리즈`) at the current font scale, so labels stay
- * on one line and titles of every row start at the same x.
- */
-@Composable
-private fun rememberSearchTypeLabelWidth(): Dp {
-    val measurer = rememberTextMeasurer()
-    val style = SearchTypeLabelStyle
-    val density = LocalDensity.current
-    return remember(measurer, style, density) {
-        val widest = SearchTypeLabels.maxOf { label -> measurer.measure(label, style, maxLines = 1).size.width }
-        maxOf(SearchTypeLabelMinWidth, with(density) { widest.toDp() })
+/** How the row is read: type, title, then metadata. */
+internal val SearchResult.spokenLabel: String
+    get() = listOfNotNull(typeLabel, name, visibleMetadata).joinToString(", ")
+
+private val SearchResult.visibleMetadata: String?
+    get() = metadata?.trim()?.takeIf(String::isNotEmpty)
+
+private val SearchResult.logoSlotKind: LogoSlotKind
+    get() = when (this) {
+        is SeriesSearchResult, is EventSearchResult -> LogoSlotKind.Event
+        is TeamSearchResult -> LogoSlotKind.Team
+        is PlayerSearchResult -> LogoSlotKind.Player
     }
-}
-
-internal val SearchTypeLabelMinWidth = 32.dp
-
-private val SearchTypeLabels = listOf("팀", "선수", "대회", "시리즈")
 
 internal val SearchResult.typeLabel: String
     get() = when (this) {

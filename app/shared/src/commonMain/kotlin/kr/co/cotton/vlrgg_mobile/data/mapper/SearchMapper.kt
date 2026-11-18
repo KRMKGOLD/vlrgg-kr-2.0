@@ -22,21 +22,21 @@ internal fun SearchResponseDto.toDomain(): SearchResults = SearchResults(
 private fun SearchResultDto.toDomain(): SearchResult = when (this) {
     is SeriesSearchResultDto -> {
         require(reference.resource == SearchResourceDto.SERIES)
-        SeriesSearchResult(reference.id, name, scope)
+        SeriesSearchResult(reference.id, name, scope, imageUrl)
     }
 
     is EventSearchResultDto -> {
         require(reference.resource == SearchResourceDto.EVENT)
-        EventSearchResult(reference.id, name, period)
+        EventSearchResult(reference.id, name, period, imageUrl)
     }
 
     is TeamSearchResultDto -> {
         require(reference.resource == SearchResourceDto.TEAM)
-        TeamSearchResult(reference.id, name, tagOrRegion)
+        TeamSearchResult(reference.id, name, tagOrRegion, imageUrl)
     }
 
     is PlayerSearchResultDto -> {
         require(reference.resource == SearchResourceDto.PLAYER)
-        PlayerSearchResult(reference.id, name, identity)
+        PlayerSearchResult(reference.id, name, identity, imageUrl)
     }
 }

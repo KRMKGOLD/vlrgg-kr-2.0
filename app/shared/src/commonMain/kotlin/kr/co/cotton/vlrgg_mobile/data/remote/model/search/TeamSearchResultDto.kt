@@ -9,4 +9,5 @@ internal data class TeamSearchResultDto(
     override val reference: SearchReferenceDto,
     override val name: String,
     val tagOrRegion: String? = null,
+    override val imageUrl: String? = null,
 ) : SearchResultDto()

@@ -41,6 +41,29 @@ class SearchMapperTest {
     }
 
     @Test
+    fun imageUrlIsCarriedForEveryTypeAndNullStaysNull() {
+        val results = SearchResponseDto(
+            query = "DRX",
+            results = listOf(
+                SeriesSearchResultDto(reference(SearchResourceDto.SERIES, "1"), "VCT Pacific", null, "https://owcdn.net/img/series.png"),
+                EventSearchResultDto(reference(SearchResourceDto.EVENT, "2"), "VCT Pacific Stage 1", null, "https://owcdn.net/img/event.png"),
+                TeamSearchResultDto(reference(SearchResourceDto.TEAM, "3"), "DRX", null, "https://owcdn.net/img/drx.png"),
+                PlayerSearchResultDto(reference(SearchResourceDto.PLAYER, "4"), "MaKo", null, imageUrl = null),
+            ),
+        ).toDomain()
+
+        assertEquals(
+            listOf(
+                "https://owcdn.net/img/series.png",
+                "https://owcdn.net/img/event.png",
+                "https://owcdn.net/img/drx.png",
+                null,
+            ),
+            results.items.map { it.imageUrl },
+        )
+    }
+
+    @Test
     fun resourceMismatchFailsRatherThanCreatingWrongDetailTarget() {
         val response = SearchResponseDto(
             query = "T1",

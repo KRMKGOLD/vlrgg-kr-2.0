@@ -63,7 +63,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** v3 search (`.pen` 60): query section, Korean type rows, states, submit rules, focus, large fonts and RTL. */
+/** v3 search (`.pen` 60): query section, rows with a logo slot and a type-led meta line, states, submit rules, focus, large fonts and RTL. */
 @OptIn(ExperimentalTestApi::class)
 class SearchV3UiTest {
     @Test
@@ -78,36 +78,53 @@ class SearchV3UiTest {
             onNodeWithText(english, useUnmergedTree = true).assertDoesNotExist()
         }
 
-        // Series → Event → Team → Player, each with its Korean type label inside the row.
-        val tops = listOf(series to "시리즈", event to "대회", team to "팀", player to "선수").map { (result, label) ->
-            onNode(hasText(label) and hasAnyAncestor(hasTestTag(searchRowTag(result))), useUnmergedTree = true)
-                .assertExists("'$label' is not in ${result.name}")
-            onNodeWithTag(searchRowTag(result)).fetchSemanticsNode().boundsInRoot.top
-        }
+        // Series → Event → Team → Player, each meta line led by its Korean type label.
+        val tops = listOf(series to "시리즈 · Group Stage", event to "대회 · 06.15–07.21", team to "팀 · Pacific", player to "선수 · Ha Jung-woo")
+            .map { (result, meta) ->
+                onNode(hasText(meta) and hasAnyAncestor(hasTestTag(searchRowTag(result))), useUnmergedTree = true)
+                    .assertExists("'$meta' is not in ${result.name}")
+                onNodeWithTag(searchRowTag(result)).fetchSemanticsNode().boundsInRoot.top
+            }
         assertEquals(tops.sorted(), tops)
 
         onNodeWithTag(searchRowTag(team))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-            .assert(hasText("팀") and hasText("T1") and hasText("Pacific"))
+            .assert(hasText("T1") and hasText("팀 · Pacific"))
+            // The logo is not announced; the row reads type, title, then meta.
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("팀, T1, Pacific")))
             .assertHeightIsAtLeast(48.dp)
             .performClick()
         assertEquals(team, clicked)
     }
 
     @Test
-    fun typeLabelsShareOneColumnSoTitlesLineUp() = runSkikoComposeUiTest(size = Size(360f, 1200f)) {
+    fun logoSlotsLeadEveryRowSoTitlesLineUp() = runSkikoComposeUiTest(size = Size(360f, 1200f)) {
         setContent { CompositionLocalProvider(LocalDensity provides Density(1f)) { Fixture(populated("DRX")) } }
 
-        val labels = listOf(series to "시리즈", event to "대회", team to "팀", player to "선수").map { (result, label) ->
-            textNode(label, result).boundsInRoot
+        items.forEach { result ->
+            val logo = logoNode(result).boundsInRoot
+            assertEquals(16f, logo.left, 0.5f, "${result.name} logo")
+            assertEquals(40f, logo.width, 0.5f, "${result.name} logo")
+            assertEquals(40f, logo.height, 0.5f, "${result.name} logo")
+            val title = textNode(result.name, result).boundsInRoot
+            assertEquals(16f + 40f + 12f, title.left, 0.5f, "${result.name} title")
+            assertEquals(title.left, textNode(result.metaLine, result).boundsInRoot.left, 0.5f, "${result.name} meta")
         }
-        val titles = items.map { result -> textNode(result.name, result).boundsInRoot }
-        labels.forEach { label ->
-            assertEquals(16f, label.left, 0.5f)
-            assertTrue(label.width >= SearchTypeLabelMinWidth.value - 0.5f, "type column is narrower than 32dp: $label")
+    }
+
+    @Test
+    fun missingImagesShowTheKindPlaceholderWithoutAnnouncingIt() = runComposeUiTest {
+        setContent { Fixture(populated("DRX")) }
+
+        // Team and player rows fall back to initials; series and event rows to `trophy` (no text).
+        listOf(team to "T1", player to "TS").forEach { (result, initials) ->
+            onNode(hasText(initials) and hasAnyAncestor(hasTestTag(searchRowLogoTag(result))), useUnmergedTree = true)
+                .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.HideFromAccessibility))
         }
-        assertEquals(1, titles.map { it.left.toInt() }.toSet().size, "titles do not line up: $titles")
-        assertTrue(titles.first().left >= labels.first().left + SearchTypeLabelMinWidth.value + 12f - 0.5f)
+        listOf(series, event).forEach { result ->
+            onAllNodes(hasAnyAncestor(hasTestTag(searchRowLogoTag(result))) and hasText("", substring = true), useUnmergedTree = true)
+                .assertCountEquals(0)
+        }
     }
 
     @Test
@@ -239,7 +256,7 @@ class SearchV3UiTest {
             names(clickable and hasAnyAncestor(hasTestTag(SEARCH_HEADER_TAG))),
         )
         assertEquals(
-            listOf(searchRowTag(series), searchRowTag(event), searchRowTag(team), searchRowTag(player)),
+            listOf(series, event, team, player).map { it.spokenLabel },
             names(clickable and hasAnyAncestor(hasTestTag(SEARCH_HEADER_TAG)).not()),
         )
     }
@@ -253,8 +270,7 @@ class SearchV3UiTest {
             TeamSearchResult("3", "Sentinels Academy Development Squad", "SEN · United States"),
             PlayerSearchResult("4", "TenZ", "Tyson Ngo · Canada"),
         )
-        val texts = listOf("‘$query’ 검색 결과", "4", "시리즈", "대회", "팀", "선수") +
-            results.flatMap { listOfNotNull(it.name, it.metadata) }
+        val texts = listOf("‘$query’ 검색 결과", "4") + results.flatMap { listOf(it.name, it.metaLine) }
         listOf(320f, 360f).forEach { width ->
             listOf(1f, 2f).forEach { scale ->
                 runSkikoComposeUiTest(size = Size(width, 4000f)) {
@@ -273,11 +289,9 @@ class SearchV3UiTest {
                     ).fetchSemanticsNode()
                     val countWidth = count.textLayout().multiParagraph.intrinsics.maxIntrinsicWidth
                     assertTrue(count.boundsInRoot.width >= countWidth - 0.5f, "$label result count is squeezed")
-                    // The type column grows with the font so `시리즈` never breaks into two lines.
-                    listOf("시리즈", "대회", "팀", "선수").forEach { type ->
-                        onAllNodes(hasText(type), useUnmergedTree = true).fetchSemanticsNodes()
-                            .filter { it.config.getOrNull(SemanticsActions.GetTextLayoutResult) != null }
-                            .forEach { node -> assertEquals(1, node.textLayout().lineCount, "$label '$type' wraps") }
+                    // The logo slot keeps its 40dp size at large fonts.
+                    results.forEach { result ->
+                        assertEquals(40f, logoNode(result).boundsInRoot.width, 0.5f, "$label ${result.name} logo")
                     }
                     val fieldBounds = onNodeWithContentDescription("검색어").fetchSemanticsNode().boundsInRoot
                     assertTrue(fieldBounds.width >= 120f, "$label search field is squeezed: $fieldBounds")
@@ -319,17 +333,24 @@ class SearchV3UiTest {
         assertTrue(back.left > field.left, "Back is not on the right in RTL")
         val section = onNode(hasText("‘DRX’ 검색 결과") and isHeading(), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         assertEquals(360f - 16f, section.right, 1f)
-        val type = textNode("팀", team).boundsInRoot
+        val logo = logoNode(team).boundsInRoot
         val title = textNode("T1", team).boundsInRoot
-        assertEquals(360f - 16f, type.right, 1f)
-        assertTrue(title.right < type.left, "title is not left of the type label in RTL")
+        assertEquals(360f - 16f, logo.right, 1f)
+        assertTrue(title.right < logo.left, "title is not left of the logo in RTL")
     }
 
     private fun populated(query: String) = SearchUiState(query = query, contentState = SearchContentState.Populated(items))
 
+    /** A row text outside the logo slot, whose placeholder initials can repeat the title (`T1`). */
     private fun ComposeUiTest.textNode(text: String, result: SearchResult): SemanticsNode =
-        onNode(hasText(text) and hasAnyAncestor(hasTestTag(searchRowTag(result))), useUnmergedTree = true)
-            .fetchSemanticsNode()
+        onNode(
+            hasText(text) and hasAnyAncestor(hasTestTag(searchRowTag(result))) and
+                hasAnyAncestor(hasTestTag(searchRowLogoTag(result))).not(),
+            useUnmergedTree = true,
+        ).fetchSemanticsNode()
+
+    private fun ComposeUiTest.logoNode(result: SearchResult): SemanticsNode =
+        onNodeWithTag(searchRowLogoTag(result), useUnmergedTree = true).fetchSemanticsNode()
 
     private fun ComposeUiTest.assertWhole(text: String, label: String, width: Float) {
         val nodes = onAllNodes(hasText(text), useUnmergedTree = true).fetchSemanticsNodes()

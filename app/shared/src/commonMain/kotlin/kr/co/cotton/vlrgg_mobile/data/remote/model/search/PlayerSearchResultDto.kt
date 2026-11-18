@@ -9,4 +9,5 @@ internal data class PlayerSearchResultDto(
     override val reference: SearchReferenceDto,
     override val name: String,
     val identity: String? = null,
+    override val imageUrl: String? = null,
 ) : SearchResultDto()

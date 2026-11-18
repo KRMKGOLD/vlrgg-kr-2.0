@@ -4,6 +4,7 @@ data class PlayerSearchResult(
     override val id: String,
     override val name: String,
     val identity: String?,
+    override val imageUrl: String? = null,
 ) : SearchResult {
     override val metadata: String? = identity
 }
