@@ -149,6 +149,7 @@ internal fun AppNavigationRuntime(
                 NavDisplay(
                     entries = rootEntries.getValue(displayedRoot),
                     modifier = Modifier.padding(screenPadding),
+                    predictivePopTransitionSpec = appPredictivePopTransitionSpec(),
                     onBack = popOverlay,
                 )
             }
