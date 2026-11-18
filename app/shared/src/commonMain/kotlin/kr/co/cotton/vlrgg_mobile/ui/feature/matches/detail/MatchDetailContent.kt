@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -644,8 +645,11 @@ private fun HeadToHeadSection(
 }
 
 /**
- * Head to head row (`DESIGN.md` 8.3): team A right-aligned · Saira 18 score · team B, and the
- * whole row opens that match. The winner is `ink` 700 and the loser `muted` 500.
+ * Head to head row (`DESIGN.md` 8.3): team A right-aligned · fixed-width Saira 18 score column ·
+ * team B left-aligned, and the whole row opens that match (no chevron). The horizontal padding is
+ * a symmetric 16dp and both team names share the remaining width equally, so the `:` always sits
+ * on the horizontal center, on the same axis as the Scoreboard hero score. The winner is `ink` 700
+ * and the loser `muted` 500.
  */
 @Composable
 private fun HeadToHeadRow(match: RelatedMatch, onMatchClick: (String) -> Unit) {
@@ -658,33 +662,23 @@ private fun HeadToHeadRow(match: RelatedMatch, onMatchClick: (String) -> Unit) {
             .testTag(matchDetailHeadToHeadTag(match.id))
             .semantics { contentDescription = match.accessibilityLabel() }
             .clickable(role = Role.Button) { onMatchClick(match.id) }
-            .padding(start = VlrDimensions.Space4, end = VlrDimensions.Space1, top = 6.dp, bottom = 6.dp),
+            .padding(horizontal = VlrDimensions.Space4, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(VlrDimensions.Space2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         HeadToHeadTeam(match.homeTeamName, isLoser = winner == MatchSide.Away, Modifier.weight(1f), TextAlign.End)
-        Row(
-            modifier = Modifier.padding(horizontal = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             HeadToHeadScore(match.homeScore, isLoser = winner == MatchSide.Away)
-            Text(
-                text = ":",
-                style = VlrTheme.typography.tag.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-                color = VlrTheme.colors.muted,
-            )
+            Box(Modifier.width(HeadToHeadSeparatorWidth), contentAlignment = Alignment.Center) {
+                Text(
+                    text = ":",
+                    style = VlrTheme.typography.tag.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+                    color = VlrTheme.colors.muted,
+                )
+            }
             HeadToHeadScore(match.awayScore, isLoser = winner == MatchSide.Home)
         }
         HeadToHeadTeam(match.awayTeamName, isLoser = winner == MatchSide.Home, Modifier.weight(1f), TextAlign.Start)
-        Box(Modifier.size(VlrDimensions.MinimumTouchTarget), contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = vectorResource(Res.drawable.ic_chevron_right),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = VlrTheme.colors.muted,
-            )
-        }
     }
 }
 
@@ -696,16 +690,20 @@ private fun HeadToHeadTeam(name: String, isLoser: Boolean, modifier: Modifier, t
         style = VlrTheme.typography.bodySm.copy(fontWeight = if (isLoser) FontWeight.Medium else FontWeight.Bold),
         color = if (isLoser) VlrTheme.colors.muted else VlrTheme.colors.ink,
         textAlign = textAlign,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
 @Composable
 private fun HeadToHeadScore(score: Int?, isLoser: Boolean) {
-    Text(
-        text = score.scoreText(),
-        style = VlrTheme.typography.scoreM.copy(fontSize = 18.sp, lineHeight = 28.sp),
-        color = if (isLoser || score == null) VlrTheme.colors.muted else VlrTheme.colors.ink,
-    )
+    Box(Modifier.width(HeadToHeadScoreWidth), contentAlignment = Alignment.Center) {
+        Text(
+            text = score.scoreText(),
+            style = VlrTheme.typography.scoreM.copy(fontSize = 18.sp, lineHeight = 28.sp),
+            color = if (isLoser || score == null) VlrTheme.colors.muted else VlrTheme.colors.ink,
+        )
+    }
 }
 
 @Composable
@@ -727,6 +725,9 @@ internal enum class MatchSide(val tag: String) {
 private const val HomeSide = "home"
 private const val AwaySide = "away"
 private val ScoreboardTeamWidth = 100.dp
+/** Fixed score/`:` column widths so the `:` never drifts with digit vs `—` width (symmetric around the row center). */
+private val HeadToHeadScoreWidth = 28.dp
+private val HeadToHeadSeparatorWidth = 16.dp
 /** Logo slot plus a little room for the wrapped name; narrower team columns stack the result below. */
 private val ScoreboardTeamMinWidth = 72.dp
 private val ScoreboardLogoSize = 56.dp
@@ -912,6 +913,7 @@ private val PreviewMatch = MatchDetail(
         RelatedMatch("1", "KIWOOM DRX", "Paper Rex", 2, 0),
         RelatedMatch("2", "Paper Rex", "KIWOOM DRX", 1, 2),
         RelatedMatch("3", "KIWOOM DRX", "Paper Rex", 1, 2),
+        RelatedMatch("4", "Natus Vincere Academy Esports", "Team Heretics Female Division", 0, 2),
     ),
     pastMatches = emptyList(),
 )
