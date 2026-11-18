@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -128,6 +129,8 @@ internal fun AppNavigationRuntime(
     ) { contentPadding ->
         // Screen headers paint the status bar area themselves (light headers, the dark detail
         // band), so the top inset is left to them and only the side and bottom insets apply here.
+        // Those applied insets are also consumed below so a screen's own Scaffold does not add the
+        // system bottom inset a second time (a fixed gap above the bottom navigation).
         val layoutDirection = LocalLayoutDirection.current
         val screenPadding = PaddingValues(
             start = contentPadding.calculateStartPadding(layoutDirection),
@@ -148,7 +151,7 @@ internal fun AppNavigationRuntime(
             key(displayedRoot) {
                 NavDisplay(
                     entries = rootEntries.getValue(displayedRoot),
-                    modifier = Modifier.padding(screenPadding),
+                    modifier = Modifier.padding(screenPadding).consumeWindowInsets(screenPadding),
                     predictivePopTransitionSpec = appPredictivePopTransitionSpec(),
                     onBack = popOverlay,
                 )
