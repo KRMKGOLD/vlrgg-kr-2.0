@@ -37,6 +37,7 @@ internal enum class SearchResourceType {
 internal sealed class SearchResultResponse {
     abstract val reference: SearchReferenceResponse
     abstract val name: String
+    abstract val imageUrl: String?
 }
 
 @Serializable
@@ -45,6 +46,7 @@ internal data class SeriesSearchResultResponse(
     override val reference: SearchReferenceResponse,
     override val name: String,
     val scope: String?,
+    override val imageUrl: String?,
 ) : SearchResultResponse()
 
 @Serializable
@@ -53,6 +55,7 @@ internal data class EventSearchResultResponse(
     override val reference: SearchReferenceResponse,
     override val name: String,
     val period: String?,
+    override val imageUrl: String?,
 ) : SearchResultResponse()
 
 @Serializable
@@ -61,6 +64,7 @@ internal data class TeamSearchResultResponse(
     override val reference: SearchReferenceResponse,
     override val name: String,
     val tagOrRegion: String?,
+    override val imageUrl: String?,
 ) : SearchResultResponse()
 
 @Serializable
@@ -69,4 +73,5 @@ internal data class PlayerSearchResultResponse(
     override val reference: SearchReferenceResponse,
     override val name: String,
     val identity: String?,
+    override val imageUrl: String?,
 ) : SearchResultResponse()

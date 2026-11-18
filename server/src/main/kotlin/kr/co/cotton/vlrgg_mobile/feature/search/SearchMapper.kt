@@ -9,10 +9,10 @@ internal class SearchMapper {
         )
 
         when (result.type) {
-            SearchSourceResultType.SERIES -> SeriesSearchResultResponse(reference, result.name, result.description)
-            SearchSourceResultType.EVENT -> EventSearchResultResponse(reference, result.name, result.description)
-            SearchSourceResultType.TEAM -> TeamSearchResultResponse(reference, result.name, result.description)
-            SearchSourceResultType.PLAYER -> PlayerSearchResultResponse(reference, result.name, result.description)
+            SearchSourceResultType.SERIES -> SeriesSearchResultResponse(reference, result.name, result.description, result.imageUrl)
+            SearchSourceResultType.EVENT -> EventSearchResultResponse(reference, result.name, result.description, result.imageUrl)
+            SearchSourceResultType.TEAM -> TeamSearchResultResponse(reference, result.name, result.description, result.imageUrl)
+            SearchSourceResultType.PLAYER -> PlayerSearchResultResponse(reference, result.name, result.description, result.imageUrl)
         }
     }
 

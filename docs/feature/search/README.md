@@ -33,6 +33,7 @@ GET /api/v1/search?q={query}
 - 응답은 `{ query, results }`이며 각 결과는 `type`, `{ resource, id }` reference, `name`, 타입별 optional metadata를 가진다.
 - `type`/`resource`는 `series`, `event`, `team`, `player` 중 하나고 ID는 선행 0 없는 양의 10진 String이다. VLR.GG `eventgroup`은 public `series`로 정규화한다.
 - optional field는 Series `scope`, Event `period`, Team `tagOrRegion`, Player `identity`다. Event `period`에 상금 등 이웃 metadata를 섞지 않는다.
+- 모든 결과 타입은 nullable `imageUrl`(썸네일)을 가진다. parser는 `.search-item-thumb img[src]`를 읽어 절대 `https` URL로 정규화한다(`//owcdn.net/...` → `https://owcdn.net/...`). `<img>`가 없거나 vlr.gg 기본·자리표시 이미지(`/img/vlr/tmp/vlr.png`, `/img/base/ph/sil.png` 등 vlr.gg 호스트 경로)이거나 https로 정규화할 수 없으면 `null`이다. 앱은 `null`일 때 타입별 fallback을 그린다.
 - 지원하지 않는 타입만 있으면 빈 배열이다. 지원 결과가 모두 malformed이거나 필수 container를 해석하지 못하면 `SOURCE_PARSING_FAILURE`다.
 - 결과 수 sentinel은 canonical source element 수와 일치해야 한다. 중복·미지원 링크도 source element 하나로 세며 불일치는 fail closed 한다.
 
@@ -43,12 +44,13 @@ GET /api/v1/search?q={query}
     "type": "team",
     "reference": { "resource": "team", "id": "2" },
     "name": "Sentinels",
-    "tagOrRegion": "SEN · United States"
+    "tagOrRegion": "SEN · United States",
+    "imageUrl": "https://owcdn.net/img/62875027c8e06.png"
   }]
 }
 ```
 
-query는 URL encode하고 입력을 selector/path로 조합하지 않는다. parser는 링크 path와 DOM 문맥을 함께 사용하며 알 수 없는 타입을 지원 타입으로 추정하지 않는다. 대표 fixture는 네 타입 혼합, eventgroup, 단일 타입, 결과 없음, 보조 정보 누락, 미지원 타입과 구조 변경을 포함한다.
+query는 URL encode하고 입력을 selector/path로 조합하지 않는다. parser는 링크 path와 DOM 문맥을 함께 사용하며 알 수 없는 타입을 지원 타입으로 추정하지 않는다. 대표 fixture는 네 타입 혼합, 썸네일(owcdn·placeholder·img 없음), eventgroup, 단일 타입, 결과 없음, 보조 정보 누락, 미지원 타입과 구조 변경을 포함한다.
 
 ## 수용 기준
 
