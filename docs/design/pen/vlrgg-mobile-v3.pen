@@ -1134,24 +1134,18 @@
                   },
                   "gap": 12,
                   "padding": [
-                    8,
+                    10,
                     4,
-                    8,
+                    10,
                     16
                   ],
                   "alignItems": "center",
                   "children": [
                     {
-                      "type": "text",
-                      "id": "JoOgS",
-                      "name": "Type label",
-                      "fill": "$muted",
-                      "textGrowth": "fixed-width",
-                      "width": 32,
-                      "content": "팀",
-                      "fontFamily": "$font-text",
-                      "fontSize": 12,
-                      "fontWeight": "700"
+                      "id": "nelf1",
+                      "type": "ref",
+                      "ref": "wCRpt",
+                      "name": "Logo"
                     },
                     {
                       "type": "frame",
@@ -1180,9 +1174,9 @@
                           "fill": "$muted",
                           "textGrowth": "fixed-width",
                           "width": "fill_container",
-                          "content": "대한민국",
+                          "content": "팀 · 대한민국",
                           "fontFamily": "$font-text",
-                          "fontSize": "$type-label",
+                          "fontSize": "$type-meta",
                           "fontWeight": "normal"
                         }
                       ]
@@ -5580,74 +5574,80 @@
               }
             },
             {
-              "id": "PUdtX",
+              "id": "DWV5G",
               "type": "ref",
               "ref": "bzerA",
               "name": "Result · KIWOOM DRX",
               "width": "fill_container",
               "descendants": {
-                "JoOgS": {
-                  "content": "팀"
+                "nelf1/g48ce": {
+                  "content": "DRX"
                 },
                 "A4iKD": {
                   "content": "KIWOOM DRX"
                 },
                 "lgnZb": {
-                  "content": "대한민국"
+                  "content": "팀 · 대한민국"
                 }
               }
             },
             {
-              "id": "QPKOS",
+              "id": "tyG8K",
               "type": "ref",
               "ref": "bzerA",
               "name": "Result · DRX Changers",
               "width": "fill_container",
               "descendants": {
-                "JoOgS": {
-                  "content": "팀"
+                "nelf1/g48ce": {
+                  "content": "DRXC"
                 },
                 "A4iKD": {
                   "content": "DRX Changers"
                 },
                 "lgnZb": {
-                  "content": "대한민국"
+                  "content": "팀 · 대한민국"
                 }
               }
             },
             {
-              "id": "idPuu",
+              "id": "LVBUN",
               "type": "ref",
               "ref": "bzerA",
               "name": "Result · MaKo",
               "width": "fill_container",
               "descendants": {
-                "JoOgS": {
-                  "content": "선수"
+                "nelf1": {
+                  "cornerRadius": 20
+                },
+                "nelf1/g48ce": {
+                  "content": "MK"
                 },
                 "A4iKD": {
                   "content": "MaKo"
                 },
                 "lgnZb": {
-                  "content": "KIWOOM DRX"
+                  "content": "선수 · KIWOOM DRX"
                 }
               }
             },
             {
-              "id": "ysLgl",
+              "id": "r2NKZ",
               "type": "ref",
               "ref": "bzerA",
               "name": "Result · BuZz",
               "width": "fill_container",
               "descendants": {
-                "JoOgS": {
-                  "content": "선수"
+                "nelf1": {
+                  "cornerRadius": 20
+                },
+                "nelf1/g48ce": {
+                  "content": "BZ"
                 },
                 "A4iKD": {
                   "content": "BuZz"
                 },
                 "lgnZb": {
-                  "content": "KIWOOM DRX"
+                  "content": "선수 · KIWOOM DRX"
                 }
               }
             }
