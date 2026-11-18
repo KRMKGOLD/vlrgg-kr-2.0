@@ -218,9 +218,9 @@ internal class NewsParser {
                     }
                 }
 
-                "br" -> content.appendText("\n")
+                "br" -> content.appendLineBreak()
                 "style", "script", "iframe", "embed", "object", "ol", "ul", "figure" -> Unit
-                else -> node.childNodes().forEach { child -> appendInlineNode(child, content) }
+                else -> node.inlineChildren().forEach { child -> appendInlineNode(child, content) }
             }
         }
     }
@@ -298,17 +298,56 @@ internal class NewsParser {
         else -> null
     }
 
+    /**
+     * Collapses whitespace like a browser: runs inside a node become one space, and a leading space is dropped when
+     * the previous text already ends with a space or a line break (so runs spanning node boundaries collapse too).
+     */
     private fun MutableList<NewsSourceInline>.appendText(rawText: String) {
-        val normalized = rawText.replace(WHITESPACE, " ")
-        if (normalized.isEmpty()) return
-
-        val last = lastOrNull()
-        if (last is NewsTextSourceInline) {
-            this[lastIndex] = last.copy(text = last.text + normalized)
+        val collapsed = rawText.replace(WHITESPACE, " ")
+        val last = lastOrNull() as? NewsTextSourceInline
+        val text = if (last != null && collapsed.startsWith(" ") && (last.text.endsWith(" ") || last.text.endsWith("\n"))) {
+            collapsed.drop(1)
         } else {
-            add(NewsTextSourceInline(normalized))
+            collapsed
+        }
+        if (text.isEmpty()) return
+
+        if (last != null) {
+            this[lastIndex] = last.copy(text = last.text + text)
+        } else {
+            add(NewsTextSourceInline(text))
         }
     }
+
+    /** `<br>` keeps a real `\n`; spaces right before it are dropped and spaces right after it are dropped by [appendText]. */
+    private fun MutableList<NewsSourceInline>.appendLineBreak() {
+        val last = lastOrNull() as? NewsTextSourceInline
+        val textBeforeBreak = last?.text?.trimEnd(' ').orEmpty()
+        if (last != null) {
+            if (textBeforeBreak.isEmpty()) removeAt(lastIndex) else this[lastIndex] = last.copy(text = textBeforeBreak)
+        }
+        val current = lastOrNull() as? NewsTextSourceInline
+        if (current != null) {
+            this[lastIndex] = current.copy(text = current.text + "\n")
+        } else {
+            add(NewsTextSourceInline("\n"))
+        }
+    }
+
+    /**
+     * VLR.GG wraps entity links in an inline-block `span[data-ref-id]` that holds line breaks and tabs. Browsers drop
+     * the leading and trailing whitespace inside an inline-block, so whitespace-only edge text nodes are skipped here.
+     */
+    private fun Element.inlineChildren(): List<Node> {
+        val children = childNodes()
+        if (!isInlineBlockLinkWrapper()) return children
+        fun Node.isBlankText() = this is TextNode && isBlank
+        return children.dropWhile { it.isBlankText() }.dropLastWhile { it.isBlankText() }
+    }
+
+    private fun Element.isInlineBlockLinkWrapper(): Boolean =
+        normalName() == "span" && hasAttr("data-ref-id") &&
+            (hasClass("team") || attr("style").contains("inline-block", ignoreCase = true))
 
     private fun List<NewsSourceInline>.trimTextEdges(): List<NewsSourceInline> {
         val result = toMutableList()

@@ -240,6 +240,71 @@ class NewsParserTest {
     }
 
     @Test
+    fun `article parser collapses whitespace across text and link boundaries`() {
+        val blocks = parseInlineWhitespaceBlocks()
+
+        assertEquals(
+            listOf(
+                NewsLinkSourceInline("Eternal Fire", NewsLinkKindSource.TEAM, "1/eternal-fire"),
+                NewsTextSourceInline(" has "),
+                NewsLinkSourceInline("signed", NewsLinkKindSource.PLAYER, "2/signed"),
+                NewsTextSourceInline(" its fourth player, signing former "),
+                NewsLinkSourceInline("FUT Esports", NewsLinkKindSource.TEAM, "3/fut-esports"),
+                NewsTextSourceInline(" Initiator Okan \""),
+                NewsLinkSourceInline("KROSTALY", NewsLinkKindSource.PLAYER, "4/krostaly"),
+                NewsTextSourceInline("\" Alaçam."),
+            ),
+            blocks[0].content,
+        )
+    }
+
+    @Test
+    fun `article parser drops edge whitespace inside inline-block link wrappers`() {
+        val content = parseInlineWhitespaceBlocks()[1].content
+
+        assertEquals(
+            listOf(
+                NewsTextSourceInline("retain just "),
+                NewsLinkSourceInline("yetujey", NewsLinkKindSource.PLAYER, "8369/yetujey"),
+                NewsTextSourceInline(" as part of a rebuild that added former "),
+                NewsLinkSourceInline("Team Heretics", NewsLinkKindSource.TEAM, "6/team-heretics"),
+                NewsTextSourceInline(" player "),
+                NewsLinkSourceInline("Wo0t", NewsLinkKindSource.PLAYER, "7/wo0t"),
+                NewsTextSourceInline(", and former "),
+                NewsLinkSourceInline("Other", NewsLinkKindSource.PLAYER, "8/other"),
+                NewsTextSourceInline(" ."),
+            ),
+            content,
+        )
+    }
+
+    @Test
+    fun `article parser keeps no space before a comma after a wrapped link`() {
+        val content = parseInlineWhitespaceBlocks()[1].content
+        val afterWo0t = content[content.indexOfFirst { it is NewsLinkSourceInline && it.label == "Wo0t" } + 1]
+
+        assertEquals(NewsTextSourceInline(", and former "), afterWo0t)
+    }
+
+    @Test
+    fun `article parser keeps br line breaks without surrounding spaces and trims paragraph edges`() {
+        val blocks = parseInlineWhitespaceBlocks()
+
+        assertEquals(
+            listOf(NewsTextSourceInline("First line\nsecond line\n\nthird")),
+            blocks[2].content,
+        )
+        assertFalse((blocks[0].content.first() as? NewsTextSourceInline)?.text?.startsWith(" ") == true)
+        assertFalse((blocks[0].content.last() as? NewsTextSourceInline)?.text?.endsWith(" ") == true)
+    }
+
+    private fun parseInlineWhitespaceBlocks(): List<NewsParagraphSourceBlock> =
+        parser.parseArticle(
+            html = readFixture("news-article-inline-whitespace.html"),
+            reference = newsReference("112", "inline-whitespace"),
+        ).blocks.map { it as NewsParagraphSourceBlock }
+
+    @Test
     fun `article parser recognizes only VLR numeric paths as matches`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-match-links.html"),
