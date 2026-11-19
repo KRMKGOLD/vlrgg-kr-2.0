@@ -6,6 +6,7 @@ import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchMap
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchStatus
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.MatchTeam
 import kr.co.cotton.vlrgg_mobile.domain.model.matches.RelatedMatch
+import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -101,4 +102,16 @@ class MatchDetailScoreboardTest {
         headToHead = emptyList(),
         pastMatches = emptyList(),
     )
+}
+
+class HeadToHeadColumnWidthTest {
+
+    @Test
+    fun columnWidthKeepsBaseAtDefaultScaleAndGrowsWithLargerFontScale() {
+        assertEquals(28.dp, headToHeadColumnWidth(28.dp, 1f))
+        assertEquals(56.dp, headToHeadColumnWidth(28.dp, 2f))
+        assertEquals(32.dp, headToHeadColumnWidth(16.dp, 2f))
+        // 1.0 미만 배율에서는 기본 폭 아래로 줄이지 않는다.
+        assertEquals(28.dp, headToHeadColumnWidth(28.dp, 0.85f))
+    }
 }

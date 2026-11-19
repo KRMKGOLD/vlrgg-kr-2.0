@@ -1897,9 +1897,7 @@
                   },
                   "gap": 8,
                   "padding": [
-                    6,
-                    4,
-                    6,
+                    10,
                     16
                   ],
                   "alignItems": "center",
@@ -1921,11 +1919,6 @@
                       "type": "frame",
                       "id": "sQKk9",
                       "name": "Score",
-                      "gap": 6,
-                      "padding": [
-                        0,
-                        6
-                      ],
                       "alignItems": "center",
                       "children": [
                         {
@@ -1933,7 +1926,10 @@
                           "id": "SHNur",
                           "name": "Score A",
                           "fill": "$ink",
+                          "textGrowth": "fixed-width",
+                          "width": 28,
                           "content": "2",
+                          "textAlign": "center",
                           "fontFamily": "$font-num",
                           "fontSize": 18,
                           "fontWeight": "700"
@@ -1943,7 +1939,10 @@
                           "id": "Yy0Ky",
                           "name": "Colon",
                           "fill": "$muted",
+                          "textGrowth": "fixed-width",
+                          "width": 16,
                           "content": ":",
+                          "textAlign": "center",
                           "fontFamily": "$font-num",
                           "fontSize": 14,
                           "fontWeight": "600"
@@ -1953,7 +1952,10 @@
                           "id": "M8p8Gk",
                           "name": "Score B",
                           "fill": "$muted",
+                          "textGrowth": "fixed-width",
+                          "width": 28,
                           "content": "0",
+                          "textAlign": "center",
                           "fontFamily": "$font-num",
                           "fontSize": 18,
                           "fontWeight": "700"
@@ -1971,28 +1973,6 @@
                       "fontFamily": "$font-text",
                       "fontSize": 14,
                       "fontWeight": "500"
-                    },
-                    {
-                      "type": "frame",
-                      "id": "DOVK5",
-                      "name": "Trailing · 48",
-                      "width": 48,
-                      "height": 48,
-                      "justifyContent": "center",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon",
-                          "id": "ZhH4C",
-                          "name": "Trailing icon",
-                          "width": 18,
-                          "height": 18,
-                          "icon": "chevron_right",
-                          "library": "Material Symbols Outlined",
-                          "weight": 400,
-                          "fill": "$muted"
-                        }
-                      ]
                     }
                   ]
                 },
