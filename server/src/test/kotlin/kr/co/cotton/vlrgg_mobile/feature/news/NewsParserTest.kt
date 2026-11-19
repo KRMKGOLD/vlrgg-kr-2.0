@@ -334,6 +334,18 @@ class NewsParserTest {
     }
 
     @Test
+    fun `article parser drops the space before a line break that starts a link wrapper`() {
+        assertEquals(
+            listOf(
+                NewsTextSourceInline("Before\n"),
+                NewsLinkSourceInline("Alpha", NewsLinkKindSource.TEAM, "1/alpha"),
+                NewsTextSourceInline("."),
+            ),
+            parseInlineWhitespaceBlocks()[10].content,
+        )
+    }
+
+    @Test
     fun `article parser keeps br line breaks without surrounding spaces and trims paragraph edges`() {
         val blocks = parseInlineWhitespaceBlocks()
 

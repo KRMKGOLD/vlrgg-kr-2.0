@@ -351,7 +351,13 @@ internal class NewsParser {
         inner.trimTextEdges { it == ' ' }.forEach { item ->
             val last = content.lastOrNull()
             if (item is NewsTextSourceInline && last is NewsTextSourceInline) {
-                content[content.lastIndex] = last.copy(text = last.text + item.text)
+                // Like a plain `<br>`, spaces right before a line break are dropped.
+                val before = if (item.text.startsWith("\n")) last.text.trimEnd(' ') else last.text
+                if (before.isEmpty()) {
+                    content[content.lastIndex] = item
+                } else {
+                    content[content.lastIndex] = last.copy(text = before + item.text)
+                }
             } else {
                 content += item
             }
