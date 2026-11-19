@@ -30,6 +30,7 @@ MetroX의 keyed map binding이 ViewModel provider를 모은다. Factory는 app s
 - 같은 destination을 여러 root에서 열어도 state가 섞이지 않도록 entry content key에 owning root와 entry instance를 포함한 저장 가능한 `String`을 쓴다.
 - 현재 root를 다시 선택하면 그 root의 overlay만 root까지 pop한다. Back은 선택 root의 마지막 overlay만 pop하고 root entry에서는 stack을 바꾸지 않는다.
 - Root 전환은 stack/decorator 바깥의 keyed host에서 200ms fade를 사용한다. Android와 iOS가 같은 상태 전이와 보존 동작을 유지해야 한다.
+- Overlay push/pop 전환은 플랫폼별로 다르다. Android의 push와 앱 Back 아이콘 pop은 Navigation 3 기본 700ms fade를 쓴다. 손가락이 끌지 않는 predictive back(swipe edge `EDGE_NONE`, Android 16 3버튼 back 탭 등)도 같은 길이의 fade로 바꿔 기본 축소(`scaleOut`)를 쓰지 않는다. 가장자리 제스처(`EDGE_LEFT`/`EDGE_RIGHT`)는 축소 없이 현재 화면을 손가락 방향으로 밀어내고 이전 화면은 1/4 offset과 옅은 fade로 들어온다. iOS는 라이브러리 기본 iOS식 slide를 그대로 쓴다. 플랫폼별 spec은 `appPredictivePopTransitionSpec` expect/actual이 소유한다.
 - Screen은 callback으로 이동 의도를 전달하고 ViewModel은 back stack을 직접 다루지 않는다.
 
 구현 이유, 복원 결과와 범위 제외는 [ADR-0003](adr/0003-root-specific-saved-navigation-stacks.md)이 소유한다.
