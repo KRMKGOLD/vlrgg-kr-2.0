@@ -10,6 +10,7 @@ internal data class SearchSourceResult(
     val id: String,
     val name: String,
     val description: String?,
+    val imageUrl: String? = null,
 )
 
 internal enum class SearchSourceResultType {

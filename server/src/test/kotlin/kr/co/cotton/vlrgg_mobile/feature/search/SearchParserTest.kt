@@ -25,12 +25,39 @@ class SearchParserTest {
     }
 
     @Test
+    fun `parser reads thumbnails for every type as https URLs and drops VLR placeholders`() {
+        val results = parser.parse(readFixture("thumbnail-results.html")).results.associateBy { it.id }
+
+        assertEquals("https://owcdn.net/img/series0001.png", results.getValue("86").imageUrl)
+        assertEquals("https://owcdn.net/img/event0001.png", results.getValue("202").imageUrl)
+        assertEquals("https://owcdn.net/img/62875027c8e06.png", results.getValue("2").imageUrl)
+        assertEquals("https://owcdn.net/img/player0009.png", results.getValue("9").imageUrl)
+        // VLR.GG default team image (relative, absolute, uppercase host, explicit port, bare host), silhouette,
+        // insecure http, missing img, empty thumb.
+        listOf("3", "4", "5", "10", "11", "12", "13", "14", "15").forEach { id -> assertNull(results.getValue(id).imageUrl, "id=$id") }
+    }
+
+    @Test
+    fun `parser keeps results without a thumbnail element`() {
+        val source = parser.parse(readFixture("mixed-results.html"))
+
+        assertTrue(source.results.isNotEmpty())
+        assertTrue(source.results.all { it.imageUrl == null })
+    }
+
+    @Test
     fun `parser maps the real eventgroup search path to a Series result`() {
         val source = parser.parse(readFixture("series-real-dom.html"))
 
         assertEquals(
             listOf(
-                SearchSourceResult(SearchSourceResultType.SERIES, "86", "Valorant Champions Tour 2026", null),
+                SearchSourceResult(
+                    SearchSourceResultType.SERIES,
+                    "86",
+                    "Valorant Champions Tour 2026",
+                    null,
+                    "https://owcdn.net/img/5f8e73ec18ba4.png",
+                ),
             ),
             source.results,
         )

@@ -31,6 +31,7 @@ class SearchRoutesTest {
         assertEquals("team", body["results"]?.jsonArray?.single()?.jsonObject?.get("type")?.jsonPrimitive?.content)
         assertEquals("team", body["results"]?.jsonArray?.single()?.jsonObject?.get("reference")?.jsonObject?.get("resource")?.jsonPrimitive?.content)
         assertEquals("2", body["results"]?.jsonArray?.single()?.jsonObject?.get("reference")?.jsonObject?.get("id")?.jsonPrimitive?.content)
+        assertEquals("https://owcdn.net/img/t.png", body["results"]?.jsonArray?.single()?.jsonObject?.get("imageUrl")?.jsonPrimitive?.content)
         assertEquals(listOf("Sentinels"), scraper.requestedQueries)
     }
 
@@ -139,7 +140,7 @@ class SearchRoutesTest {
         override suspend fun scrape(query: String): SearchSourceModel {
             requestedQueries += query
             return SearchSourceModel(
-                listOf(SearchSourceResult(SearchSourceResultType.TEAM, "2", "Sentinels", "SEN")),
+                listOf(SearchSourceResult(SearchSourceResultType.TEAM, "2", "Sentinels", "SEN", "https://owcdn.net/img/t.png")),
             )
         }
     }

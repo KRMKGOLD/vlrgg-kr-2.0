@@ -35,6 +35,11 @@ class RemoteSearchDataSourceImplTest {
             assertEquals("T1 & GEN", response.query)
             assertEquals(4, response.results.size)
             assertEquals("T1 vs GEN", response.results.first().name)
+            // A missing or null `imageUrl` stays null; a present one is kept as the server sent it.
+            assertEquals(
+                listOf(null, null, "https://owcdn.net/img/t1.png", null),
+                response.results.map { it.imageUrl },
+            )
         } finally {
             client.close()
         }
@@ -84,8 +89,8 @@ class RemoteSearchDataSourceImplTest {
               "results": [
                 {"type":"series","reference":{"resource":"series","id":"1"},"name":"T1 vs GEN","scope":"Group Stage"},
                 {"type":"event","reference":{"resource":"event","id":"2"},"name":"VCT Pacific","period":null},
-                {"type":"team","reference":{"resource":"team","id":"3"},"name":"T1","tagOrRegion":"Pacific"},
-                {"type":"player","reference":{"resource":"player","id":"4"},"name":"T1 Sayaplayer","identity":"Ha Jung-woo"}
+                {"type":"team","reference":{"resource":"team","id":"3"},"name":"T1","tagOrRegion":"Pacific","imageUrl":"https://owcdn.net/img/t1.png"},
+                {"type":"player","reference":{"resource":"player","id":"4"},"name":"T1 Sayaplayer","identity":"Ha Jung-woo","imageUrl":null}
               ]
             }
             """.trimIndent()

@@ -9,4 +9,5 @@ internal data class SeriesSearchResultDto(
     override val reference: SearchReferenceDto,
     override val name: String,
     val scope: String? = null,
+    override val imageUrl: String? = null,
 ) : SearchResultDto()

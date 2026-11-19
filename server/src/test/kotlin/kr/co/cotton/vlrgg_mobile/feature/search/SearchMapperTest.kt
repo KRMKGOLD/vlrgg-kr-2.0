@@ -9,9 +9,9 @@ class SearchMapperTest {
         val response = SearchMapper().map(
             SearchSourceModel(
                 results = listOf(
-                    SearchSourceResult(SearchSourceResultType.SERIES, "101", "Champions Tour", "Global circuit"),
-                    SearchSourceResult(SearchSourceResultType.EVENT, "202", "Champions Seoul", "Aug 1 to Aug 24"),
-                    SearchSourceResult(SearchSourceResultType.TEAM, "2", "Sentinels", "SEN · United States"),
+                    SearchSourceResult(SearchSourceResultType.SERIES, "101", "Champions Tour", "Global circuit", null),
+                    SearchSourceResult(SearchSourceResultType.EVENT, "202", "Champions Seoul", "Aug 1 to Aug 24", null),
+                    SearchSourceResult(SearchSourceResultType.TEAM, "2", "Sentinels", "SEN · United States", null),
                     SearchSourceResult(SearchSourceResultType.PLAYER, "9", "TenZ", null),
                 ),
             ),
@@ -19,12 +19,36 @@ class SearchMapperTest {
 
         assertEquals(
             listOf(
-                SeriesSearchResultResponse(SearchReferenceResponse(SearchResourceType.SERIES, "101"), "Champions Tour", "Global circuit"),
-                EventSearchResultResponse(SearchReferenceResponse(SearchResourceType.EVENT, "202"), "Champions Seoul", "Aug 1 to Aug 24"),
-                TeamSearchResultResponse(SearchReferenceResponse(SearchResourceType.TEAM, "2"), "Sentinels", "SEN · United States"),
-                PlayerSearchResultResponse(SearchReferenceResponse(SearchResourceType.PLAYER, "9"), "TenZ", null),
+                SeriesSearchResultResponse(SearchReferenceResponse(SearchResourceType.SERIES, "101"), "Champions Tour", "Global circuit", null),
+                EventSearchResultResponse(SearchReferenceResponse(SearchResourceType.EVENT, "202"), "Champions Seoul", "Aug 1 to Aug 24", null),
+                TeamSearchResultResponse(SearchReferenceResponse(SearchResourceType.TEAM, "2"), "Sentinels", "SEN · United States", null),
+                PlayerSearchResultResponse(SearchReferenceResponse(SearchResourceType.PLAYER, "9"), "TenZ", null, null),
             ),
             response,
+        )
+    }
+
+    @Test
+    fun `mapper carries the thumbnail imageUrl to every response type`() {
+        val response = SearchMapper().map(
+            SearchSourceModel(
+                results = listOf(
+                    SearchSourceResult(SearchSourceResultType.SERIES, "101", "Champions Tour", null, "https://owcdn.net/img/s.png"),
+                    SearchSourceResult(SearchSourceResultType.EVENT, "202", "Champions Seoul", null, "https://owcdn.net/img/e.png"),
+                    SearchSourceResult(SearchSourceResultType.TEAM, "2", "Sentinels", null, "https://owcdn.net/img/t.png"),
+                    SearchSourceResult(SearchSourceResultType.PLAYER, "9", "TenZ", null, "https://owcdn.net/img/p.png"),
+                ),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                "https://owcdn.net/img/s.png",
+                "https://owcdn.net/img/e.png",
+                "https://owcdn.net/img/t.png",
+                "https://owcdn.net/img/p.png",
+            ),
+            response.map { it.imageUrl },
         )
     }
 }

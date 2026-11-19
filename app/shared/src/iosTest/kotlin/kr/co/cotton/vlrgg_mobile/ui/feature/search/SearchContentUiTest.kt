@@ -47,8 +47,7 @@ class SearchContentUiTest {
             )
         }
 
-        onNodeWithText("시리즈", useUnmergedTree = true).assertExists()
-        onNodeWithText("Group Stage", useUnmergedTree = true).assertExists()
+        onNodeWithText("시리즈 · Group Stage", useUnmergedTree = true).assertExists()
     }
 
     @Test

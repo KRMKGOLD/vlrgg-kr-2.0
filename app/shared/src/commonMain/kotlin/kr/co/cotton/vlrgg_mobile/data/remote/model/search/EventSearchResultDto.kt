@@ -9,4 +9,5 @@ internal data class EventSearchResultDto(
     override val reference: SearchReferenceDto,
     override val name: String,
     val period: String? = null,
+    override val imageUrl: String? = null,
 ) : SearchResultDto()
