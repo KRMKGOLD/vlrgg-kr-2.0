@@ -220,7 +220,11 @@ internal class NewsParser {
 
                 "br" -> content.appendLineBreak()
                 "style", "script", "iframe", "embed", "object", "ol", "ul", "figure" -> Unit
-                else -> node.inlineChildren().forEach { child -> appendInlineNode(child, content) }
+                else -> if (node.isInlineBlockLinkWrapper()) {
+                    appendInlineBlockWrapper(node, content)
+                } else {
+                    node.childNodes().forEach { child -> appendInlineNode(child, content) }
+                }
             }
         }
     }
@@ -336,27 +340,47 @@ internal class NewsParser {
 
     /**
      * VLR.GG wraps entity links in an inline-block `span[data-ref-id]` that holds line breaks and tabs. Browsers drop
-     * the leading and trailing whitespace inside an inline-block, so whitespace-only edge text nodes are skipped here.
+     * the leading and trailing spaces at the edges of an inline-block, so the wrapper's inline result (including text
+     * nested in inner elements) is built separately, trimmed of edge spaces, and then merged into the paragraph.
+     * Explicit `<br>` line breaks inside the wrapper are kept.
      */
-    private fun Element.inlineChildren(): List<Node> {
-        val children = childNodes()
-        if (!isInlineBlockLinkWrapper()) return children
-        fun Node.isBlankText() = this is TextNode && isBlank
-        return children.dropWhile { it.isBlankText() }.dropLastWhile { it.isBlankText() }
+    private fun appendInlineBlockWrapper(wrapper: Element, content: MutableList<NewsSourceInline>) {
+        val inner = mutableListOf<NewsSourceInline>()
+        wrapper.childNodes().forEach { child -> appendInlineNode(child, inner) }
+        inner.trimTextEdges { it == ' ' }.forEach { item ->
+            val last = content.lastOrNull()
+            if (item is NewsTextSourceInline && last is NewsTextSourceInline) {
+                content[content.lastIndex] = last.copy(text = last.text + item.text)
+            } else {
+                content += item
+            }
+        }
     }
 
     private fun Element.isInlineBlockLinkWrapper(): Boolean =
-        normalName() == "span" && hasAttr("data-ref-id") &&
-            (hasClass("team") || attr("style").contains("inline-block", ignoreCase = true))
+        normalName() == "span" && hasAttr("data-ref-id") && (hasClass("team") || hasInlineBlockDisplay())
 
-    private fun List<NewsSourceInline>.trimTextEdges(): List<NewsSourceInline> {
+    private fun Element.hasInlineBlockDisplay(): Boolean =
+        attr("style").split(';')
+            .map { declaration -> declaration.substringBefore(':').trim() to declaration.substringAfter(':', "").trim() }
+            .lastOrNull { (property, _) -> property.equals("display", ignoreCase = true) }
+            ?.second
+            ?.removeSuffix("!important")
+            ?.trim()
+            ?.equals("inline-block", ignoreCase = true) == true
+
+    private fun List<NewsSourceInline>.trimTextEdges(
+        isTrimmable: (Char) -> Boolean = Char::isWhitespace,
+    ): List<NewsSourceInline> {
         val result = toMutableList()
         (result.firstOrNull() as? NewsTextSourceInline)?.let { first ->
-            if (first.text.trimStart().isEmpty()) result.removeAt(0) else result[0] = first.copy(text = first.text.trimStart())
+            val trimmed = first.text.trimStart(isTrimmable)
+            if (trimmed.isEmpty()) result.removeAt(0) else result[0] = first.copy(text = trimmed)
         }
         (result.lastOrNull() as? NewsTextSourceInline)?.let { last ->
             val index = result.lastIndex
-            if (last.text.trimEnd().isEmpty()) result.removeAt(index) else result[index] = last.copy(text = last.text.trimEnd())
+            val trimmed = last.text.trimEnd(isTrimmable)
+            if (trimmed.isEmpty()) result.removeAt(index) else result[index] = last.copy(text = trimmed)
         }
         return result
     }

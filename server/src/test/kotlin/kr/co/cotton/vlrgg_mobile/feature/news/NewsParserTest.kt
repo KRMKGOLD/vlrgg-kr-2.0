@@ -279,11 +279,39 @@ class NewsParserTest {
     }
 
     @Test
-    fun `article parser keeps no space before a comma after a wrapped link`() {
-        val content = parseInlineWhitespaceBlocks()[1].content
-        val afterWo0t = content[content.indexOfFirst { it is NewsLinkSourceInline && it.label == "Wo0t" } + 1]
+    fun `article parser trims edge whitespace of elements nested inside a link wrapper`() {
+        assertEquals(
+            listOf(
+                NewsLinkSourceInline("Alpha", NewsLinkKindSource.TEAM, "1/alpha"),
+                NewsTextSourceInline(", B"),
+            ),
+            parseInlineWhitespaceBlocks()[3].content,
+        )
+    }
 
-        assertEquals(NewsTextSourceInline(", and former "), afterWo0t)
+    @Test
+    fun `article parser ignores inline-block text that is not a display declaration`() {
+        assertEquals(
+            listOf(
+                NewsTextSourceInline("Meet "),
+                NewsLinkSourceInline("Alpha", NewsLinkKindSource.TEAM, "1/alpha"),
+                NewsTextSourceInline("."),
+            ),
+            parseInlineWhitespaceBlocks()[4].content,
+        )
+    }
+
+    @Test
+    fun `article parser drops wrapper whitespace for display inline-block in any spacing or case`() {
+        val blocks = parseInlineWhitespaceBlocks()
+        val expected = listOf(
+            NewsTextSourceInline("Meet"),
+            NewsLinkSourceInline("Alpha", NewsLinkKindSource.TEAM, "1/alpha"),
+            NewsTextSourceInline("."),
+        )
+
+        assertEquals(expected, blocks[5].content)
+        assertEquals(expected, blocks[6].content)
     }
 
     @Test
