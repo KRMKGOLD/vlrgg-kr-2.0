@@ -315,6 +315,25 @@ class NewsParserTest {
     }
 
     @Test
+    fun `article parser resolves display importance like CSS`() {
+        val blocks = parseInlineWhitespaceBlocks()
+        val trimmed = listOf(
+            NewsTextSourceInline("Meet"),
+            NewsLinkSourceInline("Alpha", NewsLinkKindSource.TEAM, "1/alpha"),
+            NewsTextSourceInline("."),
+        )
+        val kept = listOf(
+            NewsTextSourceInline("Meet "),
+            NewsLinkSourceInline("Alpha", NewsLinkKindSource.TEAM, "1/alpha"),
+            NewsTextSourceInline("."),
+        )
+
+        assertEquals(trimmed, blocks[7].content) // !IMPORTANT in any case
+        assertEquals(trimmed, blocks[8].content) // "! important" wins over a later normal declaration
+        assertEquals(kept, blocks[9].content) // an earlier !important inline beats a later normal inline-block
+    }
+
+    @Test
     fun `article parser keeps br line breaks without surrounding spaces and trims paragraph edges`() {
         val blocks = parseInlineWhitespaceBlocks()
 

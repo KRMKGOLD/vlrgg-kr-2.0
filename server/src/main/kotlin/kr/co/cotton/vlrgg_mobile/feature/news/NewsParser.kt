@@ -12,6 +12,7 @@ import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 
 private val publicationAuthor = Regex("(?i)\\bby\\s+(.+)$")
+private val importantSuffix = Regex("!\\s*important\\s*$", RegexOption.IGNORE_CASE)
 private val entityLink = Regex("^/(team|player|event)/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
 private val matchLink = Regex("^/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
 private val canonicalNewsPageTarget = Regex("^/news/\\?page=([1-9][0-9]{0,4})$")
@@ -360,14 +361,14 @@ internal class NewsParser {
     private fun Element.isInlineBlockLinkWrapper(): Boolean =
         normalName() == "span" && hasAttr("data-ref-id") && (hasClass("team") || hasInlineBlockDisplay())
 
-    private fun Element.hasInlineBlockDisplay(): Boolean =
-        attr("style").split(';')
-            .map { declaration -> declaration.substringBefore(':').trim() to declaration.substringAfter(':', "").trim() }
-            .lastOrNull { (property, _) -> property.equals("display", ignoreCase = true) }
-            ?.second
-            ?.removeSuffix("!important")
-            ?.trim()
-            ?.equals("inline-block", ignoreCase = true) == true
+    /** Picks the effective `display` like CSS: the last `!important` declaration wins, otherwise the last normal one. */
+    private fun Element.hasInlineBlockDisplay(): Boolean {
+        val displays = attr("style").split(';')
+            .filter { declaration -> declaration.substringBefore(':').trim().equals("display", ignoreCase = true) }
+            .map { declaration -> declaration.substringAfter(':', "").trim() }
+        val effective = displays.lastOrNull { importantSuffix.containsMatchIn(it) } ?: displays.lastOrNull()
+        return effective?.replace(importantSuffix, "")?.trim().equals("inline-block", ignoreCase = true)
+    }
 
     private fun List<NewsSourceInline>.trimTextEdges(
         isTrimmable: (Char) -> Boolean = Char::isWhitespace,
