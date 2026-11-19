@@ -12,6 +12,7 @@ import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 
 private val publicationAuthor = Regex("(?i)\\bby\\s+(.+)$")
+private val importantSuffix = Regex("!\\s*important\\s*$", RegexOption.IGNORE_CASE)
 private val entityLink = Regex("^/(team|player|event)/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
 private val matchLink = Regex("^/([1-9][0-9]{0,9})/([a-z0-9][a-z0-9-]{0,127})/?$")
 private val canonicalNewsPageTarget = Regex("^/news/\\?page=([1-9][0-9]{0,4})$")
@@ -218,9 +219,13 @@ internal class NewsParser {
                     }
                 }
 
-                "br" -> content.appendText("\n")
+                "br" -> content.appendLineBreak()
                 "style", "script", "iframe", "embed", "object", "ol", "ul", "figure" -> Unit
-                else -> node.childNodes().forEach { child -> appendInlineNode(child, content) }
+                else -> if (node.isInlineBlockLinkWrapper()) {
+                    appendInlineBlockWrapper(node, content)
+                } else {
+                    node.childNodes().forEach { child -> appendInlineNode(child, content) }
+                }
             }
         }
     }
@@ -298,26 +303,91 @@ internal class NewsParser {
         else -> null
     }
 
+    /**
+     * Collapses whitespace like a browser: runs inside a node become one space, and a leading space is dropped when
+     * the previous text already ends with a space or a line break (so runs spanning node boundaries collapse too).
+     */
     private fun MutableList<NewsSourceInline>.appendText(rawText: String) {
-        val normalized = rawText.replace(WHITESPACE, " ")
-        if (normalized.isEmpty()) return
-
-        val last = lastOrNull()
-        if (last is NewsTextSourceInline) {
-            this[lastIndex] = last.copy(text = last.text + normalized)
+        val collapsed = rawText.replace(WHITESPACE, " ")
+        val last = lastOrNull() as? NewsTextSourceInline
+        val text = if (last != null && collapsed.startsWith(" ") && (last.text.endsWith(" ") || last.text.endsWith("\n"))) {
+            collapsed.drop(1)
         } else {
-            add(NewsTextSourceInline(normalized))
+            collapsed
+        }
+        if (text.isEmpty()) return
+
+        if (last != null) {
+            this[lastIndex] = last.copy(text = last.text + text)
+        } else {
+            add(NewsTextSourceInline(text))
         }
     }
 
-    private fun List<NewsSourceInline>.trimTextEdges(): List<NewsSourceInline> {
+    /** `<br>` keeps a real `\n`; spaces right before it are dropped and spaces right after it are dropped by [appendText]. */
+    private fun MutableList<NewsSourceInline>.appendLineBreak() {
+        val last = lastOrNull() as? NewsTextSourceInline
+        val textBeforeBreak = last?.text?.trimEnd(' ').orEmpty()
+        if (last != null) {
+            if (textBeforeBreak.isEmpty()) removeAt(lastIndex) else this[lastIndex] = last.copy(text = textBeforeBreak)
+        }
+        val current = lastOrNull() as? NewsTextSourceInline
+        if (current != null) {
+            this[lastIndex] = current.copy(text = current.text + "\n")
+        } else {
+            add(NewsTextSourceInline("\n"))
+        }
+    }
+
+    /**
+     * VLR.GG wraps entity links in an inline-block `span[data-ref-id]` that holds line breaks and tabs. Browsers drop
+     * the leading and trailing spaces at the edges of an inline-block, so the wrapper's inline result (including text
+     * nested in inner elements) is built separately, trimmed of edge spaces, and then merged into the paragraph.
+     * Explicit `<br>` line breaks inside the wrapper are kept.
+     */
+    private fun appendInlineBlockWrapper(wrapper: Element, content: MutableList<NewsSourceInline>) {
+        val inner = mutableListOf<NewsSourceInline>()
+        wrapper.childNodes().forEach { child -> appendInlineNode(child, inner) }
+        inner.trimTextEdges { it == ' ' }.forEach { item ->
+            val last = content.lastOrNull()
+            if (item is NewsTextSourceInline && last is NewsTextSourceInline) {
+                // Like a plain `<br>`, spaces right before a line break are dropped.
+                val before = if (item.text.startsWith("\n")) last.text.trimEnd(' ') else last.text
+                if (before.isEmpty()) {
+                    content[content.lastIndex] = item
+                } else {
+                    content[content.lastIndex] = last.copy(text = before + item.text)
+                }
+            } else {
+                content += item
+            }
+        }
+    }
+
+    private fun Element.isInlineBlockLinkWrapper(): Boolean =
+        normalName() == "span" && hasAttr("data-ref-id") && (hasClass("team") || hasInlineBlockDisplay())
+
+    /** Picks the effective `display` like CSS: the last `!important` declaration wins, otherwise the last normal one. */
+    private fun Element.hasInlineBlockDisplay(): Boolean {
+        val displays = attr("style").split(';')
+            .filter { declaration -> declaration.substringBefore(':').trim().equals("display", ignoreCase = true) }
+            .map { declaration -> declaration.substringAfter(':', "").trim() }
+        val effective = displays.lastOrNull { importantSuffix.containsMatchIn(it) } ?: displays.lastOrNull()
+        return effective?.replace(importantSuffix, "")?.trim().equals("inline-block", ignoreCase = true)
+    }
+
+    private fun List<NewsSourceInline>.trimTextEdges(
+        isTrimmable: (Char) -> Boolean = Char::isWhitespace,
+    ): List<NewsSourceInline> {
         val result = toMutableList()
         (result.firstOrNull() as? NewsTextSourceInline)?.let { first ->
-            if (first.text.trimStart().isEmpty()) result.removeAt(0) else result[0] = first.copy(text = first.text.trimStart())
+            val trimmed = first.text.trimStart(isTrimmable)
+            if (trimmed.isEmpty()) result.removeAt(0) else result[0] = first.copy(text = trimmed)
         }
         (result.lastOrNull() as? NewsTextSourceInline)?.let { last ->
             val index = result.lastIndex
-            if (last.text.trimEnd().isEmpty()) result.removeAt(index) else result[index] = last.copy(text = last.text.trimEnd())
+            val trimmed = last.text.trimEnd(isTrimmable)
+            if (trimmed.isEmpty()) result.removeAt(index) else result[index] = last.copy(text = trimmed)
         }
         return result
     }

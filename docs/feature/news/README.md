@@ -34,6 +34,7 @@ GET /api/v1/news/{articleId}/{slug}
 - `publishedAtUtc`는 기사 header의 `time[datetime]`(offset 포함 ISO-8601)을 바꾼 UTC instant(`2026-10-25T15:09:14Z`)다. 속성이 없거나 형식이 맞지 않으면 null이다. `publishedAt`은 기존 source text 그대로다. 실제 기사 페이지에서는 `16 hours ago` 같은 상대 시간이다. 목록 item은 날짜 텍스트만 있어 instant를 제공하지 않는다. 형식·null 조건·앱 호환성은 [Matches 날짜·시간 계약](../matches/README.md#날짜시간-계약)을 따른다.
 - 앱 기사 화면은 `publishedAtUtc`가 있으면 기기 시간대 기준 `2026년 10월 26일 오전 12:09`로 표시하고, 없거나 파싱할 수 없으면 `publishedAt` 원문을 표시한다. 목록 item은 `publishedDate`(2026-11-10 계약, 서버 구현 예정)가 있으면 `2026년 9월 19일`로 표시하고, 없으면 `publishedAt` 원문을 표시한다. 상세 규칙은 [앱 표시 규칙](../matches/README.md#앱-표시-규칙)을 따른다.
 - block은 원순서의 `paragraph.content`, `image.imageUrl`/optional `caption`, `list.ordered`/`items` tagged object다. text content는 `text` 또는 `link`이고 link kind는 `TEAM`, `PLAYER`, `EVENT`, `MATCH`, `INTERNAL_UNSUPPORTED`, `EXTERNAL`이다. Team·Player만 routable reference를 가진다.
+- 본문 inline text는 브라우저처럼 공백을 접는다. text·link 경계를 넘는 연속 공백은 한 칸이며, 링크를 감싼 inline-block `span[data-ref-id]` 안의 앞뒤 공백은 버리고, `<br>`는 `\n`으로 유지하며, 문단 앞뒤는 trim한다. 스키마는 바뀌지 않는다.
 - `.article-body`만 본문으로 사용하고 script/style, hover/reference card, sidebar, comments를 제외한다. DOM 전체 `text()` 병합으로 구조를 평탄화하지 않는다.
 - 제목과 본문은 필수다. image/caption은 선택이고 필수 구조 실패는 `SOURCE_PARSING_FAILURE`다.
 
