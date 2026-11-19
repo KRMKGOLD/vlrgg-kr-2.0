@@ -1897,7 +1897,7 @@
                   },
                   "gap": 8,
                   "padding": [
-                    6,
+                    10,
                     16
                   ],
                   "alignItems": "center",
