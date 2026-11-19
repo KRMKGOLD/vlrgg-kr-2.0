@@ -111,6 +111,12 @@ Fastlane `supply`는 앱의 수동 초기 설정과 최소 한 번의 build uplo
 | 2026-10-27 | internal 업로드 | `0.2.0(3)`. 출처 `main` cc4f92d, CI run [40450948804](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/40450948804), 배포 run [40451538732](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/40451538732) |
 | 2026-10-27 | 조회 서버 운영 배포 | `main` d39f6f5(#176), 배포 run [40467969598](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/40467969598) |
 | 2026-11-08 | 비공개 테스트 검토 제출 | 소유자가 internal의 `0.2.0(3)`을 비공개 테스트 트랙(대한민국)에 올리고 앱 설정과 함께 검토를 제출했다. |
+| 2026-11-13 | 조회 서버 운영 배포 | `main` 4112f71(#194), 배포 run [43417817199](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/43417817199) |
+| 2026-11-15 | 조회 서버 운영 배포 | `main` ede9533(#201), 배포 run [43699608738](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/43699608738) |
+| 2026-11-15 | internal 업로드 | `0.3.0(4)`. 출처 `main` 966d557(#204), CI run [43710208926](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/43710208926), 배포 run [43711449971](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/43711449971) |
+| 2026-11-15 | 조회 서버 운영 배포 | `main` 7ac6bc5(#206), 배포 run [43716717039](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/43716717039) |
+| 2026-11-19 | internal 업로드 | `0.4.0(5)`. 출처 `main` ea0ad91(#207~#211), CI run [44499794462](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/44499794462)(3번째 시도 통과), 배포 run [44508095344](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/44508095344) |
+| 2026-11-19 | 조회 서버 운영 배포 | `main` ea0ad91, 배포 run [44509248665](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/44509248665). 첫 시도 [44507693839](https://github.com/KRMKGOLD/vlrgg-kr-2.0/actions/runs/44507693839)는 server CI 미통과로 preflight에서 중단됐다. |
 
 - 2026-11-08 기준 `main` d39f6f5는 cc4f92d 이후 앱·core·Gradle 변경이 없다(#175 문서, #176 서버). 비공개 테스트 빌드는 현재 main의 앱과 같으며, [`play-console.md`](play-console.md)의 선언 근거도 그대로 쓴다.
 - `0.2.0(3)` release 빌드를 물리 기기에서 설치하고 조회를 확인한 기록([Android completion evidence](#android-completion-evidence))은 아직 없다.
