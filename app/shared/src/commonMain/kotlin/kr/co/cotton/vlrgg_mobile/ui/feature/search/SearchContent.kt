@@ -68,6 +68,8 @@ internal fun searchRowTag(result: SearchResult): String = "search-row-${result.s
 
 internal fun searchRowLogoTag(result: SearchResult): String = "search-row-logo-${result.stableListKey}"
 
+internal fun searchRowLogoPlaceholderTag(result: SearchResult): String = "search-row-logo-placeholder-${result.stableListKey}"
+
 @Composable
 fun SearchContent(
     uiState: SearchUiState,
@@ -287,6 +289,7 @@ private fun SearchResultRow(
                 kind = result.logoSlotKind,
                 placeholderText = logoInitials(result.name),
                 modifier = Modifier.testTag(searchRowLogoTag(result)),
+                placeholderTestTag = searchRowLogoPlaceholderTag(result),
             )
         },
         onClick = onClick,

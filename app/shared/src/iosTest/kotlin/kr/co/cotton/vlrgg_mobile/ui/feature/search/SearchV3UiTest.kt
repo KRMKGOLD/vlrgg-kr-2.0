@@ -22,6 +22,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -122,6 +123,10 @@ class SearchV3UiTest {
                 .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.HideFromAccessibility))
         }
         listOf(series, event).forEach { result ->
+            // The trophy placeholder is present and shown, and carries no text.
+            onNodeWithTag(searchRowLogoPlaceholderTag(result), useUnmergedTree = true)
+                .assertIsDisplayed()
+                .assert(hasText("", substring = true).not())
             onAllNodes(hasAnyAncestor(hasTestTag(searchRowLogoTag(result))) and hasText("", substring = true), useUnmergedTree = true)
                 .assertCountEquals(0)
         }

@@ -48,7 +48,8 @@ class SearchMapperTest {
                 SeriesSearchResultDto(reference(SearchResourceDto.SERIES, "1"), "VCT Pacific", null, "https://owcdn.net/img/series.png"),
                 EventSearchResultDto(reference(SearchResourceDto.EVENT, "2"), "VCT Pacific Stage 1", null, "https://owcdn.net/img/event.png"),
                 TeamSearchResultDto(reference(SearchResourceDto.TEAM, "3"), "DRX", null, "https://owcdn.net/img/drx.png"),
-                PlayerSearchResultDto(reference(SearchResourceDto.PLAYER, "4"), "MaKo", null, imageUrl = null),
+                PlayerSearchResultDto(reference(SearchResourceDto.PLAYER, "4"), "MaKo", null, imageUrl = "https://owcdn.net/img/mako.png"),
+                PlayerSearchResultDto(reference(SearchResourceDto.PLAYER, "5"), "Rb", null, imageUrl = null),
             ),
         ).toDomain()
 
@@ -57,6 +58,7 @@ class SearchMapperTest {
                 "https://owcdn.net/img/series.png",
                 "https://owcdn.net/img/event.png",
                 "https://owcdn.net/img/drx.png",
+                "https://owcdn.net/img/mako.png",
                 null,
             ),
             results.items.map { it.imageUrl },
