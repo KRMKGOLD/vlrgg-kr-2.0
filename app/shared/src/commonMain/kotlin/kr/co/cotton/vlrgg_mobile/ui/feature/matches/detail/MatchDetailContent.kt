@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -648,12 +650,16 @@ private fun HeadToHeadSection(
  * Head to head row (`DESIGN.md` 8.3): team A right-aligned · fixed-width Saira 18 score column ·
  * team B left-aligned, and the whole row opens that match (no chevron). The horizontal padding is
  * a symmetric 16dp and both team names share the remaining width equally, so the `:` always sits
- * on the horizontal center, on the same axis as the Scoreboard hero score. The winner is `ink` 700
- * and the loser `muted` 500.
+ * on the screen's horizontal center line in every row. (The Scoreboard hero centers its whole score
+ * group, not just the `:`, so the two are only aligned by the same screen center.) Score and `:`
+ * columns grow with the font scale so scores stay on one line. The winner is `ink` 700 and the loser
+ * `muted` 500.
  */
 @Composable
 private fun HeadToHeadRow(match: RelatedMatch, onMatchClick: (String) -> Unit) {
     val winner = winnerOf(match.homeScore, match.awayScore)
+    val fontScale = LocalDensity.current.fontScale
+    val scoreWidth = headToHeadColumnWidth(HeadToHeadScoreWidth, fontScale)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -668,15 +674,17 @@ private fun HeadToHeadRow(match: RelatedMatch, onMatchClick: (String) -> Unit) {
     ) {
         HeadToHeadTeam(match.homeTeamName, isLoser = winner == MatchSide.Away, Modifier.weight(1f), TextAlign.End)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            HeadToHeadScore(match.homeScore, isLoser = winner == MatchSide.Away)
-            Box(Modifier.width(HeadToHeadSeparatorWidth), contentAlignment = Alignment.Center) {
+            HeadToHeadScore(match.homeScore, isLoser = winner == MatchSide.Away, width = scoreWidth)
+            Box(Modifier.width(headToHeadColumnWidth(HeadToHeadSeparatorWidth, fontScale)), contentAlignment = Alignment.Center) {
                 Text(
                     text = ":",
                     style = VlrTheme.typography.tag.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
                     color = VlrTheme.colors.muted,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
-            HeadToHeadScore(match.awayScore, isLoser = winner == MatchSide.Home)
+            HeadToHeadScore(match.awayScore, isLoser = winner == MatchSide.Home, width = scoreWidth)
         }
         HeadToHeadTeam(match.awayTeamName, isLoser = winner == MatchSide.Home, Modifier.weight(1f), TextAlign.Start)
     }
@@ -696,12 +704,14 @@ private fun HeadToHeadTeam(name: String, isLoser: Boolean, modifier: Modifier, t
 }
 
 @Composable
-private fun HeadToHeadScore(score: Int?, isLoser: Boolean) {
-    Box(Modifier.width(HeadToHeadScoreWidth), contentAlignment = Alignment.Center) {
+private fun HeadToHeadScore(score: Int?, isLoser: Boolean, width: Dp) {
+    Box(Modifier.width(width), contentAlignment = Alignment.Center) {
         Text(
             text = score.scoreText(),
             style = VlrTheme.typography.scoreM.copy(fontSize = 18.sp, lineHeight = 28.sp),
             color = if (isLoser || score == null) VlrTheme.colors.muted else VlrTheme.colors.ink,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }
@@ -728,6 +738,12 @@ private val ScoreboardTeamWidth = 100.dp
 /** Fixed score/`:` column widths so the `:` never drifts with digit vs `—` width (symmetric around the row center). */
 private val HeadToHeadScoreWidth = 28.dp
 private val HeadToHeadSeparatorWidth = 16.dp
+
+/**
+ * 상대 전적의 점수·`:` 열 폭이다. 글꼴 배율이 1.0 이상이면 배율만큼 늘려 큰 글꼴에서도 점수(두 자리·`—`)가 한 줄에 들어가게 하고,
+ * 1.0 미만이면 기본 폭을 유지한다. 양쪽 점수 열이 같은 폭을 쓰므로 `:`는 가로 중앙에 머문다.
+ */
+internal fun headToHeadColumnWidth(base: Dp, fontScale: Float): Dp = base * fontScale.coerceAtLeast(1f)
 /** Logo slot plus a little room for the wrapped name; narrower team columns stack the result below. */
 private val ScoreboardTeamMinWidth = 72.dp
 private val ScoreboardLogoSize = 56.dp
