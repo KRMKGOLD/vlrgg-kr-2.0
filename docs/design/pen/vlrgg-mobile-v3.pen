@@ -1145,7 +1145,12 @@
                       "id": "nelf1",
                       "type": "ref",
                       "ref": "wCRpt",
-                      "name": "Logo"
+                      "name": "Logo",
+                      "descendants": {
+                        "g48ce": {
+                          "content": "KD"
+                        }
+                      }
                     },
                     {
                       "type": "frame",
@@ -5581,7 +5586,7 @@
               "width": "fill_container",
               "descendants": {
                 "nelf1/g48ce": {
-                  "content": "DRX"
+                  "content": "KD"
                 },
                 "A4iKD": {
                   "content": "KIWOOM DRX"
@@ -5599,7 +5604,7 @@
               "width": "fill_container",
               "descendants": {
                 "nelf1/g48ce": {
-                  "content": "DRXC"
+                  "content": "DC"
                 },
                 "A4iKD": {
                   "content": "DRX Changers"
@@ -5620,7 +5625,7 @@
                   "cornerRadius": 20
                 },
                 "nelf1/g48ce": {
-                  "content": "MK"
+                  "content": "MA"
                 },
                 "A4iKD": {
                   "content": "MaKo"
@@ -5641,7 +5646,7 @@
                   "cornerRadius": 20
                 },
                 "nelf1/g48ce": {
-                  "content": "BZ"
+                  "content": "BU"
                 },
                 "A4iKD": {
                   "content": "BuZz"
