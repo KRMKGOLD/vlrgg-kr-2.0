@@ -32,8 +32,9 @@ class SearchParserTest {
         assertEquals("https://owcdn.net/img/event0001.png", results.getValue("202").imageUrl)
         assertEquals("https://owcdn.net/img/62875027c8e06.png", results.getValue("2").imageUrl)
         assertEquals("https://owcdn.net/img/player0009.png", results.getValue("9").imageUrl)
-        // VLR.GG default team image (relative and absolute), silhouette, insecure http, missing img, empty thumb.
-        listOf("3", "4", "5", "10", "11", "12").forEach { id -> assertNull(results.getValue(id).imageUrl, "id=$id") }
+        // VLR.GG default team image (relative, absolute, uppercase host, explicit port, bare host), silhouette,
+        // insecure http, missing img, empty thumb.
+        listOf("3", "4", "5", "10", "11", "12", "13", "14", "15").forEach { id -> assertNull(results.getValue(id).imageUrl, "id=$id") }
     }
 
     @Test

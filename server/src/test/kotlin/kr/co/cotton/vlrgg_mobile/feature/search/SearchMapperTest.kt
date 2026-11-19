@@ -36,7 +36,7 @@ class SearchMapperTest {
                     SearchSourceResult(SearchSourceResultType.SERIES, "101", "Champions Tour", null, "https://owcdn.net/img/s.png"),
                     SearchSourceResult(SearchSourceResultType.EVENT, "202", "Champions Seoul", null, "https://owcdn.net/img/e.png"),
                     SearchSourceResult(SearchSourceResultType.TEAM, "2", "Sentinels", null, "https://owcdn.net/img/t.png"),
-                    SearchSourceResult(SearchSourceResultType.PLAYER, "9", "TenZ", null),
+                    SearchSourceResult(SearchSourceResultType.PLAYER, "9", "TenZ", null, "https://owcdn.net/img/p.png"),
                 ),
             ),
         )
@@ -46,7 +46,7 @@ class SearchMapperTest {
                 "https://owcdn.net/img/s.png",
                 "https://owcdn.net/img/e.png",
                 "https://owcdn.net/img/t.png",
-                null,
+                "https://owcdn.net/img/p.png",
             ),
             response.map { it.imageUrl },
         )

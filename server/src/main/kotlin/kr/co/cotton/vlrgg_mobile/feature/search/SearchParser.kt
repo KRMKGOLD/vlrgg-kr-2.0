@@ -4,6 +4,7 @@ import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedText
 import kr.co.cotton.vlrgg_mobile.common.scraping.ownNormalizedText
 import kr.co.cotton.vlrgg_mobile.common.scraping.parseSource
 import kr.co.cotton.vlrgg_mobile.common.scraping.toPublicImageUrl
+import java.net.URI
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
@@ -13,8 +14,7 @@ private val SEARCH_RESULT_PATH = Regex(
 private val SUPPORTED_SEARCH_RESULT_PREFIX = Regex("^/search/r/(eventgroup|event|team|player)/")
 private val FOUND_RESULTS_PATTERN = Regex("\\bFound\\s+([0-9]+)\\s+results?\\b", RegexOption.IGNORE_CASE)
 private const val CANONICAL_SEARCH_RESULT_PREFIX = "/search/r/"
-private const val VLR_ORIGIN = "https://www.vlr.gg/"
-private const val VLR_BARE_ORIGIN = "https://vlr.gg/"
+private val VLR_HOSTS = setOf("www.vlr.gg", "vlr.gg")
 
 /** The only search component that knows the VLR.GG DOM shape and CSS class names. */
 internal class SearchParser {
@@ -82,7 +82,7 @@ internal class SearchParser {
 
     /** VLR.GG-hosted default/silhouette images (root-relative paths) are placeholders, so only CDN images are exposed. */
     private fun String.toSearchImageUrl(): String? = toPublicImageUrl()?.takeUnless { url ->
-        url.startsWith(VLR_ORIGIN) || url.startsWith(VLR_BARE_ORIGIN)
+        runCatching { URI(url).host }.getOrNull()?.lowercase() in VLR_HOSTS
     }
 
     private fun Element.eventPeriod(): String? = ownNormalizedText()
