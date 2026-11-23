@@ -47,6 +47,7 @@ import kr.co.cotton.vlrgg_mobile.ui.theme.VlrDimensions
 import kr.co.cotton.vlrgg_mobile.ui.theme.VlrTheme
 import kr.co.cotton.vlrgg_mobile.ui.theme.withKoreanWordBreak
 import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import vlrggmobile.app.shared.generated.resources.Res
 import vlrggmobile.app.shared.generated.resources.app_icon
@@ -193,7 +194,7 @@ private fun AppIdentitySection(versionLabel: String?) {
             val iconShape = RoundedCornerShape(AppIconCornerRadius)
             // Decorative: the app name next to it carries the identity.
             Image(
-                imageVector = vectorResource(Res.drawable.app_icon),
+                painter = painterResource(Res.drawable.app_icon),
                 contentDescription = null,
                 modifier = Modifier
                     .size(AppIconSize)

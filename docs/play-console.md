@@ -262,7 +262,7 @@ ruby -e 'Dir["fastlane/metadata/android/ko-KR/*.txt"].sort.each { |f| puts "#{Fi
 
 | 자산 | 파일 | 규격 확인(`sips`) | 근거 |
 | --- | --- | --- | --- |
-| 앱 아이콘 | `images/icon.png` | 512×512, RGBA 32-bit PNG, 11,381 bytes | #166의 [`play-icon-512.png`](design/app-icon/play-icon-512.png)를 그대로 복사했다. Play 규격은 512×512, 32-bit PNG(알파 포함), 1,024KB 이하다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)). |
+| 앱 아이콘 | `images/icon.png` | 512×512, RGBA 32-bit PNG, sRGB, 393,934 bytes | 2026-11-23 승인한 아레나 티켓 V 원본([`app-icon-source.png`](design/app-icon/app-icon-source.png))에서 [`export.swift`](design/app-icon/export.swift)가 [`play-icon-512.png`](design/app-icon/play-icon-512.png)와 바이트가 같게 함께 쓴다. Play 규격은 512×512, 32-bit PNG(알파 포함), 1,024KB 이하다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)). |
 | 그래픽 이미지 | `images/featureGraphic.png` | 1024×500, RGB 24-bit PNG, 알파 없음, 371,266 bytes | 완료. GPT image 2.5(`gpt-image-2.5-sunburst`)로 생성했다(a1f6893). Riot Games·VALORANT·팀 로고와 게임 화면 없이 앱 이름과 추상적인 경기 목록만 담았다. Play 규격은 1024×500, JPEG 또는 24-bit PNG(알파 없음)다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)). |
 | 휴대전화 스크린샷 | `images/phoneScreenshots/1~6_*.png` | 6장 모두 1080×1920, RGB 24-bit PNG, 알파 없음 | **임시본.** 비공개 테스트에는 팀 로고가 없는 1·3·4번만 올린다(아래 "스크린샷 상태"). Play 규격은 JPEG 또는 24-bit PNG(알파 없음), 각 변 320~3,840px, 긴 변이 짧은 변의 2배 이하, 2~8장이다. 1080×1920(9:16) 4장 이상이면 추천 노출 조건도 맞는다([그래픽 자산](https://support.google.com/googleplay/android-developer/answer/9866151)). |
 
