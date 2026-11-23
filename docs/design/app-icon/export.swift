@@ -417,7 +417,8 @@ func writePNG(_ bytes: [UInt8], size: Int, opaque: Bool, to urls: [URL], maxByte
     if let maxBytes { precondition(data.count < maxBytes, "PNG exceeds \(maxBytes) bytes") }
     for url in urls {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: url)
+        // Replace the file only after the new bytes are fully written.
+        try data.write(to: url, options: .atomic)
     }
     return data
 }

@@ -41,11 +41,13 @@ iOS `Contents.json`의 dark·tinted 슬롯은 비워 두어 시스템이 파생�
 
 macOS Swift(AppKit·CoreGraphics·ImageIO·CryptoKit)만 사용한다. 앱 dependency 추가는 없다. 실행에 약 1분 걸린다.
 
+생성이 실패하면 예전 PNG를 검사하지 않도록 명령을 `&&`로 잇는다.
+
 ```sh
-swift docs/design/app-icon/export.swift
-sips -g pixelWidth -g pixelHeight -g hasAlpha -g space app/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png docs/design/app-icon/play-icon-512.png
-cmp docs/design/app-icon/play-icon-512.png fastlane/metadata/android/ko-KR/images/icon.png
-app/iosApp/Scripts/test_release_config.sh
+swift docs/design/app-icon/export.swift &&
+sips -g pixelWidth -g pixelHeight -g hasAlpha -g space app/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png docs/design/app-icon/play-icon-512.png &&
+cmp docs/design/app-icon/play-icon-512.png fastlane/metadata/android/ko-KR/images/icon.png &&
+app/iosApp/Scripts/test_release_config.sh &&
 ./gradlew :app:androidApp:assembleDebug :app:androidApp:lintDebug
 ```
 
