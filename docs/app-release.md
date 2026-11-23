@@ -204,7 +204,7 @@ nm -u app/shared/build/bin/iosArm64/releaseFramework/Shared.framework/Shared
 
 ### 앱 이름과 아이콘
 
-홈 화면 이름은 Android 런처와 같은 `VLR.GG Mobile`이며 `Info.plist`의 `CFBundleDisplayName`이 정한다. `PRODUCT_NAME`과 bundle 경로는 바꾸지 않는다. 아이콘은 Android·Play와 같은 [`app-icon.svg`](design/app-icon/app-icon.svg) 스코어 윈도이며 [`export.swift`](design/app-icon/export.swift)가 알파 채널 없는 1024px PNG를 `Assets.xcassets/AppIcon.appiconset`에 쓴다. App Store는 알파 채널과 투명 영역을 허용하지 않는다. 사이트 이름이 문제 되면 Play와 같은 방침으로 제목과 아이콘을 함께 재검토한다.
+홈 화면 이름은 Android 런처와 같은 `VLR.GG Mobile`이며 `Info.plist`의 `CFBundleDisplayName`이 정한다. `PRODUCT_NAME`과 bundle 경로는 바꾸지 않는다. 아이콘은 Android·Play와 같은 아레나 티켓 V 원본 [`app-icon-source.png`](design/app-icon/app-icon-source.png)이며 [`export.swift`](design/app-icon/export.swift)가 원본 정사각형 구도 그대로 알파 채널 없는 sRGB 1024px PNG를 `Assets.xcassets/AppIcon.appiconset`에 쓴다. App Store는 알파 채널과 투명 영역을 허용하지 않는다. 사이트 이름이 문제 되면 Play와 같은 방침으로 제목과 아이콘을 함께 재검토한다.
 
 iOS lane은 temporary keychain/profile/config를 만들고 archive와 dSYM을 처리한다. 기존 profile을 덮어쓰지 않으며 marker에 기록된 이번 실행의 자원만 삭제한다. cleanup marker가 불일치하거나 credential 삭제가 실패하면 임의 정리를 하지 않고 실패로 남긴다. 기존 사용자 keychain이나 인증서 디렉터리를 통째로 삭제하지 않는다.
 
