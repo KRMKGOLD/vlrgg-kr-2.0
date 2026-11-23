@@ -21,7 +21,7 @@ let densities: [(name: String, scale: Int)] = [("mdpi", 2), ("hdpi", 3), ("xhdpi
 // Adaptive icon geometry (dp). The ticket must stay inside the 66dp safe zone (radius 33dp).
 let adaptiveCanvas = 108.0
 let safeRadius = 33.0
-let targetRadius = 32.5
+let targetRadius = 32.3
 // Matte tuning, in 0...255 RGB distance from the sampled background unless noted.
 let edgeBandWidth = 24          // border band used to sample the background colour
 let hardThreshold: Float = 56   // pixels farther than this from the background are "ticket" for the flood fill
@@ -265,7 +265,7 @@ precondition((560.0...660.0).contains(maxRadius), "Matte radius \(maxRadius)px i
 let dpPerSourcePixel = targetRadius / maxRadius
 precondition(maxRadius * dpPerSourcePixel <= targetRadius + 1e-9 && targetRadius < safeRadius)
 
-// Full-bleed square masks: the ticket must survive the iOS squircle and Play's 20% rounded corner mask.
+// Full-bleed square masks: the ticket must survive the iOS squircle and Play's 30% rounded corner mask.
 func insideSuperellipse(_ x: Double, _ y: Double) -> Double { 1 - (pow(abs(x), 5) + pow(abs(y), 5)) }
 func insideRoundedSquare(_ x: Double, _ y: Double, radius r: Double) -> Double {
     // x, y, r in units of the half side (square spans -1...1). Returns signed margin (>0 inside).
@@ -279,7 +279,7 @@ for p in 0..<pixelCount where alpha[p] >= radiusAlpha {
         let x = (Double(p % side) + cx - sourceCenter) / sourceCenter
         let y = (Double(p / side) + cy - sourceCenter) / sourceCenter
         squircleMargin = min(squircleMargin, insideSuperellipse(x, y))
-        playMargin = min(playMargin, insideRoundedSquare(x, y, radius: 0.4))       // 20% of the side
+        playMargin = min(playMargin, insideRoundedSquare(x, y, radius: 0.6))       // Play: 30% of the side
         iosCornerMargin = min(iosCornerMargin, insideRoundedSquare(x, y, radius: 0.4474)) // 22.37% of the side
     }
 }
@@ -493,26 +493,38 @@ try """
 """.write(to: colourResource, atomically: true, encoding: .utf8)
 written.append(path(colourResource))
 
-var renderedForegroundRadiusDp = 0.0
+/// Farthest pixel corner from the canvas centre among written pixels with alpha ≥ 0.1, in dp.
+/// Measured on the final 8-bit straight RGBA bytes, so resampling spread and quantisation are included.
+func visibleRadiusDp(_ bytes: [UInt8], size: Int, canvasDp: Double) -> Double {
+    let minimumAlpha = UInt8((radiusAlpha * 255).rounded(.up))
+    let c = Double(size) / 2
+    var radius = 0.0
+    for p in 0..<(size * size) where bytes[p * 4 + 3] >= minimumAlpha {
+        let x = Double(p % size), y = Double(p / size)
+        let dx = max(abs(x - c), abs(x + 1 - c)), dy = max(abs(y - c), abs(y + 1 - c))
+        radius = max(radius, (dx * dx + dy * dy).squareRoot())
+    }
+    return radius * canvasDp / Double(size)
+}
+
+var renderedRadii = [String]()
+var renderedForegroundRadiusDp = 0.0, renderedSplashRadiusDp = 0.0
 for density in densities {
     let mipmap = resources.appendingPathComponent("mipmap-\(density.name)")
-    // 108dp adaptive layers.
+    // 108dp adaptive layers; every density must keep visible pixels inside the 66dp safe zone.
     let layerSize = 54 * density.scale
-    let foreground = renderCutOut(foregroundPremultiplied, size: layerSize)
+    let foregroundBytes = straightBytes(renderCutOut(foregroundPremultiplied, size: layerSize), opaque: false)
+    let monochromeBytes = straightBytes(renderCutOut(monochromePremultiplied, size: layerSize), opaque: false)
+    let foregroundRadius = visibleRadiusDp(foregroundBytes, size: layerSize, canvasDp: adaptiveCanvas)
+    let monochromeRadius = visibleRadiusDp(monochromeBytes, size: layerSize, canvasDp: adaptiveCanvas)
+    precondition(foregroundRadius <= safeRadius && monochromeRadius <= safeRadius,
+                 "\(density.name) layer leaves the safe zone: foreground \(foregroundRadius)dp, monochrome \(monochromeRadius)dp")
+    renderedForegroundRadiusDp = max(renderedForegroundRadiusDp, foregroundRadius, monochromeRadius)
     let foregroundURL = mipmap.appendingPathComponent("ic_launcher_foreground.png")
-    try writePNG(straightBytes(foreground, opaque: false), size: layerSize, opaque: false, to: [foregroundURL])
+    try writePNG(foregroundBytes, size: layerSize, opaque: false, to: [foregroundURL])
     let monochromeURL = mipmap.appendingPathComponent("ic_launcher_monochrome.png")
-    try writePNG(straightBytes(renderCutOut(monochromePremultiplied, size: layerSize), opaque: false), size: layerSize, opaque: false, to: [monochromeURL])
+    try writePNG(monochromeBytes, size: layerSize, opaque: false, to: [monochromeURL])
     written += [path(foregroundURL), path(monochromeURL)]
-    if density.name == "xxxhdpi" {
-        // Re-measure the safe zone on the rendered layer, including resampling spread.
-        for p in 0..<(layerSize * layerSize) where foreground[p * 4 + 3] >= radiusAlpha {
-            let x = Double(p % layerSize), y = Double(p / layerSize), c = Double(layerSize) / 2
-            let dx = max(abs(x - c), abs(x + 1 - c)), dy = max(abs(y - c), abs(y + 1 - c))
-            renderedForegroundRadiusDp = max(renderedForegroundRadiusDp, (dx * dx + dy * dy).squareRoot() * adaptiveCanvas / Double(layerSize))
-        }
-        precondition(renderedForegroundRadiusDp <= safeRadius, "Rendered foreground leaves the safe zone: \(renderedForegroundRadiusDp)dp")
-    }
 
     // Legacy 48dp icons: the centre 72dp of background + foreground, as a rounded square and a circle.
     let legacySize = 24 * density.scale
@@ -532,12 +544,15 @@ for density in densities {
 
     // Splash icon: 240dp canvas with the same 108-unit composition, shown inside a 160dp circle.
     let splashSize = 120 * density.scale
+    let splashBytes = straightBytes(renderCutOut(foregroundPremultiplied, size: splashSize), opaque: false)
+    let splashRadius = visibleRadiusDp(splashBytes, size: splashSize, canvasDp: 240)
+    precondition(splashRadius <= 80, "\(density.name) splash leaves the 160dp circle: \(splashRadius)dp")
+    renderedSplashRadiusDp = max(renderedSplashRadiusDp, splashRadius)
     let splashURL = resources.appendingPathComponent("drawable-\(density.name)/ic_splash.png")
-    try writePNG(straightBytes(renderCutOut(foregroundPremultiplied, size: splashSize), opaque: false), size: splashSize, opaque: false, to: [splashURL])
+    try writePNG(splashBytes, size: splashSize, opaque: false, to: [splashURL])
     written.append(path(splashURL))
+    renderedRadii.append(String(format: "%@ foreground %.2f / monochrome %.2f / splash %.2f", density.name, foregroundRadius, monochromeRadius, splashRadius))
 }
-let splashRadiusDp = targetRadius * 240 / adaptiveCanvas
-precondition(splashRadiusDp < 80, "Splash ticket leaves the 160dp circle")
 
 // Full-bleed squares: iOS (opaque RGB), Google Play (RGBA, < 1MB) and the About screen.
 let iosURL = root.appendingPathComponent("app/iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png")
@@ -570,8 +585,10 @@ print("""
 Source: \(digest) (\(side)×\(side), \(sourceInfo.contains("profile: <nil>") ? "untagged, treated as sRGB" : "sRGB"))
 Background #\(backgroundHex); matte max radius \(String(format: "%.1f", maxRadius))px from centre; dropped specks \(droppedSpecks)
 Adaptive scale: \(String(format: "%.5f", dpPerSourcePixel))dp per source px (source = \(String(format: "%.2f", Double(side) * dpPerSourcePixel))dp); \
-ticket radius \(targetRadius)dp, rendered \(String(format: "%.2f", renderedForegroundRadiusDp))dp ≤ \(safeRadius)dp; splash \(String(format: "%.2f", splashRadiusDp))dp < 80dp
-Full-bleed mask margins (half-side units): squircle n=5 \(String(format: "%.3f", squircleMargin)), Play 20% \(String(format: "%.3f", playMargin)), 22.37% \(String(format: "%.3f", iosCornerMargin))
+ticket radius \(targetRadius)dp; rendered max \(String(format: "%.2f", renderedForegroundRadiusDp))dp ≤ \(safeRadius)dp, splash max \(String(format: "%.2f", renderedSplashRadiusDp))dp ≤ 80dp
+Rendered radius (dp, alpha ≥ 0.1, farthest pixel corner):
+\(renderedRadii.map { "  " + $0 }.joined(separator: "\n"))
+Full-bleed mask margins (half-side units): squircle n=5 \(String(format: "%.3f", squircleMargin)), Play 30% \(String(format: "%.3f", playMargin)), 22.37% \(String(format: "%.3f", iosCornerMargin))
 Play icon \(playData.count) bytes; iOS icon \(iosData.count) bytes
 Wrote \(written.count) files:
 \(written.map { "  " + $0 }.joined(separator: "\n"))

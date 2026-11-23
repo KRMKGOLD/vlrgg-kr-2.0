@@ -31,9 +31,9 @@ iOS `Contents.json`의 dark·tinted 슬롯은 비워 두어 시스템이 파생�
 
 - **배경색:** 원본 가장자리 24px 띠의 채널별 중앙값 `#1D1A18`.
 - **matte:** 배경색과의 RGB 거리가 56 이하인 픽셀을 이미지 테두리에서 flood fill해 바깥으로 본다. 닿지 않은 영역(검정 V, 반권 막대 포함)은 불투명이다. 좌우 반원 노치는 바깥과 이어져 투명하다. 테두리 안쪽·바깥쪽 4px 띠에서만 가장 가까운 종이 색과 배경색으로 알파를 풀고(C = aF + (1−a)B), 경계 색에서 배경을 걷어내(un-premultiply) 어두운 테가 남지 않게 한다. 떨어져 있는 몇 픽셀짜리 점은 버린다.
-- **safe zone:** 알파 0.1 이상 matte의 원본 중심 기준 최대 반지름은 608.5px이다. 이를 108dp adaptive 캔버스의 32.5dp에 맞춰 원본 1px = 0.05341dp(원본 전체 66.98dp)로 배치하고 원본 중심을 캔버스 중심에 둔다. xxxhdpi foreground에서 다시 재면 리샘플링 번짐을 포함해 32.56dp로 66dp safe zone(반지름 33dp) 안이다.
-- **스플래시:** 티켓 반지름은 `32.5 × 240 / 108 = 72.2dp`로 160dp 원(반지름 80dp) 안에 들어간다. 창 배경은 DESIGN.md Surface와 같은 흰색이고, 아이콘 배경(`windowSplashScreenIconBackgroundColor`)은 런처와 같은 `@color/ic_launcher_background`다. 원본의 어두운 바탕 위 티켓 구도를 그대로 보여 주기 위해서다.
-- **full-bleed 마스크:** 알파 0.1 이상 티켓 픽셀은 iOS squircle 근사(superellipse n=5), Play 20% 라운드 사각, 22.37% 라운드 사각 모두의 안쪽에 있다. 가장 가까운 여유는 반변 기준 0.097(512px에서 약 25px)이라 배경 패딩은 넣지 않았다.
+- **safe zone:** 알파 0.1 이상 matte의 원본 중심 기준 최대 반지름은 608.5px이다. 이를 108dp adaptive 캔버스의 32.3dp에 맞춰 원본 1px = 0.05309dp(원본 전체 66.57dp)로 배치하고 원본 중심을 캔버스 중심에 둔다. 생성기는 모든 density의 최종 foreground·monochrome PNG에서 알파 0.1 이상 픽셀의 가장 먼 모서리를 다시 재고 66dp safe zone(반지름 33dp)을 넘으면 중단한다. 리샘플링 번짐과 픽셀 격자를 포함한 측정값은 mdpi 32.80, hdpi 32.69, xhdpi 32.41, xxhdpi 32.48, xxxhdpi 32.37dp다(foreground·monochrome 같음). 32.5dp로 배치하면 mdpi가 33.42dp가 되어 32.3dp로 줄였다.
+- **스플래시:** 티켓 반지름은 `32.3 × 240 / 108 = 71.8dp`이고, 모든 density의 최종 PNG에서 잰 값은 최대 72.05dp로 160dp 원(반지름 80dp) 안에 들어간다. 생성기가 density마다 80dp 이하를 검사한다. 창 배경은 DESIGN.md Surface와 같은 흰색이고, 아이콘 배경(`windowSplashScreenIconBackgroundColor`)은 런처와 같은 `@color/ic_launcher_background`다. 원본의 어두운 바탕 위 티켓 구도를 그대로 보여 주기 위해서다.
+- **full-bleed 마스크:** 알파 0.1 이상 티켓 픽셀은 iOS squircle 근사(superellipse n=5), Play 30% 라운드 사각(Play 규격의 마스크 반경), 22.37% 라운드 사각 모두의 안쪽에 있다. 가장 가까운 여유는 반변 기준 0.097(512px에서 약 25px)이라 배경 패딩은 넣지 않았다.
 - **리샘플링:** premultiplied RGBA에 separable Lanczos-3를 적용한다. legacy 아이콘 마스크는 8×8 supersampling이다. 결과는 결정적이라 두 번 실행해도 바이트가 같다.
 - **색 확인:** 쓴 iOS PNG를 다시 디코드해 메모리의 바이트와 같은지, 배경 픽셀이 대응하는 원본 픽셀 평균과 ±3 이내인지 확인한다.
 
@@ -49,6 +49,6 @@ app/iosApp/Scripts/test_release_config.sh
 ./gradlew :app:androidApp:assembleDebug :app:androidApp:lintDebug
 ```
 
-생성기는 원본 SHA·크기, safe zone, 마스크 여유, Play 1MB, 색 왕복을 precondition으로 검사한다. 시안 비교 파일과 에뮬레이터·contact sheet 캡처는 저장소에 포함하지 않는다.
+생성기는 원본 SHA·크기, density별 safe zone·스플래시 원, 마스크 여유, Play 1MB, 색 왕복을 precondition으로 검사한다. 시안 비교 파일과 에뮬레이터·contact sheet 캡처는 저장소에 포함하지 않는다.
 
 규격 근거: [Adaptive icons](https://developer.android.com/develop/ui/views/launch/icon_design_adaptive), [Splash screen dimensions](https://developer.android.com/develop/ui/views/launch/splash-screen#splash_screen_dimensions), [Google Play icon specifications](https://developer.android.com/distribute/google-play/resources/icon-design-specifications).
