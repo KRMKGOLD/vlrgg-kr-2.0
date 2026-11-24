@@ -3,7 +3,7 @@ package kr.co.cotton.vlrgg_mobile.feature.news
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 
-/** Coordinates one fresh upstream request with parsing and public response mapping. */
+/** Coordinates one fresh upstream request with parsing and public response mapping on every call; response caching is the route layer's job. */
 internal class NewsService(
     private val scraper: NewsScraper,
     private val parser: NewsParser,
