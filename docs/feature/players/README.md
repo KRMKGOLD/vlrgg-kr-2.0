@@ -38,7 +38,7 @@ GET /api/v1/players/{playerId}
 ```
 
 - `playerId`는 선행 0 없는 1~10자리 양의 10진 String이다. Search와 Team roster ID를 그대로 사용한다. invalid path/query는 upstream 요청 전에 `400 INVALID_REQUEST`다.
-- 매 요청마다 `https://www.vlr.gg/player/{playerId}/?timespan=all`을 한 번 조회하며 cache, retry, stale-success fallback이 없다.
+- 캐시 miss인 요청마다 `https://www.vlr.gg/player/{playerId}/?timespan=all`을 한 번 조회하며 retry와 stale-success fallback이 없다. 성공 응답의 공유 캐시는 [Response cache](../../architecture/server-arch.md#response-cache)를 따른다.
 - 응답은 필수 `id`/`profile`, nullable `currentTeam`, `agentStats`, `recentMatches`다. Profile은 `handle`, `realName`, `aliases`, `countryCode`, `countryName`, `imageUrl`, Team은 `id`, `name`, `imageUrl`을 가진다.
 - Agent Stats는 `agentName`, `mapsPlayed`, `pickRatePercent`, `roundsPlayed`, `rating`, `averageCombatScore`, `killDeathRatio`, `kastPercent`, `averageDamagePerRound`, `killsPerRound`, `assistsPerRound`, `firstKillDeathRatio`, `kills`, `deaths`, `assists`, `firstKills`, `firstDeaths`를 제공한다.
 - Recent Match는 `id`, `eventName`, `eventStage`, `teamA`, `teamB`, `teamAScore`, `teamBScore`, `outcome`, `playedOn`을 사용한다. `playedOn`(`2026/08/02`)은 원문이며, 2026-11-10 계약으로 `playedDate`를 추가해 앱이 `8월 2일`로 표시한다(앱 구현 완료, 서버 field가 오기 전까지는 원문, [한국어 표시 확장](../matches/README.md#한국어-표시-확장-2026-11-10)).
