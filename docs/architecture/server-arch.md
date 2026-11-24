@@ -30,10 +30,10 @@
 
 ### Rules
 
-- key는 `{배포 SHA}:{route}:{검증·정규화한 parameter}`, value는 최종 성공 응답 JSON이다. 배포마다 key 공간이 바뀌어 이전 응답 형식이 나가지 않으므로 수동 purge를 두지 않는다. 압축은 실제 크기를 잰 뒤 필요할 때만 한다.
-- key와 value에는 public response에 이미 담긴 정보만 둔다. 사용자 식별 정보, 원본 HTML, upstream URL은 넣지 않는다.
+- key는 `{배포 SHA}:{고정 route 식별자}:{요청을 구분하는 식별자}`다. 식별자는 검증·정규화를 거친 resource ID(match, event, team, player, series, News의 articleId와 slug)와 page다. 응답 본문에 없는 값(예: Event News·Stats의 eventId)도 요청을 구분하는 데 필요하면 넣는다. 배포마다 key 공간이 바뀌어 이전 응답 형식이 나가지 않으므로 수동 purge를 두지 않는다.
+- value는 최종 성공 응답 JSON 그대로다. 예외로 `SOURCE_PARSING_FAILURE`는 status와 code만 60초 저장한다. `UPSTREAM_NETWORK_FAILURE`와 `NOT_FOUND`를 포함한 그 밖의 실패는 캐시하지 않는다. 압축은 실제 크기를 잰 뒤 필요할 때만 한다.
+- key와 value 어디에도 이용자 식별 정보(IP, User-Agent 등), 검색어, 원본 HTML, upstream URL을 넣지 않는다.
 - TTL이 지난 뒤 조회가 실패하면 이전 응답 없이 실패 envelope를 반환한다.
-- 실패 응답 중에는 `SOURCE_PARSING_FAILURE`만 status와 code를 60초 캐시한다. `UPSTREAM_NETWORK_FAILURE`와 `NOT_FOUND`를 포함한 그 밖의 실패는 캐시하지 않는다.
 - Upstash 조회 timeout은 200ms이며 오류와 timeout은 cache miss로 처리한다. 저장 실패는 응답에 영향을 주지 않고 WARN만 남기며 Error Reporting용 ERROR event가 아니다. 연속 실패 시 호출을 건너뛰는 장치는 실제 장애를 겪은 뒤 판단한다.
 - 만료 시점의 요청 몰림은 인스턴스 안의 진행 중 fetch 공유로만 막는다. 인스턴스 사이 분산 lock과 만료 전 미리 갱신은 두지 않는다.
 
@@ -51,7 +51,7 @@
 | Events 목록·상세·News·Stats, News 목록·상세, Player, Series | 5분 |
 | `GET /api/v1/search` | 캐시하지 않음 |
 
-LIVE 여부는 응답에 담긴 경기 상태로 판단한다.
+LIVE 여부는 응답에 담긴 경기 상태로 판단한다. Matches와 Event Matches는 `status`가 `live`인 경기다. Team 응답에는 상태 값이 없으므로 `upcomingMatches`와 `recentMatches`의 `statusText`가 `LIVE`(앞뒤 공백 제거, 대소문자 무시)인 경기를 LIVE로 본다. 값이 없거나 다른 문구인 경기는 LIVE로 보지 않는다. 2026-11-24에 진행 중 경기가 있는 Team 페이지에서 이 원문을 확인했으며, 구현 PR은 LIVE fixture로 검증한다.
 
 Search는 캐시하지 않는다. 검색어는 이용자가 입력한 값이라 Upstash에 저장하지 않으며, [개인정보처리방침](../privacy-policy.md)의 "검색어를 따로 저장하지 않는다"는 설명을 그대로 유지한다.
 
