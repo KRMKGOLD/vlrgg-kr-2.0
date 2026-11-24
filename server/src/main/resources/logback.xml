@@ -13,6 +13,9 @@
     <logger name="server.failure" level="WARN" additivity="false">
         <appender-ref ref="FAILURE_STDOUT"/>
     </logger>
+    <logger name="server.cache" level="WARN" additivity="false">
+        <appender-ref ref="FAILURE_STDOUT"/>
+    </logger>
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
