@@ -210,6 +210,28 @@ class NewsParserTest {
     }
 
     @Test
+    fun `article parser exposes only HTTPS body image URLs`() {
+        val fixture = readFixture("news-article.html")
+        fun imageUrls(source: String): List<String> = parser.parseArticle(
+            html = fixture.replace("/img/champions.png", source),
+            reference = newsReference("101", "champions-run"),
+        ).blocks.filterIsInstance<NewsImageSourceBlock>().map(NewsImageSourceBlock::imageUrl)
+
+        assertEquals(listOf("https://cdn.example/a.png"), imageUrls("https://cdn.example/a.png"))
+        assertEquals(listOf("https://cdn.example/a.png"), imageUrls("//cdn.example/a.png"))
+        listOf(
+            "http://192.168.0.1/a.png",
+            "http://cdn.example/a.png",
+            "file:///data/a.png",
+            "content://media/a.png",
+            "data:image/png;base64,AAAA",
+            "javascript:void(0)",
+        ).forEach { source ->
+            assertEquals(emptyList(), imageUrls(source), "Rejected image source: $source")
+        }
+    }
+
+    @Test
     fun `article parser keeps protocol relative links external`() {
         val article = parser.parseArticle(
             html = readFixture("news-article-protocol-relative-link.html"),
