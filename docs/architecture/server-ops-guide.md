@@ -52,7 +52,7 @@ Cloud Run 서비스는 두 개다. `vlrgg-query`가 운영(공개)이고 `vlrgg-
 - 서비스 설정: CPU 1, memory 768 MiB, concurrency 32, timeout 30초, 최소 0·최대 1 instance, CPU throttling. 운영에만 startup CPU boost를 준다. 환경변수는 `VLRGG_ENABLE_API_DOCUMENTATION=false`와 `GOOGLE_CLOUD_PROJECT`다.
 - Actions step summary에 커밋 SHA와 통과 문구가 남는다.
 
-URL, digest, token과 gcloud 출력은 로그와 summary에 남기지 않는다. URL은 mask하고 gcloud 출력은 runner의 임시 파일에만 쓴다. artifact는 올리지 않는다.
+URL, digest, token과 gcloud 출력은 로그와 summary에 남기지 않는다. URL은 mask하고 gcloud 출력은 runner의 임시 파일에만 쓴다. artifact는 올리지 않는다. 이 규칙은 서버 배포 workflow에 적용한다. 운영 API origin은 배포된 앱에 포함되는 공개 값이라 비밀로 취급하지 않으며, 앱 배포 workflow의 빌드 로그에는 origin이 나타날 수 있다. 접근 통제는 URL 비공개가 아니라 [공개 조회 API 보호 계약](server-public-api-protection.md)에 둔다.
 
 ### 배포 뒤 확인
 

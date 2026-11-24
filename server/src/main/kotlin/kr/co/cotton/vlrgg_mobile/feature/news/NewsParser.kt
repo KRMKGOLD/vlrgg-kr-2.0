@@ -5,6 +5,7 @@ import java.time.OffsetDateTime
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import kr.co.cotton.vlrgg_mobile.common.scraping.WHITESPACE
 import kr.co.cotton.vlrgg_mobile.common.scraping.normalizedTextOrNull
+import kr.co.cotton.vlrgg_mobile.common.scraping.toPublicImageUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -186,10 +187,9 @@ internal class NewsParser {
         }
 
     private fun parseImageElement(image: Element, caption: String?): NewsImageSourceBlock? {
-        val imageUrl = image.absUrl("src").ifBlank { image.attr("src").trim() }
-        return imageUrl.takeIf { it.isNotBlank() }?.let {
-            NewsImageSourceBlock(imageUrl = it, caption = caption)
-        }
+        // Body images follow the same HTTPS-only rule as every other public image URL.
+        val imageUrl = image.absUrl("src").ifBlank { image.attr("src") }.toPublicImageUrl()
+        return imageUrl?.let { NewsImageSourceBlock(imageUrl = it, caption = caption) }
     }
 
     private fun parseList(element: Element): NewsListSourceBlock? {
