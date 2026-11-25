@@ -322,7 +322,11 @@ CACHE_SETTING=false BEFORE_ENV="$cache_on_env" AFTER_ENV="$cache_on_env" \
 expect_error cache-off-not-applied 'Production response cache settings were not applied'
 for case_id in cache-on-literal-url cache-on-secret-flag cache-on-not-applied cache-off-not-applied \
   cache-on-secret-sha cache-off-secret-sha-not-applied; do
-  ! grep -q '^response_cache=' "$work_dir/$case_id/output"
+  # A bare `! grep` is exempt from errexit, so branch on the match explicitly.
+  if grep -q '^response_cache=' "$work_dir/$case_id/output"; then
+    echo "FAIL: $case_id reported a response cache result after rejection" >&2
+    exit 1
+  fi
 done
 for scenario in split partial ready-without-traffic public authenticated disabled; do
   run_case "$scenario" reject-before-deploy
@@ -415,7 +419,10 @@ run_validation_case() {
     elif [[ "$expected" == reject-before-traffic ]]; then
       test -f "$case_dir/deployed"
       test ! -f "$case_dir/promoted"
-      ! grep -q 'run services update-traffic' "$case_dir/calls"
+      if grep -q 'run services update-traffic' "$case_dir/calls"; then
+        echo "FAIL: validation $scenario moved traffic after a rejected deploy" >&2
+        exit 1
+      fi
     elif [[ "$expected" == reject-promotion ]]; then
       test ! -f "$case_dir/promoted"
       grep -q 'run services update-traffic' "$case_dir/calls"

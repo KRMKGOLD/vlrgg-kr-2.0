@@ -99,7 +99,7 @@ URL, digest, token과 gcloud 출력은 로그와 summary에 남기지 않는다.
 
 | 테스트 | 줄 수 | 확인하는 것 |
 | --- | ---: | --- |
-| `test-query-production-deploy.sh` | 465 | `deploy-server.yml`에서 6번과 8번 단계의 셸을 뽑아 가짜 gcloud로 실행한다. 8번은 캐시 변수 on·off별로 gcloud가 받는 env·secret flag를, 6번은 캐시 flag가 없는 것을 확인한다 |
+| `test-query-production-deploy.sh` | 472 | `deploy-server.yml`에서 6번과 8번 단계의 셸을 뽑아 가짜 gcloud로 실행한다. 8번은 캐시 변수 on·off별로 gcloud가 받는 env·secret flag를, 6번은 캐시 flag가 없는 것을 확인한다 |
 | `test-observability-operations.sh` | 2,978 | service·policies·live·cleanup 스크립트를 가짜 REST와 gcloud로 실행한다. preflight 셸도 뽑아 실행하며 캐시 스위치 output(`response_cache_enabled`)을 확인한다 |
 | `test-observability-runtime-proof.py` | 330 | 이미지 hash 계산 |
 | `test-observability-runtime-container.sh` | 67 | 실제 이미지를 두 번 빌드해 hash가 같은지 본다. Docker가 필요하다 |
