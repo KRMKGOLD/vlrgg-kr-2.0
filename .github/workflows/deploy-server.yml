@@ -66,6 +66,7 @@ jobs:
         id: preflight
         env:
           DEPLOY_ENABLED: ${{ vars.CLOUD_RUN_DEPLOY_ENABLED }}
+          RESPONSE_CACHE_SETTING: ${{ vars.SERVER_RESPONSE_CACHE_ENABLED }}
           WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
           DEPLOY_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
           GH_TOKEN: ${{ github.token }}
@@ -87,6 +88,12 @@ jobs:
           done
           test "$GITHUB_SHA" = "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
           ruby scripts/ci/ci_contract.rb verify server "$GITHUB_SHA" "$GITHUB_REPOSITORY"
+          # Only the exact value true enables the production response cache; anything else deploys without it.
+          if test "$RESPONSE_CACHE_SETTING" = true; then
+            echo "response_cache_enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "response_cache_enabled=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build the existing server image before requesting cloud credentials
         if: inputs.operation != 'observability-restore'
@@ -524,6 +531,7 @@ jobs:
         if: inputs.operation == 'deploy'
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          RESPONSE_CACHE_ENABLED: ${{ steps.preflight.outputs.response_cache_enabled }}
         shell: bash
         run: |
           require_private_service() {
@@ -546,6 +554,76 @@ jobs:
             --filter "metadata.name=$SERVICE" --format=json 2>/dev/null)"
           jq --exit-status --arg name "$SERVICE" \
             'length <= 1 and all(.[]; .metadata.name == $name)' <<< "$services" > /dev/null
+          existing='{}'
+          if test "$(jq 'length' <<< "$services")" = 1; then
+            existing="$(gcloud run services describe "$SERVICE" \
+              --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
+            jq --exit-status --arg name "$SERVICE" '.metadata.name == $name' <<< "$existing" > /dev/null
+          fi
+
+          # Response cache settings exist only on production. --update-* merges into the current
+          # template, so turning the cache off removes what the template holds. Removal flags are
+          # added only for entries that exist, by the source type the template shows.
+          cache_url_secret=vlrgg-upstash-rest-url-production
+          cache_token_secret=vlrgg-upstash-rest-token-production
+          env_source() {
+            jq --exit-status --raw-output --arg name "$1" '
+              [.spec.template.spec.containers[0].env[]? | select(.name == $name) |
+                if .valueFrom.secretKeyRef then "secret"
+                elif has("valueFrom") then "other"
+                else "literal" end] |
+              if length == 0 then "absent" elif length == 1 then .[0] else "duplicate" end
+            ' <<< "$existing"
+          }
+          env_vars="VLRGG_ENABLE_API_DOCUMENTATION=false,GOOGLE_CLOUD_PROJECT=$PROJECT_ID"
+          cache_flags=()
+          if test "$RESPONSE_CACHE_ENABLED" = true; then
+            [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Unexpected deploy SHA."; exit 1; }
+            for name in VLRGG_UPSTASH_REDIS_REST_URL:secret VLRGG_UPSTASH_REDIS_REST_TOKEN:secret \
+              VLRGG_RESPONSE_CACHE_ENABLED:literal VLRGG_DEPLOY_SHA:literal; do
+              kind="$(env_source "${name%%:*}")"
+              if test "$kind" != absent && test "$kind" != "${name##*:}"; then
+                echo "::error::${name%%:*} already exists with another source; remove it before enabling the cache."
+                exit 1
+              fi
+            done
+            env_vars+=",VLRGG_RESPONSE_CACHE_ENABLED=true,VLRGG_DEPLOY_SHA=$GITHUB_SHA"
+            cache_flags=(--update-secrets="VLRGG_UPSTASH_REDIS_REST_URL=$cache_url_secret:latest,VLRGG_UPSTASH_REDIS_REST_TOKEN=$cache_token_secret:latest")
+            response_cache=enabled
+          else
+            remove_secrets=()
+            remove_env=()
+            enabled_literal=true
+            # A literal deploy SHA stays (unused while off, overwritten on enable); a secret-sourced one is
+            # removed so the next enable is not blocked and no stale secret reference is inherited.
+            for name in VLRGG_UPSTASH_REDIS_REST_URL VLRGG_UPSTASH_REDIS_REST_TOKEN VLRGG_RESPONSE_CACHE_ENABLED \
+              VLRGG_DEPLOY_SHA; do
+              case "$(env_source "$name")" in
+                absent) ;;
+                secret)
+                  remove_secrets+=("$name")
+                  test "$name" != VLRGG_RESPONSE_CACHE_ENABLED || enabled_literal=false
+                  ;;
+                literal)
+                  case "$name" in
+                    VLRGG_RESPONSE_CACHE_ENABLED|VLRGG_DEPLOY_SHA) ;;
+                    *) remove_env+=("$name") ;;
+                  esac
+                  ;;
+                *) echo "::error::$name has an unsupported source."; exit 1 ;;
+              esac
+            done
+            # A secret-sourced flag is removed instead of overwritten; an absent flag is also off.
+            test "$enabled_literal" = false || env_vars+=",VLRGG_RESPONSE_CACHE_ENABLED=false"
+            if test "${#remove_secrets[@]}" -gt 0; then
+              cache_flags+=(--remove-secrets="$(IFS=,; echo "${remove_secrets[*]}")")
+            fi
+            if test "${#remove_env[@]}" -gt 0; then
+              cache_flags+=(--remove-env-vars="$(IFS=,; echo "${remove_env[*]}")")
+            fi
+            response_cache=disabled
+          fi
+
           previous="$(jq --exit-status --raw-output '
             (.[0].status.traffic // []) | map(select((.percent // 0) > 0)) |
             if length == 0 then ""
@@ -557,8 +635,6 @@ jobs:
           first_deployment=false
           if test -z "$previous"; then
             if test "$(jq 'length' <<< "$services")" = 1; then
-              existing="$(gcloud run services describe "$SERVICE" \
-                --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
               jq --exit-status --arg name "$SERVICE" '
                 .metadata.name == $name and
                 (.status.latestReadyRevisionName // "") == "" and
@@ -578,7 +654,7 @@ jobs:
             --revision-suffix "r$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --port=8080 --cpu=1 --memory=768Mi --concurrency=32 --timeout=30s \
             --min=0 --max=1 --min-instances=0 --max-instances=1 --cpu-throttling --cpu-boost \
-            --update-env-vars="VLRGG_ENABLE_API_DOCUMENTATION=false,GOOGLE_CLOUD_PROJECT=$PROJECT_ID" "${flags[@]}" \
+            --update-env-vars="$env_vars" "${cache_flags[@]}" "${flags[@]}" \
             > "$RUNNER_TEMP/cloud-run-production-deploy.log" 2>&1
           service="$(gcloud run services describe "$SERVICE" \
             --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
@@ -590,6 +666,30 @@ jobs:
             .status.latestCreatedRevisionName == $revision and
             (.status.url | type == "string" and length > 0)
           ' <<< "$service" > /dev/null
+          # Read back only names and secret references; values are never printed.
+          if ! jq --exit-status --arg mode "$response_cache" --arg sha "$GITHUB_SHA" \
+            --arg url_secret "$cache_url_secret" --arg token_secret "$cache_token_secret" '
+            (.spec.template.spec.containers[0].env // []) as $env |
+            def entry($name): [$env[] | select(.name == $name)] | if length == 1 then .[0] else null end;
+            def secret_ref($name; $secret):
+              entry($name) | . != null and .valueFrom.secretKeyRef.name == $secret and
+                .valueFrom.secretKeyRef.key == "latest";
+            if $mode == "enabled" then
+              entry("VLRGG_RESPONSE_CACHE_ENABLED").value == "true" and
+              entry("VLRGG_DEPLOY_SHA").value == $sha and
+              secret_ref("VLRGG_UPSTASH_REDIS_REST_URL"; $url_secret) and
+              secret_ref("VLRGG_UPSTASH_REDIS_REST_TOKEN"; $token_secret)
+            else
+              ([$env[] | select(.name == "VLRGG_UPSTASH_REDIS_REST_URL" or
+                .name == "VLRGG_UPSTASH_REDIS_REST_TOKEN")] | length == 0) and
+              (entry("VLRGG_RESPONSE_CACHE_ENABLED") |
+                . == null or (.value == "false" and (has("valueFrom") | not))) and
+              ([$env[] | select(.name == "VLRGG_DEPLOY_SHA" and has("valueFrom"))] | length == 0)
+            end
+          ' <<< "$service" > /dev/null; then
+            echo "::error::Production response cache settings were not applied as expected."
+            exit 1
+          fi
           deployed_revision="$(gcloud run revisions describe "$revision" \
             --project "$PROJECT_ID" --region "$REGION" --format=json 2>/dev/null)"
           jq --exit-status --arg revision "$revision" --arg image "$IMAGE_DIGEST" '
@@ -616,6 +716,7 @@ jobs:
           echo "::add-mask::${url#https://}"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "response_cache=$response_cache" >> "$GITHUB_OUTPUT"
 
       - name: Obtain an ID token for the production service
         id: production-auth
@@ -673,9 +774,12 @@ jobs:
 
       - name: Record the deployed release
         if: inputs.operation == 'deploy'
+        env:
+          RESPONSE_CACHE: ${{ steps.production.outputs.response_cache }}
         run: |
           {
             echo "Commit: $GITHUB_SHA"
             echo "Query deployment and smoke checks passed."
+            echo "Production response cache: $RESPONSE_CACHE."
             echo "A first deployment remains private. Public access and cost-stop verification are separate operator steps."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -25,6 +25,42 @@ awk '
 test -s "$work_dir/production.sh"
 bash -n "$work_dir/production.sh"
 
+# The cache switch crosses steps through a preflight output; a renamed output would silently turn
+# the cache off, so check both ends of the wiring in the workflow source.
+awk '
+  /^      - name: Require enabled deployment and successful server CI for this main commit$/ { step = 1; next }
+  step && /^      - name:/ { exit }
+  step { print }
+' "$repo_root/.github/workflows/deploy-server.yml" > "$work_dir/preflight-step.yml"
+awk '
+  /^      - name: Deploy the verified image to production$/ { step = 1; next }
+  step && /^      - name:/ { exit }
+  step { print }
+' "$repo_root/.github/workflows/deploy-server.yml" > "$work_dir/production-step.yml"
+wiring_line() {
+  grep -qxF -- "$1" "$2" || { echo "FAIL: response cache wiring: $1" >&2; exit 1; }
+}
+wiring_line '          RESPONSE_CACHE_SETTING: ${{ vars.SERVER_RESPONSE_CACHE_ENABLED }}' "$work_dir/preflight-step.yml"
+wiring_line '            echo "response_cache_enabled=true" >> "$GITHUB_OUTPUT"' "$work_dir/preflight-step.yml"
+wiring_line '          RESPONSE_CACHE_ENABLED: ${{ steps.preflight.outputs.response_cache_enabled }}' "$work_dir/production-step.yml"
+if grep -Eq 'RESPONSE_CACHE|UPSTASH|DEPLOY_SHA|secrets' "$work_dir/validation.sh"; then
+  echo 'FAIL: validation service step references response cache settings' >&2
+  exit 1
+fi
+echo 'PASS: response cache wiring'
+
+cache_sha=0123456789abcdef0123456789abcdef01234567
+base_env_flag='--update-env-vars=VLRGG_ENABLE_API_DOCUMENTATION=false,GOOGLE_CLOUD_PROJECT=test'
+on_secret_flag='--update-secrets=VLRGG_UPSTASH_REDIS_REST_URL=vlrgg-upstash-rest-url-production:latest,VLRGG_UPSTASH_REDIS_REST_TOKEN=vlrgg-upstash-rest-token-production:latest'
+cache_on_env="$(jq -cn --arg sha "$cache_sha" '[
+  {name:"VLRGG_ENABLE_API_DOCUMENTATION",value:"false"},
+  {name:"VLRGG_RESPONSE_CACHE_ENABLED",value:"true"},
+  {name:"VLRGG_DEPLOY_SHA",value:$sha},
+  {name:"VLRGG_UPSTASH_REDIS_REST_URL",valueFrom:{secretKeyRef:{name:"vlrgg-upstash-rest-url-production",key:"latest"}}},
+  {name:"VLRGG_UPSTASH_REDIS_REST_TOKEN",valueFrom:{secretKeyRef:{name:"vlrgg-upstash-rest-token-production",key:"latest"}}}
+]')"
+cache_off_env='[{"name":"VLRGG_ENABLE_API_DOCUMENTATION","value":"false"},{"name":"VLRGG_RESPONSE_CACHE_ENABLED","value":"false"}]'
+
 cat > "$work_dir/bin/gcloud" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -54,10 +90,12 @@ esac
 STUB
 chmod +x "$work_dir/bin/gcloud"
 
+# Optional globals per case: CACHE_SETTING (preflight output), BEFORE_ENV (current template env),
+# AFTER_ENV (template env read back after deploy). Unset means the default, cache-free deployment.
 run_case() {
-  local scenario="$1" expected="$2" fixture latest_ready='query-test-r123-1'
+  local scenario="$1" expected="$2" case_id="${3:-$1}" fixture latest_ready='query-test-r123-1'
   local traffic_revision='query-test-r123-1' policy='{"bindings":[]}'
-  local case_dir="$work_dir/$scenario" result=0
+  local case_dir="$work_dir/$case_id" result=0
   mkdir -p "$case_dir"
   : > "$case_dir/calls"
   : > "$case_dir/output"
@@ -79,6 +117,10 @@ run_case() {
     empty-traffic|post-public|post-disabled) ;;
     *) echo "Unknown case: $scenario" >&2; exit 1 ;;
   esac
+  if test -n "${BEFORE_ENV:-}"; then
+    fixture="$(jq --argjson env "$BEFORE_ENV" \
+      'map(.spec.template.spec.containers = [{image:"test@sha256:old",env:$env}])' <<< "$fixture")"
+  fi
   printf '%s\n' "$fixture" > "$case_dir/before.json"
   printf '%s\n' "$policy" > "$case_dir/before-policy.json"
   printf '%s\n' '{"bindings":[]}' > "$case_dir/after-policy.json"
@@ -91,9 +133,10 @@ run_case() {
     latest_ready=old
     traffic_revision=old
   fi
-  jq -n --arg latest_ready "$latest_ready" --arg traffic_revision "$traffic_revision" '
+  jq -n --arg latest_ready "$latest_ready" --arg traffic_revision "$traffic_revision" \
+    --argjson env "${AFTER_ENV:-$cache_off_env}" '
     {metadata:{name:"query-test",annotations:{}},
-     spec:{template:{spec:{containers:[{image:"test@sha256:fixture"}]}}},
+     spec:{template:{spec:{containers:[{image:"test@sha256:fixture",env:$env}]}}},
      status:{url:"https://query.example.invalid",latestCreatedRevisionName:"query-test-r123-1",
              latestReadyRevisionName:$latest_ready,
              traffic:[{percent:100,revisionName:$traffic_revision}]}}
@@ -123,12 +166,13 @@ run_case() {
   env PATH="$work_dir/bin:$PATH" CASE_DIR="$case_dir" RUNNER_TEMP="$case_dir" \
     GITHUB_OUTPUT="$case_dir/output" PROJECT_ID=test REGION=test SERVICE=query-test \
     IMAGE_DIGEST=test@sha256:fixture RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid \
-    GITHUB_RUN_ID=123 GITHUB_RUN_ATTEMPT=1 \
+    GITHUB_RUN_ID=123 GITHUB_RUN_ATTEMPT=1 GITHUB_SHA="$cache_sha" \
+    RESPONSE_CACHE_ENABLED="${CACHE_SETTING-}" \
     bash --noprofile --norc -e -o pipefail "$work_dir/production.sh" \
       > "$case_dir/stdout" 2> "$case_dir/stderr" || result=$?
 
   if [[ "$expected" == reject* ]]; then
-    test "$result" != 0 || { echo "FAIL: $scenario was accepted" >&2; exit 1; }
+    test "$result" != 0 || { echo "FAIL: $case_id was accepted" >&2; exit 1; }
     if [[ "$expected" == reject-before-deploy ]]; then
       test ! -f "$case_dir/deployed"
       if grep -q '^first_deployment=' "$case_dir/output"; then
@@ -166,11 +210,119 @@ run_case() {
     grep -qx 'revision=query-test-r123-1' "$case_dir/output"
     grep -Eq '^run deploy query-test .* --min=0 --max=1 --min-instances=0 --max-instances=1 --cpu-throttling --cpu-boost( |$)' "$case_dir/calls"
   fi
-  echo "PASS: $scenario"
+  echo "PASS: $case_id"
+}
+
+# Prints the deploy flags that touch environment variables or secrets, one per line, in order.
+deploy_env_flags() {
+  grep '^run deploy query-test ' "$work_dir/$1/calls" | tr ' ' '\n' |
+    grep -E '^--(update|remove|set|clear)-(env-vars|secrets)' || true
+}
+
+expect_env_flags() {
+  local case_id="$1" expected="$2"
+  if test "$(deploy_env_flags "$case_id")" != "$expected"; then
+    echo "FAIL: $case_id deploy flags" >&2
+    deploy_env_flags "$case_id" >&2
+    exit 1
+  fi
+  grep -qx "response_cache=$3" "$work_dir/$case_id/output"
+  echo "PASS: $case_id flags"
 }
 
 for scenario in empty-traffic missing-traffic null-traffic zero-traffic new serving staged; do
   run_case "$scenario" accept
+  # Without the repository variable the deploy is the previous cache-free deploy plus an explicit off.
+  expect_env_flags "$scenario" "$base_env_flag,VLRGG_RESPONSE_CACHE_ENABLED=false" disabled
+done
+
+on_flags="$base_env_flag,VLRGG_RESPONSE_CACHE_ENABLED=true,VLRGG_DEPLOY_SHA=$cache_sha
+$on_secret_flag"
+off_remove_flags="$base_env_flag,VLRGG_RESPONSE_CACHE_ENABLED=false
+--remove-secrets=VLRGG_UPSTASH_REDIS_REST_URL,VLRGG_UPSTASH_REDIS_REST_TOKEN"
+literal_url='{"name":"VLRGG_UPSTASH_REDIS_REST_URL","value":"https://example.invalid"}'
+secret_flag_env='[{"name":"VLRGG_RESPONSE_CACHE_ENABLED","valueFrom":{"secretKeyRef":{"name":"other","key":"1"}}}]'
+
+CACHE_SETTING=true AFTER_ENV="$cache_on_env" run_case new accept cache-on-new
+expect_env_flags cache-on-new "$on_flags" enabled
+CACHE_SETTING=true BEFORE_ENV="$cache_off_env" AFTER_ENV="$cache_on_env" run_case serving accept cache-on-from-off
+expect_env_flags cache-on-from-off "$on_flags" enabled
+CACHE_SETTING=true BEFORE_ENV="$cache_on_env" AFTER_ENV="$cache_on_env" run_case serving accept cache-on-again
+expect_env_flags cache-on-again "$on_flags" enabled
+CACHE_SETTING=false BEFORE_ENV="$cache_on_env" run_case serving accept cache-off-from-on
+expect_env_flags cache-off-from-on "$off_remove_flags" disabled
+for setting in TRUE '' yes; do
+  CACHE_SETTING="$setting" BEFORE_ENV="$cache_on_env" run_case serving accept "cache-setting-${setting:-empty}"
+  expect_env_flags "cache-setting-${setting:-empty}" "$off_remove_flags" disabled
+done
+CACHE_SETTING=false BEFORE_ENV="$cache_off_env" run_case serving accept cache-off-again
+expect_env_flags cache-off-again "$base_env_flag,VLRGG_RESPONSE_CACHE_ENABLED=false" disabled
+CACHE_SETTING=false BEFORE_ENV="[$literal_url]" run_case serving accept cache-off-literal-url
+expect_env_flags cache-off-literal-url "$base_env_flag,VLRGG_RESPONSE_CACHE_ENABLED=false
+--remove-env-vars=VLRGG_UPSTASH_REDIS_REST_URL" disabled
+CACHE_SETTING=false BEFORE_ENV="$secret_flag_env" run_case serving accept cache-off-secret-flag
+expect_env_flags cache-off-secret-flag "$base_env_flag
+--remove-secrets=VLRGG_RESPONSE_CACHE_ENABLED" disabled
+
+expect_error() {
+  grep -qF "::error::$2" "$work_dir/$1/stdout" || { echo "FAIL: $1 failed for another reason" >&2; exit 1; }
+}
+
+# Applies the env/secret flags a case's deploy received to a template env, the way --remove-* then
+# --update-* merge into the template, so a follow-up case can start from the resulting template.
+apply_env_flags() {
+  local before="$1" flag result="$1"
+  while IFS= read -r flag; do
+    case "$flag" in
+      --remove-env-vars=*|--remove-secrets=*)
+        result="$(jq -c --arg names "${flag#*=}" \
+          '($names | split(",")) as $n | map(select(.name as $x | $n | index($x) | not))' <<< "$result")" ;;
+      --update-env-vars=*)
+        result="$(jq -c --arg pairs "${flag#*=}" '
+          reduce ($pairs | split(",")[] | capture("^(?<name>[^=]+)=(?<value>.*)$")) as $p (.;
+            map(select(.name != $p.name)) + [{name:$p.name,value:$p.value}])' <<< "$result")" ;;
+      *) echo "FAIL: apply_env_flags cannot apply $flag" >&2; exit 1 ;;
+    esac
+  done < <(deploy_env_flags "$2")
+  printf '%s\n' "$result"
+}
+
+# A secret-sourced deploy SHA blocks enabling. Disabling removes that reference (a literal SHA stays),
+# and enabling from the resulting template then succeeds.
+secret_sha_env="$(jq -c '.[] |= (if .name == "VLRGG_DEPLOY_SHA"
+  then {name, valueFrom:{secretKeyRef:{name:"other",key:"1"}}} else . end)' <<< "$cache_on_env")"
+CACHE_SETTING=true BEFORE_ENV="$secret_sha_env" run_case serving reject-before-deploy cache-on-secret-sha
+expect_error cache-on-secret-sha 'VLRGG_DEPLOY_SHA already exists with another source'
+CACHE_SETTING=false BEFORE_ENV="$secret_sha_env" run_case serving accept cache-off-secret-sha
+expect_env_flags cache-off-secret-sha "$base_env_flag,VLRGG_RESPONSE_CACHE_ENABLED=false
+--remove-secrets=VLRGG_UPSTASH_REDIS_REST_URL,VLRGG_UPSTASH_REDIS_REST_TOKEN,VLRGG_DEPLOY_SHA" disabled
+after_off_env="$(apply_env_flags "$secret_sha_env" cache-off-secret-sha)"
+jq --exit-status '
+  ([.[] | select(.name | test("^VLRGG_(DEPLOY_SHA|UPSTASH_REDIS_REST_URL|UPSTASH_REDIS_REST_TOKEN)$"))] | length == 0) and
+  ([.[] | select(.name == "VLRGG_RESPONSE_CACHE_ENABLED")] == [{name:"VLRGG_RESPONSE_CACHE_ENABLED",value:"false"}])
+' <<< "$after_off_env" > /dev/null || { echo "FAIL: cache-off-secret-sha left $after_off_env" >&2; exit 1; }
+CACHE_SETTING=true BEFORE_ENV="$after_off_env" AFTER_ENV="$cache_on_env" run_case serving accept cache-on-after-secret-sha
+expect_env_flags cache-on-after-secret-sha "$on_flags" enabled
+# A literal SHA survives disabling: it is unused while off and overwritten on the next enable.
+test "$(apply_env_flags "$cache_on_env" cache-off-from-on | jq -r '.[] | select(.name == "VLRGG_DEPLOY_SHA") | .value')" = "$cache_sha"
+CACHE_SETTING=false BEFORE_ENV="$secret_sha_env" AFTER_ENV="$(jq -c '[.[] | select(.name == "VLRGG_DEPLOY_SHA")]' <<< "$secret_sha_env")" \
+  run_case serving reject-after-deploy cache-off-secret-sha-not-applied
+expect_error cache-off-secret-sha-not-applied 'Production response cache settings were not applied'
+echo 'PASS: secret deploy SHA transition'
+
+CACHE_SETTING=true BEFORE_ENV="[$literal_url]" run_case serving reject-before-deploy cache-on-literal-url
+expect_error cache-on-literal-url 'VLRGG_UPSTASH_REDIS_REST_URL already exists with another source'
+CACHE_SETTING=true BEFORE_ENV="$secret_flag_env" run_case serving reject-before-deploy cache-on-secret-flag
+expect_error cache-on-secret-flag 'VLRGG_RESPONSE_CACHE_ENABLED already exists with another source'
+# The stub cannot apply flags, so a stale read-back stands in for a template the deploy did not change.
+CACHE_SETTING=true BEFORE_ENV="$cache_off_env" run_case serving reject-after-deploy cache-on-not-applied
+expect_error cache-on-not-applied 'Production response cache settings were not applied'
+CACHE_SETTING=false BEFORE_ENV="$cache_on_env" AFTER_ENV="$cache_on_env" \
+  run_case serving reject-after-deploy cache-off-not-applied
+expect_error cache-off-not-applied 'Production response cache settings were not applied'
+for case_id in cache-on-literal-url cache-on-secret-flag cache-on-not-applied cache-off-not-applied \
+  cache-on-secret-sha cache-off-secret-sha-not-applied; do
+  ! grep -q '^response_cache=' "$work_dir/$case_id/output"
 done
 for scenario in split partial ready-without-traffic public authenticated disabled; do
   run_case "$scenario" reject-before-deploy
@@ -239,6 +391,7 @@ run_validation_case() {
     GITHUB_OUTPUT="$case_dir/output" PROJECT_ID=test REGION=test SERVICE=query-test \
     VALIDATION_SERVICE=validation-test IMAGE_DIGEST=test@sha256:fixture \
     RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_RUN_ID=123 GITHUB_RUN_ATTEMPT=1 \
+    GITHUB_SHA="$cache_sha" RESPONSE_CACHE_ENABLED=true \
     bash --noprofile --norc -e -o pipefail "$work_dir/validation.sh" \
       > "$case_dir/stdout" 2> "$case_dir/stderr" || result=$?
 
@@ -249,6 +402,11 @@ run_validation_case() {
     grep -Eq '^run revisions describe validation-test-r123-1( |$)' "$case_dir/calls"
     grep -q -- '--to-revisions validation-test-r123-1=100' "$case_dir/calls"
     grep -qx 'url=https://validation.example.invalid' "$case_dir/output"
+    # The validation service never receives cache settings, even when production enables them.
+    if grep -Eq 'RESPONSE_CACHE|UPSTASH|DEPLOY_SHA|-secrets' "$case_dir/calls"; then
+      echo "FAIL: validation $scenario received response cache settings" >&2
+      exit 1
+    fi
   else
     test "$result" != 0 || { echo "FAIL: validation $scenario was accepted" >&2; exit 1; }
     test ! -s "$case_dir/output"
