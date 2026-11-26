@@ -30,7 +30,6 @@ GET /api/v1/search?q={query}
 
 - `q`는 유일한 필수 query parameter다. 서버는 trim한 1~80자 문자열에 문자나 숫자가 하나 이상 있을 때만 요청한다. 앱은 더 좁은 30자 제한을 적용한다.
 - 제어 문자, malformed percent encoding, blank/symbol-only query는 upstream 요청 전에 `400 INVALID_REQUEST`로 거절한다.
-- Search 응답은 서버 공유 캐시에 저장하지 않는다. 검색어를 외부 저장소에 남기지 않기 위해서이며 근거는 [Response cache](../../architecture/server-arch.md#response-cache)를 따른다.
 - 응답은 `{ query, results }`이며 각 결과는 `type`, `{ resource, id }` reference, `name`, 타입별 optional metadata를 가진다.
 - `type`/`resource`는 `series`, `event`, `team`, `player` 중 하나고 ID는 선행 0 없는 양의 10진 String이다. VLR.GG `eventgroup`은 public `series`로 정규화한다.
 - optional field는 Series `scope`, Event `period`, Team `tagOrRegion`, Player `identity`다. Event `period`에 상금 등 이웃 metadata를 섞지 않는다.

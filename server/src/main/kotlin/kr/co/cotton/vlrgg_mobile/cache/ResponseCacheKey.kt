@@ -5,16 +5,6 @@ internal enum class ResponseCacheRoute(val label: String) {
     MATCHES_UPCOMING("matches-upcoming"),
     MATCHES_RESULTS("matches-results"),
     MATCH_DETAIL("match-detail"),
-    EVENTS_LIST("events-list"),
-    EVENT_DETAIL("event-detail"),
-    EVENT_MATCHES("event-matches"),
-    EVENT_NEWS("event-news"),
-    EVENT_STATS("event-stats"),
-    TEAM_DETAIL("team-detail"),
-    NEWS_LIST("news-list"),
-    NEWS_ARTICLE("news-article"),
-    PLAYER_DETAIL("player-detail"),
-    SERIES_DETAIL("series-detail"),
 }
 
 /** TTLs in seconds. The policy cap is five minutes; [ResponseCache] rejects anything longer. */

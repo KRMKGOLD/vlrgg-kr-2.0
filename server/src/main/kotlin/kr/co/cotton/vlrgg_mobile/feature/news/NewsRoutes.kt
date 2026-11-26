@@ -4,29 +4,20 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kr.co.cotton.vlrgg_mobile.cache.ResponseCache
-import kr.co.cotton.vlrgg_mobile.cache.ResponseCacheRoute
-import kr.co.cotton.vlrgg_mobile.cache.ResponseCacheTtl
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.scraping.NewsReference
 import kr.co.cotton.vlrgg_mobile.routing.canonicalDecimalPageQuery
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.newsSlugPath
 import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
-import kr.co.cotton.vlrgg_mobile.protection.respondCachedPublicJson
+import kr.co.cotton.vlrgg_mobile.protection.respondPublicJson
 
 private val pagePattern = Regex("[1-9][0-9]{0,4}")
 
-internal fun Route.configureNewsRoutes(service: NewsService, cache: ResponseCache = ResponseCache.DISABLED) {
+internal fun Route.configureNewsRoutes(service: NewsService) {
     route("/api/v1/news") {
         get {
-            val page = call.requireNewsPage()
-            call.respondCachedPublicJson(
-                cache,
-                ResponseCacheRoute.NEWS_LIST,
-                page.toString(),
-                ttlSeconds = { _: NewsListResponse -> ResponseCacheTtl.DEFAULT_SECONDS },
-            ) { service.getList(page) }
+            call.respondPublicJson(service.getList(call.requireNewsPage()))
         }.describePublicGet<NewsListResponse>(
             operationId = "getNewsList",
             summary = "Get news articles",
@@ -42,14 +33,7 @@ internal fun Route.configureNewsRoutes(service: NewsService, cache: ResponseCach
             )
         }
         get("/{articleId}/{slug}") {
-            val reference = call.requireNewsReference()
-            call.respondCachedPublicJson(
-                cache,
-                ResponseCacheRoute.NEWS_ARTICLE,
-                reference.articleId,
-                reference.slug,
-                ttlSeconds = { _: NewsArticleResponse -> ResponseCacheTtl.DEFAULT_SECONDS },
-            ) { service.getArticle(reference) }
+            call.respondPublicJson(service.getArticle(call.requireNewsReference()))
         }.describePublicGet<NewsArticleResponse>(
             operationId = "getNewsArticle",
             summary = "Get a news article",
