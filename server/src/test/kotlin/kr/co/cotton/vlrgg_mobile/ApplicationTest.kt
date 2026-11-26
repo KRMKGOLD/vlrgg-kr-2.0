@@ -8,11 +8,23 @@ import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import io.ktor.util.reflect.*
 import kotlinx.serialization.json.*
+import kr.co.cotton.vlrgg_mobile.cache.FakeResponseCacheStore
+import kr.co.cotton.vlrgg_mobile.cache.ResponseCacheConfig
+import kr.co.cotton.vlrgg_mobile.cache.TEST_DEPLOY_SHA
+import kr.co.cotton.vlrgg_mobile.cache.enabledTestCacheConfig
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchDetailResponse
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchEventResponse
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchListCategory
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchStatus
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchTeamResponse
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesPageResponse
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesService
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 
 class ApplicationTest {
@@ -94,6 +106,75 @@ class ApplicationTest {
         assertEquals(ContentType.Application.Json, response.contentType())
         assertEquals(explicitError, Json.decodeFromString<ApiErrorResponse>(body))
         assertFalse(body.contains("Requested resource was not found."))
+    }
+
+    @Test
+    fun `response cache is off unless enabled by configuration`() {
+        assertSame(ResponseCacheConfig.Disabled, ResponseCacheConfig.fromEnvironment(emptyMap()))
+    }
+
+    @Test
+    fun `enabled response cache refuses to start with incomplete configuration`() {
+        assertFailsWith<IllegalArgumentException> {
+            ResponseCacheConfig.fromEnvironment(mapOf("VLRGG_RESPONSE_CACHE_ENABLED" to "true"))
+        }
+    }
+
+    @Test
+    fun `module wires the configured cache into matches routes`() {
+        val store = FakeResponseCacheStore()
+        val service = CountingMatchesService()
+        testApplication {
+            application {
+                module(matchesService = service, responseCacheConfig = enabledTestCacheConfig(), responseCacheStore = store)
+            }
+
+            val miss = client.get("/api/v1/matches/123")
+            val hit = client.get("/api/v1/matches/123")
+
+            assertEquals(HttpStatusCode.OK, hit.status)
+            assertEquals(miss.bodyAsText(), hit.bodyAsText())
+            assertEquals(1, service.calls.get())
+            assertEquals(miss.bodyAsText(), store.values["$TEST_DEPLOY_SHA:match-detail:123"])
+            assertEquals(2, store.gets.size)
+            assertEquals(listOf(300), store.sets.map { it.ttlSeconds })
+        }
+    }
+
+    @Test
+    fun `module without cache configuration never calls a store`() {
+        val service = CountingMatchesService()
+        testApplication {
+            application { module(matchesService = service, responseCacheConfig = ResponseCacheConfig.Disabled) }
+
+            client.get("/api/v1/matches/123")
+            client.get("/api/v1/matches/123")
+            assertEquals(2, service.calls.get())
+        }
+    }
+
+    private class CountingMatchesService : MatchesService {
+        val calls = AtomicInteger()
+
+        override suspend fun getMatches(category: MatchListCategory, page: Int): MatchesPageResponse {
+            calls.incrementAndGet()
+            return MatchesPageResponse(category, page, emptyList())
+        }
+
+        override suspend fun getMatch(matchId: String): MatchDetailResponse {
+            calls.incrementAndGet()
+            return MatchDetailResponse(
+                id = matchId,
+                status = MatchStatus.UPCOMING,
+                timeLabel = "5:00 PM",
+                homeTeam = MatchTeamResponse("Alpha"),
+                awayTeam = MatchTeamResponse("Beta"),
+                event = MatchEventResponse("Event"),
+                maps = emptyList(),
+                headToHead = emptyList(),
+                pastMatches = emptyList(),
+            )
+        }
     }
 
     private suspend fun ApplicationTestBuilder.assertError(
