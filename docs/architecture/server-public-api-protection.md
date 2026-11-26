@@ -1,6 +1,6 @@
 # 공개 조회 API 보호 계약 (#52)
 
-Android/iOS 앱이 사용하는 공개 조회 API의 비싼 작업과 비용을 제한한다. 로그인·앱 진위 검증·일반 조회 DB·완료 응답 cache·stale fallback·Redis는 도입하지 않는다. 앱에 포함된 고정 key, XFF/Forwarded, 앱 header와 peer IP는 검증된 사용자 신원이 아니다.
+Android/iOS 앱이 사용하는 공개 조회 API의 비싼 작업과 비용을 제한한다. 로그인·앱 진위 검증·일반 조회 DB·stale fallback은 도입하지 않는다. 성공 응답의 짧은 TTL 공유 캐시는 [서버 구조의 응답 캐시](server-arch.md#response-cache) 정책을 따른다. 앱에 포함된 고정 key, XFF/Forwarded, 앱 header와 peer IP는 검증된 사용자 신원이 아니다.
 
 ## Server limits
 
