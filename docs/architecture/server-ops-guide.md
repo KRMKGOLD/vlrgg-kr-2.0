@@ -25,7 +25,6 @@ Cloud Run 서비스는 두 개다. `vlrgg-query`가 운영(공개)이고 `vlrgg-
 - main의 최신 커밋에서 CI `server` job이 성공해 있어야 한다. 서버와 무관한 변경이라 `server` job이 skip됐으면 [명시적 CI 검증](../ci-cd.md#skipped-platform-validation-before-deployment)을 먼저 실행한다.
 - repository variable `CLOUD_RUN_DEPLOY_ENABLED`가 `true`여야 한다.
 - `production` environment 승인이 필요하다.
-- repository variable `SERVER_RESPONSE_CACHE_ENABLED`는 운영 응답 캐시 스위치다. 정확히 `true`일 때만 캐시를 켜고, 없거나 다른 값이면 캐시 없이 배포한다. 켜기 전 준비는 [Response cache settings](server-container-deployment.md#response-cache-settings)에 있다.
 
 실행은 Actions의 `Deploy query server`에서 branch `main`, operation `deploy`, validation_scope `all`로 한다.
 
@@ -38,7 +37,7 @@ Cloud Run 서비스는 두 개다. `vlrgg-query`가 운영(공개)이고 `vlrgg-
 | 5 | 이미지를 push하고 digest를 얻는다. 이후 배포는 tag가 아니라 이 digest로 한다 | Artifact Registry `vlrgg-server` |
 | 6 | 확인 서비스에 배포하고 Ready, digest, 비공개 IAM, traffic 100%를 확인한다 | revision `vlrgg-query-check-r<run_id>-<attempt>` |
 | 7 | ID token으로 확인 서비스를 호출해 응답을 검사한다 | `smoke-query-server.sh` |
-| 8 | 운영 서비스에 traffic 없는 새 revision을 만든다. 서비스가 처음 만들어지는 배포만 비공개 상태로 traffic을 받는다. 캐시 변수에 따라 캐시 설정을 넣거나 지우고 template을 다시 읽어 확인한다 | revision `vlrgg-query-r<run_id>-<attempt>` |
+| 8 | 운영 서비스에 traffic 없는 새 revision을 만든다. 서비스가 처음 만들어지는 배포만 비공개 상태로 traffic을 받는다 | revision `vlrgg-query-r<run_id>-<attempt>` |
 | 9 | 새 revision으로 traffic을 100% 옮긴다 | |
 | 10 | 운영 URL을 같은 방법으로 검사한다 | `smoke-query-server.sh` |
 | 11 | 9번이나 10번이 실패하면 시작할 때 기록한 이전 revision으로 traffic을 되돌린다 | |
@@ -50,9 +49,8 @@ Cloud Run 서비스는 두 개다. `vlrgg-query`가 운영(공개)이고 `vlrgg-
 - Artifact Registry의 이미지 `query:<커밋 SHA>`.
 - 확인 서비스와 운영 서비스에 revision 하나씩. 이름 끝의 `r<run_id>-<attempt>`로 Actions 실행을 찾을 수 있다. 실패 로그의 `serviceContext.version`에도 이 revision 이름이 들어간다.
 - 운영 traffic은 새 revision 100%다. 이전 revision은 지워지지 않고 남는다.
-- 서비스 설정: CPU 1, memory 768 MiB, concurrency 32, timeout 30초, 최소 0·최대 1 instance, CPU throttling. 운영에만 startup CPU boost를 준다. 두 서비스의 환경변수는 `VLRGG_ENABLE_API_DOCUMENTATION=false`와 `GOOGLE_CLOUD_PROJECT`다.
-- 운영에만 응답 캐시 환경변수가 붙는다. 캐시를 켜면 `VLRGG_RESPONSE_CACHE_ENABLED=true`, `VLRGG_DEPLOY_SHA=<커밋 SHA>`와 secret `VLRGG_UPSTASH_REDIS_REST_URL`·`VLRGG_UPSTASH_REDIS_REST_TOKEN`이고, 끄면 `VLRGG_RESPONSE_CACHE_ENABLED=false`를 넣고 두 secret을 template에서 지운다. 켜기 값이나 SHA가 secret으로 잘못 들어가 있으면 그 참조도 지운다. 일반 값 `VLRGG_DEPLOY_SHA`는 남지만 캐시가 꺼져 있어 쓰이지 않고, 다시 켤 때 덮어쓴다. 확인 서비스에는 넣지 않는다.
-- Actions step summary에 커밋 SHA, 통과 문구와 `Production response cache: enabled.` 또는 `disabled.`가 남는다.
+- 서비스 설정: CPU 1, memory 768 MiB, concurrency 32, timeout 30초, 최소 0·최대 1 instance, CPU throttling. 운영에만 startup CPU boost를 준다. 환경변수는 `VLRGG_ENABLE_API_DOCUMENTATION=false`와 `GOOGLE_CLOUD_PROJECT`다.
+- Actions step summary에 커밋 SHA와 통과 문구가 남는다.
 
 URL, digest, token과 gcloud 출력은 로그와 summary에 남기지 않는다. URL은 mask하고 gcloud 출력은 runner의 임시 파일에만 쓴다. artifact는 올리지 않는다. 이 규칙은 서버 배포 workflow에 적용한다. 운영 API origin은 배포된 앱에 포함되는 공개 값이라 비밀로 취급하지 않으며, 앱 배포 workflow의 빌드 로그에는 origin이 나타날 수 있다. 접근 통제는 URL 비공개가 아니라 [공개 조회 API 보호 계약](server-public-api-protection.md)에 둔다.
 
@@ -60,13 +58,10 @@ URL, digest, token과 gcloud 출력은 로그와 summary에 남기지 않는다.
 
 - 운영 uptime check가 새 revision에서도 정상 값을 내는지 본다. 이전 revision에 묶여 있으면 [교체 순서](server-container-deployment.md#production-permanent-policies)를 따른다.
 - Error Reporting의 `asia-northeast3` region에 새 오류 그룹이 생겼는지 본다. 조사 방법은 [Investigating an error](server-container-deployment.md#investigating-an-error)에 있다.
-- 캐시를 켰다면 `public_api_summary` 끝의 `cache={hit=,negative_hit=,miss=,lookup_failed=,store_failed=}`에서 `hit`이 늘고 `lookup_failed`·`store_failed`가 계속 늘지 않는지 본다. 캐시 오류는 miss로 처리돼 smoke가 통과하므로 이 값으로만 드러난다. 처음 켜거나 끈 배포 뒤에는 새 revision의 환경변수와 secret 참조도 직접 본다. 자세한 확인은 [After deployment](server-container-deployment.md#after-deployment)에 있다.
 
 ### 되돌리기
 
 승격이나 운영 검사가 실패하면 workflow가 이전 revision으로 되돌린다. 배포가 성공한 뒤 문제를 발견했다면 main에 되돌리는 커밋을 올리고 다시 `deploy`를 실행한다. workflow는 main의 최신 커밋만 배포하므로 과거 커밋을 골라 배포할 수 없다.
-
-캐시만 문제라면 코드를 되돌리지 않고 `SERVER_RESPONSE_CACHE_ENABLED`를 `true`가 아닌 값으로 바꾼 뒤 `deploy`를 다시 실행한다. 이전 revision이 캐시 secret을 참조하므로 끈 직후에는 secret을 지우지 않는다([Disabling](server-container-deployment.md#disabling)).
 
 ## 알림 검증 (`observability-validate`)
 
@@ -84,7 +79,7 @@ URL, digest, token과 gcloud 출력은 로그와 summary에 남기지 않는다.
 
 | 파일 | 줄 수 | 쓰이는 곳 | 역할 |
 | --- | ---: | --- | --- |
-| `.github/workflows/deploy-server.yml` | 785 | 전체 | operation 세 개의 단계 |
+| `.github/workflows/deploy-server.yml` | 681 | 전체 | operation 세 개의 단계 |
 | `scripts/ci/ci_contract.rb` | 188 | deploy 1번, CI | 변경 경로로 실행할 CI job 선택, 배포 전 CI 성공 확인 |
 | `.github/scripts/smoke-query-server.sh` | 65 | deploy, 복원 뒤 확인, CI | 서비스 응답 검사. `--local`은 CI에서 패키징된 서버를 검사한다 |
 | `.github/scripts/observability-service.sh` | 372 | deploy는 `guard`만, 나머지는 validate·restore | 복구 journal 읽기·쓰기와 확인 서비스 복원 |
@@ -99,8 +94,8 @@ URL, digest, token과 gcloud 출력은 로그와 summary에 남기지 않는다.
 
 | 테스트 | 줄 수 | 확인하는 것 |
 | --- | ---: | --- |
-| `test-query-production-deploy.sh` | 472 | `deploy-server.yml`에서 6번과 8번 단계의 셸을 뽑아 가짜 gcloud로 실행한다. 8번은 캐시 변수 on·off별로 gcloud가 받는 env·secret flag를, 6번은 캐시 flag가 없는 것을 확인한다 |
-| `test-observability-operations.sh` | 2,978 | service·policies·live·cleanup 스크립트를 가짜 REST와 gcloud로 실행한다. preflight 셸도 뽑아 실행하며 캐시 스위치 output(`response_cache_enabled`)을 확인한다 |
+| `test-query-production-deploy.sh` | 307 | `deploy-server.yml`에서 6번과 8번 단계의 셸을 뽑아 가짜 gcloud로 실행한다 |
+| `test-observability-operations.sh` | 2,968 | service·policies·live·cleanup 스크립트를 가짜 REST와 gcloud로 실행한다 |
 | `test-observability-runtime-proof.py` | 330 | 이미지 hash 계산 |
 | `test-observability-runtime-container.sh` | 67 | 실제 이미지를 두 번 빌드해 hash가 같은지 본다. Docker가 필요하다 |
 | `smoke-observability.sh` | 169 | 패키징된 서버와 테스트 전용 서버를 로컬에서 띄워 격리, 시작 guard, 실패 로그 JSON, trace, health를 본다 |
@@ -122,15 +117,12 @@ python3 -B .github/scripts/test-observability-runtime-proof.py
 | 바꾸는 것 | 같이 볼 곳 |
 | --- | --- |
 | 실패 로그 JSON의 필드나 severity (`server/.../plugins/FailureEvent.kt`) | `observability-live.sh`의 `run_o3_o6` jq 조건, `test-observability-operations.sh`의 로그 fixture, `smoke-observability.sh`의 이벤트 검사, [서버 구조](server-arch.md)의 Logging 절 |
-| 요청 요약 로그 `public_api_summary` (`server/.../plugins/Monitoring.kt`) | `observability-live.sh`가 `requests=`와 `diagnostics_emitted`·`diagnostics_suppressed` 문자열을 검사한다. 끝의 `cache={hit=,negative_hit=,miss=,lookup_failed=,store_failed=}`는 [After deployment](server-container-deployment.md#after-deployment)의 확인 절차가 쓴다. 필드를 바꾸면 그 절차와 이 문서의 배포 뒤 확인을 함께 고친다 |
+| 요청 요약 로그 `public_api_summary` (`server/.../plugins/Monitoring.kt`) | `observability-live.sh`가 `requests=`와 `diagnostics_emitted`·`diagnostics_suppressed` 문자열을 검사한다 |
 | `deploy-server.yml`의 `Deploy and inspect the private validation service`, `Deploy the verified image to production` 단계 이름이나 셸 | `test-query-production-deploy.sh`가 단계 이름으로 셸을 뽑는다 |
 | 루트 `Dockerfile`의 runtime stage | `test-observability-runtime-container.sh`와 `smoke-observability.sh`가 `FROM`·`COPY` 줄과 JVM 옵션을 검사한다 |
 | memory 768 MiB | `deploy-server.yml` 세 곳, `observability-oom.json`의 `memoryLimitMiB`와 그 파일의 hash, GCP의 운영 메모리 초과 로그 정책 |
 | 공개 route 추가·삭제, 문서 route 노출 | `smoke-query-server.sh` |
 | Cloud Run 설정 값 | `deploy-server.yml`의 확인 서비스와 운영 두 곳, `test-query-production-deploy.sh`의 기대값 |
-| 응답 캐시 환경변수 이름 (`server/.../cache/ResponseCacheConfig.kt`) | `deploy-server.yml` 운영 단계의 `--update-env-vars`·`--update-secrets`·remove 목록과 read-back, `test-query-production-deploy.sh`의 기대 flag, [서버 구조](server-arch.md)의 Configuration 표 |
-| 캐시 secret 이름 `vlrgg-upstash-rest-url-production`·`vlrgg-upstash-rest-token-production` | `deploy-server.yml` 운영 단계, `test-query-production-deploy.sh`, GCP Secret Manager와 runtime Service Account의 secret별 권한 |
-| 캐시 스위치 `SERVER_RESPONSE_CACHE_ENABLED`와 preflight output `response_cache_enabled` | `deploy-server.yml` preflight와 운영 단계의 `env:`. `test-query-production-deploy.sh`가 두 줄을 그대로 비교한다 |
 
 ## 줄일 수 있는 것
 
