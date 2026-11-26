@@ -36,6 +36,18 @@ class PublicApiProtectionTest {
     }
 
     @Test
+    fun `a fetch outside any request takes its own upstream work slot instead of bypassing the limit`() = runBlocking {
+        val protection = protection(TestClock(), apiBurst = 1)
+        assertEquals("a", protection.getHtml(Url("https://www.vlr.gg/a")) { "a" })
+
+        var fetched = false
+        assertSuspendFailsWith<RateLimitedFailure> {
+            protection.getHtml(Url("https://www.vlr.gg/b")) { fetched = true; "b" }
+        }
+        assertFalse(fetched)
+    }
+
+    @Test
     fun `same canonical in flight fetch is shared and completion is not cached`() = runBlocking {
         val gate = CompletableDeferred<Unit>()
         val started = CompletableDeferred<Unit>()

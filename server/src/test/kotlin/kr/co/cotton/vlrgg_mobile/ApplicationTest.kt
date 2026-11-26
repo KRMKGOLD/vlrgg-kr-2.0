@@ -13,6 +13,15 @@ import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
 import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
+import kr.co.cotton.vlrgg_mobile.cache.ResponseCacheConfig
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchDetailResponse
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchEventResponse
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchListCategory
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchStatus
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchTeamResponse
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesPageResponse
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesService
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.*
 
 class ApplicationTest {
@@ -94,6 +103,77 @@ class ApplicationTest {
         assertEquals(ContentType.Application.Json, response.contentType())
         assertEquals(explicitError, Json.decodeFromString<ApiErrorResponse>(body))
         assertFalse(body.contains("Requested resource was not found."))
+    }
+
+    @Test
+    fun `module caches matches responses by default`() {
+        val service = CountingMatchesService()
+        testApplication {
+            application { module(matchesService = service, responseCacheConfig = ResponseCacheConfig.fromEnvironment(emptyMap())) }
+
+            val miss = client.get("/api/v1/matches/123")
+            val hit = client.get("/api/v1/matches/123")
+
+            assertEquals(HttpStatusCode.OK, hit.status)
+            assertContentEquals(miss.bodyAsBytes(), hit.bodyAsBytes())
+            assertEquals(1, service.calls.get())
+        }
+    }
+
+    @Test
+    fun `module with the cache turned off calls the service for every request`() {
+        val service = CountingMatchesService()
+        testApplication {
+            application {
+                module(
+                    matchesService = service,
+                    responseCacheConfig = ResponseCacheConfig.fromEnvironment(mapOf("VLRGG_RESPONSE_CACHE_ENABLED" to "false")),
+                )
+            }
+
+            assertEquals(HttpStatusCode.OK, client.get("/api/v1/matches/123").status)
+            assertEquals(HttpStatusCode.OK, client.get("/api/v1/matches/123").status)
+            assertEquals(2, service.calls.get())
+        }
+    }
+
+    @Test
+    fun `server start is refused for malformed response cache settings`() {
+        listOf(
+            mapOf("VLRGG_RESPONSE_CACHE_ENABLED" to "on"),
+            mapOf("VLRGG_RESPONSE_CACHE_MAX_BYTES" to "0"),
+        ).forEach { environment ->
+            assertFailsWith<IllegalArgumentException> {
+                testApplication {
+                    application { module(responseCacheConfig = ResponseCacheConfig.fromEnvironment(environment)) }
+                    client.get("/health")
+                }
+            }
+        }
+    }
+
+    private class CountingMatchesService : MatchesService {
+        val calls = AtomicInteger()
+
+        override suspend fun getMatches(category: MatchListCategory, page: Int): MatchesPageResponse {
+            calls.incrementAndGet()
+            return MatchesPageResponse(category, page, emptyList())
+        }
+
+        override suspend fun getMatch(matchId: String): MatchDetailResponse {
+            calls.incrementAndGet()
+            return MatchDetailResponse(
+                id = matchId,
+                status = MatchStatus.UPCOMING,
+                timeLabel = "5:00 PM",
+                homeTeam = MatchTeamResponse("Alpha"),
+                awayTeam = MatchTeamResponse("Beta"),
+                event = MatchEventResponse("Event"),
+                maps = emptyList(),
+                headToHead = emptyList(),
+                pastMatches = emptyList(),
+            )
+        }
     }
 
     private suspend fun ApplicationTestBuilder.assertError(

@@ -12,6 +12,7 @@ androidx-core-splashscreen = "1.2.0"
 androidx-datastore = "1.2.1"
 androidx-espresso = "3.7.0"
 androidx-lifecycle = "2.11.0-beta01"
+caffeine = "3.3.1"
 androidx-testExt = "1.3.0"
 composeMultiplatform = "1.11.1"
 coil = "3.5.0"
@@ -72,6 +73,7 @@ lifecycle-viewmodel-navigation3 = { module = "org.jetbrains.androidx.lifecycle:l
 navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "navigation3" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 ktor-serverCore = { module = "io.ktor:ktor-server-core-jvm", version.ref = "ktor" }
 ktor-serverNetty = { module = "io.ktor:ktor-server-netty-jvm", version.ref = "ktor" }
 ktor-serverTestHost = { module = "io.ktor:ktor-server-test-host-jvm", version.ref = "ktor" }

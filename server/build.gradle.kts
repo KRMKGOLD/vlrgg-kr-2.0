@@ -11,6 +11,7 @@ application {
 }
 
 dependencies {
+    implementation(libs.caffeine)
     implementation(libs.jspecify)
     implementation(libs.jsoup)
     implementation(libs.logback)

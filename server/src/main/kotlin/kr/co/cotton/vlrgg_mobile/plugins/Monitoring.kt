@@ -10,6 +10,17 @@ import kr.co.cotton.vlrgg_mobile.common.http.ServerFailure
 
 internal enum class PublicRouteClass { API, OTHER }
 
+/**
+ * Response cache outcomes, one per cached-route request. `MISS` started a shared load and `JOINED` waited for one
+ * already in progress; neither is counted for a disabled cache. The order is the `cache={...}` summary order.
+ */
+internal enum class ResponseCacheCounter(val label: String) {
+    HIT("hit"),
+    NEGATIVE_HIT("negative_hit"),
+    MISS("miss"),
+    JOINED("joined"),
+}
+
 /** Process-local, fixed-cardinality counters. No request-derived string is retained as a metric label. */
 internal class PublicApiObservability(
     private val emit: (Snapshot) -> Unit = {},
@@ -28,6 +39,7 @@ internal class PublicApiObservability(
     private val diagnosticEmitted = AtomicLongArray(FailureCategory.entries.size)
     private val diagnosticSuppressed = AtomicLongArray(FailureCategory.entries.size)
     private val telemetryFailures = AtomicLong()
+    private val responseCacheCounters = AtomicLongArray(ResponseCacheCounter.entries.size)
 
     fun routeClass(path: String): PublicRouteClass =
         if (path.startsWith("/api/v1/")) PublicRouteClass.API else PublicRouteClass.OTHER
@@ -36,6 +48,7 @@ internal class PublicApiObservability(
         requestCount.incrementAndGet()
         routeClasses.incrementAndGet(routeClass.ordinal)
     }
+    /** `active_api` counts upstream work in progress: requests that fetch and parse, and shared cache loads. */
     fun apiStarted() = activeApi.incrementAndGet()
     fun apiFinished() = activeApi.decrementAndGet()
     fun upstreamStarted() = activeUpstream.incrementAndGet()
@@ -44,6 +57,7 @@ internal class PublicApiObservability(
     fun diagnosticEmitted(category: FailureCategory) = diagnosticEmitted.incrementAndGet(category.ordinal)
     fun diagnosticSuppressed(category: FailureCategory) = diagnosticSuppressed.incrementAndGet(category.ordinal)
     fun telemetryFailed() = telemetryFailures.incrementAndGet()
+    fun responseCache(counter: ResponseCacheCounter) = responseCacheCounters.incrementAndGet(counter.ordinal)
 
     fun completed(status: Int, elapsedMillis: Long) {
         statusClasses.incrementAndGet(status.coerceIn(0, 599) / 100)
@@ -72,6 +86,7 @@ internal class PublicApiObservability(
         diagnosticEmitted = FailureCategory.entries.associateWith { diagnosticEmitted[it.ordinal] },
         diagnosticSuppressed = FailureCategory.entries.associateWith { diagnosticSuppressed[it.ordinal] },
         telemetryFailures = telemetryFailures.get(),
+        responseCache = ResponseCacheCounter.entries.associateWith { responseCacheCounters[it.ordinal] },
     )
 
     internal data class Snapshot(
@@ -87,6 +102,7 @@ internal class PublicApiObservability(
         val diagnosticEmitted: Map<FailureCategory, Long>,
         val diagnosticSuppressed: Map<FailureCategory, Long>,
         val telemetryFailures: Long,
+        val responseCache: Map<ResponseCacheCounter, Long> = ResponseCacheCounter.entries.associateWith { 0L },
     )
 
     private fun emitIfDue() {
@@ -127,4 +143,6 @@ internal fun formatPublicApiSummary(summary: PublicApiObservability.Snapshot): S
         "joins=${summary.singleFlightJoins} upstream_failures=${summary.upstreamFailures} " +
         "diagnostics_emitted={${FailureCategory.entries.joinToString(",") { "${it.name}=${summary.diagnosticEmitted.getValue(it)}" }}} " +
         "diagnostics_suppressed={${FailureCategory.entries.joinToString(",") { "${it.name}=${summary.diagnosticSuppressed.getValue(it)}" }}} " +
-        "telemetry_failures=${summary.telemetryFailures}"
+        "telemetry_failures=${summary.telemetryFailures} " +
+        // Appended last: deployment checks match the earlier fields as fixed substrings.
+        "cache={${ResponseCacheCounter.entries.joinToString(",") { "${it.label}=${summary.responseCache.getValue(it)}" }}}"

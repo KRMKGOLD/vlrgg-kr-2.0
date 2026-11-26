@@ -81,7 +81,9 @@ class AcceptanceConcurrencyTest {
     @Test
     fun `eight same key waiters consume one upstream token and share one fixture fetch`() = runBlocking {
         val observability = PublicApiObservability()
-        val protection = protection(upstreamBurst = 1, maxKeys = 4, observability = observability)
+        // Each direct getHtml call outside a request takes its own upstream work permit; 16 keeps all eight
+        // waiters admitted so the different-key rejection below can only come from the upstream fetch bucket.
+        val protection = protection(upstreamBurst = 1, maxKeys = 4, maxApi = 16, observability = observability)
         val fetches = AtomicInteger()
         val started = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
@@ -218,13 +220,14 @@ class AcceptanceConcurrencyTest {
         upstreamBurst: Int = 16,
         maxKeys: Int = 4,
         maxUpstream: Int = 4,
+        maxApi: Int = 8,
         scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
         observability: PublicApiObservability = PublicApiObservability(),
     ) = PublicApiProtection(
         config = PublicApiProtectionConfig(
             apiRequestsPerSecond = 100,
             apiBurst = apiBurst,
-            maxActiveApiRequests = 8,
+            maxActiveApiRequests = maxApi,
             upstreamRequestsPerSecond = 100,
             upstreamBurst = upstreamBurst,
             maxActiveUpstreamRequests = maxUpstream,

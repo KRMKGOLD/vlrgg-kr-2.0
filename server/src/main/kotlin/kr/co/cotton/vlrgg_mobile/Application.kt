@@ -3,9 +3,13 @@ package kr.co.cotton.vlrgg_mobile
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import kr.co.cotton.vlrgg_mobile.cache.ResponseCacheConfig
+import kr.co.cotton.vlrgg_mobile.cache.createResponseCache
+import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 import kr.co.cotton.vlrgg_mobile.common.scraping.createUpstreamHtmlTransport
 import kr.co.cotton.vlrgg_mobile.feature.events.createEventsService
 import kr.co.cotton.vlrgg_mobile.feature.events.EventsService
+import kr.co.cotton.vlrgg_mobile.feature.matches.MatchesService
 import kr.co.cotton.vlrgg_mobile.feature.matches.createMatchesService
 import kr.co.cotton.vlrgg_mobile.feature.news.createDefaultNewsService
 import kr.co.cotton.vlrgg_mobile.feature.news.NewsService
@@ -42,18 +46,24 @@ internal fun Application.module(
     seriesService: SeriesService? = null,
     teamDetailService: TeamDetailService? = null,
     playerDetailService: PlayerDetailService? = null,
+    matchesService: MatchesService? = null,
     enableApiDocumentation: Boolean = false,
     protectionConfig: PublicApiProtectionConfig = PublicApiProtectionConfig.fromEnvironment(System.getenv()),
+    responseCacheConfig: ResponseCacheConfig = ResponseCacheConfig.fromEnvironment(System.getenv()),
+    upstreamTransport: UpstreamHtmlTransport? = null,
 ) {
     val observability = configureMonitoring()
     configureSerialization(); configureErrorHandling(observability)
     val protection = createPublicApiProtection(protectionConfig, observability)
     configurePublicRequestProtection(protection, protectionConfig)
-    val transport = createUpstreamHtmlTransport().withPublicProtection(protection)
+    // Every default service fetches through this one protected transport, which enforces the upstream work limit.
+    val transport = (upstreamTransport ?: createUpstreamHtmlTransport()).withPublicProtection(protection)
+    val responseCache = createResponseCache(responseCacheConfig, protection, observability)
     configureRouting(
         newsService = newsService ?: createDefaultNewsService(transport), eventsService = eventsService ?: createEventsService(transport),
         searchService = searchService ?: createSearchService(transport), seriesService = seriesService ?: createSeriesService(transport),
         teamDetailService = teamDetailService ?: createTeamDetailService(transport), playerDetailService = playerDetailService ?: createPlayerDetailService(transport),
-        matchesService = createMatchesService(transport), enableApiDocumentation = enableApiDocumentation,
+        matchesService = matchesService ?: createMatchesService(transport), enableApiDocumentation = enableApiDocumentation,
+        responseCache = responseCache,
     )
 }

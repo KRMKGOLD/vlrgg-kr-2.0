@@ -25,9 +25,13 @@ internal class UpstreamNetworkFailure(cause: Exception? = null) : ServerFailure(
 
 internal class SourceParsingFailure(cause: Exception) : ServerFailure(cause = cause) {
     override val errorCode = ApiErrorCode.SOURCE_PARSING_FAILURE
-    override val status = HttpStatusCode.BadGateway
-    override val safeMessage = "Unable to parse data from the upstream source."
+    override val status = SOURCE_PARSING_FAILURE_STATUS
+    override val safeMessage = SOURCE_PARSING_FAILURE_MESSAGE
 }
+
+/** Shared with the response cache, which replays a cached parsing failure without constructing the exception. */
+internal val SOURCE_PARSING_FAILURE_STATUS = HttpStatusCode.BadGateway
+internal const val SOURCE_PARSING_FAILURE_MESSAGE = "Unable to parse data from the upstream source."
 
 internal class InternalServerFailure(cause: Exception) : ServerFailure(cause = cause) {
     override val errorCode = ApiErrorCode.INTERNAL_ERROR
