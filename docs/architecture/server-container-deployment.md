@@ -16,15 +16,75 @@
 
 `.github/workflows/deploy-server.yml`은 exact `main` SHA의 최신 CI run/attempt에서 Linux `server` job 하나가 완료·성공한 수동 배포만 허용한다. 전체 job inventory와 `run_id`, `run_attempt`, `head_sha`를 확인하고 같은 run을 다시 읽어 attempt 변경을 거부한다. main push와 main 수동 CI 중 최신 run을 사용하며 Android/macOS `ios` job을 기다리지 않는다. server CI와 deploy job은 [ref별 플랫폼 잠금](../ci-cd.md#platform-ci-and-deployment-concurrency)을 공유해 CI 증명 조회부터 배포·복원·cleanup이 끝날 때까지 같은 플랫폼 CI의 실행을 막는다. 기존 `cloud-run-query-production` workflow mutex도 유지한다. 대상이 skip됐으면 [명시적 CI 검증](../ci-cd.md#skipped-platform-validation-before-deployment)을 같은 main SHA에서 실행한다. skip이나 이전 성공은 배포 증거가 아니다. GitHub OIDC와 GCP WIF로 deploy Service Account를 impersonate하며 장기 key를 저장하지 않는다.
 
-Deploy identity는 project의 Cloud Run developer/invoker, Artifact Registry repository writer와 runtime Service Account user 권한만 사용한다. WIF provider는 immutable repository/owner ID, `main`, 지정 workflow와 `production` environment로 제한한다. Runtime identity에는 일반 조회에 필요하지 않은 DB·Firebase 권한을 주지 않는다.
+Deploy identity는 project의 Cloud Run developer/invoker, Artifact Registry repository writer와 runtime Service Account user 권한만 사용한다. WIF provider는 immutable repository/owner ID, `main`, 지정 workflow와 `production` environment로 제한한다. Runtime identity에는 일반 조회에 필요하지 않은 DB·Firebase 권한을 주지 않는다. [응답 캐시](#response-cache-settings)를 켤 때만 runtime identity에 캐시 secret 두 개 각각의 `roles/secretmanager.secretAccessor`를 준다. project 전체 Secret Manager 권한은 주지 않는다.
 
 1. frozen source의 image를 cloud 인증 전에 GitHub runner에서 빌드한다. 그 뒤 WIF 인증을 수행해 Artifact Registry에 push하고 immutable digest를 기록한다.
-2. 같은 digest를 private `vlrgg-query-check`에 먼저 배포한다. expected revision의 Ready, image, digest, 100% traffic, Invoker IAM check와 public invoker 부재를 확인한다.
+2. 같은 digest를 private `vlrgg-query-check`에 먼저 배포한다. expected revision의 Ready, image, digest, 100% traffic, Invoker IAM check와 public invoker 부재를 확인한다. validation에는 캐시 설정을 넣지 않으므로 캐시 없이 돈다.
 3. validation service URL을 audience로 한 ID token으로 unauthenticated rejection, `/health`, 대표 query, 안전한 400과 docs 404를 검사한다.
-4. 첫 production은 private 기본 traffic으로 만들고 후속 production은 tag 없는 no-traffic revision으로 만든다. production URL용 별도 ID token smoke 뒤 명시적으로 100% 승격한다.
+4. 첫 production은 private 기본 traffic으로 만들고 후속 production은 tag 없는 no-traffic revision으로 만든다. 이때 응답 캐시 설정을 켜거나 끈다. production URL용 별도 ID token smoke 뒤 명시적으로 100% 승격한다.
 5. 승격 또는 smoke가 실패하면 workflow 시작 때 기록한 serving revision으로 rollback한다. partial traffic이나 불명확한 revision을 정상 상태로 간주하지 않는다.
 
 Production은 public, service min/max `0/1`, revision min/max `0/1`이고 validation은 private, service min/max `0/1`이다. 양 service의 Invoker IAM check와 기존 identity/condition을 보존한다. 실제 URL, host, digest, revision, JWT와 raw provider output은 repository·Issue·Actions summary에 남기지 않는다. stable URL은 repository 밖 보호 파일로만 인계한다.
+
+## Response cache settings
+
+[응답 캐시](server-arch.md#response-cache)는 production `vlrgg-query`에서만 쓴다. validation `vlrgg-query-check`와 로컬에는 캐시 환경 변수를 넣지 않으므로 캐시가 꺼진 채로 돈다. 그래서 validation smoke는 캐시가 없는 경로만 확인하고, 캐시 경로는 production에서 처음 실행된다.
+
+### Switch
+
+repository variable `SERVER_RESPONSE_CACHE_ENABLED`로 켜고 끈다. `CLOUD_RUN_DEPLOY_ENABLED`와 같은 방식이다. 값이 정확히 `true`일 때만 켜고, 없거나 다른 값(`TRUE`, 빈 값 포함)이면 끈다. `production` environment에는 같은 이름의 variable을 두지 않는다. 두면 GitHub 규칙상 environment 값이 repository 값보다 우선한다. [GitHub variables](https://docs.github.com/en/actions/reference/workflows-and-actions/variables) 변수를 바꿔도 이미 떠 있는 서비스는 그대로이고, 다음 `deploy`부터 적용된다.
+
+production 배포 단계는 현재 service template을 읽고 아래 flag를 붙인다. `--update-*`는 기존 template에 덧붙이는 방식이라, 끌 때는 남은 항목을 명시적으로 지운다. gcloud reference에 따르면 `--update-env-vars`와 `--remove-env-vars`, `--update-secrets`와 `--remove-secrets`는 각각 함께 쓸 수 있고 remove가 먼저 적용된다. [gcloud run deploy](https://cloud.google.com/sdk/gcloud/reference/run/deploy)
+
+| 변수 | production 배포에 붙는 것 |
+| --- | --- |
+| `true` | `--update-env-vars`에 `VLRGG_RESPONSE_CACHE_ENABLED=true`, `VLRGG_DEPLOY_SHA=<배포 커밋 SHA>`를 더한다. `--update-secrets`로 `VLRGG_UPSTASH_REDIS_REST_URL`과 `VLRGG_UPSTASH_REDIS_REST_TOKEN`에 secret `vlrgg-upstash-rest-url-production`, `vlrgg-upstash-rest-token-production`의 `latest`를 연결한다 |
+| 그 밖 | `VLRGG_RESPONSE_CACHE_ENABLED=false`를 넘긴다. template에 URL·token이 secret으로 있으면 `--remove-secrets`, 일반 값으로 있으면 `--remove-env-vars`로 지운다. 켜기 값이나 `VLRGG_DEPLOY_SHA`가 secret으로 있으면 그 참조도 `--remove-secrets`로 지운다. 지울 것이 없으면 remove flag를 넣지 않는다. 일반 값 `VLRGG_DEPLOY_SHA`는 남지만 캐시가 꺼져 있어 쓰이지 않고, 다시 켤 때 덮어쓴다 |
+
+- 끄는 배포는 캐시 이름 네 개(URL, token, 켜기 값, SHA)에 걸린 secret 참조를 template에서 모두 지우고 새 참조를 넣지 않는다. 그래서 캐시 secret이 아직 없거나 지워져도 끄는 배포는 깨지지 않는다. 이 보장은 네 이름에 한정된다. template에 다른 이름의 secret 참조를 수동으로 넣었다면 그 secret은 여전히 있어야 한다. 네 이름이 secret도 일반 값도 아닌 형태이거나 중복돼 있으면 끄는 배포도 gcloud를 호출하기 전에 멈춘다.
+- 켤 때 template에 같은 이름이 다른 형태로 있으면(URL·token이 일반 값, 켜기·SHA 값이 secret) gcloud를 호출하기 전에 멈춘다. 공식 문서에 형태 전환 동작이 없어서다. 네 경우 모두 끄는 배포가 그 항목을 지우므로, 끄는 배포를 한 번 한 뒤 다시 켠다.
+- 배포 뒤 service template을 다시 읽어 확인한다. 켜짐이면 네 값이 있어야 하고, 꺼짐이면 URL·token이 없고 켜기 값이 없거나 `false`이며 secret 형태의 SHA가 없어야 한다. 이름과 secret 참조만 비교하고 값은 출력하지 않는다. 다르면 traffic을 옮기기 전에 실패한다.
+- Cloud Run은 배포할 때 runtime identity가 secret에 접근할 수 있는지 검사한다. secret이나 권한이 없으면 배포가 실패하고, 후속 배포는 no-traffic revision이라 traffic을 옮기기 전에 멈춘다. [Cloud Run secrets](https://cloud.google.com/run/docs/configuring/services/secrets)
+- Actions summary에는 `Production response cache: enabled.` 또는 `disabled.`만 남는다. URL, host, token과 gcloud 출력은 다른 배포 값처럼 로그·summary·artifact에 남기지 않는다.
+- deploy identity에는 Secret Manager 권한을 더하지 않는다. 공식 문서는 secret 설정에 Cloud Run Admin과 Service Account User를 요구하는데 deploy identity는 Cloud Run developer다. 이 권한으로 secret 참조를 배포할 수 있는지는 아직 확인하지 않았다. 첫 켜기 배포에서 권한 오류가 나면 그때 최소 권한을 정한다.
+
+### Enabling
+
+운영자가 순서대로 한다. 에이전트는 cloud 리소스와 repository 설정을 바꾸지 않는다.
+
+1. Upstash에서 무료 database 1개를 만든다. region은 GCP `asia-northeast1`(Tokyo), TLS를 켜고 eviction을 켠다. 만들 때 가격표와 무료 한도를 다시 확인한다.
+2. Secret Manager API를 켜고 secret 두 개를 등록한다. `vlrgg-upstash-rest-url-production`에는 REST URL(`https://<database>.upstash.io`), `vlrgg-upstash-rest-token-production`에는 REST token을 넣는다. 값은 저장소·Issue·Actions에 남기지 않는다.
+3. runtime Service Account에 두 secret 각각의 `roles/secretmanager.secretAccessor`를 준다.
+4. repository variable `SERVER_RESPONSE_CACHE_ENABLED=true`를 설정한다.
+5. Actions `Deploy query server`를 `deploy`로 실행하고 `production` environment를 승인한다.
+6. [배포 뒤 확인](#after-deployment)을 한다.
+
+### After deployment
+
+- Actions summary가 `Production response cache: enabled.`인지 본다.
+- production 로그의 `public_api_summary` 끝에 붙는 `cache={hit=,negative_hit=,miss=,lookup_failed=,store_failed=}`를 본다. 요청이 반복되면 `hit`이 늘어야 한다. 로그는 [Request log storage](#request-log-storage)의 bucket에 있다.
+- `lookup_failed`나 `store_failed`가 계속 늘면 URL·token 오류, Upstash 장애나 무료 한도 초과를 의심한다. 이 오류는 miss로 처리돼 smoke가 통과하므로 summary로만 드러난다. 캐시 WARN 로그에는 key, URL, token이 없고 `operation`과 `kind`만 있다.
+- Upstash 콘솔에서 명령 수와 key 수를 본다.
+- 처음 켜는 배포와 처음 끄는 배포 뒤에는 Cloud Console이나 `gcloud run revisions describe`로 새 revision의 환경변수와 secret 참조가 기대대로인지 운영자가 직접 확인한다. 값은 보지 않고 이름과 참조 형태만 본다. workflow는 `services describe` JSON의 `spec.template.spec.containers[0].env[].valueFrom.secretKeyRef` 모양을 공식 YAML·REST 문서로만 확인했고, 실제 cloud 출력으로는 확인하지 못했다. 모양이 다르면 켜는 배포는 read-back에서 멈춘다. 끄는 배포는 지울 항목을 찾지 못해 제거를 건너뛰고도 read-back을 통과할 수 있다.
+
+### Disabling
+
+repository variable을 `true`가 아닌 값으로 바꾸거나 지운 뒤 `deploy`를 실행한다. 새 revision은 캐시 없이 돌고 template에서 secret 참조가 빠진다. 코드 revert는 필요 없다.
+
+- 이전 revision은 여전히 secret을 참조한다. 그 revision으로 rollback하려면 secret과 접근 권한이 살아 있어야 하므로, 끈 직후에는 secret, 권한, Upstash database를 지우지 않는다.
+- secret과 database를 정리하려면 꺼진 배포가 안정된 뒤 한다. 정리한 뒤에는 캐시를 켰던 revision으로 rollback하지 않는다.
+
+### Secret versions
+
+- secret을 환경 변수로 넣으면 Cloud Run이 instance 시작 때 값을 읽고, 읽지 못하면 instance가 시작하지 못한다. 공식 문서는 이 방식에 version 고정을 권하지만, 여기서는 배포 없이 교체할 수 있게 `latest`를 쓰기로 했다. 새 version은 배포 없이 다음에 시작하는 instance부터 적용되고, 이미 떠 있는 instance는 이전 값을 쓴다. [Cloud Run secrets](https://cloud.google.com/run/docs/configuring/services/secrets)
+- token을 바꿀 때는 새 version을 먼저 추가하고, 이전 version을 쓰는 instance가 없어진 뒤(필요하면 재배포 뒤) 이전 version을 destroy한다. Disabled version도 활성 version으로 과금되므로 남겨 두지 않는다. [Secret Manager pricing](https://cloud.google.com/secret-manager/pricing)
+- 새 version을 추가하지 않은 채 최신 version을 disable하거나 destroy하지 않는다. `latest`가 그 version을 가리켜 이후 instance가 시작하지 못한다. 캐시를 멈추려면 secret이 아니라 변수로 끈다.
+
+### Cost
+
+- Upstash는 무료 database 1개만 쓰고 결제 수단을 등록하지 않는다. 월 명령 한도(2026-11-24 확인 50만 건)를 넘으면 그 달 남은 기간은 캐시가 miss처럼 동작하고 비용은 늘지 않는다.
+- Secret Manager는 결제 계정 기준 활성 version 6개, 월 접근 1만 회까지 무료다. secret 2개에 version 각 1개면 무료 구간이다. instance가 시작할 때마다 secret 두 개를 읽으므로 cold start가 많으면 접근 수가 늘어난다. 같은 결제 계정의 다른 secret과 합산된다.
+- Cloud Run 구성은 바뀌지 않는다. miss 때 도쿄로 나가는 저장 요청만큼 egress가 조금 는다.
 
 ## Idle cost and scale to zero
 
@@ -52,6 +112,8 @@ Cloud Run 요청 로그에는 이용자 IP, User-Agent, 요청 URL이 남고, �
 
 Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진행 중 요청, 저장·로그와 늦은 청구가 남을 수 있으며 service minimum 0도 접근 차단이나 비용 0을 뜻하지 않는다. 실제 invoice, Budget 알림 수신과 Spend cap 활성화는 확인하지 않았다. #122의 Monitoring 장애 알림 수신은 Budget 수신 검증과 별개다.
 
+응답 캐시는 고정비가 없어(Upstash 무료 database, Secret Manager 무료 구간) 비용 중단 때 끄지 않는다. 비용 중단 중에는 배포가 막혀 캐시를 끄는 배포도 할 수 없다. 캐시 secret이나 database를 지워야 하면 비용 중단 전, 배포가 가능할 때 [캐시를 끄는 배포](#disabling)를 먼저 한다. secret을 참조하는 revision이 serving 중일 때 secret을 지우거나 disable하면 다음 instance가 시작하지 못한다.
+
 비용 중단 순서:
 
 1. repository `CLOUD_RUN_DEPLOY_ENABLED=false`와 production environment의 동명 variable 부재 또는 false를 확인한다.
@@ -59,7 +121,7 @@ Budget과 Spend cap은 hard cap이 아니다. 보고·수신·집행 지연, 진
 3. production public invoker를 제거하고 production·validation service minimum을 0으로 맞춘다. 관련 immutable revision의 minimum도 전수 확인한다.
 4. production과 project IAM의 `allUsers`·`allAuthenticatedUsers` 부재, default/tag URL의 실제 unauthenticated 거절과 drain을 상한 내 재확인한다. 기존 운영 identity는 보존하고 누락 표본은 unknown으로 둔다.
 
-복구는 기록한 production revision/digest 100%, production min/max `0/1`, validation private/minimum 0, production public invoker, 외부 `/health`·대표 query·안전한 400·docs 404 순으로 확인한다. IAM·traffic·resource를 다시 읽은 뒤 enable variable을 마지막에 true로 되돌린다.
+복구는 기록한 production revision이 캐시 secret을 참조하면 secret의 최신 version과 runtime identity 접근 권한이 살아 있는지 먼저 확인한다. 그 뒤 기록한 production revision/digest 100%, production min/max `0/1`, validation private/minimum 0, production public invoker, 외부 `/health`·대표 query·안전한 400·docs 404 순으로 확인한다. IAM·traffic·resource를 다시 읽은 뒤 enable variable을 마지막에 true로 되돌린다.
 
 ## #122 observability live runbook
 
