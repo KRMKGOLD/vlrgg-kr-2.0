@@ -18,7 +18,7 @@
 
 ## Response cache
 
-2026-11-26 정책을 다시 확정했고 아직 구현 전이다. Upstash 공유 캐시로 구현했던 #216~#219는 #220으로 되돌렸다. 구현 PR은 이 절의 상태와 기능 문서의 "cache 없음" 문구를 함께 갱신한다.
+2026-11-26 정책을 다시 확정했고 구현을 마쳤다. 캐시는 환경 변수를 주지 않으면 켜지므로 배포하면 모든 조회 route(Search 제외)에 적용된다. Upstash 공유 캐시로 구현했던 #216~#219는 #220으로 되돌렸다.
 
 사용자 요청 수에 비례해 VLR.GG 요청이 늘지 않도록 성공 응답을 짧게 캐시한다. 사용자가 적은 단계라 최신성을 우선해 TTL 상한은 5분으로 둔다.
 
@@ -53,7 +53,7 @@
 | Events 목록·상세·News·Stats, News 목록·상세, Player, Series | 5분 |
 | `GET /api/v1/search` | 캐시하지 않음 |
 
-LIVE 여부는 응답에 담긴 경기 상태로 판단한다. Matches와 Event Matches는 `status`가 `live`인 경기다. Team 응답에는 상태 값이 없으므로 `upcomingMatches`와 `recentMatches`의 `statusText`가 `LIVE`(앞뒤 공백 제거, 대소문자 무시)인 경기를 LIVE로 본다. 값이 없거나 다른 문구인 경기는 LIVE로 보지 않는다. 2026-11-24에 진행 중 경기가 있는 Team 페이지에서 이 원문을 확인했으며, 구현 PR은 LIVE fixture로 검증한다.
+LIVE 여부는 응답에 담긴 경기 상태로 판단한다. Matches와 Event Matches는 `status`가 `live`인 경기다. Team 응답에는 상태 값이 없으므로 `upcomingMatches`와 `recentMatches`의 `statusText`가 `LIVE`(앞뒤 공백 제거, 대소문자 무시)인 경기를 LIVE로 본다. 값이 없거나 다른 문구인 경기는 LIVE로 보지 않는다. 2026-11-24에 진행 중 경기가 있는 Team 페이지에서 이 원문을 확인했으며, 이 구조는 `live-team-overview.html` fixture와 parser 테스트로 검증한다.
 
 Search는 캐시하지 않는다. 검색어는 사람마다 달라 적중이 드물다. 이용자가 입력한 검색어를 서버가 따로 보관하지 않는다는 [개인정보처리방침](../privacy-policy.md) 설명도 그대로 유지한다.
 

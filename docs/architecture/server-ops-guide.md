@@ -57,6 +57,11 @@ URL, digest, token과 gcloud 출력은 로그와 summary에 남기지 않는다.
 ### 배포 뒤 확인
 
 - 운영 uptime check가 새 revision에서도 정상 값을 내는지 본다. 이전 revision에 묶여 있으면 [교체 순서](server-container-deployment.md#production-permanent-policies)를 따른다.
+- 요약 로그(`public_api_summary`)의 `cache={hit=,negative_hit=,miss=,joined=}`로 캐시가 동작하는지 확인한다.
+  1. 캐시 대상 route 하나를 같은 parameter로 두 번 성공 요청한다. 두 번째 요청은 첫 응답의 TTL 안에 보낸다(예정 경기 1페이지는 30초).
+  2. 요약은 요청이 끝날 때 1분에 한 번 이하로만 남는다. 마지막 요약에서 60초 이상 지난 뒤 `/health`가 아닌 요청을 한 번 더 보내 새 요약을 만든다.
+  3. 새 요약의 `hit`이 늘었는지 본다. 이전 요약만 보고 캐시가 꺼졌다고 판단하지 않는다.
+  값은 프로세스가 뜬 뒤의 누적이다. 새 revision이나 다시 뜬 instance에서는 0에서 시작하므로 처음부터 다시 확인한다.
 - Error Reporting의 `asia-northeast3` region에 새 오류 그룹이 생겼는지 본다. 조사 방법은 [Investigating an error](server-container-deployment.md#investigating-an-error)에 있다.
 
 ### 되돌리기
@@ -121,6 +126,7 @@ python3 -B .github/scripts/test-observability-runtime-proof.py
 | `deploy-server.yml`의 `Deploy and inspect the private validation service`, `Deploy the verified image to production` 단계 이름이나 셸 | `test-query-production-deploy.sh`가 단계 이름으로 셸을 뽑는다 |
 | 루트 `Dockerfile`의 runtime stage | `test-observability-runtime-container.sh`와 `smoke-observability.sh`가 `FROM`·`COPY` 줄과 JVM 옵션을 검사한다 |
 | memory 768 MiB | `deploy-server.yml` 세 곳, `observability-oom.json`의 `memoryLimitMiB`와 그 파일의 hash, GCP의 운영 메모리 초과 로그 정책 |
+| 요약 로그의 `cache={hit=,negative_hit=,miss=,joined=}` 필드와 순서 (`server/.../plugins/Monitoring.kt`의 `ResponseCacheCounter`) | `PublicApiSummaryFormatTest`와 `FailureLoggingIntegrationTest`가 문자열을 검사한다. 배포 뒤 확인의 `hit` 증가 확인도 함께 본다. 각 값의 뜻은 `ResponseCacheCounter`의 KDoc에 있다 |
 | 공개 route 추가·삭제, 문서 route 노출 | `smoke-query-server.sh` |
 | Cloud Run 설정 값 | `deploy-server.yml`의 확인 서비스와 운영 두 곳, `test-query-production-deploy.sh`의 기대값 |
 

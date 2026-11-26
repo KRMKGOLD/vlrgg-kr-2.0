@@ -4,7 +4,7 @@
 
 ## 제품과 MVP 범위
 
-VLR.GG Mobile Tracker는 VLR.GG의 News, Match, Event, Series, Team, Player를 모바일에서 연결해 탐색하고, Team·Player 즐겨찾기를 기기에 보관하는 비공식 개인 포트폴리오 앱이다. 서버는 VLR.GG HTML을 요청 시점에 수집·해석해 app-facing response로 만들고, 앱은 이를 Android와 iOS의 공통 UI로 표시한다.
+VLR.GG Mobile Tracker는 VLR.GG의 News, Match, Event, Series, Team, Player를 모바일에서 연결해 탐색하고, Team·Player 즐겨찾기를 기기에 보관하는 비공식 개인 포트폴리오 앱이다. 서버는 VLR.GG HTML을 요청 시점에 수집·해석해 app-facing response로 만들며 성공 응답은 서버 메모리에 짧게 캐시한다(Search 제외, [Response cache](../architecture/server-arch.md#response-cache)). 앱은 이를 Android와 iOS의 공통 UI로 표시한다.
 
 1차 MVP는 Phase 1~5, Cross-feature 기능과 Android/iOS 품질 확인을 포함한다.
 
