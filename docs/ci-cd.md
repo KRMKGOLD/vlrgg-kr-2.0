@@ -71,6 +71,17 @@ PROTECTED_ROUTE_LOAD_REPORT_PATH=/tmp/vlrgg-protected-load.properties \
 
 1초 지연 fixture transport를 쓰며 외부 VLR.GG, production CIO/TLS/network, Linux cgroup, Cloud Run autoscaling과 provider 비용을 측정하지 않는다. 환경 변수가 없으면 기본 test에서 skip되고 report는 커밋하지 않는다. 결과는 process별 보호 회귀 자료이며 production 성능·memory·비용 보장이 아니다.
 
+### Response cache memory benchmark
+
+응답 캐시, 진행 중 불러오기, 느린 응답 소비자가 겹칠 때의 heap 여유를 다시 잴 때만 실행한다. 결과와 해석은 [Heap 예산](architecture/server-public-api-protection.md#heap-예산)에 기록한다.
+
+```sh
+RESPONSE_CACHE_MEMORY_REPORT_PATH=/tmp/vlrgg-response-cache-memory.txt \
+  ./gradlew :server:test --tests '*ResponseCacheMemoryBenchmarkTest' --rerun-tasks
+```
+
+시나리오마다 운영과 같은 `-Xms128m -Xmx384m -XX:+ExitOnOutOfMemoryError`로 자식 JVM을 띄우고, loopback Netty와 fixture transport를 써서 외부 VLR.GG를 호출하지 않는다. `RESPONSE_CACHE_MEMORY_SCENARIOS`(쉼표로 구분한 시나리오 이름)로 일부만 돌리고, `RESPONSE_CACHE_MEMORY_MAX_HEAP`(예: `288m`)로 `-Xmx`를 낮춰 OOM 경계를 찾는다. OOM은 실패가 아니라 결과(`oom=true`)로 기록된다. 환경 변수가 없으면 기본 test에서 skip되고 report는 커밋하지 않는다. 운영 heap·Cloud Run 측정이 아니다.
+
 ## Query server deployment
 
 `.github/workflows/deploy-server.yml`은 `workflow_dispatch` 전용이다. exact main SHA의 최신 CI run/attempt에서 `server` job 하나가 완료·성공했는지 확인하고, protected `production` environment와 `CLOUD_RUN_DEPLOY_ENABLED=true`를 확인한 뒤 frozen source의 root Docker image를 credential-free로 먼저 만든다. 공통 CI verifier는 전체 run/job inventory, `run_id`, `run_attempt`, `head_sha`, workflow path와 main event를 확인하고 같은 run을 다시 읽어 조회 중 실행·attempt 변경도 거부한다. Android/iOS 상태는 서버 배포 gate가 아니다. 그 뒤 GitHub OIDC→GCP WIF 인증을 수행하고 cloud push와 mutation을 시작한다.

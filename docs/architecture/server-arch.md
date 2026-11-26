@@ -82,6 +82,15 @@ OpenAPI와 Swagger route는 `VLRGG_ENABLE_API_DOCUMENTATION=true`인 local 개�
 
 config와 secret은 source code에 넣지 않는다.
 
+응답 캐시는 아래 환경 변수로 조정한다. 둘 다 없으면 켜진 상태에 용량 32 MiB다. secret은 없다.
+
+| 환경 변수 | 기본값 | 허용 값 |
+| --- | --- | --- |
+| `VLRGG_RESPONSE_CACHE_ENABLED` | `true` | `true` 또는 `false`만. 대소문자·공백이 다른 값도 거절한다 |
+| `VLRGG_RESPONSE_CACHE_MAX_BYTES` | `33554432` (32 MiB) | 양의 정수(byte). key와 value 바이트 합의 상한이다 |
+
+허용 값이 아니면 server start를 거절한다. `false`이면 캐시를 만들지 않고 모든 요청이 그 자리에서 upstream을 조회하며, upstream 작업 한도는 그대로 적용된다.
+
 일반 조회 서버는 서울 Cloud Run에 배포돼 있다. root `Dockerfile`은 repository root의 Gradle 설정과 `server`를 사용해 `:server:installDist`를 만들며 runtime은 `0.0.0.0`, provider `PORT`, `/health`를 지원한다. exact SHA 검증, private validation, promotion, rollback과 비용 중단은 [배포 runbook](server-container-deployment.md)이 소유한다.
 
 ## Verification
