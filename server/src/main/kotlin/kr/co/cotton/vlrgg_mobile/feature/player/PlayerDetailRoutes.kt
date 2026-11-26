@@ -4,20 +4,29 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kr.co.cotton.vlrgg_mobile.cache.ResponseCache
+import kr.co.cotton.vlrgg_mobile.cache.ResponseCacheRoute
+import kr.co.cotton.vlrgg_mobile.cache.ResponseCacheTtl
 import kr.co.cotton.vlrgg_mobile.common.http.InvalidInputFailure
 import kr.co.cotton.vlrgg_mobile.routing.describePublicGet
 import kr.co.cotton.vlrgg_mobile.routing.hideFromOpenApi
 import kr.co.cotton.vlrgg_mobile.routing.positiveDecimalIdPath
-import kr.co.cotton.vlrgg_mobile.protection.respondPublicJson
+import kr.co.cotton.vlrgg_mobile.protection.respondCachedPublicJson
 
-internal fun Route.configurePlayerDetailRoutes(service: PlayerDetailService) {
+internal fun Route.configurePlayerDetailRoutes(service: PlayerDetailService, cache: ResponseCache = ResponseCache.DISABLED) {
     get("/api/v1/players") { throw InvalidInputFailure() }.hideFromOpenApi()
     get("/api/v1/players/") { throw InvalidInputFailure() }.hideFromOpenApi()
     get("/api/v1/players/{playerId}/") { throw InvalidInputFailure() }.hideFromOpenApi()
     get("/api/v1/players/{playerId}/{...}") { throw InvalidInputFailure() }.hideFromOpenApi()
     get("/api/v1/players/{playerId}") {
         if (call.request.queryParameters.names().isNotEmpty()) throw InvalidInputFailure()
-        call.respondPublicJson(service.get(PlayerId.fromPath(call.parameters["playerId"])))
+        val playerId = PlayerId.fromPath(call.parameters["playerId"])
+        call.respondCachedPublicJson(
+            cache,
+            ResponseCacheRoute.PLAYER_DETAIL,
+            playerId.value,
+            ttlSeconds = { _: PlayerDetailResponse -> ResponseCacheTtl.DEFAULT_SECONDS },
+        ) { service.get(playerId) }
     }.describePublicGet<PlayerDetailResponse>(
         operationId = "getPlayerDetail",
         summary = "Get player details",

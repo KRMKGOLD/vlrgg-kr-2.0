@@ -33,6 +33,25 @@ class ResponseCacheTest {
         assertEquals("matches-upcoming:1", ResponseCacheKey.of(ResponseCacheRoute.MATCHES_UPCOMING, listOf("1")).value)
         assertEquals("matches-results:1", ResponseCacheKey.of(ResponseCacheRoute.MATCHES_RESULTS, listOf("1")).value)
         assertEquals("match-detail:1:a-b", ResponseCacheKey.of(ResponseCacheRoute.MATCH_DETAIL, listOf("1", "a-b")).value)
+        mapOf(
+            ResponseCacheRoute.EVENTS_LIST to listOf("all"),
+            ResponseCacheRoute.EVENT_DETAIL to listOf("100"),
+            ResponseCacheRoute.EVENT_MATCHES to listOf("100"),
+            ResponseCacheRoute.EVENT_NEWS to listOf("100"),
+            ResponseCacheRoute.EVENT_STATS to listOf("100"),
+            ResponseCacheRoute.TEAM_DETAIL to listOf("100"),
+            ResponseCacheRoute.NEWS_LIST to listOf("1"),
+            ResponseCacheRoute.NEWS_ARTICLE to listOf("100", "champions-run"),
+            ResponseCacheRoute.PLAYER_DETAIL to listOf("100"),
+            ResponseCacheRoute.SERIES_DETAIL to listOf("100"),
+        ).forEach { (route, identifier) ->
+            assertEquals((listOf(route.label) + identifier).joinToString(":"), ResponseCacheKey.of(route, identifier).value)
+        }
+        assertEquals("news-article:100:champions-run", ResponseCacheKey.of(ResponseCacheRoute.NEWS_ARTICLE, listOf("100", "champions-run")).value)
+        assertEquals(13, ResponseCacheRoute.entries.size)
+        assertEquals(ResponseCacheRoute.entries.size, ResponseCacheRoute.entries.map { it.label }.toSet().size)
+        // The longest valid News slug (128 characters, enforced by the route) fits a key part.
+        ResponseCacheKey.of(ResponseCacheRoute.NEWS_ARTICLE, listOf("9999999999", "a".repeat(128)))
         val keys = ResponseCacheRoute.entries.map { ResponseCacheKey.of(it, listOf("1")).value }
         assertEquals(keys.size, keys.toSet().size)
         listOf(emptyList(), listOf(""), listOf("a:b"), listOf("a/b"), listOf("x".repeat(129)), listOf("한글")).forEach {
