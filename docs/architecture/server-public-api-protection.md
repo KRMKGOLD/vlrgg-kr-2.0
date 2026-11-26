@@ -1,22 +1,25 @@
 # 공개 조회 API 보호 계약 (#52)
 
-Android/iOS 앱이 사용하는 공개 조회 API의 비싼 작업과 비용을 제한한다. 로그인·앱 진위 검증·일반 조회 DB·완료 응답 cache·stale fallback·Redis는 도입하지 않는다. 앱에 포함된 고정 key, XFF/Forwarded, 앱 header와 peer IP는 검증된 사용자 신원이 아니다.
+Android/iOS 앱이 사용하는 공개 조회 API의 비싼 작업과 비용을 제한한다. 로그인·앱 진위 검증·일반 조회 DB·stale fallback은 도입하지 않는다. 성공 응답의 짧은 TTL 메모리 캐시는 [서버 구조의 응답 캐시](server-arch.md#response-cache) 정책을 따른다. 앱에 포함된 고정 key, XFF/Forwarded, 앱 header와 peer IP는 검증된 사용자 신원이 아니다.
 
 ## Server limits
 
 | Boundary | Default | Exceeded |
 | --- | ---: | --- |
-| API token bucket | process당 10/s, burst 20 | 429 `RATE_LIMITED` |
-| active API requests | 8, queue 없음 | 503 `SERVER_BUSY` |
+| 전체 요청 token bucket | process당 50/s, burst 100 | 429 `RATE_LIMITED` |
+| upstream 작업 token bucket | process당 10/s, burst 20 | 429 `RATE_LIMITED` |
+| active upstream 작업 | 8, queue 없음 | 503 `SERVER_BUSY` |
 | new upstream fetch | 2/s, burst 4, active 4 | 503 `SERVER_BUSY` |
 | in-flight canonical keys | 4 | 추가 key 즉시 거절 |
 | upstream / whole request / Cloud Run | 10s / 15s / 30s | 안전한 오류와 cancellation |
 | request target / headers / body | 4 KiB / 16 KiB / 1 KiB | 400·413·431 또는 platform rejection |
 | upstream HTML / success JSON | 4 MiB / 2 MiB | 안전한 502 |
 
-upstream HTML 제한을 4 MiB로 둔 것은 경기 수가 많은 대회의 경기 목록 페이지가 경기당 약 2.2 KB라서 4 MiB면 약 1,800경기까지 받을 수 있기 때문이다. fetch 상한 4는 동시 파싱 상한이 아니다. fetch가 끝난 뒤 active API 요청(최대 8)마다 DOM을 따로 만든다. 로컬 재현에서 4.4 MiB 페이지 8건 동시 파싱과 4건 수신은 heap 약 295 MiB를 썼다(`-Xmx384m` 통과, `-Xmx256m` OOM). 2026-11 현재 가장 큰 실제 페이지는 1.16 MB이며, 제한에 가까운 페이지가 생기거나 OOM·GC 지연이 보이면 운영 heap에서 다시 측정한다.
+upstream HTML 제한을 4 MiB로 둔 것은 경기 수가 많은 대회의 경기 목록 페이지가 경기당 약 2.2 KB라서 4 MiB면 약 1,800경기까지 받을 수 있기 때문이다. fetch 상한 4는 동시 파싱 상한이 아니다. fetch가 끝난 뒤 active upstream 작업(최대 8)마다 DOM을 따로 만든다. 같은 응답 key의 동시 miss는 불러오기 하나를 공유하므로 같은 페이지를 요청 수만큼 파싱하지 않는다. 로컬 재현에서 4.4 MiB 페이지 8건 동시 파싱과 4건 수신은 heap 약 295 MiB를 썼다(`-Xmx384m` 통과, `-Xmx256m` OOM). 2026-11 현재 가장 큰 실제 페이지는 1.16 MB이며, 제한에 가까운 페이지가 생기거나 OOM·GC 지연이 보이면 운영 heap에서 다시 측정한다.
 
-잘못된 config는 server start에서 거절한다. 전체 deadline은 느린 body 수신보다 먼저 시작하고 request size → API token/concurrency → upstream admission 순서로 자원을 얻는다. 실패·취소 시 이미 획득한 API concurrency semaphore와 upstream fetch admission permit은 반환하지만, 소비한 token-bucket token은 환불하지 않는다. unknown route/method도 저비용 request limit 대상이며 upstream을 호출하지 않는다.
+upstream 작업은 VLR.GG 조회와 파싱이 필요한 처리다. 응답 캐시가 miss여서 불러오기를 실행하는 요청과 캐시하지 않는 Search가 해당한다. cache hit과 진행 중 불러오기를 기다리는 요청은 upstream 작업 한도를 쓰지 않고 전체 요청 한도만 쓴다. 전체 요청 한도를 느슨하게 둔 것은 hit의 비용이 작기 때문이다. DAU 1,000 가정의 순간 몰림(초당 약 30건)을 받도록 잡았고, 지속적인 남용의 전송 비용을 제한하려고 무제한으로 두지는 않는다. 값은 환경 변수로 조정한다.
+
+잘못된 config는 server start에서 거절한다. 전체 deadline은 느린 body 수신보다 먼저 시작하고 request size → 전체 요청 token → 응답 캐시 조회 → upstream 작업 token/concurrency → upstream admission 순서로 자원을 얻는다. 실패·취소 시 이미 획득한 upstream 작업 concurrency semaphore와 upstream fetch admission permit은 반환하지만, 소비한 token-bucket token은 환불하지 않는다. unknown route/method와 검증에 실패한 요청은 전체 요청 한도만 쓰며 upstream을 호출하지 않는다.
 
 과부하 response는 공통 `{code, message}`와 정수 `Retry-After`를 사용한다. exception, HTML, selector와 원본 URL은 반환하지 않는다. success JSON은 header 전송 전에 capped buffer로 직렬화한다. `/health`는 constant liveness response이며 API quota, upstream과 request log에서 분리한다.
 
