@@ -1,6 +1,6 @@
 package kr.co.cotton.vlrgg_mobile.feature.events
 
-/** Performs a fresh upstream request for every call and never serves a stale fallback. */
+/** Performs a fresh upstream request for every call; the shared response cache lives in the route layer, and no stale fallback exists. */
 internal class EventsService(
     private val scraper: EventsScraper,
     private val parser: EventsParser,

@@ -385,6 +385,16 @@ class TeamDetailParserTest {
         }
     }
 
+    @Test
+    fun `parser reads the in-progress Upcoming row measured on vlr gg as LIVE status text`() {
+        val source = parser.parse(activeContent().copy(overviewHtml = fixture("live-team-overview.html")))
+
+        val live = source.upcomingMatches.single()
+        assertEquals("698887", live.id)
+        assertEquals("LIVE", live.statusText)
+        assertEquals("0 : 2", source.recentMatches.single().statusText)
+    }
+
     private fun activeContent() = TeamDetailUpstreamContent(
         overviewHtml = fixture("active-team-overview.html"),
         newsHtml = fixture("active-team-news.html"),

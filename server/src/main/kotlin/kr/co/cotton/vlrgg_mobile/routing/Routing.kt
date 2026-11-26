@@ -37,12 +37,12 @@ internal fun Application.configureRouting(
         get("/health") {
             call.respondText("{\"status\":\"ok\"}", io.ktor.http.ContentType.Application.Json)
         }.hideFromOpenApi()
-        configureNewsRoutes(newsService)
-        configureEventsRoutes(eventsService)
+        configureNewsRoutes(newsService, responseCache)
+        configureEventsRoutes(eventsService, responseCache)
         configureSearchRoutes(searchService)
-        configureSeriesRoutes(seriesService)
-        configureTeamDetailRoutes(teamDetailService)
-        configurePlayerDetailRoutes(playerDetailService)
+        configureSeriesRoutes(seriesService, responseCache)
+        configureTeamDetailRoutes(teamDetailService, responseCache)
+        configurePlayerDetailRoutes(playerDetailService, responseCache)
         configureMatchesRoutes(matchesService, responseCache)
     }
 }

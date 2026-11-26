@@ -2,7 +2,11 @@ package kr.co.cotton.vlrgg_mobile.cache
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.server.routing.*
+import io.ktor.server.testing.*
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URI
@@ -10,12 +14,24 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
+import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
+import kr.co.cotton.vlrgg_mobile.common.http.SourceParsingFailure
+import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
+import kr.co.cotton.vlrgg_mobile.plugins.FailureEvent
+import kr.co.cotton.vlrgg_mobile.plugins.PublicApiObservability
+import kr.co.cotton.vlrgg_mobile.plugins.ResponseCacheCounter
+import kr.co.cotton.vlrgg_mobile.plugins.configureErrorHandling
+import kr.co.cotton.vlrgg_mobile.plugins.configureSerialization
+import kotlin.test.*
 
 /** In-memory store with call records and injectable delays or failures; honors `NX` like Redis. */
 internal class FakeResponseCacheStore : ResponseCacheStore {
@@ -149,3 +165,131 @@ internal fun enabledTestCacheConfig(): ResponseCacheConfig.Enabled = ResponseCac
     token = TEST_UPSTASH_TOKEN,
     deploySha = TEST_DEPLOY_SHA,
 )
+
+internal const val TEST_ROUTE_CACHE_SHA = "test-sha"
+
+/** Counts upstream fetches, so "the service was not called" means the count did not move. */
+internal class CountingTransport(private val respond: (Url) -> String) : UpstreamHtmlTransport {
+    private val count = AtomicInteger()
+    val calls: Int get() = count.get()
+    val requestedPaths = CopyOnWriteArrayList<String>()
+    @Volatile var failure: Exception? = null
+
+    override suspend fun get(url: Url): String {
+        count.incrementAndGet()
+        requestedPaths += url.encodedPath
+        failure?.let { throw it }
+        return respond(url)
+    }
+}
+
+/** One enabled [ResponseCache] over a [FakeResponseCacheStore] with the counters and failure events a route test inspects. */
+internal class RouteCacheHarness {
+    val store = FakeResponseCacheStore()
+    val observability = PublicApiObservability()
+    val failureEvents = CopyOnWriteArrayList<FailureEvent>()
+    val cache = ResponseCache(
+        store = store,
+        deploySha = TEST_ROUTE_CACHE_SHA,
+        observability = observability,
+        warnings = ResponseCacheWarnings(environment = emptyMap(), sink = {}),
+        operationTimeoutMillis = 200,
+    )
+
+    fun counter(counter: ResponseCacheCounter) = observability.snapshot().responseCache.getValue(counter)
+
+    fun key(route: ResponseCacheRoute, vararg identifier: String): String = cache.key(route, *identifier).value
+
+    fun run(install: Route.(ResponseCache) -> Unit, block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
+        application {
+            configureSerialization()
+            configureErrorHandling(failureEventSink = { failureEvents += it })
+            routing { install(cache) }
+        }
+        block()
+    }
+}
+
+/**
+ * The cache contract every cached public GET shares, driven through the real route and service:
+ * miss stores the exact body under [expectedKey] with [expectedTtlSeconds]; a hit replays the same bytes without
+ * another upstream fetch; an upstream network failure is not stored; a parsing failure is stored for 60 seconds
+ * with `NX` and replayed without the upstream or a second failure event.
+ */
+internal suspend fun ApplicationTestBuilder.assertCachedRouteContract(
+    harness: RouteCacheHarness,
+    transport: CountingTransport,
+    path: String,
+    expectedKey: String,
+    expectedTtlSeconds: Int,
+) {
+    val store = harness.store
+    store.values.clear()
+    store.sets.clear()
+
+    val miss = client.get(path)
+    assertEquals(HttpStatusCode.OK, miss.status, path)
+    val missBytes = miss.bodyAsBytes()
+    val callsAfterMiss = transport.calls
+    assertTrue(callsAfterMiss > 0, path)
+    assertEquals(
+        listOf(FakeResponseCacheStore.SetCall(expectedKey, missBytes.decodeToString(), expectedTtlSeconds, false)),
+        store.sets.toList(),
+        path,
+    )
+
+    val hit = client.get(path)
+    assertEquals(HttpStatusCode.OK, hit.status, path)
+    assertEquals("application/json", hit.headers[HttpHeaders.ContentType], path)
+    assertEquals(miss.headers[HttpHeaders.ContentType], hit.headers[HttpHeaders.ContentType], path)
+    assertContentEquals(missBytes, hit.bodyAsBytes(), path)
+    assertEquals(callsAfterMiss, transport.calls, "$path: a hit must not fetch upstream")
+    assertEquals(1, store.sets.size, "$path: a hit must not store again")
+
+    store.expire(expectedKey)
+    store.sets.clear()
+    transport.failure = UpstreamNetworkFailure(IllegalStateException("private upstream detail"))
+    val network = client.get(path)
+    assertEquals(HttpStatusCode.BadGateway, network.status, path)
+    assertEquals(ApiErrorCode.UPSTREAM_NETWORK_FAILURE, Json.decodeFromString<ApiErrorResponse>(network.bodyAsText()).code, path)
+    assertTrue(store.sets.isEmpty(), "$path: a network failure must not be stored")
+
+    transport.failure = SourceParsingFailure(IllegalStateException("selector details"))
+    val failureEventsBefore = harness.failureEvents.size
+    val parsing = client.get(path)
+    val parsingBody = parsing.bodyAsText()
+    assertEquals(HttpStatusCode.BadGateway, parsing.status, path)
+    assertEquals(ApiErrorCode.SOURCE_PARSING_FAILURE, Json.decodeFromString<ApiErrorResponse>(parsingBody).code, path)
+    assertFalse(parsingBody.contains("selector"), path)
+    assertEquals(
+        listOf(FakeResponseCacheStore.SetCall(expectedKey, SOURCE_PARSING_FAILURE_CACHE_VALUE, 60, true)),
+        store.sets.toList(),
+        path,
+    )
+    assertEquals(failureEventsBefore + 1, harness.failureEvents.size, path)
+
+    transport.failure = null
+    val callsBeforeReplay = transport.calls
+    val replay = client.get(path)
+    assertEquals(parsing.status, replay.status, path)
+    assertEquals(parsingBody, replay.bodyAsText(), path)
+    assertEquals(callsBeforeReplay, transport.calls, "$path: a cached parsing failure must not fetch upstream")
+    assertEquals(failureEventsBefore + 1, harness.failureEvents.size, "$path: a replay is not a new failure event")
+}
+
+/** Each invalid path answers `INVALID_REQUEST` with no store call and no upstream fetch. */
+internal suspend fun ApplicationTestBuilder.assertInvalidRequestsSkipCacheAndUpstream(
+    harness: RouteCacheHarness,
+    transport: CountingTransport,
+    paths: List<String>,
+) {
+    val callsBefore = transport.calls
+    paths.forEach { path ->
+        val response = client.get(path)
+        assertEquals(HttpStatusCode.BadRequest, response.status, path)
+        assertEquals(ApiErrorCode.INVALID_REQUEST, Json.decodeFromString<ApiErrorResponse>(response.bodyAsText()).code, path)
+    }
+    assertTrue(harness.store.gets.isEmpty(), "invalid requests must not read the store")
+    assertTrue(harness.store.sets.isEmpty(), "invalid requests must not write the store")
+    assertEquals(callsBefore, transport.calls)
+}
