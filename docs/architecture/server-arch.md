@@ -80,17 +80,6 @@ OpenAPI와 Swagger route는 `VLRGG_ENABLE_API_DOCUMENTATION=true`인 local 개�
 
 config와 secret은 source code에 넣지 않는다.
 
-[Response cache](#response-cache) 환경 변수는 다음과 같다. 로컬과 검증 서비스에는 넣지 않으며, 값이 없으면 캐시는 꺼진다.
-
-| 이름 | 값(placeholder) | 설명 |
-| --- | --- | --- |
-| `VLRGG_RESPONSE_CACHE_ENABLED` | `true` | 정확히 `true`일 때만 켠다. 없거나 다른 값이면 끈다 |
-| `VLRGG_UPSTASH_REDIS_REST_URL` | `https://<database>.upstash.io` | HTTPS, 기본 port, user-info·path·query 없음. secret으로 주입한다 |
-| `VLRGG_UPSTASH_REDIS_REST_TOKEN` | `<upstash-rest-token>` | secret으로 주입한다 |
-| `VLRGG_DEPLOY_SHA` | `<git-commit-sha>` | key 공간을 배포마다 나눈다. `[A-Za-z0-9._-]{1,64}` |
-
-캐시가 켜졌는데 나머지 셋 중 하나라도 없거나 형식이 틀리면 서버가 시작하지 않는다. 시작 실패 메시지에는 변수 이름만 남고 URL과 token 값은 남지 않는다.
-
 일반 조회 서버는 서울 Cloud Run에 배포돼 있다. root `Dockerfile`은 repository root의 Gradle 설정과 `server`를 사용해 `:server:installDist`를 만들며 runtime은 `0.0.0.0`, provider `PORT`, `/health`를 지원한다. exact SHA 검증, private validation, promotion, rollback과 비용 중단은 [배포 runbook](server-container-deployment.md)이 소유한다.
 
 ## Verification
