@@ -257,7 +257,10 @@ run_validation_case() {
     elif [[ "$expected" == reject-before-traffic ]]; then
       test -f "$case_dir/deployed"
       test ! -f "$case_dir/promoted"
-      ! grep -q 'run services update-traffic' "$case_dir/calls"
+      if grep -q 'run services update-traffic' "$case_dir/calls"; then
+        echo "FAIL: validation $scenario moved traffic after a rejected deploy" >&2
+        exit 1
+      fi
     elif [[ "$expected" == reject-promotion ]]; then
       test ! -f "$case_dir/promoted"
       grep -q 'run services update-traffic' "$case_dir/calls"
