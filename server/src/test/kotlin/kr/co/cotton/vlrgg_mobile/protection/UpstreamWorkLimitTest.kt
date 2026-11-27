@@ -207,9 +207,13 @@ class UpstreamWorkLimitTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val protection = PublicApiProtection(config, scope, MonotonicClock { 0L })
         val fetches = AtomicInteger()
+        val bothStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
         val transport = object : UpstreamHtmlTransport {
             override suspend fun get(url: Url): String {
-                fetches.incrementAndGet()
+                // An immediate failure could cancel the sibling fetch before it starts; hold both until both began.
+                if (fetches.incrementAndGet() == 2) bothStarted.complete(Unit)
+                release.await()
                 throw UpstreamNetworkFailure()
             }
         }.withPublicProtection(protection)
@@ -222,7 +226,12 @@ class UpstreamWorkLimitTest {
 
         try {
             // Both fetches of one request run on the single token; a second token would have been a 429.
-            assertEquals(HttpStatusCode.BadGateway, client.get("/api/v1/teams/1").status)
+            coroutineScope {
+                val response = async(Dispatchers.Default) { client.get("/api/v1/teams/1") }
+                withTimeout(5_000) { bothStarted.await() }
+                release.complete(Unit)
+                assertEquals(HttpStatusCode.BadGateway, response.await().status)
+            }
             assertEquals(2, fetches.get())
             // The token is spent: the next request is rejected before it fetches anything.
             assertEquals(HttpStatusCode.TooManyRequests, client.get("/api/v1/teams/2").status)
