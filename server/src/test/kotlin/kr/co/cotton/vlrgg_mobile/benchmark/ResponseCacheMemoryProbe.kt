@@ -129,6 +129,8 @@ fun main(args: Array<String>) {
         }
     }
     slowReady.await(90, TimeUnit.SECONDS)
+    // Fewer held consumers would measure a lighter load than the report claims.
+    check(slowHeld.get() == SLOW_CONSUMERS) { "slow consumers held: ${slowHeld.get()}/$SLOW_CONSUMERS" }
 
     val loadExecutor = Executors.newFixedThreadPool(CONCURRENT_LOADS)
     repeat(LOAD_ROUNDS) {
@@ -137,6 +139,8 @@ fun main(args: Array<String>) {
             loadExecutor.submit {
                 // A 503 means the eight upstream work slots were busy; retry like a client would.
                 repeat(200) { if (get(pageNumber).statusCode() != 503) return@submit; Thread.sleep(5) }
+                // A page that never loaded would leave the round below its intended concurrency.
+                error("page $pageNumber stayed at 503 after 200 retries")
             }
         }
         round.forEach { it.get(120, TimeUnit.SECONDS) }
