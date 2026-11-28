@@ -57,6 +57,6 @@ class AndroidLicenseDefinitionsTest {
                 "$id does not carry the Android SDK License Agreement text.",
             )
         }
-        assertEquals("3.5.0", byId.getValue("io.ktor:ktor-client-core").artifactVersion)
+        assertEquals("3.6.2", byId.getValue("io.ktor:ktor-client-core").artifactVersion)
     }
 }

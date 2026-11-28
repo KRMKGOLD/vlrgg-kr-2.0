@@ -41,6 +41,6 @@ class IosLicenseDefinitionsTest {
         assertTrue("Copyright (c) 2003-2005 Hewlett-Packard Development Company, L.P." in firebaseLicense)
         assertTrue("libunwind - a platform-independent unwind library" in firebaseLicense)
         assertEquals("zlib License", byId.getValue("github.com/firebase/nanopb").licenses.single().name)
-        assertEquals("3.5.0", byId.getValue("io.ktor:ktor-client-core").artifactVersion)
+        assertEquals("3.6.2", byId.getValue("io.ktor:ktor-client-core").artifactVersion)
     }
 }
