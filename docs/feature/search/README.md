@@ -36,6 +36,7 @@ GET /api/v1/search?q={query}
 - 모든 결과 타입은 nullable `imageUrl`(썸네일)을 가진다. parser는 `.search-item-thumb img[src]`를 읽어 절대 `https` URL로 정규화한다(`//owcdn.net/...` → `https://owcdn.net/...`). `<img>`가 없거나 vlr.gg 기본·자리표시 이미지(`/img/vlr/tmp/vlr.png`, `/img/base/ph/sil.png` 등 vlr.gg 호스트 경로)이거나 https로 정규화할 수 없으면 `null`이다. 앱은 `null`일 때 타입별 fallback을 그린다.
 - 지원하지 않는 타입만 있으면 빈 배열이다. 지원 결과가 모두 malformed이거나 필수 container를 해석하지 못하면 `SOURCE_PARSING_FAILURE`다.
 - 결과 수 sentinel은 canonical source element 수와 일치해야 한다. 중복·미지원 링크도 source element 하나로 세며 불일치는 fail closed 한다.
+- Search 응답은 서버 메모리 캐시에 저장하지 않으며 요청마다 VLR.GG를 조회한다. 근거는 [Response cache](../../architecture/server-arch.md#response-cache)를 따른다.
 
 ```json
 {

@@ -35,6 +35,14 @@ Production은 public, service min/max `0/1`, revision min/max `0/1`이고 valida
 - 실사용자 latency 요구가 생기면 minimum 재상향을 비용과 함께 다시 결정한다.
 - service minimum 변경은 다음 production deploy부터 적용된다. 수동 변경은 workflow 계약과 어긋나므로 배포로 반영한다.
 
+## Response cache
+
+- 응답 캐시는 서버 프로세스 메모리에 있다. 외부 resource와 secret이 없다. 정책과 TTL은 [Response cache](server-arch.md#response-cache)를 따른다.
+- 새 revision을 배포하거나 instance가 다시 뜨면 캐시가 비워진다.
+- `VLRGG_RESPONSE_CACHE_ENABLED`가 없으면 캐시가 켜진다. 배포 workflow는 캐시와 한도(전체 요청, upstream 작업, VLR.GG 요청) 환경 변수를 설정하지 않는다. 서비스에 기존 override가 없으면 코드 기본값이 적용된다. 값은 [공개 조회 API 보호 계약](server-public-api-protection.md)을 따른다.
+- `--update-env-vars`는 지정하지 않은 기존 변수를 보존한다. 서비스에 수동으로 넣은 값이 있으면 다시 배포해도 그 값이 남는다. 2026-11-26에 조회한 production과 validation 서비스의 환경 변수는 `VLRGG_ENABLE_API_DOCUMENTATION`과 `GOOGLE_CLOUD_PROJECT`뿐이었다.
+- 운영에서 캐시를 끄거나 한도를 바꿀 때는 저장소 배포 절차로 한다. validation과 production 배포 단계의 환경 변수에 값을 추가하고 배포한다(캐시를 끄는 값은 `VLRGG_RESPONSE_CACHE_ENABLED=false`).
+
 ## Request log storage
 
 Cloud Run 요청 로그에는 이용자 IP, User-Agent, 요청 URL이 남고, 서버 오류 로그의 `logging.googleapis.com/trace`로 같은 요청의 요청 로그를 찾을 수 있다. [개인정보처리방침](../privacy-policy.md)의 국외 이전을 없애기 위해 production `vlrgg-query`의 요청 로그와 stdout·stderr 로그를 Seoul(`asia-northeast3`) user-defined bucket `run-requests-seoul`(보존 30일)에 저장한다. 2026-10-17에 적용했고, 요청 로그는 새 요청이 이 bucket에만 기록되는 것을 확인했다. 요청 로그와 오류 로그는 아래 [Investigating an error](#investigating-an-error)에 필요해 끄지 않는다.

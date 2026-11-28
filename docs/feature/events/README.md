@@ -163,7 +163,7 @@ Player Agent Stats와 공통 Table을 사용하며 Event의 긴 목록은 기존
 
 ### Stale
 
-- 서버는 이전 scraping 결과를 실패 fallback으로 반환하지 않는다.
+- 서버는 이전 scraping 결과를 실패 fallback으로 반환하지 않는다. 성공 응답의 짧은 서버 메모리 캐시(TTL 5분 이하, LIVE 경기가 있는 Event Matches는 더 짧음)는 이와 별개이며 [Response cache](../../architecture/server-arch.md#response-cache)를 따른다.
 - 앱이 새로고침 중 기존 화면을 일시 유지하는 정책을 도입하는 경우에만 마지막 갱신 시점과 갱신 중임을 명시한다. 이전 데이터를 최신 데이터처럼 조용히 표시하지 않는다.
 
 ## 사용자 인터랙션

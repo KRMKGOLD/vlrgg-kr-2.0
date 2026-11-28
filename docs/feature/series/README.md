@@ -29,7 +29,7 @@ GET /api/v1/series/{seriesId}
 - 응답은 필수 `id`, `name`, nullable `description`, `upcomingEvents`, `completedEvents`다. Event item은 Events API의 `id`, `name`, `status`, `dateLabel`, `regionCode`, `imageUrl` 의미를 재사용한다. 기간은 2026-11-10 계약의 `startDate`·`endDate`로 한국어 표시한다([한국어 표시 확장](../matches/README.md#한국어-표시-확장-2026-11-10)).
 - `ONGOING`, `UPCOMING`은 upcoming에, `COMPLETED`, `PAUSED`는 completed에 둔다. 실제 status는 보존한다.
 - 중복 ID는 첫 source 순서로 한 번만 반환한다. 같은 ID의 status가 충돌하면 parsing failure다.
-- request마다 `https://www.vlr.gg/series/{seriesId}`를 한 번 조회하며 cache, retry, stale-success fallback이 없다.
+- 캐시 miss인 request마다 `https://www.vlr.gg/series/{seriesId}`를 한 번 조회하며 retry와 stale-success fallback이 없다. 성공 응답의 서버 메모리 캐시는 [Response cache](../../architecture/server-arch.md#response-cache)를 따른다.
 - identity/container 누락, unknown status, 필수 Event 값 누락과 구조 변경은 `SOURCE_PARSING_FAILURE`다. 검증된 빈 섹션만 빈 list이며 optional row field만 `null`이다.
 
 대표 fixture는 Upcoming-only, Completed-only, 전체 Empty와 실제 vlr.gg DOM 형태(`real-dom.html`)를 포함하고 상태·일정 정보로 그룹을 검증한다. `CancellationException`은 public failure로 바꾸지 않는다.
