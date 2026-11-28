@@ -149,7 +149,13 @@ private fun measure(args: Array<String>) {
             val pageNumber = nextPage.getAndIncrement()
             loadExecutor.submit {
                 // A 503 means the eight upstream work slots were busy; retry like a client would.
-                repeat(200) { if (get(pageNumber).statusCode() != 503) return@submit; Thread.sleep(5) }
+                repeat(200) {
+                    val status = get(pageNumber).statusCode()
+                    if (status == 200) return@submit
+                    // Any other error would be counted as a loaded page although nothing was loaded.
+                    check(status == 503) { "page $pageNumber failed with $status" }
+                    Thread.sleep(5)
+                }
                 // A page that never loaded would leave the round below its intended concurrency.
                 error("page $pageNumber stayed at 503 after 200 retries")
             }
