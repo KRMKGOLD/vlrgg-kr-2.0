@@ -16,6 +16,8 @@ import kotlinx.serialization.json.Json
 import kr.co.cotton.vlrgg_mobile.module
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorCode
 import kr.co.cotton.vlrgg_mobile.common.http.ApiErrorResponse
+import kr.co.cotton.vlrgg_mobile.common.http.UpstreamNetworkFailure
+import kr.co.cotton.vlrgg_mobile.common.scraping.UpstreamHtmlTransport
 import kotlin.test.*
 
 class AcceptanceRequestContractTest {
@@ -23,6 +25,14 @@ class AcceptanceRequestContractTest {
     fun `429 and 503 use safe envelopes with retry after while health stays available under API saturation`() = testApplication {
         val held = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
+        // Only upstream work holds the active API permit, so the held request is a real data route fetch.
+        val heldTransport = object : UpstreamHtmlTransport {
+            override suspend fun get(url: Url): String {
+                held.complete(Unit)
+                release.await()
+                throw UpstreamNetworkFailure()
+            }
+        }
         application {
             module(
                 protectionConfig = PublicApiProtectionConfig(
@@ -34,23 +44,17 @@ class AcceptanceRequestContractTest {
                     maxActiveUpstreamRequests = 4,
                     maxInFlightCanonicalUrls = 4,
                 ),
+                upstreamTransport = heldTransport,
             )
-            routing {
-                get("/acceptance/hold") {
-                    held.complete(Unit)
-                    release.await()
-                    call.respondText("released")
-                }
-            }
         }
 
         coroutineScope {
-            val first = async(Dispatchers.Default) { client.get("/acceptance/hold") }
+            val first = async(Dispatchers.Default) { client.get("/api/v1/events") }
             held.await()
-            assertError(client.get("/acceptance/hold"), HttpStatusCode.ServiceUnavailable, ApiErrorCode.SERVER_BUSY, "2")
+            assertError(client.get("/api/v1/events/1"), HttpStatusCode.ServiceUnavailable, ApiErrorCode.SERVER_BUSY, "2")
             assertEquals(HttpStatusCode.OK, client.get("/health").status)
             release.complete(Unit)
-            assertEquals(HttpStatusCode.OK, first.await().status)
+            assertEquals(HttpStatusCode.BadGateway, first.await().status)
         }
     }
 
@@ -58,14 +62,17 @@ class AcceptanceRequestContractTest {
     fun `429 uses the rate limit envelope`() = testApplication {
         application {
             module(
+                // Unknown routes take only the whole-request limit.
                 protectionConfig = PublicApiProtectionConfig(
-                    apiRequestsPerSecond = 1,
-                    apiBurst = 1,
+                    apiRequestsPerSecond = 100,
+                    apiBurst = 100,
                     maxActiveApiRequests = 8,
                     upstreamRequestsPerSecond = 10,
                     upstreamBurst = 4,
                     maxActiveUpstreamRequests = 4,
                     maxInFlightCanonicalUrls = 4,
+                    requestsPerSecond = 1,
+                    requestBurst = 1,
                 ),
             )
         }

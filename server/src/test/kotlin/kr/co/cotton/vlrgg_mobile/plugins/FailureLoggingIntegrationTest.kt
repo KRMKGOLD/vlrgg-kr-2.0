@@ -175,7 +175,10 @@ class FailureLoggingIntegrationTest {
         assertEquals(1, snapshot.requests)
         assertEquals(1, snapshot.statusClasses[2])
         assertEquals(1, snapshot.telemetryFailures)
-        assertTrue(formatPublicApiSummary(snapshot).endsWith("telemetry_failures=1"))
+        // The cache counters are appended after the unchanged fields.
+        assertTrue(
+            formatPublicApiSummary(snapshot).endsWith(" telemetry_failures=1 cache={hit=0,negative_hit=0,miss=0,joined=0}"),
+        )
     }
 
     private class CountingStackException(private val reads: AtomicInteger) : Exception() {

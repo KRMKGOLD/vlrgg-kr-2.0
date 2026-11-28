@@ -30,14 +30,17 @@ class PublicRequestProtectionTest {
     fun `unknown routes are rate limited while health remains exempt`() = testApplication {
         application {
             module(
+                // Unknown routes take only the whole-request limit; the upstream work limit stays generous here.
                 protectionConfig = PublicApiProtectionConfig(
-                    apiRequestsPerSecond = 1,
-                    apiBurst = 1,
-                    maxActiveApiRequests = 1,
+                    apiRequestsPerSecond = 100,
+                    apiBurst = 100,
+                    maxActiveApiRequests = 8,
                     upstreamRequestsPerSecond = 2,
                     upstreamBurst = 4,
                     maxActiveUpstreamRequests = 4,
                     maxInFlightCanonicalUrls = 4,
+                    requestsPerSecond = 1,
+                    requestBurst = 1,
                 ),
             )
         }

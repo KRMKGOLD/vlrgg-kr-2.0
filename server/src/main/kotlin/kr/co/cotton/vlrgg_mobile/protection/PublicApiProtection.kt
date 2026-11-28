@@ -6,6 +6,9 @@ import io.ktor.util.*
 import io.ktor.server.request.*
 import io.ktor.utils.io.*
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -34,20 +37,27 @@ internal fun ApplicationCall.recordPublicRequestRejection(
     observability.rejected(failure, (System.nanoTime() - startedAt) / 1_000_000)
 }
 
+/**
+ * `api*` limits bound upstream work: a request or shared cache load that fetches and parses VLR.GG pages.
+ * `request*` limits bound every public request except `/health`, including cache hits.
+ */
 internal data class PublicApiProtectionConfig(
     val apiRequestsPerSecond: Int = 10,
     val apiBurst: Int = 20,
     val maxActiveApiRequests: Int = 8,
-    val upstreamRequestsPerSecond: Int = 2,
-    val upstreamBurst: Int = 4,
-    val maxActiveUpstreamRequests: Int = 4,
-    val maxInFlightCanonicalUrls: Int = 4,
+    val upstreamRequestsPerSecond: Int = 10,
+    val upstreamBurst: Int = 20,
+    val maxActiveUpstreamRequests: Int = 8,
+    val maxInFlightCanonicalUrls: Int = 8,
     val wholeRequestTimeoutMillis: Long = 15_000,
     val maxRequestTargetBytes: Int = 4 * 1024,
     val maxRequestHeaderBytes: Int = 16 * 1024,
     val maxRequestBodyBytes: Int = 1024,
+    val requestsPerSecond: Int = 50,
+    val requestBurst: Int = 100,
 ) {
     init {
+        require(requestsPerSecond > 0 && requestBurst > 0)
         require(apiRequestsPerSecond > 0 && apiBurst > 0 && maxActiveApiRequests > 0)
         require(upstreamRequestsPerSecond > 0 && upstreamBurst > 0 && maxActiveUpstreamRequests > 0)
         require(maxInFlightCanonicalUrls > 0 && wholeRequestTimeoutMillis > 0)
@@ -61,14 +71,16 @@ internal data class PublicApiProtectionConfig(
             apiRequestsPerSecond = environment.requiredPositive("VLRGG_API_RATE_PER_SECOND", 10),
             apiBurst = environment.requiredPositive("VLRGG_API_RATE_BURST", 20),
             maxActiveApiRequests = environment.requiredPositive("VLRGG_API_MAX_CONCURRENCY", 8),
-            upstreamRequestsPerSecond = environment.requiredPositive("VLRGG_UPSTREAM_RATE_PER_SECOND", 2),
-            upstreamBurst = environment.requiredPositive("VLRGG_UPSTREAM_RATE_BURST", 4),
-            maxActiveUpstreamRequests = environment.requiredPositive("VLRGG_UPSTREAM_MAX_CONCURRENCY", 4),
-            maxInFlightCanonicalUrls = environment.requiredPositive("VLRGG_UPSTREAM_MAX_IN_FLIGHT_KEYS", 4),
+            upstreamRequestsPerSecond = environment.requiredPositive("VLRGG_UPSTREAM_RATE_PER_SECOND", 10),
+            upstreamBurst = environment.requiredPositive("VLRGG_UPSTREAM_RATE_BURST", 20),
+            maxActiveUpstreamRequests = environment.requiredPositive("VLRGG_UPSTREAM_MAX_CONCURRENCY", 8),
+            maxInFlightCanonicalUrls = environment.requiredPositive("VLRGG_UPSTREAM_MAX_IN_FLIGHT_KEYS", 8),
             wholeRequestTimeoutMillis = environment.requiredPositive("VLRGG_REQUEST_TIMEOUT_MILLIS", 15_000).toLong(),
             maxRequestTargetBytes = environment.requiredPositive("VLRGG_MAX_REQUEST_TARGET_BYTES", 4 * 1024),
             maxRequestHeaderBytes = environment.requiredPositive("VLRGG_MAX_REQUEST_HEADER_BYTES", 16 * 1024),
             maxRequestBodyBytes = environment.requiredPositive("VLRGG_MAX_REQUEST_BODY_BYTES", 1024),
+            requestsPerSecond = environment.requiredPositive("VLRGG_REQUEST_RATE_PER_SECOND", 50),
+            requestBurst = environment.requiredPositive("VLRGG_REQUEST_RATE_BURST", 100),
         )
 
         private fun Map<String, String>.requiredPositive(name: String, default: Int): Int {
@@ -107,23 +119,103 @@ internal class PublicApiProtection(
     private val clock: MonotonicClock = MonotonicClock { System.nanoTime() / 1_000_000 },
     internal val observability: PublicApiObservability = PublicApiObservability(),
 ) {
+    private val requestBucket = TokenBucket(config.requestsPerSecond, config.requestBurst, clock)
     private val apiBucket = TokenBucket(config.apiRequestsPerSecond, config.apiBurst, clock)
     private val apiSemaphore = Semaphore(config.maxActiveApiRequests)
     private val upstreamBucket = TokenBucket(config.upstreamRequestsPerSecond, config.upstreamBurst, clock)
     private val upstreamSemaphore = Semaphore(config.maxActiveUpstreamRequests)
     private val singleFlight = HtmlSingleFlight(config.maxInFlightCanonicalUrls, scope, upstreamBucket, upstreamSemaphore, observability)
 
+    /** Whole-request limit, taken after request size validation by every public request except `/health`. */
+    suspend fun admitRequest() {
+        if (!requestBucket.tryAcquire()) throw RateLimitedFailure()
+    }
+
+    /** Runs [block] as one unit of upstream work; fetches inside it do not take another slot. */
     suspend fun <T> admitApi(block: suspend () -> T): T {
+        val work = UpstreamWork(this, acquireUpstreamWork())
+        return try { withContext(work) { block() } } finally { work.close() }
+    }
+
+    /**
+     * Every VLR.GG fetch belongs to upstream work. A request takes its slot at its first fetch, so hits, joined
+     * waiters, unknown routes and rejected input never take one. Without a slot of this protection in the
+     * coroutine context, the fetch takes its own slot instead of bypassing the limit.
+     */
+    suspend fun getHtml(url: Url, fetch: suspend () -> String): String {
+        if (!url.isAllowedVlrUpstreamUrl()) throw UpstreamNetworkFailure()
+        val work = currentCoroutineContext()[UpstreamWork]?.takeIf { it.protection === this }
+            ?: return admitApi { singleFlight.await(url.toString(), fetch) }
+        work.ensureAdmitted()
+        return singleFlight.await(url.toString(), fetch)
+    }
+
+    /**
+     * Admits one upstream work slot, then starts [block] in the application scope holding that slot until the
+     * coroutine completes, including cancellation before it ran. Throws 429/503 without starting anything.
+     */
+    internal suspend fun <T> startSharedUpstreamWork(block: suspend () -> T): Deferred<T> {
+        val work = UpstreamWork(this, acquireUpstreamWork())
+        val deferred = scope.async(work, start = CoroutineStart.LAZY) { block() }
+        deferred.invokeOnCompletion { work.close() }
+        deferred.start()
+        return deferred
+    }
+
+    /** Request-scoped work slot that is taken lazily at the request's first upstream fetch. */
+    internal fun requestUpstreamWork(): UpstreamWork = UpstreamWork(this, lease = null)
+
+    internal suspend fun acquireUpstreamWork(): UpstreamWorkLease {
         if (!apiBucket.tryAcquire()) throw RateLimitedFailure()
         if (!apiSemaphore.tryAcquire()) throw ServerBusyFailure()
         observability.apiStarted()
-        return try { block() } finally { observability.apiFinished(); apiSemaphore.release() }
+        return UpstreamWorkLease { observability.apiFinished(); apiSemaphore.release() }
+    }
+}
+
+/** One upstream work token plus concurrency permit; [release] is idempotent and never suspends. */
+internal class UpstreamWorkLease(private val onRelease: () -> Unit) {
+    private val released = AtomicBoolean(false)
+
+    fun release() {
+        if (released.compareAndSet(false, true)) onRelease()
+    }
+}
+
+/**
+ * Coroutine context element holding the upstream work slot of one request or one shared cache load.
+ * Child coroutines (for example Team detail's parallel fetches) share it, so one request costs one slot.
+ */
+internal class UpstreamWork(
+    internal val protection: PublicApiProtection,
+    lease: UpstreamWorkLease?,
+) : AbstractCoroutineContextElement(UpstreamWork) {
+    private val mutex = Mutex()
+    @Volatile private var lease: UpstreamWorkLease? = lease
+    @Volatile private var rejection: (() -> ServerFailure)? = null
+
+    suspend fun ensureAdmitted() {
+        if (lease != null) return
+        mutex.withLock {
+            if (lease != null) return
+            rejection?.let { throw it() }
+            lease = try {
+                protection.acquireUpstreamWork()
+            } catch (failure: RateLimitedFailure) {
+                rejection = ::RateLimitedFailure
+                throw failure
+            } catch (failure: ServerBusyFailure) {
+                rejection = ::ServerBusyFailure
+                throw failure
+            }
+        }
     }
 
-    suspend fun getHtml(url: Url, fetch: suspend () -> String): String {
-        if (!url.isAllowedVlrUpstreamUrl()) throw UpstreamNetworkFailure()
-        return singleFlight.await(url.toString(), fetch)
+    fun close() {
+        lease?.release()
     }
+
+    companion object Key : CoroutineContext.Key<UpstreamWork>
 }
 
 private class HtmlSingleFlight(
@@ -218,7 +310,13 @@ internal fun Application.configurePublicRequestProtection(
         try {
             withWholeRequestDeadline(config.wholeRequestTimeoutMillis) {
                 call.validatePublicRequest(config)
-                protection.admitApi { proceed() }
+                protection.admitRequest()
+                val work = protection.requestUpstreamWork()
+                try {
+                    withContext(work) { proceed() }
+                } finally {
+                    work.close()
+                }
             }
             call.recordPublicRequestCompletion(protection.observability, call.response.status()?.value ?: 500)
         } catch (failure: ServerFailure) {

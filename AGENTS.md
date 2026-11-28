@@ -26,6 +26,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - App DI는 Metro DI를 사용한다.
 - Server framework는 Ktor 3를 사용한다.
 - Server scraping subsystem의 HTML DOM parsing은 Jsoup을 사용한다. Upstream content 획득 transport는 기능 구현 시 선택한다.
+- Server 성공 응답의 캐시는 서버 프로세스의 로컬 메모리 캐시(Caffeine)를 사용한다. 정책은 `docs/architecture/server-arch.md`의 Response cache 절을 따른다.
 - 위 기술이 아직 Gradle에 반영되지 않았더라도, 이는 미확정이 아니라 추후 구현 단계에서 반영할 확정 방향이다.
 - 실제 dependency 추가/변경은 `gradle/libs.versions.toml`과 각 모듈의 `build.gradle.kts`를 기준으로 진행한다.
 
@@ -69,7 +70,7 @@ KMP Client는 가공된 데이터를 기반으로 대회 정보 및 팀, 선수 
 - 서버는 Ktor 기반으로 route, service, scraper/parser, response DTO 책임을 분리한다.
 - vlr.gg HTML 구조에 의존하는 parsing 코드는 한 곳에 모아 변경 영향을 줄인다.
 - 앱에 그대로 노출하기 어려운 원본 scraping 결과는 server에서 app-facing response로 가공한다.
-- scraping은 요청 시점의 최신 조회를 기본으로 하며, 이전 결과를 failure fallback으로 반환하지 않는다.
+- scraping은 요청 시점 조회를 기본으로 하되, 성공 응답은 TTL 5분 이하의 서버 메모리 캐시를 거칠 수 있다. 만료되거나 실패한 조회에 이전 결과를 failure fallback으로 반환하지 않으며, 주기 갱신(cron 선갱신)은 두지 않는다.
 - 서버 실패 응답은 HTTP status, stable error code, 안전한 message를 가진 공통 envelope로 반환한다. upstream 통신 실패는 public `UPSTREAM_NETWORK_FAILURE`, DOM 해석 실패는 public `SOURCE_PARSING_FAILURE`로 구분한다.
 - 예외 문구·upstream URL·selector·원본 HTML·parser 세부사항은 client에 노출하지 않는다. 안전하게 제한한 canonical upstream URL과 cause는 server log에만 기록하며 원본 HTML은 로그에도 남기지 않는다.
 - 서버는 Kotlin/JVM 기반 Ktor Netty이며 local 실행을 개발 기준으로 삼는다. 조회 서버의 Cloud Run 배포·복구 계약은 `docs/architecture/server-container-deployment.md`를 따른다. Discord notification은 필요한 경우에만 best-effort 운영 알림으로 추가한다.

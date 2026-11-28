@@ -3,6 +3,7 @@ package kr.co.cotton.vlrgg_mobile.routing
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kr.co.cotton.vlrgg_mobile.cache.ResponseCache
 import kr.co.cotton.vlrgg_mobile.feature.events.EventsService
 import kr.co.cotton.vlrgg_mobile.feature.events.configureEventsRoutes
 import kr.co.cotton.vlrgg_mobile.feature.matches.configureMatchesRoutes
@@ -27,6 +28,7 @@ internal fun Application.configureRouting(
     playerDetailService: PlayerDetailService,
     matchesService: MatchesService,
     enableApiDocumentation: Boolean,
+    responseCache: ResponseCache = ResponseCache.DISABLED,
 ) {
     if (enableApiDocumentation) {
         configureOpenApiDocumentation()
@@ -41,6 +43,6 @@ internal fun Application.configureRouting(
         configureSeriesRoutes(seriesService)
         configureTeamDetailRoutes(teamDetailService)
         configurePlayerDetailRoutes(playerDetailService)
-        configureMatchesRoutes(matchesService)
+        configureMatchesRoutes(matchesService, responseCache)
     }
 }
