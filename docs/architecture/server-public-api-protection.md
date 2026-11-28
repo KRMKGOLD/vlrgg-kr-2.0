@@ -1,6 +1,6 @@
 # 공개 조회 API 보호 계약 (#52)
 
-Android/iOS 앱이 사용하는 공개 조회 API의 비싼 작업과 비용을 제한한다. 로그인·앱 진위 검증·일반 조회 DB·stale fallback은 도입하지 않는다. 성공 응답의 짧은 TTL 공유 캐시는 [서버 구조의 응답 캐시](server-arch.md#response-cache) 정책을 따른다. 앱에 포함된 고정 key, XFF/Forwarded, 앱 header와 peer IP는 검증된 사용자 신원이 아니다.
+Android/iOS 앱이 사용하는 공개 조회 API의 비싼 작업과 비용을 제한한다. 로그인·앱 진위 검증·일반 조회 DB·완료 응답 cache·stale fallback·Redis는 도입하지 않는다. 앱에 포함된 고정 key, XFF/Forwarded, 앱 header와 peer IP는 검증된 사용자 신원이 아니다.
 
 ## Server limits
 
@@ -16,7 +16,7 @@ Android/iOS 앱이 사용하는 공개 조회 API의 비싼 작업과 비용을 
 
 upstream HTML 제한을 4 MiB로 둔 것은 경기 수가 많은 대회의 경기 목록 페이지가 경기당 약 2.2 KB라서 4 MiB면 약 1,800경기까지 받을 수 있기 때문이다. fetch 상한 4는 동시 파싱 상한이 아니다. fetch가 끝난 뒤 active API 요청(최대 8)마다 DOM을 따로 만든다. 로컬 재현에서 4.4 MiB 페이지 8건 동시 파싱과 4건 수신은 heap 약 295 MiB를 썼다(`-Xmx384m` 통과, `-Xmx256m` OOM). 2026-11 현재 가장 큰 실제 페이지는 1.16 MB이며, 제한에 가까운 페이지가 생기거나 OOM·GC 지연이 보이면 운영 heap에서 다시 측정한다.
 
-잘못된 config는 server start에서 거절한다. 전체 deadline은 느린 body 수신보다 먼저 시작하고 request size → API token/concurrency → upstream admission 순서로 자원을 얻는다. [응답 캐시](server-arch.md#response-cache) 조회는 route 안에서 API token과 concurrency를 얻은 뒤에 한다. 따라서 cache hit(저장된 `SOURCE_PARSING_FAILURE` 재생 포함)도 API token 하나와 active API slot을 쓰고 전체 deadline 안에서 끝나야 하지만, upstream admission과 in-flight key는 쓰지 않는다. miss와 캐시 오류는 지금처럼 upstream admission을 거친다. 캐시는 이 표의 한도를 바꾸지 않는다. 실패·취소 시 이미 획득한 API concurrency semaphore와 upstream fetch admission permit은 반환하지만, 소비한 token-bucket token은 환불하지 않는다. unknown route/method도 저비용 request limit 대상이며 upstream을 호출하지 않는다.
+잘못된 config는 server start에서 거절한다. 전체 deadline은 느린 body 수신보다 먼저 시작하고 request size → API token/concurrency → upstream admission 순서로 자원을 얻는다. 실패·취소 시 이미 획득한 API concurrency semaphore와 upstream fetch admission permit은 반환하지만, 소비한 token-bucket token은 환불하지 않는다. unknown route/method도 저비용 request limit 대상이며 upstream을 호출하지 않는다.
 
 과부하 response는 공통 `{code, message}`와 정수 `Retry-After`를 사용한다. exception, HTML, selector와 원본 URL은 반환하지 않는다. success JSON은 header 전송 전에 capped buffer로 직렬화한다. `/health`는 constant liveness response이며 API quota, upstream과 request log에서 분리한다.
 

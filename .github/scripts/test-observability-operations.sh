@@ -529,13 +529,11 @@ run_preflight_case() {
   export CASE_DIR
   mkdir -p "$CASE_DIR"
   : > "$CASE_DIR/gh-calls"
-  : > "$CASE_DIR/output"
   if test "$enabled" = unset; then
     env -u DEPLOY_ENABLED PATH="$work_dir/bin:$PATH" OPERATION="$operation" VALIDATION_SCOPE="$scope" CI_CASE="$ci_case" PROJECT_ID=test-project \
       WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
       RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
       GITHUB_REPOSITORY=owner/test-repository GH_TOKEN=test-token \
-      GITHUB_OUTPUT="$CASE_DIR/output" RESPONSE_CACHE_SETTING="${PREFLIGHT_CACHE_SETTING-}" \
       bash --noprofile --norc -e -o pipefail "$preflight_script" \
       > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || result=$?
   else
@@ -543,7 +541,6 @@ run_preflight_case() {
       WIF_PROVIDER=test-provider DEPLOY_SERVICE_ACCOUNT=deploy@example.invalid \
       RUNTIME_SERVICE_ACCOUNT=runtime@example.invalid GITHUB_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
       GITHUB_REPOSITORY=owner/test-repository GH_TOKEN=test-token \
-      GITHUB_OUTPUT="$CASE_DIR/output" RESPONSE_CACHE_SETTING="${PREFLIGHT_CACHE_SETTING-}" \
       bash --noprofile --norc -e -o pipefail "$preflight_script" \
       > "$CASE_DIR/stdout" 2> "$CASE_DIR/stderr" || result=$?
   fi
@@ -551,9 +548,6 @@ run_preflight_case() {
     test "$result" = 0 || fail "preflight rejected $operation with enable=$enabled"
     test "$(wc -l < "$CASE_DIR/gh-calls" | tr -d ' ')" = 4 \
       || fail "preflight skipped required GitHub checks for $operation with enable=$enabled"
-    # Only the exact repository value true turns the production response cache on.
-    test "$(cat "$CASE_DIR/output")" = "response_cache_enabled=${PREFLIGHT_CACHE_EXPECTED:-false}" \
-      || fail "preflight response cache output for setting ${PREFLIGHT_CACHE_SETTING-unset}"
   elif test "$expected" = reject; then
     test "$result" != 0 || fail "preflight accepted $operation with enable=$enabled"
     test ! -s "$CASE_DIR/gh-calls" \
@@ -572,10 +566,6 @@ done
 for enabled in true false unset; do
   run_preflight_case observability-restore "$enabled" pass
   run_preflight_case unknown "$enabled" reject
-done
-PREFLIGHT_CACHE_SETTING=true PREFLIGHT_CACHE_EXPECTED=true run_preflight_case deploy true pass
-for setting in false TRUE ''; do
-  PREFLIGHT_CACHE_SETTING="$setting" run_preflight_case deploy true pass
 done
 run_preflight_case observability-validate true pass o8-o9
 run_preflight_case observability-validate true pass o9

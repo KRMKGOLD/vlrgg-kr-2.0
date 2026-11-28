@@ -37,7 +37,6 @@ GET /api/v1/news/{articleId}/{slug}
 - 본문 inline text는 브라우저처럼 공백을 접는다. text·link 경계를 넘는 연속 공백은 한 칸이며, 링크를 감싼 inline-block `span[data-ref-id]` 안의 앞뒤 공백은 버리고, `<br>`는 `\n`으로 유지하며, 문단 앞뒤는 trim한다. 스키마는 바뀌지 않는다.
 - `.article-body`만 본문으로 사용하고 script/style, hover/reference card, sidebar, comments를 제외한다. DOM 전체 `text()` 병합으로 구조를 평탄화하지 않는다.
 - 제목과 본문은 필수다. image/caption은 선택이고 필수 구조 실패는 `SOURCE_PARSING_FAILURE`다.
-- 목록과 기사의 성공 응답은 서버에서 TTL 5분의 공유 캐시를 거칠 수 있다. 정책은 [Response cache](../../architecture/server-arch.md#response-cache)를 따른다.
 
 대표 fixture는 hover-card 비혼입, Team/Player 링크 분류, image/caption 분리와 list 순서를 검증한다. selector·보정 규칙은 parser 내부에 두고 response에 raw HTML, selector, upstream page URL, external link URL이나 내부 오류를 포함하지 않는다. 본문 image의 검증된 `imageUrl`은 이 금지 대상이 아니다.
 

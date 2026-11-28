@@ -177,7 +177,7 @@ Match Detail Basic에 필수인 팀과 상태를 해석하지 못하면 parsing 
 
 ## 서버 조회 API 계약 (Matches slice)
 
-이 계약은 Matches 목록과 Match Detail Basic 구현에서 확정한 v1 public response다. service는 매 호출 upstream을 새로 읽는다. 운영 서비스는 성공 응답을 route 계층에서 TTL 5분 이하로 공유 캐시할 수 있으며 정책과 TTL은 [Response cache](../../architecture/server-arch.md#response-cache)를 따른다. stale fallback·raw HTML·Jsoup type·CSS selector·upstream URL을 response에 포함하지 않는다.
+이 계약은 Matches 목록과 Match Detail Basic 구현에서 확정한 v1 public response다. 모든 조회는 request-time에 upstream을 새로 읽고, cache·stale fallback·raw HTML·Jsoup type·CSS selector·upstream URL을 response에 포함하지 않는다.
 
 ### Endpoint와 입력 검증
 

@@ -73,7 +73,7 @@ PROTECTED_ROUTE_LOAD_REPORT_PATH=/tmp/vlrgg-protected-load.properties \
 
 ## Query server deployment
 
-`.github/workflows/deploy-server.yml`은 `workflow_dispatch` 전용이다. exact main SHA의 최신 CI run/attempt에서 `server` job 하나가 완료·성공했는지 확인하고, protected `production` environment와 `CLOUD_RUN_DEPLOY_ENABLED=true`를 확인한 뒤 frozen source의 root Docker image를 credential-free로 먼저 만든다. 공통 CI verifier는 전체 run/job inventory, `run_id`, `run_attempt`, `head_sha`, workflow path와 main event를 확인하고 같은 run을 다시 읽어 조회 중 실행·attempt 변경도 거부한다. Android/iOS 상태는 서버 배포 gate가 아니다. 그 뒤 GitHub OIDC→GCP WIF 인증을 수행하고 cloud push와 mutation을 시작한다. repository variable `SERVER_RESPONSE_CACHE_ENABLED`는 배포 gate가 아니라 production 응답 캐시 스위치다. 정확히 `true`일 때만 production revision에 캐시 설정과 secret 참조를 넣고, 그 밖에는 캐시 없이 배포하며 남은 secret 참조를 지운다. validation service에는 넣지 않는다. 상세는 [Response cache settings](architecture/server-container-deployment.md#response-cache-settings)를 따른다.
+`.github/workflows/deploy-server.yml`은 `workflow_dispatch` 전용이다. exact main SHA의 최신 CI run/attempt에서 `server` job 하나가 완료·성공했는지 확인하고, protected `production` environment와 `CLOUD_RUN_DEPLOY_ENABLED=true`를 확인한 뒤 frozen source의 root Docker image를 credential-free로 먼저 만든다. 공통 CI verifier는 전체 run/job inventory, `run_id`, `run_attempt`, `head_sha`, workflow path와 main event를 확인하고 같은 run을 다시 읽어 조회 중 실행·attempt 변경도 거부한다. Android/iOS 상태는 서버 배포 gate가 아니다. 그 뒤 GitHub OIDC→GCP WIF 인증을 수행하고 cloud push와 mutation을 시작한다.
 
 같은 digest를 private validation service에 먼저 배포하고 Ready/digest/IAM/authenticated smoke를 확인한 뒤 production에 승격한다. 후속 revision 실패 시 시작 때 기록한 serving revision으로 rollback한다. URL, JWT, credential, image path와 raw provider output은 public log·summary·artifact에 남기지 않는다. 상세 순서와 비용 중단은 [배포 runbook](architecture/server-container-deployment.md)을 따른다.
 
