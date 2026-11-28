@@ -46,6 +46,17 @@ import kr.co.cotton.vlrgg_mobile.protection.PublicApiProtectionConfig
  * fetch concurrency and in-flight key limit (default 8), for sensitivity runs; capacity 0 disables the cache. Writes `key=value` lines.
  */
 fun main(args: Array<String>) {
+    // The server and both client pools are non-daemon threads: a failed check has to end the JVM itself, or the
+    // runner would only notice at its timeout.
+    try {
+        measure(args)
+    } catch (failure: Exception) {
+        failure.printStackTrace()
+        exitProcess(1)
+    }
+}
+
+private fun measure(args: Array<String>) {
     val pageBytes = args[0].toInt()
     val output = Path.of(args[1])
     val cacheBytes = args.getOrNull(2)?.toInt() ?: DEFAULT_RESPONSE_CACHE_MAX_BYTES
